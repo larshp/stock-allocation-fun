@@ -699,7 +699,21 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
     METHODS reads_open_components FOR TESTING.
     METHODS rejects_blank_order FOR TESTING.
     METHODS issues_selected_components FOR TESTING.
+    METHODS previews_remaining_components FOR TESTING.
+    METHODS issues_remaining_components FOR TESTING.
+    METHODS issues_remaining_bulk FOR TESTING.
+    METHODS groups_issue_remaining_items FOR TESTING.
+    METHODS continues_issue_rem_bulk FOR TESTING.
+    METHODS rejects_duplicate_issue_keys FOR TESTING.
+    METHODS rejects_wrong_issue_movement FOR TESTING.
+    METHODS rejects_bad_remaining_flag FOR TESTING.
     METHODS returns_selected_component FOR TESTING.
+    METHODS previews_returnable_components FOR TESTING.
+    METHODS returns_remaining_components FOR TESTING.
+    METHODS returns_remaining_comp_bulk FOR TESTING.
+    METHODS continues_return_rem_bulk FOR TESTING.
+    METHODS rejects_duplicate_return_keys FOR TESTING.
+    METHODS rejects_bad_return_flag FOR TESTING.
     METHODS returns_components_bulk FOR TESTING.
     METHODS returns_alt_unit FOR TESTING.
     METHODS rejects_unknown_return_unit FOR TESTING.
@@ -946,6 +960,500 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       act = lo_api->get_commit_count( ) ).
   ENDMETHOD.
 
+  METHOD previews_remaining_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-2'
+          plant              = '1000'
+          movement_type      = '261'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+
+    DATA(lt_components) = lo_cut->preview_remaining_components(
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_components ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = lt_components[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '7.000' )
+      act = lt_components[ 1 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_remaining_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          movement_type      = '261'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            required_quantity  = '10.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '2.000' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->issue_remaining_components(
+      is_header         = VALUE #(
+        posting_date  = '20261001'
+        document_date = '20261001' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = lt_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD issues_remaining_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          movement_type      = '261'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-2'
+          plant              = '1000'
+          storage_location   = '0002'
+          movement_type      = '261'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            required_quantity  = '10.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '2.000' )
+          ( reservation_number = '0000005678'
+            item_number        = '0020'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-2'
+            plant              = '1000'
+            storage_location   = '0002'
+            required_quantity  = '8.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '1.000' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->issue_remaining_bulk(
+      is_header         = VALUE #(
+        posting_date  = '20261001'
+        document_date = '20261001' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001234'
+      act = ls_result-items[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = ls_result-items[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_items[ 1 ]-quantity ).
+  ENDMETHOD.
+
+  METHOD groups_issue_remaining_items.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          movement_type      = '261'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          movement_type      = '261'
+          required_quantity  = '4.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            required_quantity  = '10.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '2.000' )
+          ( reservation_number = '0000001234'
+            item_number        = '0020'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            required_quantity  = '4.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '1.000' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->issue_remaining_bulk(
+      is_header         = VALUE #(
+        posting_date  = '20261001'
+        document_date = '20261001' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = lt_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_items[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD continues_issue_rem_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          movement_type      = '261'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-2'
+          plant              = '1000'
+          storage_location   = '0002'
+          movement_type      = '261'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            movement_allowed   = abap_true
+            material           = 'MAT-1'
+            plant              = '1000'
+            storage_location   = '0001'
+            required_quantity  = '10.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA'
+            withdrawn_quantity = '2.000' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->issue_remaining_bulk(
+      is_header         = VALUE #(
+        posting_date  = '20261001'
+        document_date = '20261001' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_issue_keys.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->preview_remaining_components(
+          it_component_keys = VALUE #(
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' )
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_remaining_flag.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_goods_movement_api = lo_api ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->issue_remaining_components(
+          is_header         = VALUE #(
+            posting_date  = '20261001'
+            document_date = '20261001' )
+          it_component_keys = VALUE #(
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' ) )
+          iv_test_run       = '2' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_wrong_issue_movement.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '201'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_goods_movement_api = lo_api ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->issue_components_bulk(
+          is_header   = VALUE #(
+            posting_date  = '20261001'
+            document_date = '20261001' )
+          it_requests = VALUE #(
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010'
+              quantity           = '1.000' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD returns_selected_component.
     DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
     lo_repository->set_components(
@@ -1013,6 +1521,319 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD previews_returnable_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '5.000'
+          is_final_issue     = 'X'
+          unit               = 'EA' ) ) ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+
+    DATA(lt_components) = lo_cut->preview_returnable_components(
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_components ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-enmng( '5.000' )
+      act = lt_components[ 1 ]-withdrawn_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = xsdbool( lt_components[ 1 ]-open_quantity = 0 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD returns_remaining_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          movement_type      = '261'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '5.000'
+          is_final_issue     = 'X'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            is_final_issue     = abap_true
+            withdrawn_quantity = '5.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->return_remaining_components(
+      is_header         = VALUE #(
+        posting_date  = '20261002'
+        document_date = '20261002' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '06'
+      act = lo_api->get_gm_code( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_items[ 1 ]-is_reversal ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD returns_remaining_comp_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          movement_type      = '261'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          movement_type      = '261'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            withdrawn_quantity = '2.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA' )
+          ( reservation_number = '0000005678'
+            item_number        = '0020'
+            record_type        = '1'
+            withdrawn_quantity = '3.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->return_remaining_bulk(
+      is_header         = VALUE #(
+        posting_date  = '20261002'
+        document_date = '20261002' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020' ) ) ).
+    DATA(lt_items) = lo_api->get_items( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_items[ 1 ]-quantity ).
+  ENDMETHOD.
+
+  METHOD continues_return_rem_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          movement_type      = '261'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          movement_type      = '261'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_reader) = NEW lcl_prod_reservation_reader( ).
+    lo_reader->set_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        items         = VALUE #(
+          ( reservation_number = '0000001234'
+            item_number        = '0010'
+            record_type        = '1'
+            withdrawn_quantity = '2.000'
+            base_unit          = 'EA'
+            base_unit_iso      = 'EA' ) ) ) ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_reservation_reader = lo_reader
+      io_goods_movement_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->return_remaining_bulk(
+      is_header         = VALUE #(
+        posting_date  = '20261002'
+        document_date = '20261002' )
+      it_component_keys = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_duplicate_return_keys.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->preview_returnable_components(
+          it_component_keys = VALUE #(
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' )
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_return_flag.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_api) = NEW lcl_prod_goods_movement_api( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository         = lo_repository
+      io_goods_movement_api = lo_api ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->return_remaining_components(
+          is_header         = VALUE #(
+            posting_date  = '20261002'
+            document_date = '20261002' )
+          it_component_keys = VALUE #(
+            ( production_order   = '0000004711'
+              reservation_number = '0000001234'
+              reservation_item   = '0010' ) )
+          iv_test_run       = '2' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD returns_components_bulk.
@@ -1638,6 +2459,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_item   = '0010'
           material           = 'MAT-1'
           plant              = '1000'
+          movement_type      = '261'
           required_quantity  = '10.000'
           withdrawn_quantity = '2.000'
           unit               = 'EA' )
@@ -1646,6 +2468,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_item   = '0020'
           material           = 'MAT-2'
           plant              = '1000'
+          movement_type      = '261'
           required_quantity  = '8.000'
           withdrawn_quantity = '1.000'
           unit               = 'EA' ) ) ).

@@ -46,6 +46,22 @@
           <INTTYPE>P</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0005</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000040</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000080</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>WERKS</FIELDNAME>
+          <POSITION>0006</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

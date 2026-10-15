@@ -29,6 +29,10 @@ CLASS zcl_bapi_so_reservation_api IMPLEMENTATION.
         reservation_items  = lt_items
         return             = lt_return.
 
+    rs_result-movement_type = ls_header-move_type.
+    rs_result-sales_document = ls_header-sales_ord.
+    rs_result-sales_document_item = ls_header-s_ord_item.
+
     LOOP AT lt_return INTO ls_return.
       APPEND VALUE #(
         type    = ls_return-type

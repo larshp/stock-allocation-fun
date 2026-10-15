@@ -1851,6 +1851,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         storage_location TYPE mchb-lgort,
         batch            TYPE mchb-charg,
         unrestricted_qty TYPE mchb-clabs,
+        quality_qty      TYPE mchb-cinsm,
+        blocked_qty      TYPE mchb-cspem,
       END OF ty_mchb_row,
       ty_mchb_rows TYPE STANDARD TABLE OF ty_mchb_row WITH EMPTY KEY,
       BEGIN OF ty_stock_total,
@@ -1860,6 +1862,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         batch            TYPE mchb-charg,
         expiration_date  TYPE mcha-vfdat,
         unrestricted_qty TYPE mchb-clabs,
+        quality_qty      TYPE mchb-cinsm,
+        blocked_qty      TYPE mchb-cspem,
       END OF ty_stock_total,
       ty_stock_totals TYPE SORTED TABLE OF ty_stock_total
         WITH UNIQUE KEY material plant storage_location batch,
@@ -1920,7 +1924,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
            werks AS plant,
            lgort AS storage_location,
            charg AS batch,
-           clabs AS unrestricted_qty
+           clabs AS unrestricted_qty,
+           cinsm AS quality_qty,
+           cspem AS blocked_qty
       FROM mchb
       FOR ALL ENTRIES IN @it_requests
       WHERE matnr = @it_requests-material
@@ -1935,13 +1941,17 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
                        batch = ls_mchb_row-batch.
       IF sy-subrc = 0.
         <ls_stock_total>-unrestricted_qty += ls_mchb_row-unrestricted_qty.
+        <ls_stock_total>-quality_qty += ls_mchb_row-quality_qty.
+        <ls_stock_total>-blocked_qty += ls_mchb_row-blocked_qty.
       ELSE.
         INSERT VALUE #(
           material         = ls_mchb_row-material
           plant            = ls_mchb_row-plant
           storage_location = ls_mchb_row-storage_location
           batch            = ls_mchb_row-batch
-          unrestricted_qty = ls_mchb_row-unrestricted_qty )
+          unrestricted_qty = ls_mchb_row-unrestricted_qty
+          quality_qty      = ls_mchb_row-quality_qty
+          blocked_qty      = ls_mchb_row-blocked_qty )
           INTO TABLE lt_stock_totals.
       ENDIF.
     ENDLOOP.
@@ -2069,11 +2079,13 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           lv_available_quantity = ls_available_stock-available_quantity.
         ENDIF.
         APPEND VALUE #(
-          storage_location      = ls_stock_total-storage_location
-          batch                 = ls_stock_total-batch
-          expiration_date       = ls_stock_total-expiration_date
-          unrestricted_quantity = ls_stock_total-unrestricted_qty
-          available_quantity    = lv_available_quantity )
+          storage_location            = ls_stock_total-storage_location
+          batch                       = ls_stock_total-batch
+          expiration_date             = ls_stock_total-expiration_date
+          unrestricted_quantity       = ls_stock_total-unrestricted_qty
+          available_quantity          = lv_available_quantity
+          quality_inspection_quantity = ls_stock_total-quality_qty
+          blocked_quantity            = ls_stock_total-blocked_qty )
           TO ls_result-batches.
       ENDLOOP.
       APPEND ls_result TO rt_status.
@@ -2081,19 +2093,43 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_status_by_batch.
+    TYPES:
+      BEGIN OF ty_batch_category_quantity,
+        storage_location            TYPE mchb-lgort,
+        batch                       TYPE mchb-charg,
+        unrestricted_quantity       TYPE mchb-clabs,
+        quality_inspection_quantity TYPE mchb-cinsm,
+        blocked_quantity            TYPE mchb-cspem,
+      END OF ty_batch_category_quantity,
+      ty_batch_category_quantities TYPE STANDARD TABLE OF
+        ty_batch_category_quantity WITH EMPTY KEY.
     DATA lt_stock TYPE zcl_stock_batch_qty_calc=>ty_stocks.
     DATA lt_reservations TYPE zcl_stock_batch_qty_calc=>ty_reservations.
     DATA lt_available_stock TYPE zif_stock_repository=>ty_batch_stocks.
     DATA lt_plant_batches TYPE STANDARD TABLE OF mcha WITH DEFAULT KEY.
     DATA lt_global_batches TYPE STANDARD TABLE OF mch1 WITH DEFAULT KEY.
+    DATA lt_category_quantities TYPE ty_batch_category_quantities.
+    DATA ls_category_quantity TYPE ty_batch_category_quantity.
     DATA lv_available_quantity TYPE mchb-clabs.
 
-    SELECT lgort, charg, SUM( clabs ) AS quantity
+    SELECT lgort AS storage_location,
+           charg AS batch,
+           SUM( clabs ) AS unrestricted_quantity,
+           SUM( cinsm ) AS quality_inspection_quantity,
+           SUM( cspem ) AS blocked_quantity
       FROM mchb
       WHERE matnr = @iv_material
         AND werks = @iv_plant
       GROUP BY lgort, charg
-      INTO CORRESPONDING FIELDS OF TABLE @lt_stock.
+      INTO CORRESPONDING FIELDS OF TABLE @lt_category_quantities.
+
+    LOOP AT lt_category_quantities INTO ls_category_quantity.
+      APPEND VALUE #(
+        storage_location = ls_category_quantity-storage_location
+        batch            = ls_category_quantity-batch
+        quantity         = ls_category_quantity-unrestricted_quantity )
+        TO lt_stock.
+    ENDLOOP.
 
     SELECT charg, vfdat
       FROM mcha
@@ -2138,6 +2174,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
     LOOP AT lt_stock INTO DATA(ls_stock).
       CLEAR lv_available_quantity.
+      READ TABLE lt_category_quantities INTO ls_category_quantity
+        WITH KEY storage_location = ls_stock-storage_location
+                 batch            = ls_stock-batch.
       READ TABLE lt_available_stock INTO DATA(ls_available_stock)
         WITH KEY storage_location = ls_stock-storage_location
                  batch            = ls_stock-batch.
@@ -2145,11 +2184,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         lv_available_quantity = ls_available_stock-available_quantity.
       ENDIF.
       APPEND VALUE #(
-        storage_location      = ls_stock-storage_location
-        batch                 = ls_stock-batch
-        expiration_date       = ls_stock-expiration_date
-        unrestricted_quantity = ls_stock-quantity
-        available_quantity    = lv_available_quantity ) TO rt_status.
+        storage_location            = ls_stock-storage_location
+        batch                       = ls_stock-batch
+        expiration_date             = ls_stock-expiration_date
+        unrestricted_quantity       = ls_stock-quantity
+        available_quantity          = lv_available_quantity
+        quality_inspection_quantity =
+          ls_category_quantity-quality_inspection_quantity
+        blocked_quantity            = ls_category_quantity-blocked_quantity )
+        TO rt_status.
     ENDLOOP.
     SORT rt_status BY storage_location batch.
   ENDMETHOD.

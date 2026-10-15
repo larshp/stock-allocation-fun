@@ -218,6 +218,14 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000020</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>ORDER_ITM</FIELDNAME>
+          <POSITION>0027</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

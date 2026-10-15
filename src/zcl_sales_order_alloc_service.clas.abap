@@ -112,6 +112,27 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         is_successful          TYPE abap_bool,
       END OF ty_reserve_result.
     TYPES:
+      BEGIN OF ty_fefo_stock_reserve_result,
+        preview       TYPE zcl_so_stock_service=>ty_fefo_issue_result,
+        reservations  TYPE zif_so_reservation_api=>ty_reservations,
+        messages      TYPE zif_so_reservation_api=>ty_messages,
+        is_successful TYPE abap_bool,
+        is_test_run   TYPE abap_bool,
+        is_committed  TYPE abap_bool,
+      END OF ty_fefo_stock_reserve_result.
+    TYPES ty_fefo_request_id TYPE c LENGTH 30.
+    TYPES ty_fefo_request_ids TYPE STANDARD TABLE OF
+      ty_fefo_request_id WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_fefo_stock_release_result,
+        preview             TYPE zcl_so_stock_service=>ty_fefo_issue_result,
+        reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
+        messages            TYPE zif_so_reservation_api=>ty_messages,
+        is_successful       TYPE abap_bool,
+        is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
+      END OF ty_fefo_stock_release_result.
+    TYPES:
       BEGIN OF ty_multi_order_preview_result,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         atp_checks             TYPE ty_atp_checks,
@@ -154,6 +175,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         io_stock_repository          TYPE REF TO zif_stock_repository
         io_reservation_api           TYPE REF TO zif_so_reservation_api
           OPTIONAL
+        io_sales_stock_service       TYPE REF TO zcl_so_stock_service OPTIONAL
         io_material_availability_api TYPE REF TO
           zif_material_availability_api OPTIONAL.
 
@@ -214,6 +236,134 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         VALUE(rs_result)              TYPE ty_reserve_result
       RAISING
         zcx_invalid_sales_order
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_stock_fefo
+      IMPORTING
+        is_allocation              TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_stock_fefo_selected
+      IMPORTING
+        is_allocation              TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        it_request_ids             TYPE ty_fefo_request_ids
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_fefo_rechecked
+      IMPORTING
+        is_allocation              TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        is_rechecked_allocation    TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        it_request_ids             TYPE ty_fefo_request_ids OPTIONAL
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_fefo_demands
+      IMPORTING
+        it_requests                TYPE zcl_so_stock_service=>ty_fefo_issue_requests
+        it_request_ids             TYPE ty_fefo_request_ids OPTIONAL
+        iv_as_of_date              TYPE d DEFAULT sy-datum
+        iv_min_days                TYPE i DEFAULT 0
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist      TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations       TYPE
+          zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_fefo_demands_uom
+      IMPORTING
+        it_requests                TYPE
+          zcl_so_stock_service=>ty_fefo_issue_unit_requests
+        it_request_ids             TYPE ty_fefo_request_ids OPTIONAL
+        iv_as_of_date              TYPE d DEFAULT sy-datum
+        iv_min_days                TYPE i DEFAULT 0
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist      TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations       TYPE
+          zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_fefo_recheck
+      IMPORTING
+        is_allocation              TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        it_requests                TYPE zcl_so_stock_service=>ty_fefo_issue_requests
+        it_request_ids             TYPE ty_fefo_request_ids OPTIONAL
+        iv_as_of_date              TYPE d DEFAULT sy-datum
+        iv_min_days                TYPE i DEFAULT 0
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist      TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations       TYPE
+          zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_so_fefo_uom_recheck
+      IMPORTING
+        is_allocation              TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        it_requests                TYPE
+          zcl_so_stock_service=>ty_fefo_issue_unit_requests
+        it_request_ids             TYPE ty_fefo_request_ids OPTIONAL
+        iv_as_of_date              TYPE d DEFAULT sy-datum
+        iv_min_days                TYPE i DEFAULT 0
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
+        iv_required_date           TYPE d OPTIONAL
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist      TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations       TYPE
+          zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
+      RETURNING
+        VALUE(rs_result)           TYPE ty_fefo_stock_reserve_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS release_so_fefo_reservations
+      IMPORTING
+        is_reservation_result  TYPE ty_fefo_stock_reserve_result
+        it_request_ids         TYPE ty_fefo_request_ids OPTIONAL
+        it_reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers
+          OPTIONAL
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_fefo_stock_release_result
+      RAISING
         zcx_invalid_stock_request.
 
     METHODS preview_orders_by_date
@@ -421,6 +571,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
 
     DATA mo_sales_order_service TYPE REF TO zcl_sales_order_service.
     DATA mo_stock_service TYPE REF TO zcl_stock_service.
+    DATA mo_sales_stock_service TYPE REF TO zcl_so_stock_service.
     DATA mo_reservation_api TYPE REF TO zif_so_reservation_api.
 
     METHODS build_order_atp_checks
@@ -474,6 +625,22 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       RETURNING
         VALUE(rv_is_valid) TYPE abap_bool.
 
+    METHODS select_so_fefo_requests
+      IMPORTING
+        is_allocation    TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        it_request_ids   TYPE ty_fefo_request_ids
+      RETURNING
+        VALUE(rs_result) TYPE zcl_so_stock_service=>ty_fefo_issue_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS same_so_fefo_issue_allocation
+      IMPORTING
+        is_first          TYPE zcl_so_stock_service=>ty_fefo_issue_result
+        is_second         TYPE zcl_so_stock_service=>ty_fefo_issue_result
+      RETURNING
+        VALUE(rv_is_same) TYPE abap_bool.
+
     METHODS build_sales_unit_allocations
       IMPORTING
         iv_sales_document     TYPE zif_sales_order_api=>ty_sales_document
@@ -502,6 +669,12 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     mo_stock_service = NEW zcl_stock_service(
       io_stock_repository          = io_stock_repository
       io_material_availability_api = io_material_availability_api ).
+    IF io_sales_stock_service IS BOUND.
+      mo_sales_stock_service = io_sales_stock_service.
+    ELSE.
+      mo_sales_stock_service = NEW zcl_so_stock_service(
+        io_repository = NEW zcl_so_stock_repository( ) ).
+    ENDIF.
     IF io_reservation_api IS BOUND.
       mo_reservation_api = io_reservation_api.
     ELSE.
@@ -977,6 +1150,851 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     ENDIF.
 
     rs_result-is_successful = abap_true.
+  ENDMETHOD.
+
+  METHOD reserve_so_stock_fefo.
+    TYPES:
+      BEGIN OF ty_request_id,
+        request_id TYPE c LENGTH 30,
+      END OF ty_request_id,
+      BEGIN OF ty_item_key,
+        sales_document TYPE vbap-vbeln,
+        item_number    TYPE vbap-posnr,
+        material       TYPE mara-matnr,
+        plant          TYPE marc-werks,
+        cutoff_date    TYPE d,
+      END OF ty_item_key,
+      BEGIN OF ty_split_key,
+        request_id       TYPE c LENGTH 30,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+      END OF ty_split_key.
+    DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY request_id.
+    DATA lt_location_allowlist TYPE SORTED TABLE OF mard-lgort
+      WITH UNIQUE KEY table_line.
+    DATA lt_request_locations TYPE SORTED TABLE OF
+      zcl_so_stock_service=>ty_fefo_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_scoped_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY request_id.
+    DATA lt_item_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY sales_document item_number.
+    DATA lt_split_keys TYPE HASHED TABLE OF ty_split_key
+      WITH UNIQUE KEY request_id storage_location batch.
+    DATA lt_requests TYPE zif_so_reservation_api=>ty_requests.
+    DATA lo_batch_eligibility TYPE REF TO zcl_stock_batch_eligibility.
+    DATA lv_split_quantity TYPE mska-kalab.
+
+    rs_result-preview = is_allocation.
+    rs_result-is_test_run = iv_test_run.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false )
+        OR ( iv_required_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_required_date ) <> abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-location_allowlist
+        INTO DATA(lv_allowed_location).
+      IF lv_allowed_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT lv_allowed_location INTO TABLE lt_location_allowlist.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-request_locations
+        INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( is_allocation-allocations[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT VALUE #( request_id = ls_request_location-request_id )
+        INTO TABLE lt_scoped_request_ids.
+    ENDLOOP.
+
+    IF is_allocation-allocations IS INITIAL.
+      IF is_allocation-batch_allocations IS NOT INITIAL
+          OR is_allocation-request_locations IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      rs_result-is_successful = abap_true.
+      RETURN.
+    ENDIF.
+
+    lo_batch_eligibility = NEW zcl_stock_batch_eligibility( ).
+    LOOP AT is_allocation-allocations INTO DATA(ls_allocation).
+      IF ls_allocation-request_id IS INITIAL
+          OR ls_allocation-sales_document IS INITIAL
+          OR ls_allocation-item_number IS INITIAL
+          OR ls_allocation-material IS INITIAL
+          OR ls_allocation-plant IS INITIAL
+          OR ls_allocation-requested_quantity <= 0
+          OR ls_allocation-requested_unit IS INITIAL
+          OR ls_allocation-requested_base_quantity <= 0
+          OR ls_allocation-base_unit IS INITIAL
+          OR ls_allocation-available_quantity < 0
+          OR ls_allocation-available_base_quantity < 0
+          OR ls_allocation-covered_quantity < 0
+          OR ls_allocation-covered_base_quantity < 0
+          OR ls_allocation-shortfall_quantity < 0
+          OR ls_allocation-shortfall_base_quantity < 0
+          OR ls_allocation-covered_base_quantity
+            + ls_allocation-shortfall_base_quantity
+            <> ls_allocation-requested_base_quantity
+          OR ls_allocation-covered_base_quantity
+            > ls_allocation-available_base_quantity
+          OR ls_allocation-available_base_quantity
+            > ls_allocation-stock_snapshot-available_quantity
+          OR ls_allocation-stock_snapshot-request_id
+            <> ls_allocation-request_id
+          OR ls_allocation-stock_snapshot-sales_document
+            <> ls_allocation-sales_document
+          OR ls_allocation-stock_snapshot-item_number
+            <> ls_allocation-item_number
+          OR ls_allocation-stock_snapshot-material
+            <> ls_allocation-material
+          OR ls_allocation-stock_snapshot-plant <> ls_allocation-plant
+          OR ls_allocation-stock_snapshot-base_unit
+            <> ls_allocation-base_unit
+          OR ls_allocation-stock_snapshot-reservation_through_date
+            <> ls_allocation-reservation_through_date
+          OR ( ls_allocation-reservation_through_date IS NOT INITIAL
+            AND zcl_date_validation=>is_valid_gregorian_date(
+              ls_allocation-reservation_through_date ) <> abap_true )
+          OR ls_allocation-as_of_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            ls_allocation-as_of_date ) <> abap_true
+          OR ls_allocation-minimum_shelf_life_days < 0
+          OR ( ls_allocation-include_undated_batches <> abap_true
+            AND ls_allocation-include_undated_batches <> abap_false )
+          OR ( ls_allocation-allow_location_fallback <> abap_true
+            AND ls_allocation-allow_location_fallback <> abap_false )
+          OR ( ls_allocation-allow_location_fallback = abap_true
+            AND ls_allocation-selected_storage_location IS INITIAL )
+          OR ( ls_allocation-selected_storage_location IS NOT INITIAL
+            AND line_exists( lt_scoped_request_ids[
+              request_id = ls_allocation-request_id ] )
+            AND NOT line_exists( lt_request_locations[
+              request_id = ls_allocation-request_id
+              storage_location =
+                ls_allocation-selected_storage_location ] ) )
+          OR ls_allocation-is_sufficient <> xsdbool(
+            ls_allocation-shortfall_base_quantity = 0 ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      INSERT VALUE #( request_id = ls_allocation-request_id )
+        INTO TABLE lt_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      READ TABLE lt_item_keys INTO DATA(ls_item_key)
+        WITH TABLE KEY sales_document = ls_allocation-sales_document
+                       item_number = ls_allocation-item_number.
+      IF sy-subrc = 0.
+        IF ls_item_key-material <> ls_allocation-material
+            OR ls_item_key-plant <> ls_allocation-plant
+            OR ls_item_key-cutoff_date
+              <> ls_allocation-reservation_through_date.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          sales_document = ls_allocation-sales_document
+          item_number    = ls_allocation-item_number
+          material       = ls_allocation-material
+          plant          = ls_allocation-plant
+          cutoff_date    = ls_allocation-reservation_through_date )
+          INTO TABLE lt_item_keys.
+      ENDIF.
+
+      IF iv_require_full_allocation = abap_true
+          AND ls_allocation-shortfall_base_quantity > 0.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Full allocation required; no reservations were created' )
+          TO rs_result-messages.
+        RETURN.
+      ENDIF.
+
+      CLEAR lv_split_quantity.
+      LOOP AT is_allocation-batch_allocations
+          INTO DATA(ls_batch_allocation)
+          WHERE request_id = ls_allocation-request_id.
+        IF ls_batch_allocation-sales_document
+              <> ls_allocation-sales_document
+            OR ls_batch_allocation-item_number
+              <> ls_allocation-item_number
+            OR ls_batch_allocation-material <> ls_allocation-material
+            OR ls_batch_allocation-plant <> ls_allocation-plant
+            OR ls_batch_allocation-storage_location IS INITIAL
+            OR ls_batch_allocation-batch IS INITIAL
+            OR ( lt_location_allowlist IS NOT INITIAL
+              AND NOT line_exists( lt_location_allowlist[
+                table_line = ls_batch_allocation-storage_location ] ) )
+            OR ( line_exists( lt_scoped_request_ids[
+                request_id = ls_batch_allocation-request_id ] )
+              AND NOT line_exists( lt_request_locations[
+                request_id = ls_batch_allocation-request_id
+                storage_location =
+                  ls_batch_allocation-storage_location ] ) )
+            OR ls_batch_allocation-selected_storage_location
+              <> ls_allocation-selected_storage_location
+            OR ls_batch_allocation-allow_location_fallback
+              <> ls_allocation-allow_location_fallback
+            OR ( ls_allocation-selected_storage_location IS NOT INITIAL
+              AND ls_allocation-allow_location_fallback <> abap_true
+              AND ls_batch_allocation-storage_location
+                <> ls_allocation-selected_storage_location )
+            OR ls_batch_allocation-allocated_base_quantity <= 0
+            OR ls_batch_allocation-allocated_quantity < 0
+            OR ls_batch_allocation-requested_unit
+              <> ls_allocation-requested_unit
+            OR ls_batch_allocation-base_unit <> ls_allocation-base_unit
+            OR ls_batch_allocation-as_of_date <> ls_allocation-as_of_date
+            OR ls_batch_allocation-minimum_shelf_life_days
+              <> ls_allocation-minimum_shelf_life_days
+            OR ls_batch_allocation-include_undated_batches
+              <> ls_allocation-include_undated_batches
+            OR ( ls_batch_allocation-expiration_date IS NOT INITIAL
+              AND zcl_date_validation=>is_valid_gregorian_date(
+                ls_batch_allocation-expiration_date ) <> abap_true )
+            OR lo_batch_eligibility->is_eligible(
+              iv_expiration_date         =
+                ls_batch_allocation-expiration_date
+              iv_as_of_date              = ls_allocation-as_of_date
+              iv_min_days                =
+                ls_allocation-minimum_shelf_life_days
+              iv_include_undated_batches =
+                ls_allocation-include_undated_batches ) <> abap_true.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        INSERT VALUE #(
+          request_id       = ls_batch_allocation-request_id
+          storage_location = ls_batch_allocation-storage_location
+          batch            = ls_batch_allocation-batch )
+          INTO TABLE lt_split_keys.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        lv_split_quantity = lv_split_quantity
+          + ls_batch_allocation-allocated_base_quantity.
+        APPEND VALUE #(
+          request_id       = ls_batch_allocation-request_id
+          sales_document   = ls_batch_allocation-sales_document
+          item_number      = ls_batch_allocation-item_number
+          material         = ls_batch_allocation-material
+          plant            = ls_batch_allocation-plant
+          storage_location = ls_batch_allocation-storage_location
+          batch            = ls_batch_allocation-batch
+          required_date    = iv_required_date
+          quantity         = ls_batch_allocation-allocated_base_quantity
+          unit             = ls_allocation-base_unit ) TO lt_requests.
+      ENDLOOP.
+
+      IF lv_split_quantity <> ls_allocation-covered_base_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    IF lines( lt_requests ) <> lines( is_allocation-batch_allocations ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF lt_requests IS INITIAL.
+      rs_result-is_successful = abap_true.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_create_result) = mo_reservation_api->create_reservations(
+      it_requests = lt_requests
+      iv_test_run = iv_test_run ).
+    APPEND LINES OF ls_create_result-messages TO rs_result-messages.
+    rs_result-reservations = ls_create_result-reservations.
+    IF ls_create_result-is_successful <> abap_true.
+      mo_reservation_api->rollback( ).
+      CLEAR rs_result-reservations.
+      RETURN.
+    ENDIF.
+
+    IF me->reservation_results_match(
+        it_requests     = lt_requests
+        it_reservations = rs_result-reservations
+        iv_test_run     = iv_test_run ) <> abap_true.
+      mo_reservation_api->rollback( ).
+      CLEAR rs_result-reservations.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Reservation API results do not match FEFO splits' )
+        TO rs_result-messages.
+      RETURN.
+    ENDIF.
+
+    IF iv_test_run = abap_true.
+      rs_result-is_successful = abap_true.
+      RETURN.
+    ENDIF.
+
+    DATA(ls_commit_result) = mo_reservation_api->commit( ).
+    IF ls_commit_result-is_successful <> abap_true.
+      mo_reservation_api->rollback( ).
+      CLEAR rs_result-reservations.
+      IF ls_commit_result-message-message IS NOT INITIAL.
+        APPEND ls_commit_result-message TO rs_result-messages.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_committed = abap_true.
+  ENDMETHOD.
+
+  METHOD reserve_so_stock_fefo_selected.
+    DATA(ls_selected_allocation) = me->select_so_fefo_requests(
+      is_allocation  = is_allocation
+      it_request_ids = it_request_ids ).
+    rs_result = me->reserve_so_stock_fefo(
+      is_allocation              = ls_selected_allocation
+      iv_required_date           = iv_required_date
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
+  ENDMETHOD.
+
+  METHOD reserve_so_fefo_rechecked.
+    DATA ls_original_selection TYPE
+      zcl_so_stock_service=>ty_fefo_issue_result.
+    DATA ls_rechecked_selection TYPE
+      zcl_so_stock_service=>ty_fefo_issue_result.
+
+    IF it_request_ids IS SUPPLIED.
+      ls_original_selection = me->select_so_fefo_requests(
+        is_allocation  = is_allocation
+        it_request_ids = it_request_ids ).
+      ls_rechecked_selection = me->select_so_fefo_requests(
+        is_allocation  = is_rechecked_allocation
+        it_request_ids = it_request_ids ).
+    ELSE.
+      ls_original_selection = is_allocation.
+      ls_rechecked_selection = is_rechecked_allocation.
+    ENDIF.
+
+    IF me->same_so_fefo_issue_allocation(
+        is_first  = ls_original_selection
+        is_second = ls_rechecked_selection ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result = me->reserve_so_stock_fefo(
+      is_allocation              = ls_rechecked_selection
+      iv_required_date           = iv_required_date
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
+  ENDMETHOD.
+
+  METHOD reserve_so_fefo_demands.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false )
+        OR ( iv_required_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_required_date ) <> abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(ls_allocation) = mo_sales_stock_service->preview_issue_demands_by_fefo(
+      it_requests                = it_requests
+      iv_as_of_date              = iv_as_of_date
+      iv_min_days                = iv_min_days
+      iv_include_undated_batches = iv_include_undated_batches
+      it_location_allowlist      = it_location_allowlist
+      it_request_locations       = it_request_locations ).
+
+    IF it_request_ids IS SUPPLIED.
+      rs_result = me->reserve_so_stock_fefo_selected(
+        is_allocation              = ls_allocation
+        it_request_ids             = it_request_ids
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ELSE.
+      rs_result = me->reserve_so_stock_fefo(
+        is_allocation              = ls_allocation
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD reserve_so_fefo_demands_uom.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false )
+        OR ( iv_required_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_required_date ) <> abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(ls_allocation) = mo_sales_stock_service->preview_issue_fefo_uom(
+      it_requests                = it_requests
+      iv_as_of_date              = iv_as_of_date
+      iv_min_days                = iv_min_days
+      iv_include_undated_batches = iv_include_undated_batches
+      it_location_allowlist      = it_location_allowlist
+      it_request_locations       = it_request_locations ).
+
+    IF it_request_ids IS SUPPLIED.
+      rs_result = me->reserve_so_stock_fefo_selected(
+        is_allocation              = ls_allocation
+        it_request_ids             = it_request_ids
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ELSE.
+      rs_result = me->reserve_so_stock_fefo(
+        is_allocation              = ls_allocation
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD reserve_so_fefo_recheck.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false )
+        OR ( iv_required_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_required_date ) <> abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(ls_rechecked_allocation) =
+      mo_sales_stock_service->preview_issue_demands_by_fefo(
+        it_requests                = it_requests
+        iv_as_of_date              = iv_as_of_date
+        iv_min_days                = iv_min_days
+        iv_include_undated_batches = iv_include_undated_batches
+        it_location_allowlist      = it_location_allowlist
+        it_request_locations       = it_request_locations ).
+
+    IF it_request_ids IS SUPPLIED.
+      rs_result = me->reserve_so_fefo_rechecked(
+        is_allocation              = is_allocation
+        is_rechecked_allocation    = ls_rechecked_allocation
+        it_request_ids             = it_request_ids
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ELSE.
+      rs_result = me->reserve_so_fefo_rechecked(
+        is_allocation              = is_allocation
+        is_rechecked_allocation    = ls_rechecked_allocation
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD reserve_so_fefo_uom_recheck.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false )
+        OR ( iv_required_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_required_date ) <> abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA(ls_rechecked_allocation) =
+      mo_sales_stock_service->preview_issue_fefo_uom(
+        it_requests                = it_requests
+        iv_as_of_date              = iv_as_of_date
+        iv_min_days                = iv_min_days
+        iv_include_undated_batches = iv_include_undated_batches
+        it_location_allowlist      = it_location_allowlist
+        it_request_locations       = it_request_locations ).
+
+    IF it_request_ids IS SUPPLIED.
+      rs_result = me->reserve_so_fefo_rechecked(
+        is_allocation              = is_allocation
+        is_rechecked_allocation    = ls_rechecked_allocation
+        it_request_ids             = it_request_ids
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ELSE.
+      rs_result = me->reserve_so_fefo_rechecked(
+        is_allocation              = is_allocation
+        is_rechecked_allocation    = ls_rechecked_allocation
+        iv_required_date           = iv_required_date
+        iv_test_run                = iv_test_run
+        iv_require_full_allocation = iv_require_full_allocation ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD release_so_fefo_reservations.
+    TYPES ty_seen_reservation_numbers TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    TYPES ty_selected_reservation_numbers TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    TYPES ty_selected_request_ids TYPE HASHED TABLE OF
+      ty_fefo_request_id WITH UNIQUE KEY table_line.
+    TYPES:
+      BEGIN OF ty_fefo_split_key,
+        request_id       TYPE ty_fefo_request_id,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+      END OF ty_fefo_split_key.
+    TYPES ty_seen_fefo_split_keys TYPE HASHED TABLE OF ty_fefo_split_key
+      WITH UNIQUE KEY request_id storage_location batch.
+    DATA lt_seen_numbers TYPE ty_seen_reservation_numbers.
+    DATA lt_selected_numbers TYPE ty_selected_reservation_numbers.
+    DATA lt_selected_ids TYPE ty_selected_request_ids.
+    DATA lt_seen_split_keys TYPE ty_seen_fefo_split_keys.
+    DATA lt_reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers.
+    DATA lt_requests TYPE zif_so_reservation_api=>ty_requests.
+
+    rs_result-preview = is_reservation_result-preview.
+    rs_result-is_test_run = iv_test_run.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_reservation_result-is_successful <> abap_true
+        OR is_reservation_result-is_committed <> abap_true
+        OR is_reservation_result-is_test_run = abap_true
+        OR is_reservation_result-reservations IS INITIAL
+        OR lines( is_reservation_result-reservations )
+          <> lines( is_reservation_result-preview-batch_allocations ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_reservation_result-reservations
+        INTO DATA(ls_reservation).
+      IF ls_reservation-request_id IS INITIAL
+          OR ls_reservation-reservation_number IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_reservation-reservation_number INTO TABLE lt_seen_numbers.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND ls_reservation-reservation_number TO lt_reservation_numbers.
+    ENDLOOP.
+
+    LOOP AT is_reservation_result-preview-batch_allocations
+        INTO DATA(ls_split).
+      IF ls_split-request_id IS INITIAL
+          OR ls_split-storage_location IS INITIAL
+          OR ls_split-batch IS INITIAL
+          OR ls_split-allocated_base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT VALUE #(
+        request_id       = ls_split-request_id
+        storage_location = ls_split-storage_location
+        batch            = ls_split-batch ) INTO TABLE lt_seen_split_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      READ TABLE is_reservation_result-reservations
+        INTO DATA(ls_matching_reservation)
+        WITH KEY request_id = ls_split-request_id
+                 storage_location = ls_split-storage_location
+                 batch = ls_split-batch.
+      IF sy-subrc <> 0
+          OR ls_matching_reservation-quantity
+            <> ls_split-allocated_base_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      APPEND VALUE #(
+        request_id       = ls_split-request_id
+        sales_document   = ls_split-sales_document
+        item_number      = ls_split-item_number
+        material         = ls_split-material
+        plant            = ls_split-plant
+        storage_location = ls_split-storage_location
+        batch            = ls_split-batch
+        required_date    = ls_matching_reservation-required_date
+        quantity         = ls_split-allocated_base_quantity
+        unit             = ls_split-base_unit ) TO lt_requests.
+    ENDLOOP.
+
+    IF me->reservation_results_match(
+        it_requests     = lt_requests
+        it_reservations = is_reservation_result-reservations
+        iv_test_run     = abap_false ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF it_request_ids IS NOT INITIAL
+        AND it_reservation_numbers IS NOT INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF it_reservation_numbers IS NOT INITIAL.
+      CLEAR lt_reservation_numbers.
+      LOOP AT it_reservation_numbers INTO DATA(lv_selected_number).
+        IF lv_selected_number IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        INSERT lv_selected_number INTO TABLE lt_selected_numbers.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        READ TABLE is_reservation_result-reservations
+          TRANSPORTING NO FIELDS
+          WITH KEY reservation_number = lv_selected_number.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        APPEND lv_selected_number TO lt_reservation_numbers.
+      ENDLOOP.
+    ELSEIF it_request_ids IS NOT INITIAL.
+      LOOP AT it_request_ids INTO DATA(lv_request_id).
+        IF lv_request_id IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        INSERT lv_request_id INTO TABLE lt_selected_ids.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        READ TABLE is_reservation_result-reservations
+          TRANSPORTING NO FIELDS
+          WITH KEY request_id = lv_request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+
+      CLEAR lt_reservation_numbers.
+      LOOP AT is_reservation_result-reservations
+          INTO ls_reservation.
+        IF line_exists( lt_selected_ids[
+            table_line = ls_reservation-request_id ] ).
+          APPEND ls_reservation-reservation_number
+            TO lt_reservation_numbers.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    DATA(lo_reservation_service) = NEW zcl_so_reservation_service(
+      io_api = mo_reservation_api ).
+    TRY.
+        DATA(ls_delete_result) = lo_reservation_service->delete_reservations(
+          it_reservation_numbers = lt_reservation_numbers
+          iv_test_run            = iv_test_run ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+
+    rs_result-reservation_numbers = lt_reservation_numbers.
+    rs_result-messages = ls_delete_result-messages.
+    rs_result-is_successful = ls_delete_result-is_successful.
+    IF ls_delete_result-is_successful = abap_true
+        AND iv_test_run = abap_false.
+      rs_result-is_committed = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD select_so_fefo_requests.
+    TYPES:
+      BEGIN OF ty_request_key,
+        request_id TYPE c LENGTH 30,
+      END OF ty_request_key.
+    DATA lt_selected_ids TYPE HASHED TABLE OF ty_request_key
+      WITH UNIQUE KEY request_id.
+    DATA lt_found_ids TYPE HASHED TABLE OF ty_request_key
+      WITH UNIQUE KEY request_id.
+
+    IF it_request_ids IS INITIAL OR is_allocation-allocations IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_request_ids INTO DATA(lv_request_id).
+      IF lv_request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT VALUE #( request_id = lv_request_id )
+        INTO TABLE lt_selected_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result-location_allowlist = is_allocation-location_allowlist.
+    LOOP AT is_allocation-request_locations INTO DATA(ls_request_location).
+      READ TABLE lt_selected_ids TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_request_location-request_id.
+      IF sy-subrc = 0.
+        APPEND ls_request_location TO rs_result-request_locations.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_summary).
+      READ TABLE lt_selected_ids TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_summary-request_id.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      APPEND ls_summary TO rs_result-allocations.
+      INSERT VALUE #( request_id = ls_summary-request_id )
+        INTO TABLE lt_found_ids.
+    ENDLOOP.
+
+    IF lines( lt_found_ids ) <> lines( lt_selected_ids ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_split).
+      READ TABLE lt_selected_ids TRANSPORTING NO FIELDS
+        WITH TABLE KEY request_id = ls_split-request_id.
+      IF sy-subrc = 0.
+        APPEND ls_split TO rs_result-batch_allocations.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD same_so_fefo_issue_allocation.
+    rv_is_same = abap_false.
+    IF lines( is_first-allocations ) <> lines( is_second-allocations )
+        OR lines( is_first-batch_allocations )
+          <> lines( is_second-batch_allocations )
+        OR lines( is_first-location_allowlist )
+          <> lines( is_second-location_allowlist )
+        OR lines( is_first-request_locations )
+          <> lines( is_second-request_locations ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-location_allowlist INTO DATA(lv_first_location).
+      READ TABLE is_second-location_allowlist INDEX sy-tabix
+        INTO DATA(lv_second_location).
+      IF sy-subrc <> 0 OR lv_first_location <> lv_second_location.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-request_locations INTO DATA(ls_first_location).
+      READ TABLE is_second-request_locations INDEX sy-tabix
+        INTO DATA(ls_second_location).
+      IF sy-subrc <> 0 OR ls_first_location <> ls_second_location.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-allocations INTO DATA(ls_first_summary).
+      READ TABLE is_second-allocations INDEX sy-tabix
+        INTO DATA(ls_second_summary).
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+      IF ls_first_summary-request_id <> ls_second_summary-request_id
+          OR ls_first_summary-sales_document
+            <> ls_second_summary-sales_document
+          OR ls_first_summary-item_number <> ls_second_summary-item_number
+          OR ls_first_summary-reservation_through_date
+            <> ls_second_summary-reservation_through_date
+          OR ls_first_summary-material <> ls_second_summary-material
+          OR ls_first_summary-plant <> ls_second_summary-plant
+          OR ls_first_summary-requested_quantity
+            <> ls_second_summary-requested_quantity
+          OR ls_first_summary-requested_unit
+            <> ls_second_summary-requested_unit
+          OR ls_first_summary-requested_base_quantity
+            <> ls_second_summary-requested_base_quantity
+          OR ls_first_summary-available_quantity
+            <> ls_second_summary-available_quantity
+          OR ls_first_summary-available_base_quantity
+            <> ls_second_summary-available_base_quantity
+          OR ls_first_summary-covered_quantity
+            <> ls_second_summary-covered_quantity
+          OR ls_first_summary-covered_base_quantity
+            <> ls_second_summary-covered_base_quantity
+          OR ls_first_summary-shortfall_quantity
+            <> ls_second_summary-shortfall_quantity
+          OR ls_first_summary-shortfall_base_quantity
+            <> ls_second_summary-shortfall_base_quantity
+          OR ls_first_summary-base_unit <> ls_second_summary-base_unit
+          OR ls_first_summary-selected_storage_location
+            <> ls_second_summary-selected_storage_location
+          OR ls_first_summary-allow_location_fallback
+            <> ls_second_summary-allow_location_fallback
+          OR ls_first_summary-as_of_date <> ls_second_summary-as_of_date
+          OR ls_first_summary-minimum_shelf_life_days
+            <> ls_second_summary-minimum_shelf_life_days
+          OR ls_first_summary-include_undated_batches
+            <> ls_second_summary-include_undated_batches
+          OR ls_first_summary-is_sufficient
+            <> ls_second_summary-is_sufficient.
+        RETURN.
+      ENDIF.
+
+      DATA(ls_first_snapshot) = ls_first_summary-stock_snapshot.
+      DATA(ls_second_snapshot) = ls_second_summary-stock_snapshot.
+      IF ls_first_snapshot-request_id <> ls_second_snapshot-request_id
+          OR ls_first_snapshot-sales_document
+            <> ls_second_snapshot-sales_document
+          OR ls_first_snapshot-item_number <> ls_second_snapshot-item_number
+          OR ls_first_snapshot-reservation_through_date
+            <> ls_second_snapshot-reservation_through_date
+          OR ls_first_snapshot-material <> ls_second_snapshot-material
+          OR ls_first_snapshot-plant <> ls_second_snapshot-plant
+          OR ls_first_snapshot-base_unit <> ls_second_snapshot-base_unit
+          OR ls_first_snapshot-unrestricted_qty
+            <> ls_second_snapshot-unrestricted_qty
+          OR ls_first_snapshot-reserved_quantity
+            <> ls_second_snapshot-reserved_quantity
+          OR ls_first_snapshot-available_quantity
+            <> ls_second_snapshot-available_quantity
+          OR lines( ls_first_snapshot-stock_balances )
+            <> lines( ls_second_snapshot-stock_balances )
+          OR lines( ls_first_snapshot-open_reservations )
+            <> lines( ls_second_snapshot-open_reservations ).
+        RETURN.
+      ENDIF.
+
+      LOOP AT ls_first_snapshot-stock_balances
+          INTO DATA(ls_first_stock_balance).
+        READ TABLE ls_second_snapshot-stock_balances INDEX sy-tabix
+          INTO DATA(ls_second_stock_balance).
+        IF sy-subrc <> 0
+            OR ls_first_stock_balance <> ls_second_stock_balance.
+          RETURN.
+        ENDIF.
+      ENDLOOP.
+
+      LOOP AT ls_first_snapshot-open_reservations
+          INTO DATA(ls_first_reservation).
+        READ TABLE ls_second_snapshot-open_reservations INDEX sy-tabix
+          INTO DATA(ls_second_reservation).
+        IF sy-subrc <> 0 OR ls_first_reservation <> ls_second_reservation.
+          RETURN.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT is_first-batch_allocations INTO DATA(ls_first_split).
+      READ TABLE is_second-batch_allocations INDEX sy-tabix
+        INTO DATA(ls_second_split).
+      IF sy-subrc <> 0 OR ls_first_split <> ls_second_split.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_is_same = abap_true.
   ENDMETHOD.
 
   METHOD preview_orders_by_date.
@@ -1901,15 +2919,6 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     ENDIF.
 
     IF iv_use_fefo_batches = abap_true
-        AND it_batch_selections IS SUPPLIED.
-      APPEND VALUE #(
-        type    = 'E'
-        message = 'Choose FEFO allocation or explicit batch selections' )
-        TO rs_prepared-messages.
-      RETURN.
-    ENDIF.
-
-    IF iv_use_fefo_batches = abap_true
         AND iv_fefo_as_of_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -2047,6 +3056,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     DATA lv_item_priority TYPE i.
     DATA lv_source_index TYPE i.
     DATA lv_fefo_location TYPE mard-lgort.
+    DATA lv_fefo_batch TYPE mchb-charg.
     DATA lv_fefo_fallback TYPE abap_bool.
     DATA lv_demand_minimum_shelf_life TYPE i.
 
@@ -2278,7 +3288,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           ls_order_item-schedule_line
           INTO lv_request_id SEPARATED BY '/'.
       ENDIF.
-      IF it_batch_selections IS SUPPLIED.
+      IF it_batch_selections IS SUPPLIED
+          AND iv_use_fefo_batches <> abap_true.
         READ TABLE it_batch_selections INTO ls_batch_selection
           WITH KEY item_number   = ls_order_item-item_number
                    schedule_line = ls_order_item-schedule_line.
@@ -2323,9 +3334,30 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           lv_demand_minimum_shelf_life =
             ls_fefo_minimum-minimum_shelf_life_days.
         ENDIF.
+        CLEAR lv_fefo_batch.
         CLEAR lv_fefo_location.
         CLEAR lv_fefo_fallback.
-        IF it_location_selections IS SUPPLIED.
+        IF it_batch_selections IS SUPPLIED.
+          CLEAR ls_batch_selection.
+          READ TABLE it_batch_selections INTO ls_batch_selection
+            WITH KEY item_number   = ls_order_item-item_number
+                     schedule_line = ls_order_item-schedule_line.
+          IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
+            READ TABLE it_batch_selections INTO ls_batch_selection
+              WITH KEY item_number   = ls_order_item-item_number
+                       schedule_line = space.
+          ENDIF.
+          IF sy-subrc = 0.
+            lv_fefo_batch = ls_batch_selection-batch.
+            lv_fefo_location = ls_batch_selection-storage_location.
+            lv_fefo_fallback = ls_batch_selection-allow_fallback.
+            IF ls_batch_selection-minimum_shelf_life_days >
+                lv_demand_minimum_shelf_life.
+              lv_demand_minimum_shelf_life =
+                ls_batch_selection-minimum_shelf_life_days.
+            ENDIF.
+          ENDIF.
+        ELSEIF it_location_selections IS SUPPLIED.
           READ TABLE it_location_selections INTO ls_location_selection
             WITH KEY item_number   = ls_order_item-item_number
                      schedule_line = ls_order_item-schedule_line.
@@ -2348,6 +3380,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           request_id                  = lv_request_id
           material                    = ls_order_item-material
           plant                       = ls_order_item-plant
+          batch                       = lv_fefo_batch
           storage_location            = lv_fefo_location
           fallback_to_other_locations = lv_fefo_fallback
           requested_quantity          = ls_order_item-open_base_quantity
@@ -2408,7 +3441,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    IF it_batch_selections IS SUPPLIED.
+    IF it_batch_selections IS SUPPLIED
+        AND iv_use_fefo_batches <> abap_true.
       LOOP AT it_batch_selections INTO ls_batch_selection.
         IF ls_batch_selection-schedule_line IS INITIAL.
           READ TABLE lt_open_selection_items TRANSPORTING NO FIELDS

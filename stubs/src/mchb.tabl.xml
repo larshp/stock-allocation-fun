@@ -80,6 +80,24 @@
           <INTTYPE>P</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>CINSM</FIELDNAME>
+          <POSITION>0008</POSITION>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>CSPEM</FIELDNAME>
+          <POSITION>0009</POSITION>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

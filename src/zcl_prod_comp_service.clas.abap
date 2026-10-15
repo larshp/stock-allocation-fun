@@ -64,6 +64,18 @@ CLASS zcl_prod_comp_service DEFINITION
     END OF ty_component.
     TYPES ty_components TYPE STANDARD TABLE OF ty_component WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_component_selection,
+        production_order   TYPE resb-aufnr,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+      END OF ty_component_selection.
+    TYPES ty_component_selections TYPE STANDARD TABLE OF
+      ty_component_selection WITH EMPTY KEY.
+    TYPES ty_component_issue_keys TYPE STANDARD TABLE OF
+      ty_component_selection WITH EMPTY KEY.
+    TYPES ty_component_return_keys TYPE STANDARD TABLE OF
+      ty_component_selection WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_component_local_estimate,
         requested_quantity TYPE mard-labst,
         available_quantity TYPE mard-labst,
@@ -290,6 +302,25 @@ CLASS zcl_prod_comp_service DEFINITION
     TYPES ty_bulk_issue_requests TYPE STANDARD TABLE OF ty_bulk_issue_request
       WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_bulk_component_issue_item,
+        production_order   TYPE resb-aufnr,
+        reservation_number TYPE resb-rsnum,
+        movement_result    TYPE zif_goods_movement_api=>ty_result,
+        is_attempted       TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+      END OF ty_bulk_component_issue_item.
+    TYPES ty_bulk_component_issue_items TYPE STANDARD TABLE OF
+      ty_bulk_component_issue_item WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_component_issue_result,
+        items            TYPE ty_bulk_component_issue_items,
+        successful_count TYPE i,
+        failed_count     TYPE i,
+        is_successful    TYPE abap_bool,
+        is_test_run      TYPE abap_bool,
+      END OF ty_bulk_component_issue_result.
+    TYPES:
       BEGIN OF ty_issue_request_in_unit,
         reservation_number TYPE resb-rsnum,
         reservation_item   TYPE resb-rspos,
@@ -325,6 +356,25 @@ CLASS zcl_prod_comp_service DEFINITION
       ty_bulk_issue_request_in_unit.
     TYPES ty_bulk_return_requests_in_unit TYPE STANDARD TABLE OF
       ty_bulk_return_request_in_unit WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_return_item,
+        production_order   TYPE resb-aufnr,
+        reservation_number TYPE resb-rsnum,
+        movement_result    TYPE zif_goods_movement_api=>ty_result,
+        is_attempted       TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+      END OF ty_bulk_return_item.
+    TYPES ty_bulk_return_items TYPE STANDARD TABLE OF ty_bulk_return_item
+      WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_bulk_return_result,
+        items            TYPE ty_bulk_return_items,
+        successful_count TYPE i,
+        failed_count     TYPE i,
+        is_successful    TYPE abap_bool,
+        is_test_run      TYPE abap_bool,
+      END OF ty_bulk_return_result.
 
     METHODS constructor
       IMPORTING
@@ -524,6 +574,37 @@ CLASS zcl_prod_comp_service DEFINITION
         zcx_invalid_production_order
         zcx_invalid_goods_movement.
 
+    METHODS preview_remaining_components
+      IMPORTING
+        it_component_keys    TYPE ty_component_issue_keys
+      RETURNING
+        VALUE(rt_components) TYPE ty_components
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS issue_remaining_components
+      IMPORTING
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_component_keys TYPE ty_component_issue_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS issue_remaining_bulk
+      IMPORTING
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_component_keys TYPE ty_component_issue_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_component_issue_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
     METHODS issue_components_in_unit
       IMPORTING
         iv_production_order TYPE resb-aufnr
@@ -566,6 +647,37 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_test_run      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS preview_returnable_components
+      IMPORTING
+        it_component_keys    TYPE ty_component_return_keys
+      RETURNING
+        VALUE(rt_components) TYPE ty_components
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS return_remaining_components
+      IMPORTING
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_component_keys TYPE ty_component_return_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_goods_movement.
+
+    METHODS return_remaining_bulk
+      IMPORTING
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_component_keys TYPE ty_component_return_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_return_result
       RAISING
         zcx_invalid_production_order
         zcx_invalid_goods_movement.
@@ -760,6 +872,11 @@ CLASS zcl_prod_comp_service DEFINITION
         reservation_number TYPE resb-rsnum,
         reservation_item   TYPE resb-rspos,
       END OF ty_component_key.
+    TYPES:
+      BEGIN OF ty_component_reservation_key,
+        production_order   TYPE resb-aufnr,
+        reservation_number TYPE resb-rsnum,
+      END OF ty_component_reservation_key.
     TYPES:
       BEGIN OF ty_component_unit_ratio,
         material    TYPE mard-matnr,
@@ -3257,6 +3374,209 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       iv_test_run   = iv_test_run ).
   ENDMETHOD.
 
+  METHOD preview_remaining_components.
+    DATA lt_seen_keys TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
+      WITH UNIQUE KEY table_line.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+    DATA lt_components TYPE ty_components.
+    DATA lt_seen_components TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+
+    IF it_component_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_component_keys INTO DATA(ls_component_key).
+      IF ls_component_key-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      IF ls_component_key-reservation_number IS INITIAL
+          OR ls_component_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        production_order   = ls_component_key-production_order
+        reservation_number = ls_component_key-reservation_number
+        reservation_item   = ls_component_key-reservation_item )
+        INTO TABLE lt_seen_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_component_key-production_order INTO TABLE lt_seen_orders.
+      IF sy-subrc = 0.
+        APPEND ls_component_key-production_order TO lt_production_orders.
+      ENDIF.
+    ENDLOOP.
+
+    lt_components = get_open_components_bulk(
+      it_production_orders = lt_production_orders ).
+    LOOP AT lt_components INTO DATA(ls_component).
+      INSERT VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item )
+        INTO TABLE lt_seen_components.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_component_keys INTO ls_component_key.
+      READ TABLE lt_components INTO ls_component
+        WITH KEY production_order   = ls_component_key-production_order
+                 reservation_number = ls_component_key-reservation_number
+                 reservation_item   = ls_component_key-reservation_item.
+      IF sy-subrc <> 0 OR ls_component-movement_type <> '261'.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND ls_component TO rt_components.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD issue_remaining_components.
+    DATA lt_requests TYPE ty_bulk_issue_requests.
+
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_components) = preview_remaining_components(
+      it_component_keys = it_component_keys ).
+    LOOP AT lt_components INTO DATA(ls_component).
+      APPEND VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item
+        quantity           = ls_component-open_quantity
+        storage_location   = ls_component-storage_location
+        batch              = ls_component-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = issue_components_bulk(
+      is_header   = is_header
+      it_requests = lt_requests
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD issue_remaining_bulk.
+    DATA lt_components TYPE ty_components.
+    DATA lt_groups TYPE STANDARD TABLE OF ty_component_reservation_key
+      WITH EMPTY KEY.
+    DATA lt_seen_groups TYPE HASHED TABLE OF ty_component_reservation_key
+      WITH UNIQUE KEY production_order reservation_number.
+    DATA lt_reservation_orders TYPE HASHED TABLE OF
+      ty_component_reservation_key WITH UNIQUE KEY reservation_number.
+    DATA lt_requests TYPE ty_bulk_issue_requests.
+    DATA lt_group_requests TYPE ty_issue_requests.
+    FIELD-SYMBOLS <ls_result_item> TYPE ty_bulk_component_issue_item.
+
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR it_component_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    lt_components = preview_remaining_components(
+      it_component_keys = it_component_keys ).
+    LOOP AT lt_components INTO DATA(ls_component).
+      IF ls_component-movement_type <> '261'
+          OR ls_component-required_quantity < 0
+          OR ls_component-withdrawn_quantity < 0
+          OR ls_component-open_quantity <= 0
+          OR ls_component-required_quantity
+            < ls_component-withdrawn_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      READ TABLE lt_reservation_orders INTO DATA(ls_reservation_order)
+        WITH TABLE KEY reservation_number = ls_component-reservation_number.
+      IF sy-subrc = 0.
+        IF ls_reservation_order-production_order
+            <> ls_component-production_order.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          production_order   = ls_component-production_order
+          reservation_number = ls_component-reservation_number )
+          INTO TABLE lt_reservation_orders.
+      ENDIF.
+
+      INSERT VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number )
+        INTO TABLE lt_seen_groups.
+      IF sy-subrc = 0.
+        APPEND VALUE #(
+          production_order   = ls_component-production_order
+          reservation_number = ls_component-reservation_number )
+          TO lt_groups.
+      ENDIF.
+      APPEND VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item
+        quantity           = ls_component-open_quantity
+        storage_location   = ls_component-storage_location
+        batch              = ls_component-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT lt_groups INTO DATA(ls_group).
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result_item>.
+      <ls_result_item>-production_order = ls_group-production_order.
+      <ls_result_item>-reservation_number = ls_group-reservation_number.
+      <ls_result_item>-is_attempted = abap_true.
+      CLEAR lt_group_requests.
+      LOOP AT lt_requests INTO DATA(ls_request)
+          WHERE production_order = ls_group-production_order
+            AND reservation_number = ls_group-reservation_number.
+        APPEND VALUE #(
+          reservation_number = ls_request-reservation_number
+          reservation_item   = ls_request-reservation_item
+          quantity           = ls_request-quantity
+          storage_location   = ls_request-storage_location
+          batch              = ls_request-batch ) TO lt_group_requests.
+      ENDLOOP.
+
+      TRY.
+          <ls_result_item>-movement_result = issue_components(
+            iv_production_order = ls_group-production_order
+            is_header           = is_header
+            it_requests         = lt_group_requests
+            iv_test_run         = iv_test_run ).
+        CATCH zcx_invalid_production_order.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Component issue failed production order validation' )
+            TO <ls_result_item>-movement_result-messages.
+        CATCH zcx_invalid_goods_movement.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Component issue failed goods movement validation' )
+            TO <ls_result_item>-movement_result-messages.
+      ENDTRY.
+
+      <ls_result_item>-is_successful =
+        <ls_result_item>-movement_result-is_successful.
+      IF <ls_result_item>-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+        IF iv_test_run = abap_false.
+          <ls_result_item>-is_committed = abap_true.
+        ENDIF.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD issue_components_bulk_in_unit.
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
@@ -3370,6 +3690,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
                  reservation_number = ls_issue_request-reservation_number
                  reservation_item   = ls_issue_request-reservation_item.
       IF sy-subrc <> 0
+          OR ls_component-movement_type <> '261'
           OR ls_issue_request-quantity > ls_component-open_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
@@ -3386,6 +3707,226 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       is_header   = is_header
       it_requests = lt_issue_requests
       iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD preview_returnable_components.
+    DATA lt_seen_keys TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
+      WITH UNIQUE KEY table_line.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+    DATA lt_items TYPE zif_prod_comp_repo=>ty_reservation_items.
+    DATA lt_seen_items TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY production_order reservation_number reservation_item.
+
+    IF it_component_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_component_keys INTO DATA(ls_component_key).
+      IF ls_component_key-production_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      IF ls_component_key-reservation_number IS INITIAL
+          OR ls_component_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        production_order   = ls_component_key-production_order
+        reservation_number = ls_component_key-reservation_number
+        reservation_item   = ls_component_key-reservation_item )
+        INTO TABLE lt_seen_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_component_key-production_order INTO TABLE lt_seen_orders.
+      IF sy-subrc = 0.
+        APPEND ls_component_key-production_order TO lt_production_orders.
+      ENDIF.
+    ENDLOOP.
+
+    lt_items = mo_repository->get_components_bulk(
+      it_production_orders = lt_production_orders ).
+    LOOP AT lt_items INTO DATA(ls_item).
+      READ TABLE lt_seen_keys TRANSPORTING NO FIELDS
+        WITH TABLE KEY production_order   = ls_item-production_order
+                       reservation_number = ls_item-reservation_number
+                       reservation_item   = ls_item-reservation_item.
+      IF sy-subrc = 0.
+        INSERT VALUE #(
+          production_order   = ls_item-production_order
+          reservation_number = ls_item-reservation_number
+          reservation_item   = ls_item-reservation_item )
+          INTO TABLE lt_seen_items.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_component_keys INTO ls_component_key.
+      READ TABLE lt_items INTO ls_item
+        WITH KEY production_order   = ls_component_key-production_order
+                 reservation_number = ls_component_key-reservation_number
+                 reservation_item   = ls_component_key-reservation_item.
+      IF sy-subrc <> 0
+          OR ls_item-is_deleted <> space
+          OR ls_item-movement_type <> '261'
+          OR ls_item-withdrawn_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        production_order   = ls_item-production_order
+        reservation_number = ls_item-reservation_number
+        reservation_item   = ls_item-reservation_item
+        material           = ls_item-material
+        plant              = ls_item-plant
+        storage_location   = ls_item-storage_location
+        batch              = ls_item-batch
+        movement_type      = ls_item-movement_type
+        required_date      = ls_item-required_date
+        required_quantity  = ls_item-required_quantity
+        withdrawn_quantity = ls_item-withdrawn_quantity
+        open_quantity      = ls_item-required_quantity
+          - ls_item-withdrawn_quantity
+        unit               = ls_item-unit ) TO rt_components.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD return_remaining_components.
+    DATA lt_requests TYPE ty_bulk_return_requests.
+
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_components) = preview_returnable_components(
+      it_component_keys = it_component_keys ).
+    LOOP AT lt_components INTO DATA(ls_component).
+      APPEND VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item
+        quantity           = ls_component-withdrawn_quantity
+        storage_location   = ls_component-storage_location
+        batch              = ls_component-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = return_components_bulk(
+      is_header   = is_header
+      it_requests = lt_requests
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD return_remaining_bulk.
+    DATA lt_components TYPE ty_components.
+    DATA lt_groups TYPE STANDARD TABLE OF ty_component_reservation_key
+      WITH EMPTY KEY.
+    DATA lt_seen_groups TYPE HASHED TABLE OF ty_component_reservation_key
+      WITH UNIQUE KEY production_order reservation_number.
+    DATA lt_reservation_orders TYPE HASHED TABLE OF
+      ty_component_reservation_key WITH UNIQUE KEY reservation_number.
+    DATA lt_requests TYPE ty_bulk_return_requests.
+    DATA lt_group_requests TYPE ty_return_requests.
+    FIELD-SYMBOLS <ls_result_item> TYPE ty_bulk_return_item.
+
+    IF is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR it_component_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    lt_components = preview_returnable_components(
+      it_component_keys = it_component_keys ).
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+
+    LOOP AT lt_components INTO DATA(ls_component).
+      READ TABLE lt_reservation_orders INTO DATA(ls_reservation_order)
+        WITH TABLE KEY reservation_number =
+                         ls_component-reservation_number.
+      IF sy-subrc = 0.
+        IF ls_reservation_order-production_order
+            <> ls_component-production_order.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          production_order   = ls_component-production_order
+          reservation_number = ls_component-reservation_number )
+          INTO TABLE lt_reservation_orders.
+      ENDIF.
+
+      INSERT VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number )
+        INTO TABLE lt_seen_groups.
+      IF sy-subrc = 0.
+        APPEND VALUE #(
+          production_order   = ls_component-production_order
+          reservation_number = ls_component-reservation_number )
+          TO lt_groups.
+      ENDIF.
+      APPEND VALUE #(
+        production_order   = ls_component-production_order
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item
+        quantity           = ls_component-withdrawn_quantity
+        storage_location   = ls_component-storage_location
+        batch              = ls_component-batch ) TO lt_requests.
+    ENDLOOP.
+
+    LOOP AT lt_groups INTO DATA(ls_group).
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result_item>.
+      <ls_result_item>-production_order = ls_group-production_order.
+      <ls_result_item>-reservation_number = ls_group-reservation_number.
+      <ls_result_item>-is_attempted = abap_true.
+      CLEAR lt_group_requests.
+      LOOP AT lt_requests INTO DATA(ls_request)
+          WHERE production_order = ls_group-production_order
+            AND reservation_number = ls_group-reservation_number.
+        APPEND VALUE #(
+          reservation_number = ls_request-reservation_number
+          reservation_item   = ls_request-reservation_item
+          quantity           = ls_request-quantity
+          storage_location   = ls_request-storage_location
+          batch              = ls_request-batch ) TO lt_group_requests.
+      ENDLOOP.
+
+      TRY.
+          <ls_result_item>-movement_result = return_components(
+            iv_production_order = ls_group-production_order
+            is_header           = is_header
+            it_requests         = lt_group_requests
+            iv_test_run         = iv_test_run ).
+        CATCH zcx_invalid_production_order.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Component return failed production order validation' )
+            TO <ls_result_item>-movement_result-messages.
+        CATCH zcx_invalid_goods_movement.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Component return failed goods movement validation' )
+            TO <ls_result_item>-movement_result-messages.
+      ENDTRY.
+
+      <ls_result_item>-is_successful =
+        <ls_result_item>-movement_result-is_successful.
+      IF <ls_result_item>-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+        IF iv_test_run = abap_false.
+          <ls_result_item>-is_committed = abap_true.
+        ENDIF.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD return_components.

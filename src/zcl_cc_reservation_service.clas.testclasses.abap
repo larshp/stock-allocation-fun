@@ -242,6 +242,11 @@ CLASS lcl_cost_center_res_api DEFINITION FINAL.
     METHODS get_request
       RETURNING
         VALUE(rs_request) TYPE zif_cc_reservation_api=>ty_request.
+    METHODS get_request_at
+      IMPORTING
+        iv_index          TYPE i
+      RETURNING
+        VALUE(rs_request) TYPE zif_cc_reservation_api=>ty_request.
     METHODS get_create_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -287,6 +292,8 @@ CLASS lcl_cost_center_res_api DEFINITION FINAL.
     DATA mt_deleted_item_numbers TYPE
       zif_cc_reservation_api=>ty_reservation_item_numbers.
     DATA ms_request TYPE zif_cc_reservation_api=>ty_request.
+    DATA mt_create_requests TYPE STANDARD TABLE OF
+      zif_cc_reservation_api=>ty_request WITH EMPTY KEY.
     DATA mv_create_count TYPE i.
     DATA mv_commit_count TYPE i.
     DATA mv_rollback_count TYPE i.
@@ -328,6 +335,10 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
 
   METHOD get_request.
     rs_request = ms_request.
+  ENDMETHOD.
+
+  METHOD get_request_at.
+    READ TABLE mt_create_requests INTO rs_request INDEX iv_index.
   ENDMETHOD.
 
   METHOD get_create_count.
@@ -373,6 +384,7 @@ CLASS lcl_cost_center_res_api IMPLEMENTATION.
   METHOD zif_cc_reservation_api~create_reservation.
     ADD 1 TO mv_create_count.
     ms_request = is_request.
+    APPEND is_request TO mt_create_requests.
     mv_test_run = iv_test_run.
     IF mt_create_results IS INITIAL.
       rs_result = ms_create_result.
@@ -495,6 +507,7 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_duplicate_cc_items FOR TESTING.
     METHODS rejects_blank_cc_read FOR TESTING.
     METHODS previews_cost_center_demands FOR TESTING.
+    METHODS full_quantity_cc_previews FOR TESTING.
     METHODS rejects_bad_cc_demands FOR TESTING.
     METHODS empty_cc_demands_skip_read FOR TESTING.
     METHODS previews_dated_cc_demands FOR TESTING.
@@ -506,13 +519,23 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_bad_cc_locs FOR TESTING.
     METHODS empty_cc_locs_skip_read FOR TESTING.
     METHODS previews_cc_batches FOR TESTING.
+    METHODS prioritizes_cc_batches FOR TESTING.
     METHODS previews_cc_batch_expiry FOR TESTING.
     METHODS rejects_bad_cc_batches FOR TESTING.
     METHODS empty_cc_batches_skip FOR TESTING.
     METHODS previews_cc_fefo_demands FOR TESTING.
+    METHODS prioritizes_cc_fefo FOR TESTING.
+    METHODS prioritizes_atomic_cc_fefo FOR TESTING.
+    METHODS prioritizes_bulk_cc_fefo FOR TESTING.
+    METHODS prioritizes_atomic_cc_batches FOR TESTING.
+    METHODS prioritizes_bulk_cc_batches FOR TESTING.
     METHODS previews_cc_fefo_dates FOR TESTING.
+    METHODS previews_dated_cc_fefo FOR TESTING.
+    METHODS full_qty_cc_fefo_rows FOR TESTING.
     METHODS rejects_bad_cc_fefo FOR TESTING.
     METHODS empty_cc_fefo_skip FOR TESTING.
+    METHODS previews_cc_fefo_exact_batch FOR TESTING.
+    METHODS filters_undated_cc_fefo FOR TESTING.
     METHODS reserves_cost_centers_atomic FOR TESTING.
     METHODS reserves_cost_centers_bulk FOR TESTING.
     METHODS continues_cc_bulk_reserve_fail FOR TESTING.
@@ -523,8 +546,10 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS reserves_atomic_cc_batches FOR TESTING.
     METHODS rejects_expired_atomic_batch FOR TESTING.
     METHODS reserves_atomic_cc_fefo FOR TESTING.
+    METHODS reserves_dated_cc_fefo_atomic FOR TESTING.
     METHODS reserves_cc_fefo_date FOR TESTING.
     METHODS reserves_cc_bulk_fefo_date FOR TESTING.
+    METHODS reserves_dated_cc_fefo_bulk FOR TESTING.
     METHODS rejects_short_atomic_batch FOR TESTING.
     METHODS rejects_short_atomic_cc FOR TESTING.
     METHODS rolls_back_atomic_cc_create FOR TESTING.
@@ -583,7 +608,7 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_fallback_no_loc FOR TESTING.
     METHODS rejects_unknown_unit FOR TESTING.
     METHODS rejects_zero_base_qty FOR TESTING.
-    METHODS rejects_fefo_with_batch FOR TESTING.
+    METHODS rejects_batch_min_no_batch FOR TESTING.
     METHODS rejects_min_days_without_fefo FOR TESTING.
     METHODS rejects_negative_fefo_days FOR TESTING.
 ENDCLASS.
@@ -1592,6 +1617,110 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD prioritizes_cc_batches.
+    DATA lv_bad_flag_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->preview_cost_center_batches(
+          it_demands                = VALUE #( (
+            request_id         = 'CC-BATCH-BAD-FLAG'
+            material           = 'MAT-1'
+            plant              = '1000'
+            cost_center        = 'COST-100'
+            batch              = 'B-SHARED'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          iv_prioritize_by_priority = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '5.000' ) ) ).
+    DATA(lt_previews) = mo_cut->preview_cost_center_batches(
+      it_demands                = VALUE #(
+        ( request_id         = 'CC-BATCH-LOW-FIRST'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW-1'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          priority           = 2 )
+        ( request_id         = 'CC-BATCH-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-HIGH'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 )
+        ( request_id         = 'CC-BATCH-LOW-SECOND'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW-2'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          priority           = 2 ) )
+      iv_prioritize_by_priority = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_previews ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-BATCH-LOW-FIRST'
+      act = lt_previews[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_previews[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_previews[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-BATCH-HIGH'
+      act = lt_previews[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_previews[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_previews[ 2 ]-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-BATCH-LOW-SECOND'
+      act = lt_previews[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_previews[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_previews[ 3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_stock_repo->get_read_count( ) ).
+  ENDMETHOD.
+
   METHOD rejects_bad_cc_batches.
     DATA lv_duplicate_raised TYPE abap_bool.
     DATA lv_batch_raised TYPE abap_bool.
@@ -1828,6 +1957,770 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_res_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD prioritizes_cc_fefo.
+    DATA lv_bad_flag_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->preview_cost_center_fefo(
+          it_demands                = VALUE #(
+            ( request_id         = 'CC-FEFO-BAD-FLAG'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          iv_prioritize_by_priority = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-LATE'
+          expiration_date    = '20261031'
+          available_quantity = '5.000' ) ) ).
+    DATA(lt_previews) = mo_cut->preview_cost_center_fefo(
+      it_demands                = VALUE #(
+        ( request_id         = 'CC-FEFO-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 1 )
+        ( request_id         = 'CC-FEFO-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 ) )
+      iv_as_of_date             = '20261011'
+      iv_prioritize_by_priority = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_previews ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-FEFO-LOW'
+      act = lt_previews[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 1 ]-priority ).
+    DATA(ls_low_split) = lt_previews[ 1 ]-batch_allocations[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATE'
+      act = ls_low_split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_low_split-batch_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-FEFO-HIGH'
+      act = lt_previews[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_previews[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_previews[ 2 ]-batch_allocations ) ).
+    DATA(ls_high_first_split) = lt_previews[ 2 ]-batch_allocations[ 1 ].
+    DATA(ls_high_second_split) = lt_previews[ 2 ]-batch_allocations[ 2 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EARLY'
+      act = ls_high_first_split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_high_first_split-batch_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATE'
+      act = ls_high_second_split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_high_second_split-batch_allocation-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD previews_cc_fefo_exact_batch.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EXACT'
+          expiration_date    = '20261120'
+          available_quantity = '2.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATER'
+          expiration_date    = '20270101'
+          available_quantity = '10.000' ) ) ).
+
+    DATA(lt_previews) = mo_cut->preview_cost_center_fefo(
+      it_demands    = VALUE #(
+        ( request_id              = 'CC-FEFO-BATCH'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          cost_center             = 'COST-100'
+          batch                   = 'B-EXACT'
+          requested_quantity      = '3.000'
+          unit                    = 'EA'
+          minimum_shelf_life_days = 30 ) )
+      iv_as_of_date = '20261015'
+      iv_min_days   = 30 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_previews ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_previews[ 1 ]-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EXACT'
+      act = lt_previews[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_undated_cc_fefo.
+    DATA lv_expiration_date TYPE d.
+    lv_expiration_date = sy-datum + 60.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-UNKNOWN'
+          available_quantity = '5.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-DATED'
+          expiration_date    = lv_expiration_date
+          available_quantity = '4.000' ) ) ).
+
+    DATA(lt_inclusive_preview) = mo_cut->preview_cost_center_fefo(
+      it_demands    = VALUE #(
+        ( request_id         = 'CC-FEFO-INCLUSIVE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          requested_quantity = '6.000'
+          unit               = 'EA' ) )
+      iv_as_of_date = sy-datum ).
+    DATA(lt_strict_preview) = mo_cut->preview_cost_center_fefo(
+      it_demands                 = VALUE #(
+        ( request_id         = 'CC-FEFO-STRICT'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          requested_quantity = '6.000'
+          unit               = 'EA' ) )
+      iv_as_of_date              = sy-datum
+      iv_include_undated_batches = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = lt_inclusive_preview[ 1 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_strict_preview[ 1 ]-allocation-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_strict_preview[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-DATED'
+      act = lt_strict_preview[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+
+    DATA(lt_exact_batch_preview) = mo_cut->preview_cost_center_batches(
+      it_demands                 = VALUE #(
+        ( request_id         = 'CC-EXACT-UNKNOWN'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          batch              = 'B-UNKNOWN'
+          required_date      = sy-datum
+          requested_quantity = '3.000'
+          unit               = 'EA' ) )
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_exact_batch_preview[ 1 ]-allocation-allocation-available_quantity ).
+
+    DATA(lt_atomic_demands) = VALUE
+      zcl_cc_reservation_service=>ty_atomic_reservation_demands(
+        ( request_id         = 'CC-ATOMIC-STRICT'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = sy-datum
+          requested_quantity = '4.000'
+          unit               = 'EA' ) ).
+    DATA(ls_atomic_result) = mo_cut->reserve_cost_centers_atomic(
+      it_demands                 = lt_atomic_demands
+      iv_use_fefo_batches        = abap_true
+      iv_fefo_as_of_date         = sy-datum
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_atomic_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-DATED'
+      act = ls_atomic_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+
+    DATA(ls_bulk_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands                 = VALUE #(
+        ( request_id         = 'CC-BULK-STRICT'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          required_date      = sy-datum
+          requested_quantity = '4.000'
+          unit               = 'EA' ) )
+      iv_use_fefo_batches        = abap_true
+      iv_fefo_as_of_date         = sy-datum
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-DATED'
+      act = ls_bulk_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+
+    DATA(ls_single_reservation) = mo_cut->reserve_for_cost_center(
+      iv_material                = 'MAT-1'
+      iv_plant                   = '1000'
+      iv_cost_center             = 'COST-100'
+      iv_requested_quantity      = '4.000'
+      iv_unit                    = 'EA'
+      iv_required_date           = sy-datum
+      iv_use_fefo_batches        = abap_true
+      iv_fefo_as_of_date         = sy-datum
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-DATED'
+      act = ls_single_reservation-batch_allocations[ 1 ]-batch ).
+
+    DATA(ls_single_preview) = mo_cut->preview_for_cost_center(
+      iv_material                = 'MAT-1'
+      iv_plant                   = '1000'
+      iv_cost_center             = 'COST-100'
+      iv_requested_quantity      = '4.000'
+      iv_unit                    = 'EA'
+      iv_required_date           = sy-datum
+      iv_use_fefo_batches        = abap_true
+      iv_fefo_as_of_date         = sy-datum
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-DATED'
+      act = ls_single_preview-batch_allocations[ 1 ]-batch ).
+  ENDMETHOD.
+
+  METHOD full_quantity_cc_previews.
+    DATA lv_expiration_date TYPE d.
+    lv_expiration_date = sy-datum + 60.
+
+    mo_stock_repo->set_unrestricted_stock( iv_quantity = '5.000' ).
+    DATA(lt_general) = mo_cut->preview_cost_center_demands(
+      it_demands               = VALUE #(
+        ( request_id = 'GENERAL-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'GENERAL-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'GENERAL-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' requested_quantity = '2.000' unit = 'EA' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_general[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_general[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_general[ 3 ]-allocation-allocation-allocated_quantity ).
+
+    mo_stock_repo->set_date_available_stock( iv_quantity = '5.000' ).
+    DATA(lt_dated) = mo_cut->preview_cost_center_by_date(
+      it_demands               = VALUE #(
+        ( request_id = 'DATED-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' required_date = sy-datum
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'DATED-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' required_date = sy-datum
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'DATED-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' required_date = sy-datum
+          requested_quantity = '2.000' unit = 'EA' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_dated[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_dated[ 3 ]-allocation-allocation-allocated_quantity ).
+
+    mo_atp_api->set_result(
+      is_result = VALUE #(
+        is_fully_available = abap_true
+        is_check_relevant  = abap_true ) ).
+    DATA(lt_dated_atp) = mo_cut->preview_cost_center_by_date(
+      it_demands               = VALUE #(
+        ( request_id = 'DATED-ATP-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' required_date = sy-datum
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'DATED-ATP-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' required_date = sy-datum
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'DATED-ATP-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' required_date = sy-datum
+          requested_quantity = '2.000' unit = 'EA' ) )
+      iv_require_full_quantity = abap_true
+      iv_check_atp             = abap_true
+      iv_atp_check_rule        = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_dated_atp[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_dated_atp[ 3 ]-allocation-allocation-allocated_quantity ).
+
+    mo_stock_repo->set_location_stocks(
+      it_stock = VALUE #(
+        ( storage_location = '0001' available_quantity = '5.000' ) ) ).
+    DATA(lt_locations) = mo_cut->preview_cost_center_locations(
+      it_demands               = VALUE #(
+        ( request_id = 'LOCATION-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'LOCATION-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'LOCATION-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' requested_quantity = '2.000' unit = 'EA' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_locations[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_locations[ 3 ]-allocation-allocation-allocated_quantity ).
+
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'BATCH-1'
+          expiration_date    = lv_expiration_date
+          available_quantity = '5.000' ) ) ).
+    DATA(lt_batches) = mo_cut->preview_cost_center_batches(
+      it_demands               = VALUE #(
+        ( request_id = 'BATCH-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' batch = 'BATCH-1'
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'BATCH-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' batch = 'BATCH-1'
+          requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'BATCH-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' batch = 'BATCH-1'
+          requested_quantity = '2.000' unit = 'EA' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_batches[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_batches[ 3 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(lt_fefo) = mo_cut->preview_cost_center_fefo(
+      it_demands               = VALUE #(
+        ( request_id = 'FEFO-1' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-100' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'FEFO-2' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-200' requested_quantity = '3.000' unit = 'EA' )
+        ( request_id = 'FEFO-3' material = 'MAT-1' plant = '1000'
+          cost_center = 'COST-300' requested_quantity = '2.000' unit = 'EA' ) )
+      iv_as_of_date            = sy-datum
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_fefo[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_fefo[ 3 ]-allocation-allocation-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD prioritizes_atomic_cc_fefo.
+    DATA lv_bad_flag_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->reserve_cost_centers_atomic(
+          it_demands                = VALUE #( (
+            request_id         = 'ATOMIC-BAD-PRIORITY'
+            material           = 'MAT-1'
+            plant              = '1000'
+            cost_center        = 'COST-100'
+            required_date      = '20261020'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          iv_prioritize_by_priority = 'Y' ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    CLEAR lv_bad_flag_rejected.
+    TRY.
+        mo_cut->reserve_cost_centers_atomic(
+          it_demands                = VALUE #( (
+            request_id         = 'ATOMIC-PRIORITY-NO-FEFO'
+            material           = 'MAT-1'
+            plant              = '1000'
+            cost_center        = 'COST-100'
+            required_date      = '20261020'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          iv_prioritize_by_priority = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-LATE'
+          expiration_date    = '20261031'
+          available_quantity = '5.000' ) ) ).
+    DATA(ls_result) = mo_cut->reserve_cost_centers_atomic(
+      it_demands                = VALUE #(
+        ( request_id         = 'ATOMIC-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 1 )
+        ( request_id         = 'ATOMIC-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-HIGH'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 ) )
+      iv_test_run               = abap_true
+      iv_use_fefo_batches       = abap_true
+      iv_prioritize_by_priority = abap_true
+      iv_fefo_as_of_date        = '20261015' ).
+    DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ATOMIC-LOW'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATE'
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ATOMIC-HIGH'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EARLY'
+      act = ls_result-items[ 2 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000002'
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000001'
+      act = ls_result-items[ 2 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-HIGH'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-LOW'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD prioritizes_bulk_cc_fefo.
+    DATA lv_bad_flag_rejected TYPE abap_bool.
+    TRY.
+        mo_cut->reserve_cost_centers_bulk(
+          it_demands                = VALUE #( (
+            request_id         = 'BULK-BAD-PRIORITY'
+            material           = 'MAT-1'
+            plant              = '1000'
+            cost_center        = 'COST-100'
+            required_date      = '20261020'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          iv_prioritize_by_priority = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_stock_repo->get_read_count( ) ).
+
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-LATE'
+          expiration_date    = '20261031'
+          available_quantity = '5.000' ) ) ).
+    mo_res_api->set_create_results(
+      it_results = VALUE #(
+        ( reservation_number = '9000000011' is_successful = abap_true )
+        ( reservation_number = '9000000012' is_successful = abap_true ) ) ).
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands                = VALUE #(
+        ( request_id         = 'BULK-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 1 )
+        ( request_id         = 'BULK-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-HIGH'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 ) )
+      iv_test_run               = abap_true
+      iv_use_fefo_batches       = abap_true
+      iv_prioritize_by_priority = abap_true
+      iv_fefo_as_of_date        = '20261015' ).
+    DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-LOW'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-HIGH'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000012'
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000011'
+      act = ls_result-items[ 2 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-HIGH'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-LOW'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD prioritizes_atomic_cc_batches.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '5.000' ) ) ).
+    DATA(ls_result) = mo_cut->reserve_cost_centers_atomic(
+      it_demands                = VALUE #(
+        ( request_id         = 'ATOMIC-BATCH-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          priority           = 2 )
+        ( request_id         = 'ATOMIC-BATCH-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-HIGH'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 ) )
+      iv_test_run               = abap_true
+      iv_prioritize_by_priority = abap_true ).
+    DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ATOMIC-BATCH-LOW'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ATOMIC-BATCH-HIGH'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-items[ 2 ]-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-HIGH'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-LOW'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000002'
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000001'
+      act = ls_result-items[ 2 ]-reservation_result-reservation_number ).
+  ENDMETHOD.
+
+  METHOD prioritizes_bulk_cc_batches.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '3.000' )
+        ( storage_location   = '0002'
+          batch              = 'B-SHARED'
+          expiration_date    = '20261201'
+          available_quantity = '5.000' ) ) ).
+    mo_res_api->set_create_results(
+      it_results = VALUE #(
+        ( reservation_number = '9000000021' is_successful = abap_true )
+        ( reservation_number = '9000000022' is_successful = abap_true ) ) ).
+    DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
+      it_demands                = VALUE #(
+        ( request_id         = 'BULK-BATCH-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-LOW'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          priority           = 2 )
+        ( request_id         = 'BULK-BATCH-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-HIGH'
+          batch              = 'B-SHARED'
+          required_date      = '20261020'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          priority           = 10 ) )
+      iv_test_run               = abap_true
+      iv_prioritize_by_priority = abap_true ).
+    DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-BATCH-LOW'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-BATCH-HIGH'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-HIGH'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COST-LOW'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000022'
+      act = ls_result-items[ 1 ]-reservation_result-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000021'
+      act = ls_result-items[ 2 ]-reservation_result-reservation_number ).
+  ENDMETHOD.
+
   METHOD previews_cc_fefo_dates.
     mo_stock_repo->set_batch_stocks(
       it_stock = VALUE #(
@@ -1838,6 +2731,10 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         ( storage_location   = '0001'
           batch              = 'B-AFTER'
           expiration_date    = '20261006'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATER'
+          expiration_date    = '20261007'
           available_quantity = '1.000' ) ) ).
 
     DATA(lt_previews) = mo_cut->preview_cost_center_fefo(
@@ -1881,13 +2778,166 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = ls_single_preview-batch_allocations[ 1 ]-batch ).
   ENDMETHOD.
 
+  METHOD previews_dated_cc_fefo.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261010'
+          available_quantity = '2.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATE'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' ) ) ).
+
+    DATA(lt_previews) = mo_cut->preview_cost_center_fefo_date(
+      it_demands    = VALUE #(
+        ( request_id         = 'CC-FEFO-LATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-100'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          required_date      = '20261012'
+          priority           = 99 )
+        ( request_id         = 'CC-FEFO-EARLY-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          requested_quantity = '2.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 1 )
+        ( request_id         = 'CC-FEFO-EARLY-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-300'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 10 ) )
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-FEFO-LATE'
+      act = lt_previews[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_previews[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 99
+      act = lt_previews[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-FEFO-EARLY-LOW'
+      act = lt_previews[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_previews[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-FEFO-EARLY-HIGH'
+      act = lt_previews[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_previews[ 3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EARLY'
+      act = lt_previews[ 3 ]-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATE'
+      act = lt_previews[ 3 ]-batch_allocations[
+        2 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_previews[ 3 ]-as_of_date ).
+  ENDMETHOD.
+
+  METHOD full_qty_cc_fefo_rows.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          expiration_date    = '20261231'
+          available_quantity = '5.000' ) ) ).
+
+    DATA(lt_previews) = mo_cut->preview_cost_center_fefo(
+      it_demands    = VALUE #(
+        ( request_id            = 'FULL'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          cost_center           = 'COST-100'
+          requested_quantity    = '6.000'
+          require_full_quantity = abap_true
+          unit                  = 'EA' )
+        ( request_id         = 'PARTIAL'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-200'
+          requested_quantity = '3.000'
+          unit               = 'EA' ) )
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_previews[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_previews[ 1 ]-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_previews[ 2 ]-batch_allocations ) ).
+
+    DATA(lt_dated_previews) = mo_cut->preview_cost_center_fefo_date(
+      it_demands    = VALUE #(
+        ( request_id            = 'DATED-FULL'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          cost_center           = 'COST-300'
+          requested_quantity    = '6.000'
+          require_full_quantity = abap_true
+          unit                  = 'EA'
+          required_date         = '20261005'
+          priority              = 10 )
+        ( request_id         = 'DATED-PARTIAL'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'COST-400'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 5 ) )
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_dated_previews[ 1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_dated_previews[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_dated_previews[ 1 ]-require_full_quantity ).
+  ENDMETHOD.
+
   METHOD rejects_bad_cc_fefo.
     DATA lv_duplicate_raised TYPE abap_bool.
     DATA lv_flag_raised TYPE abap_bool.
     DATA lv_days_raised TYPE abap_bool.
     DATA lv_demand_days_raised TYPE abap_bool.
     DATA lv_demand_date_raised TYPE abap_bool.
+    DATA lv_dated_fefo_date_raised TYPE abap_bool.
+    DATA lv_bad_demand_fefo_date_raised TYPE abap_bool.
+    DATA lv_atomic_date_raised TYPE abap_bool.
+    DATA lv_dated_fefo_bulk_date_raised TYPE abap_bool.
     DATA lv_non_fefo_days_raised TYPE abap_bool.
+    DATA lv_full_flag_raised TYPE abap_bool.
+    DATA lv_dated_full_flag_raised TYPE abap_bool.
 
     TRY.
         mo_cut->preview_cost_center_fefo(
@@ -1920,6 +2970,35 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
               unit                        = 'EA' ) ) ).
       CATCH zcx_invalid_stock_request.
         lv_flag_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->preview_cost_center_fefo(
+          it_demands = VALUE #(
+            ( request_id            = 'BAD-FEFO-FULL-FLAG'
+              material              = 'MAT-1'
+              plant                 = '1000'
+              cost_center           = 'COST-100'
+              requested_quantity    = '1.000'
+              require_full_quantity = 'Y'
+              unit                  = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_full_flag_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->preview_cost_center_fefo_date(
+          it_demands = VALUE #(
+            ( request_id            = 'BAD-DATED-FEFO-FULL-FLAG'
+              material              = 'MAT-1'
+              plant                 = '1000'
+              cost_center           = 'COST-100'
+              requested_quantity    = '1.000'
+              require_full_quantity = 'Y'
+              unit                  = 'EA'
+              required_date         = '20261020' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_dated_full_flag_raised = abap_true.
     ENDTRY.
 
     TRY.
@@ -1959,6 +3038,65 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     ENDTRY.
 
     TRY.
+        mo_cut->preview_cost_center_fefo_date(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-FEFO-REQUIRED-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA'
+              required_date      = '20261340' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_dated_fefo_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->preview_cost_center_fefo_date(
+          it_demands = VALUE #(
+            ( request_id         = 'BAD-FEFO-AS-OF-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA'
+              required_date      = '20261020'
+              fefo_as_of_date    = '20261032' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_demand_fefo_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->reserve_cc_fefo_date_atomic(
+          it_demands  = VALUE #(
+            ( request_id         = 'BAD-FEFO-RESERVATION-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA'
+              required_date      = '20261340' ) )
+          iv_test_run = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_atomic_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
+        mo_cut->reserve_cc_fefo_date_bulk(
+          it_demands  = VALUE #(
+            ( request_id         = 'BAD-FEFO-BULK-DATE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              cost_center        = 'COST-100'
+              requested_quantity = '1.000'
+              unit               = 'EA'
+              required_date      = '20261340' ) )
+          iv_test_run = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_dated_fefo_bulk_date_raised = abap_true.
+    ENDTRY.
+
+    TRY.
         mo_cut->reserve_cost_centers_atomic(
           it_demands = VALUE #(
             ( request_id              = 'NON-FEFO-DAYS'
@@ -1981,6 +3119,12 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = lv_flag_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
+      act = lv_full_flag_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_dated_full_flag_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
       act = lv_days_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1988,6 +3132,18 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_demand_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_dated_fefo_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_demand_fefo_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_atomic_date_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_dated_fefo_bulk_date_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_non_fefo_days_raised ).
@@ -2231,6 +3387,10 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
           expiration_date    = '20280101'
           available_quantity = '5.000' )
         ( storage_location   = '0001'
+          batch              = 'B-ALT'
+          expiration_date    = '20270201'
+          available_quantity = '3.000' )
+        ( storage_location   = '0001'
           batch              = 'B-SOON'
           expiration_date    = '20261020'
           available_quantity = '9.000' ) ) ).
@@ -2241,6 +3401,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
           material                = 'MAT-1'
           plant                   = '1000'
           cost_center             = 'COST-100'
+          batch                   = 'B-LATE'
           required_date           = '20261020'
           requested_quantity      = '2.000'
           unit                    = 'EA'
@@ -2255,7 +3416,10 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       iv_use_fefo_batches = abap_true
       iv_fefo_as_of_date  = '20261011'
       iv_fefo_min_days    = 80 ).
-    DATA(ls_request) = mo_res_api->get_request( ).
+    DATA(ls_first_request) = mo_res_api->get_request_at(
+      iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at(
+      iv_index = 2 ).
     DATA(ls_first_fefo_split) =
       ls_result-items[ 1 ]-batch_allocations[ 1 ]-batch_allocation.
     DATA(ls_second_fefo_split) =
@@ -2274,22 +3438,124 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 'B-LATE'
       act = ls_first_fefo_split-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-LATE'
+      exp = 'B-ALT'
       act = ls_second_fefo_split-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261022'
       act = ls_result-items[ 2 ]-fefo_as_of_date ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATE'
-      act = ls_request-items[ 1 ]-batch ).
+      act = ls_first_request-items[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-ALT'
+      act = ls_second_request-items[ 1 ]-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
-      act = lines( ls_request-items ) ).
+      act = lines( ls_first_request-items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_first_request-items[ 1 ]-quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
-      act = ls_request-items[ 1 ]-quantity ).
+      act = ls_second_request-items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_res_api->get_create_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD reserves_dated_cc_fefo_atomic.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261010'
+          available_quantity = '2.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATE'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cc_fefo_date_atomic(
+      it_demands         = VALUE #(
+        ( request_id         = 'DATED-LATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-LATE'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          required_date      = '20261012'
+          priority           = 99 )
+        ( request_id         = 'DATED-EARLY-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-EARLY-L'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 1 )
+        ( request_id         = 'DATED-EARLY-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-EARLY-H'
+          requested_quantity = '3.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 10 ) )
+      iv_test_run        = abap_true
+      iv_fefo_as_of_date = '20261001' ).
+    DATA(ls_first_request) = mo_res_api->get_request_at(
+      iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at(
+      iv_index = 2 ).
+    DATA(ls_third_request) = mo_res_api->get_request_at(
+      iv_index = 3 ).
+    DATA(ls_high_batch_split) =
+      ls_result-items[ 3 ]-batch_allocations[ 1 ]-batch_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DATED-LATE'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DATED-EARLY-LOW'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DATED-EARLY-HIGH'
+      act = ls_result-items[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-items[ 3 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_high_batch_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EARLY'
+      act = ls_high_batch_split-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-EARLY-H'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-EARLY-L'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-LATE'
+      act = ls_third_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
       act = mo_res_api->get_commit_count( ) ).
   ENDMETHOD.
 
@@ -2338,6 +3604,87 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = ls_request-items[ 1 ]-batch ).
   ENDMETHOD.
 
+  METHOD reserves_dated_cc_fefo_bulk.
+    mo_stock_repo->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-EARLY'
+          expiration_date    = '20261010'
+          available_quantity = '2.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATE'
+          expiration_date    = '20261020'
+          available_quantity = '3.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->reserve_cc_fefo_date_bulk(
+      it_demands         = VALUE #(
+        ( request_id         = 'BULK-DATED-LATE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-LATE'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          required_date      = '20261012'
+          priority           = 99 )
+        ( request_id         = 'BULK-DATED-EARLY-LOW'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-EARLY-L'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 1 )
+        ( request_id         = 'BULK-DATED-EARLY-HIGH'
+          material           = 'MAT-1'
+          plant              = '1000'
+          cost_center        = 'CC-EARLY-H'
+          requested_quantity = '1.000'
+          unit               = 'EA'
+          required_date      = '20261005'
+          priority           = 10 ) )
+      iv_fefo_as_of_date = '20261001' ).
+    DATA(ls_first_request) = mo_res_api->get_request_at(
+      iv_index = 1 ).
+    DATA(ls_second_request) = mo_res_api->get_request_at(
+      iv_index = 2 ).
+    DATA(ls_third_request) = mo_res_api->get_request_at(
+      iv_index = 3 ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-DATED-LATE'
+      act = ls_result-items[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-DATED-EARLY-LOW'
+      act = ls_result-items[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BULK-DATED-EARLY-HIGH'
+      act = ls_result-items[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-items[ 3 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = ls_result-items[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-EARLY-H'
+      act = ls_first_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-EARLY-L'
+      act = ls_second_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-LATE'
+      act = ls_third_request-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_res_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = mo_res_api->get_commit_count( ) ).
+  ENDMETHOD.
+
   METHOD reserves_cc_bulk_fefo_date.
     mo_stock_repo->set_batch_stocks(
       it_stock = VALUE #(
@@ -2348,6 +3695,10 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         ( storage_location   = '0001'
           batch              = 'B-AFTER'
           expiration_date    = '20261006'
+          available_quantity = '1.000' )
+        ( storage_location   = '0001'
+          batch              = 'B-LATER'
+          expiration_date    = '20261007'
           available_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->reserve_cost_centers_bulk(
@@ -2356,6 +3707,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
           material           = 'MAT-1'
           plant              = '1000'
           cost_center        = 'COST-100'
+          batch              = 'B-LATER'
           required_date      = '20261005'
           fefo_as_of_date    = '20261003'
           requested_quantity = '1.000'
@@ -2371,11 +3723,11 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = '20261005'
       act = ls_result-items[ 1 ]-fefo_as_of_date ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-AFTER'
+      exp = 'B-LATER'
       act = ls_result-items[ 1 ]-batch_allocations[
         1 ]-batch_allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-AFTER'
+      exp = 'B-LATER'
       act = ls_request-items[ 1 ]-batch ).
   ENDMETHOD.
 
@@ -2830,7 +4182,6 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     DATA lv_location_raised TYPE abap_bool.
     DATA lv_flag_raised TYPE abap_bool.
     DATA lv_mixed_batch_raised TYPE abap_bool.
-    DATA lv_fefo_batch_raised TYPE abap_bool.
     DATA lv_fefo_flag_raised TYPE abap_bool.
     DATA lv_min_days_raised TYPE abap_bool.
     DATA lv_bad_date_raised TYPE abap_bool.
@@ -2906,22 +4257,6 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
 
     TRY.
         mo_cut->reserve_cost_centers_atomic(
-          it_demands          = VALUE #(
-            ( request_id         = 'FEFO-AND-BATCH'
-              material           = 'MAT-1'
-              plant              = '1000'
-              cost_center        = 'COST-100'
-              batch              = 'B-1'
-              required_date      = '20261020'
-              requested_quantity = '1.000'
-              unit               = 'EA' ) )
-          iv_use_fefo_batches = abap_true ).
-      CATCH zcx_invalid_stock_request.
-        lv_fefo_batch_raised = abap_true.
-    ENDTRY.
-
-    TRY.
-        mo_cut->reserve_cost_centers_atomic(
           it_demands          = lt_valid_demands
           iv_use_fefo_batches = 'Y' ).
       CATCH zcx_invalid_stock_request.
@@ -2984,9 +4319,6 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_mixed_batch_raised ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = abap_true
-      act = lv_fefo_batch_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_fefo_flag_raised ).
@@ -3524,6 +4856,30 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-batch_allocations ) ).
+    DATA(ls_exact_batch_preview) = mo_cut->preview_for_cost_center(
+      iv_material           = 'MAT-1'
+      iv_plant              = '1000'
+      iv_cost_center        = 'COST-200'
+      iv_required_date      = '20260923'
+      iv_requested_quantity = '8.000'
+      iv_unit               = 'EA'
+      iv_batch              = 'B-LATER'
+      iv_use_fefo_batches   = abap_true
+      iv_fefo_as_of_date    = '20260923'
+      iv_fefo_min_days      = 7
+      iv_batch_min_days     = 10 ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_exact_batch_preview-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_exact_batch_preview-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_exact_batch_preview-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATER'
+      act = ls_exact_batch_preview-batch_allocations[ 1 ]-batch ).
     cl_abap_unit_assert=>assert_initial(
       ls_result-reservation_number ).
     cl_abap_unit_assert=>assert_equals(
@@ -4053,7 +5409,7 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       act = mo_stock_repo->get_read_count( ) ).
   ENDMETHOD.
 
-  METHOD rejects_fefo_with_batch.
+  METHOD rejects_batch_min_no_batch.
     DATA lv_rejected TYPE abap_bool.
     TRY.
         mo_cut->reserve_for_cost_center(
@@ -4063,9 +5419,8 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
           iv_cost_center        = 'COST-100'
           iv_requested_quantity = '4.000'
           iv_unit               = 'EA'
-          iv_batch              = 'BATCH-1'
-          iv_use_fefo_batches   = abap_true ).
-      CATCH zcx_invalid_reservation.
+          iv_batch_min_days     = 1 ).
+      CATCH zcx_invalid_stock_request.
         lv_rejected = abap_true.
     ENDTRY.
 

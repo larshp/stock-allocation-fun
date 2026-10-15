@@ -1,7 +1,744 @@
 # Development notes
 
+## 2026-10-15
+
+- Added priority-only ordering to cost-center FEFO previews. Higher-priority
+  demands consume shared plant batches first; preview rows retain caller order
+  and echo each priority. Tests cover split selection, invalid flags before
+  stock reads, and summary ordering. `npm run lint` found 0 issues across 138
+  files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added priority-only ordering to aggregate sales-order issue previews in base
+  and alternative units. Higher priorities consume a shared item/cutoff
+  balance first, results return in caller order, and malformed option flags are
+  rejected before stock reads. Tests cover partial coverage and converted UOM
+  totals. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Added priority-only ordering to sales-order FEFO preview and issue flows.
+  Base-unit and UOM requests now allocate shared item stock by descending
+  priority without requiring dates, preserve caller order in results, and
+  recheck with the same ordering before movement 231. Tests cover priority batch
+  splits in both units and both posting workflows. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP Unit
+  with exit 0.
+- Added `SEND_QUALITY_FEFO_PRIORITY` to apply priority-ordered unrestricted
+  stock FEFO to movement 322. The service repeats the priority allocation,
+  verifies priority echoes and batch splits, and supports location filters and
+  safety-stock protection. Tests cover priority stock consumption, movement
+  type, split quantities, and rejection of a modified priority or changed stock
+  split before posting. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `RELEASE_QUALITY_FEFO_PRIORITY` to connect priority-ordered quality
+  stock allocation to movement 321. The service recomputes the same priority
+  preview, verifies priority echoes and batch splits, then posts unit-mapped
+  quantities. Tests cover a high-priority demand consuming the earliest batch
+  first, rejection of a modified priority, and rejection of a changed split
+  before the goods-movement call. `npm run lint` found 0 issues across 138
+  files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `ALLOCATE_DEMANDS_UOM_ATP` for ordinary bulk alternative-unit
+  allocations. It preserves the unit-aware local result and checks cumulative
+  positive quantities by material, plant, and base unit; the optional ATP date
+  defaults to `sy-datum`. Tests cover mixed units, grouped partial confirmation,
+  the default date, and early rejection of blank rules or invalid dates.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_TRANSFER_FEFO_PRIO_ATP` and
+  `PREVIEW_TRANSFER_LOC_PRIO_ATP` for undated priority-ordered WBS transfers.
+  They report grouped plant ATP diagnostics for positive local allocations
+  without changing caller-order priority results; the optional check date
+  defaults to `sy-datum`. Tests cover repeated IDs, priority FEFO/location
+  splits, destination assignments, ATP grouping, and early rejection of bad
+  dates and blank rules. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_FEFO_PRIORITY_ATP` and `PREVIEW_LOCATION_PRIORITY_ATP` for
+  undated priority-ordered WBS allocations. Their ATP checks aggregate positive
+  quantities by material, plant, base unit, and check date while retaining the
+  local priority allocation and caller-order rows. Tests cover repeated IDs,
+  priority stock selection, grouped ATP quantities, date defaults/validation,
+  and blank-rule rejection before reads. `npm run lint` found 0 issues across
+  138 files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_TRANSFER_FEFO_ATP` and `PREVIEW_TRANSFER_LOC_ATP` for undated
+  project WBS transfer previews. Checks group positive allocations by material,
+  plant, base unit, and ATP date; the optional date defaults to `sy-datum` and
+  does not alter the local transfer split. Tests cover batch/location splits,
+  destination mapping, aggregation, date validation, and blank-rule rejection
+  before reads. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_FEFO_ATP` and `PREVIEW_BY_LOCATION_ATP` for undated project
+  WBS previews. Both check positive allocations cumulatively by material,
+  plant, base unit, and ATP date; the optional date defaults to `sy-datum` and
+  does not change the current local stock estimate. Tests cover grouping,
+  location preference, custom/default dates, and blank-rule or invalid-date
+  rejection before reads. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_TRANSFER_FEFO_DATE_ATP` and `PREVIEW_TRANSFER_LOC_DATE_ATP`
+  for cumulative plant-level ATP diagnostics on dated project WBS transfers.
+  Checks group positive local allocations by material, plant, base unit, and
+  required date; they do not alter batch or location splits. Tests cover
+  repeated IDs, destination assignments, transfer stock splits, aggregation,
+  and blank-rule rejection before reads. `npm run lint` found 0 issues across
+  138 files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_BY_LOCATION_DATE_ATP`, pairing batchless dated WBS location
+  allocation with cumulative plant-level SAP ATP diagnostics. Checks aggregate
+  positive allocations by material, plant, base unit, and date; they do not
+  alter the local location split. Tests cover duplicate IDs, location priority,
+  same-date ATP aggregation, and blank-rule rejection before stock reads.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_FEFO_BY_DATE_ATP`, which keeps the dated project WBS FEFO
+  estimate and reports cumulative plant-level SAP ATP checks by material,
+  plant, base unit, and required date. Confirmed/unconfirmed quantities remain
+  diagnostic and do not gate the local allocation. Tests cover cumulative date
+  grouping, partial confirmations, and rejection of a blank check rule before
+  stock reads. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Updated `PREVIEW_FEFO_BY_DATE`, `PREVIEW_BY_LOCATION_DATE`,
+  `PREVIEW_TRANSFER_FEFO_BY_DATE`, and `PREVIEW_TRANSFER_LOCATION_DATE` to
+  assign unique internal IDs to each input row. Repeated caller IDs now work in
+  direct dated preview calls as well as transfer wrappers, and allocations,
+  splits, and assignments retain caller order and IDs. Added regression tests
+  for all four preview types. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Updated `TRANSFER_WBS_BY_LOCATION_DATE` to use unique internal IDs through
+  the dated source-WBS location preview, recheck, and 415/Q movement posting.
+  Repeated caller IDs now work across required dates, and the result restores
+  caller IDs/order for allocations, location splits, and transfer assignments.
+  Tests cover date-based location choice and destination WBS mapping. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Updated `TRANSFER_WBS_FEFO_BY_DATE` to use unique internal IDs through the
+  dated source-WBS preview, recheck, and 415/Q movement posting. Repeated caller
+  IDs now work across required dates, with caller IDs and input order restored
+  in allocations, batch splits, and transfer assignments. Tests cover distinct
+  date-based batches and destination WBS mapping. `npm run lint` found 0 issues
+  across 138 files; `npm run unit` completed transpilation and ABAP Unit with
+  exit 0.
+- Updated `RESERVE_WBS_BY_LOCATION_DATE` to use unique internal IDs through
+  the dated location preview, recheck, and reservation steps. Repeated caller
+  IDs now work across requirement dates, while returned previews preserve the
+  original IDs and input order. Tests cover separate date groups, locations
+  selected by date order, and duplicate ID mapping. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP
+  Unit with exit 0.
+- Updated `RESERVE_WBS_FEFO_BY_DATE` to use unique internal IDs through the
+  dated preview, recheck, and reservation steps. Repeated caller IDs now work
+  across multiple required dates, with caller IDs and order restored in the
+  preview. Tests cover duplicate IDs, date-prioritized FEFO batch selection,
+  and separate reservation groups per date. `npm run lint` found 0 issues
+  across 138 files; `npm run unit` completed transpilation and ABAP Unit with
+  exit 0.
+- Added `RESERVE_WBS_LOCATION_PRIORITY` for rechecked priority-ordered
+  batchless WBS reservations. Higher priorities consume shared stock first and
+  equal priorities keep input order; returned previews restore caller order and
+  IDs, while internal IDs preserve repeated demands during posting. Full
+  quantity is required by default, with partial reservation opt-in. Tests cover
+  repeated IDs, preferred-location allocation, grouped item quantities, and
+  rejection when rechecking finds a newly preferred location. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Added `RESERVE_WBS_FEFO_PRIORITY` for rechecked priority-ordered undated WBS
+  batch reservations. It preserves stable input order for ties, restores caller
+  order and IDs in the preview, and uses unique internal IDs through reservation
+  creation so repeated caller IDs remain safe. Full quantity is required by
+  default; partial reservations are opt-in. Tests cover duplicate IDs, FEFO
+  split grouping, and stale allocation rejection before writes. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Added `TRANSFER_WBS_LOC_PRIORITY` to recheck priority-ordered batchless WBS
+  location splits before posting movement 415/Q. Internal IDs preserve distinct
+  demands with repeated caller IDs, while the result preview restores caller
+  IDs. Full demand coverage is required by default; partial transfer is
+  opt-in. Tests cover storage-location preference, caller-order posting, and
+  stale snapshot rejection. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `TRANSFER_WBS_FEFO_PRIORITY`, which runs the undated priority FEFO
+  preview twice, compares the full source/destination batch transfer splits,
+  then posts the matched result as movement 415/Q. Internal IDs keep duplicate
+  caller IDs distinct through posting while the returned preview preserves
+  caller IDs. Full demand is required by default; partial priority transfer is
+  opt-in. Tests cover priority allocation, posted batch/WBS mapping, and stale
+  snapshot rejection. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_TRANSFER_FEFO_PRIORITY` and
+  `PREVIEW_TRANSFER_LOC_PRIORITY` for undated WBS stock transfers. Higher
+  priorities consume shared source-WBS batch or location balances first, ties
+  preserve input order, and allocation splits plus WBS assignments return in
+  caller order with priority echoed. Internal row IDs allow repeated caller
+  request IDs. Tests cover FEFO and location splitting, stable ties, and source
+  location preference. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added `PREVIEW_BY_LOCATION_PRIORITY` for undated batchless project/WBS stock.
+  Higher priorities allocate shared location balances first, ties preserve
+  input order, and summaries, location splits, and WBS assignments return in
+  caller order with priority echoed. Internal row IDs support repeated caller
+  request IDs; the test also checks storage-location preference. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Added `PREVIEW_FEFO_PRIORITY` for undated project/WBS stock demands. Higher
+  priorities allocate shared project batches first, ties preserve input order,
+  and summaries, batch splits, and WBS assignments return in caller order with
+  priority echoed. Internal row IDs preserve repeated caller request IDs.
+  Regression coverage checks shared FEFO batches and duplicate IDs.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0. Snapshot and correlation limits are
+  documented in `README.md` and `ANOMALIES.md`.
+- Added `ALLOCATE_DEMANDS_UOM_ATP_PRIO` for grouped ATP checks on positive
+  priority-based local UOM allocations. Higher priorities retain shared stock
+  precedence; confirmations remain separate from the local allocation.
+  Regression coverage checks caller-order quantities and grouped confirmation.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added `ALLOCATE_FEFO_UOM_ATP_PRIO` to check priority-aware single-plant FEFO
+  UOM allocations against grouped plant ATP. ATP confirmations remain separate
+  from the local batch split. Regression coverage checks priority allocation,
+  caller-order results, and confirmed/unconfirmed totals. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP Unit
+  with exit 0.
+- Added priority-aware single-plant exact-batch allocation for base-unit and
+  UOM demands, plus a grouped UOM ATP wrapper. Higher priorities consume shared
+  batch stock first, ties preserve input order, and summaries/batch splits
+  return in caller order with priority echoed. Repeated request IDs are
+  preserved through internal row mapping. Regression coverage checks base/UOM
+  quantities and grouped ATP confirmation. `npm run lint` found 0 issues across
+  138 files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added priority-aware base-unit and UOM allocation across single-plant storage
+  locations, plus a UOM ATP wrapper. Higher priorities consume shared stock
+  first, ties preserve input order, and summaries/location splits return in
+  caller order with priority echoed. Repeated request IDs are preserved through
+  internal row mapping. Regression coverage checks duplicate IDs, UOM
+  conversions, location preferences, and grouped ATP quantities. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Added priority-aware undated ordinary cross-plant allocation for base-unit
+  and UOM demands, preserving projected receipt and cutoff inputs. Higher
+  priorities consume shared source balances first, stable ties preserve input
+  order, and results return in caller order. Added the UOM ATP wrapper, which
+  checks grouped source-plant quantities separately. Tests cover shared
+  receipts, stable ties, base/UOM allocations, duplicate rejection before UOM
+  reads, and ATP grouping. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added priority-aware cross-plant exact-batch allocation for base and
+  alternative-unit demands, plus a UOM ATP wrapper. Priority applies among
+  requests with the same as-of date, while earlier dates remain first. Results
+  return in caller order with priorities echoed, and duplicate IDs fail before
+  stock or UOM reads. Regression coverage checks base/UOM quantities,
+  location splits, duplicate rejection, and grouped ATP quantities.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added priority-aware undated cross-plant FEFO allocation for base and
+  alternative-unit demands. Higher priorities consume shared source-plant
+  batches first, equal priorities preserve input order, and summaries plus
+  source/batch splits return in caller order with priority echoed. Duplicate
+  IDs are rejected before stock reads or UOM conversion. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP Unit
+  with exit 0. The snapshot and SAP batch-determination limits are recorded in
+  `README.md` and `ANOMALIES.md`.
+- Added `ALLOCATE_PLANTS_FEFO_UOM_ATP` for priority-aware UOM cross-plant FEFO.
+  It preserves the caller-order local split and checks positive allocations by
+  material, source plant, and base unit, returning confirmations separately.
+  Regression coverage verifies priority allocation and grouped ATP quantity.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0. ATP remains plant-level and does not
+  confirm batch/location selection.
+- Added priority-aware quality FEFO allocation for base and alternative-unit
+  demands. Higher priorities consume shared quality batches first, while
+  summaries and splits return in caller order. Both entry points reject
+  duplicate IDs before repository or UOM reads. Regression coverage verifies
+  base and UOM quantities, split restoration, and duplicate rejection.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added priority-aware FEFO allocation for base and alternative-unit demands.
+  Higher priorities consume shared batches first, equal priorities keep input
+  order, and summaries plus batch splits return in caller order with priority
+  echoed. Missing or duplicate request IDs fail before stock reads. Tests cover
+  stable ties, shared FEFO batches, UOM amounts, caller order, and duplicate
+  rejection. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Rejected positive stock-service UOM demand that rounds to zero at
+  `MARD-LABST` precision, before any stock read. Centralized the guard across
+  unit-aware allocation paths and covered single, bulk, and dated location
+  allocation with a tiny ratio. `npm run lint` found 0 issues across 138 files;
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added opt-in prioritized bulk allocation entry points for base and
+  alternative-unit demand. Higher integer priority consumes shared
+  material/plant stock first, ties keep input order, and results return in
+  caller order with priority echoed. Duplicate or missing request IDs are
+  rejected before stock reads. Tests cover base/UOM allocation, stable ties,
+  echoed priorities, and duplicate rejection. `npm run lint` found 0 issues
+  across 138 files; `npm run unit` completed transpilation and ABAP Unit with
+  exit 0.
+- Extended dated cross-plant ordinary and FEFO allocation with per-demand
+  `require_full_quantity`, including date UOM and ATP wrappers. The row flag
+  combines with the shared option, is validated before stock/UOM reads, and
+  leaves shared balances untouched when a short request is skipped. README and
+  anomaly notes document the policy. `npm run lint` found 0 issues across 138
+  files; `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Extended dated location-aware cross-plant ordinary allocation with the same
+  per-demand policy in base and UOM requests, including the ATP wrapper. The
+  flag passes through date/priority sorting into shared plant/location balance
+  allocation, and invalid UOM row values are rejected before conversion.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added per-demand `require_full_quantity` to exact-batch cross-plant base and
+  UOM demands in both undated and date-prioritized allocation. The shared flag
+  still applies to all rows, and ATP wrappers preserve the local decision.
+  Invalid row values are rejected before stock reads or UOM conversion.
+  Regression coverage includes mixed row policies for local and cross-plant
+  location, batch, dated, UOM, FEFO, and ATP paths. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP
+  Unit with exit 0.
+- Extended per-demand `require_full_quantity` to single-plant ordinary and
+  location-aware base/UOM allocation, including dated location previews and ATP
+  wrappers. Also added it to single-plant exact-batch base/UOM demand rows.
+  Short flagged lines consume no shared balance, and invalid UOM row flags are
+  rejected before conversion. README and anomaly notes document the scope.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Extended request-level `require_full_quantity` to ordinary and undated FEFO
+  cross-plant base/UOM demands. A short flagged row consumes no source-plant
+  stock and leaves it for later rows; the shared flag and ATP diagnostics keep
+  their existing behavior. Mixed-demand and invalid-flag tests cover base,
+  UOM, FEFO, ATP, and pre-conversion validation. `npm run lint` found 0 issues
+  across 138 files; `npm run unit` completed transpilation and ABAP Unit with
+  exit 0.
+- Added request-level `require_full_quantity` to stock-service FEFO base and
+  UOM demands, including quality-stock FEFO and cost-center dated/undated
+  previews. A short flagged request gets no batch split and leaves its eligible
+  balance for later requests; the existing shared flag still applies to all
+  rows. Preview results echo the cost-center row policy, and invalid values are
+  rejected before stock reads or UOM conversion. Mixed-policy regression tests
+  cover base, converted-unit, quality, and cost-center flows. `npm run lint`
+  found 0 issues across 138 files; `npm run unit` completed transpilation and
+  ABAP Unit with exit 0.
+- Added per-request `require_full_quantity` to sales-order FEFO base and UOM
+  demands. It combines with the existing shared flag; a short row receives no
+  split and leaves remaining stock for subsequent requests, while unflagged
+  rows retain partial behavior. Invalid values fail before stock reads.
+  Regression coverage verifies mixed policies in base and converted-unit
+  demand sets. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Carried the shared and per-request SO FEFO location filters in the allocation
+  result. Goods-issue and reservation writers check every selected split
+  against it; rechecks also compare filter metadata, and selected request
+  results keep only the matching scoped rows. Regression cases cover excluded
+  issue/reservation splits, scope changes at recheck, and filter preservation
+  through selected and generated reservation previews. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP Unit
+  with exit 0.
+- Added request-specific storage-location scopes to SO FEFO previews, issue
+  rechecks, and reservation previews. Scope rows intersect with the shared
+  allowlist; mixed-demand tests cover separate location sets in base and UOM
+  flows, invalid scope rejection before reads, and issue/reservation forwarding.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added a shared SO FEFO storage-location allowlist for base and UOM previews,
+  plus fresh goods-issue and reservation preview paths. A preferred location
+  must belong to the allowlist; excluded locations do not contribute to
+  availability or splits. Tests cover both units, rejection before reads, and
+  propagation through issue and reservation. `npm run lint` found 0 issues
+  across 138 files; `npm run unit` completed transpilation and ABAP Unit with
+  exit 0. The SAP storage-type and authorization limits are recorded in
+  `ANOMALIES.md`.
+- Sales-order FEFO now rejects malformed nonblank expiration dates from the
+  repository before sorting or allocating; a regression supplies an impossible
+  Gregorian date. `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0.
+- Added per-demand preferred storage locations with optional fallback to
+  sales-order FEFO previews in base and alternative units. Expiry and batch
+  order remain primary; preference breaks location ties within the same batch
+  and expiration date. Issue and reservation consumers validate the echoed
+  preference, and full-location fallback tests cover both posting paths.
+  `npm run lint` found 0 issues across 138 files; `npm run unit` completed
+  transpilation and ABAP Unit with exit 0.
+- Added a per-demand `require_known_expiry` option to sales-order FEFO requests.
+  It excludes unknown-expiry batches for that demand while other requests can
+  still use them under the shared undated-batch setting. Summaries and splits
+  report the effective policy; base and UOM tests cover mixed demands and bad
+  flag rejection before reads. The issue workflow regression confirms an
+  undated batch is not posted for a known-expiry demand. `npm run lint` found 0
+  issues across 138 files; `npm run unit` completed transpilation and ABAP
+  Unit with exit 0. Local expiry metadata limits remain documented in
+  `ANOMALIES.md`.
+- Added a per-demand `minimum_shelf_life_days` constraint to sales-order FEFO
+  previews in base and alternative units. The greater of the request value and
+  shared `iv_min_days` now drives batch eligibility; summaries and splits echo
+  the effective value so issue and reservation consumers retain the rule.
+  Regression coverage checks differing minima against shared balances, UOM
+  propagation, and rejection before reads for negative values. Validation
+  passed: `npm run lint` found 0 issues across 138 files; `npm run unit`
+  completed transpilation and ABAP Unit with exit 0. SAP expiry and batch
+  determination limits are recorded in `ANOMALIES.md`.
+- Hardened sales-order FEFO posting after finding that rechecked previews did
+  not compare newly added summary `required_date` and `priority` fields, and
+  posting did not require those values to match batch splits. Rechecks now
+  compare them; posting validates date syntax/cutoff and matching split metadata.
+  Added regressions for changed summaries, inconsistent splits, and dates after
+  the effective cutoff. `npm run lint` passed with 0 issues across 136 files;
+  `npm run unit` passed transpilation and ABAP Unit with exit 0. The combined
+  `npm test` wrapper still fails at WSL 1 startup; individual scripts work.
+- Added `ZCL_SO_FEFO_ISSUE_SERVICE->ISSUE_FEFO` and `ISSUE_FEFO_UOM` to recompute
+  the same sales-order FEFO demand snapshot immediately before posting through
+  the existing rechecked movement path. Optional request IDs select a subset
+  from a multi-demand result after validating the IDs before stock reads. Added
+  production factory wiring and tests for matching previews, base-unit movement
+  mapping, selected cutoffs, stale stock rejection before the movement API, and
+  empty input. `npm run lint` passed with 0 issues across 138 files;
+  `npm run unit` passed transpilation and ABAP Unit with exit 0. The combined
+  `npm test` wrapper still fails at WSL 1 startup; individual scripts work.
+- Added exact storage-location filtering to sales-order FEFO demands in base and
+  alternative units. The requested location is echoed on summaries and batch
+  splits; goods issue and reservation creation now reject splits that violate
+  it, including during refreshed-preview comparisons. Tests cover location-only
+  FEFO in both units and pre-write rejection in both posting paths. Final lint
+  passed with 0 issues across 138 files; transpilation and ABAP Unit passed
+  with exit 0. The combined `npm test` wrapper still fails at WSL 1 startup;
+  individual scripts work.
+- Added `ALLOCATE_LOCATION_DATE_ATP` for dated location demands already
+  expressed in base units. The caller supplies each demand's base unit; positive
+  local allocations are combined by material, plant, unit, and required date,
+  then checked cumulatively so later dates include earlier allocations. Tests
+  cover early rejection, same-date aggregation, confirmations, and cumulative
+  requests. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. Plant-level ATP does not
+  confirm the storage-location split; see `ANOMALIES.md`.
+- Added `ALLOCATE_QUALITY_BY_EXPIRY_ATP`, which combines the quality-inspection
+  FEFO UOM preview with grouped plant-level ATP checks for positive batch
+  allocations. Tests verify early rule rejection, UOM conversion, FEFO splits,
+  and partial ATP confirmation. `npm test` passed with 0 abaplint issues across
+  136 files, successful transpilation, and ABAP Unit exit 0. ATP's coverage of
+  quality stock and the exact batch remains target-system dependent.
+- Added caller-resolved, dated storage-location receipts to
+  `ALLOCATE_LOCATION_BY_DATE` and its base-unit ATP diagnostic. Receipts become
+  available at their location on the stated date, are shared by later demands,
+  and replenish any uncovered static safety-stock buffer first. Tests cover an
+  invalid date, late receipt eligibility, location scope, safety-stock
+  protection, and ATP forwarding. `npm test` passed with 0 abaplint issues
+  across 136 files, successful transpilation, and ABAP Unit exit 0. Receipt
+  identity remains caller-provided; see `ANOMALIES.md`.
+- Added `ALLOCATE_QUALITY_BY_EXPIRY` and its `ALLOCATE_QUALITY_BY_EXPIRY_UOM`
+  form. Both allocate raw `MCHB-CINSM` stock in FEFO order, share each
+  material/plant balance across demands, preserve batch/location splits, apply
+  expiry and minimum-shelf-life rules, and support all-or-nothing allocation.
+  The UOM method returns base and source quantities. Tests cover expiry,
+  undated-stock filtering, shared balances, full-quantity behavior, and UOM
+  conversion. `npm test` passed with 0 abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit exit 0. Quality-management and stock
+  snapshot limits are recorded in `ANOMALIES.md`.
+- Added `RELEASE_QUALITY_FEFO_RECHECKED` to post a unit-aware quality FEFO
+  allocation after requiring an identical refreshed summary and batch split.
+  It validates mappings, base/source quantities, split totals, and batch
+  eligibility through the posting date, then posts canonical base-unit
+  quantities with movement 321. Tests cover successful posting and stale
+  preview rejection before the BAPI call. `npm test` passed with 0 abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit exit 0. The
+  stock snapshot race and SAP quality controls are recorded in `ANOMALIES.md`.
+- Added `SEND_QUALITY_FEFO_RECHECKED` for movement 322. It shares the same
+  matching-preview, conversion, split-total, and posting-date eligibility
+  checks, and preserves FEFO batches in the movement items. Tests verify both
+  batch lines and base-unit quantities. `npm test` passed with 0 abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit exit 0.
+- Added `ZCL_QUALITY_STOCK_SERVICE` to recompute quality or unrestricted FEFO
+  allocations from the stock service immediately before posting movements 321
+  or 322. Changed batch splits are rejected before the goods-movement API call;
+  tests cover matching rechecks, changed QI stock, and empty requests.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Added storage-location priorities and allowlists to quality FEFO base and UOM
+  allocation, and passed the options through the fresh quality-release service.
+  Tests cover tie-breaking order, filtering, invalid preferred locations, and
+  unit-aware rechecking with a filter. `npm test` passed with 0 abaplint issues
+  across 136 files, successful transpilation, and ABAP Unit exit 0.
+- Added optional exact-batch filters to base and unit-aware FEFO demands. Both
+  unrestricted and quality FEFO now limit availability and splits to the
+  requested batch while retaining expiry checks and shared balances. Tests
+  cover base and UOM allocation for both stock categories. `npm test` passed
+  with 0 abaplint issues across 136 files, successful transpilation, and ABAP
+  Unit exit 0.
+
 ## 2026-10-14
 
+- Added quality-inspection batch visibility to the batch stock-status readers.
+  Base and bulk results now report `MCHB-CINSM` and `MCHB-CSPEM` beside
+  unrestricted and reservation-net availability; UOM results convert all four
+  quantities. The repository aggregates batch quantities in one `MCHB` query.
+  Tests cover field mapping and alternative-unit conversion. `npm test` passed:
+  0 abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0. The database mapping limitation is recorded in `ANOMALIES.md`.
+- Added own-stock quality-inspection transfers: `RELEASE_QUALITY_STOCK`/321
+  and `SEND_STOCK_TO_QUALITY`/322, with base and alternative-unit forms. Shared
+  validation preserves location and optional batch data. Tests cover movement
+  mapping and UOM conversion. `npm test` passed with 0 abaplint issues across
+  134 files, successful transpilation, and ABAP Unit exit 0. SAP quality
+  management controls are recorded in `ANOMALIES.md`.
+- Added `BLOCK_UNRESTRICTED_STOCK` and `BLOCK_UNRESTRICTED_STOCK_UOM` using
+  movement 344. The APIs preserve plant, storage location, optional batch, and
+  quantity, with UOM conversion to the mapped material base unit. Tests cover
+  movement mapping, batch forwarding, conversion, and invalid input rejection.
+  `npm test` passed with 0 abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Added `RELEASE_BLOCKED_STOCK` and `RELEASE_BLOCKED_STOCK_UOM` using movement
+  343. Requests retain plant, storage location, optional batch, and quantity;
+  the UOM path converts to the mapped material base unit. Tests cover movement
+  mapping, batch forwarding, conversion, and rejection before the API call.
+  `npm test` passed with 0 abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Extended sales-order FEFO issue previews with an optional exact-batch filter
+  in base and alternative units. Each demand allocates only from its selected
+  batch, repeated demands share that batch's remaining balance, and expiration
+  and shelf-life checks still apply. Reservation assignment remains global
+  FEFO where the reservation has no physical batch scope; the aggregate stock
+  snapshot is retained for audit. Tests cover repeated batch demands, partial
+  coverage, expired batches, and UOM quantities. `npm test` passed with 0
+  abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0.
+- Added sales-order stock reads by owning sales document and item. Callers can
+  supply item/material/plant directly or resolve material and plant from `VBAP`.
+  The service reads `MSKA` stock, nets open `RESB` special-stock E reservations,
+  and returns gross stock rows, open reservation detail, base unit, and
+  aggregate availability. Added stubs, production factory wiring, tests, and
+  docs. `npm test` passed: zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit. Target query semantics and stock snapshot limits
+  are recorded in `ANOMALIES.md`.
+- Added an optional reservation cutoff to sales-order stock reads. Reservations
+  due after `RESB-BDTER` cutoff dates no longer reduce the net available total;
+  undated requirements still count, and all open rows remain available for
+  audit. The cutoff flows through both explicit material/plant reads and
+  `VBAP`-resolved item reads. Tests cover the date boundary, undated rows,
+  invalid dates, and forwarding. `npm test` passed with zero lint issues across
+  134 files, successful transpilation, and ABAP Unit. The current-stock-only
+  scope is recorded in `ANOMALIES.md`.
+- Added `PREVIEW_ISSUE_DEMANDS` for multiple sales-order item quantities. It
+  resolves materials and plants from `VBAP`, compares base-unit requests with
+  net `MSKA`/`RESB` availability, and returns covered amounts and shortfalls
+  with each stock snapshot. Duplicate item requests are rejected to prevent
+  double counting; results are aggregate and do not assign a batch/location
+  split. Tests cover full coverage, shortfall, duplicate demand, and empty
+  input. `npm test` passed with zero lint issues across 134 files, successful
+  transpilation, and ABAP Unit. Split and snapshot limits are in
+  `ANOMALIES.md`.
+- Added `PREVIEW_ISSUE_DEMANDS_IN_UNIT` to the sales-order stock service. It
+  converts demand through the material UOM converter and returns requested,
+  available, covered, and shortfall quantities in both source and base units.
+  Unknown ratios and positive quantities that convert to zero are rejected.
+  Tests cover exact coverage, partial coverage with fractional source units,
+  unknown units, and sub-precision conversion. `npm test` passed with zero lint
+  issues across 134 files, successful transpilation, and ABAP Unit. Target
+  conversion data and aggregate-only limitations are recorded in
+  `ANOMALIES.md`.
+- Extended both sales-order demand previews to allow multiple request rows for
+  one item without reusing the same available stock. Each row consumes the
+  shared item's remaining balance in input order; unit-aware rows can use
+  different units. Rows with the same item and cutoff share a balance. Tests
+  cover partial cumulative coverage and cross-unit allocation. `npm test` passed
+  with zero abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit. Target aggregate-snapshot and
+  date-cutoff limits remain in `ANOMALIES.md`.
+- Extended both sales-order demand previews to accept multiple cutoffs for the
+  same item. Each cutoff gets an independent remaining-availability pool, while
+  requests within one item/cutoff group still consume stock cumulatively in
+  input order. Tests cover base and UOM demand at two cutoffs. `npm test` passed
+  with zero abaplint issues across 134 files, successful transpilation, and
+  ABAP Unit.
+- Added FEFO sales-order issue previews in base and alternative units. They
+  return batch/location splits after deducting scoped reservations, allocating
+  unscoped reservations against eligible batches, applying expiry and minimum
+  shelf-life filters, and reconciling splits to aggregate availability. Tests
+  cover multiple demands, cutoff handling, alternate units, expired and undated
+  stock, minimum shelf life, and aggregation of duplicate stock rows. `npm test`
+  passed with zero abaplint issues across 134 files, successful transpilation,
+  and ABAP Unit.
+  Target `MCHA`/`MCH1` and reservation assignment behavior remain documented in
+  `ANOMALIES.md`.
+- Added `ISSUE_SALES_ORDER_FEFO` to consume the new preview. It validates each
+  summary and batch/location split, confirms base-unit mappings and the echoed
+  expiry/shelf-life/undated-batch policy, then posts one 231/E document. Full
+  allocation is required by default; partial posting is opt-in. Tests cover
+  split preservation, default shortfall rejection, partial posting, and
+  expired-batch rejection. `npm test` passed with zero abaplint issues across
+  134 files, successful transpilation, and ABAP Unit.
+- Added `ISSUE_SO_FEFO_RECHECKED` for callers that rerun the same preview before
+  posting. It compares every result summary, physical stock and reservation row,
+  and batch/location split, then posts only the identical refreshed result.
+  Tests cover matching previews plus changed batch and stock snapshots.
+  `npm test` passed with zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit.
+- Hardened FEFO posting against combining independent cutoff scenarios for the
+  same sales-order item. Repeated demands with one cutoff remain supported;
+  mixed-cutoff groups are rejected before the movement API so identical
+  physical stock cannot be suggested twice in one posting. Tests cover both
+  same-cutoff cumulative posting and mixed-cutoff rejection.
+- Added `ISSUE_SO_FEFO_SELECTED` to post selected request IDs from a multi-demand
+  preview. This lets callers post one cutoff scenario while retaining the
+  duplicate-stock guard on the remaining requests. Tests verify selection from
+  a result containing multiple cutoff scenarios, and reject unknown or
+  duplicate IDs. `npm test` passed with zero abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit.
+- Added `ISSUE_SO_FEFO_SEL_RECHECKED` to extract the requested IDs from both an
+  original multi-demand preview and its fresh rerun, compare the selected stock,
+  reservation, summary, and split data, and post the refreshed selection only
+  when unchanged. Tests cover successful selected recheck and changed splits.
+  `npm test` passed with zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit.
+- Added `reserve_so_stock_fefo` to turn sales-order stock FEFO splits into
+  movement-231 reservation requests, preserving the order item, batch, location,
+  and base-unit quantity. Full allocation is required by default; partial
+  reservation is opt-in. The method validates split/cutoff/expiry metadata,
+  supports simulation, checks returned reservation rows, and commits once with
+  rollback on API or commit failure. Tests cover mapping, simulation, shortfall,
+  expiry, API failure, and commit failure. `npm test` passed with zero abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit.
+- Added `reserve_so_stock_fefo_selected` to reserve selected request IDs from a
+  multi-cutoff preview. It filters summaries and matching batch splits, then
+  runs the shared full-allocation, cutoff, expiry, API-result, and transaction
+  checks. Empty, duplicate, and unknown IDs are rejected. Tests verify that one
+  cutoff can be reserved without mixing the other pool. `npm test` passed with
+  zero abaplint issues across 134 files, successful transpilation, and ABAP Unit.
+- Added `reserve_so_fefo_rechecked` for full or selected FEFO reservation
+  previews. It compares the caller's fresh result with the original, including
+  stock balances, open reservations, allocation summaries, and batch/location
+  splits, and reserves only from an unchanged result. Tests cover matching full
+  and selected results plus changed stock. `npm test` passed with zero abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit. The remaining
+  post-check stock race is documented in `ANOMALIES.md`.
+- Added `reserve_so_fefo_demands` and `reserve_so_fefo_demands_uom` to run a
+  sales-order FEFO stock preview and create the resulting reservations in one
+  call. The UOM path converts to material base-unit quantities before sending
+  the batch/location requests. Both methods support selected request IDs for
+  multi-cutoff previews. Full allocation remains the default, and the methods
+  support simulation and shelf-life/undated-batch options. Wired the stock
+  service through `CREATE_SALES_ORDER_ALLOC`. Tests cover direct and selected
+  FEFO reservation, UOM-to-base mapping, and shortfall rejection. `npm test`
+  passed with zero abaplint issues across 134 files, successful transpilation,
+  and ABAP Unit; the stock race before the BAPI call is recorded in
+  `ANOMALIES.md`.
+- Added `reserve_so_fefo_recheck` and `reserve_so_fefo_uom_recheck` to refresh a
+  previously displayed FEFO preview internally before reservation creation.
+  They compare the fresh preview with the original, support selected cutoff
+  request IDs, and make no reservation API call when stock or splits changed.
+  Tests cover unchanged base-unit previews, selected cutoffs, changed stock,
+  and UOM demand. `npm test` passed with zero abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit. The remaining stock race after the
+  refresh is documented in `ANOMALIES.md`.
+- Added `release_so_fefo_reservations` to release reservation numbers from a
+  successful, committed FEFO creation result. It validates number uniqueness
+  and matches reservation rows to the original batch/location splits before
+  delegating to the existing transactional delete service. Test-run, delete
+  failure, commit rollback, uncommitted-result rejection, and tampered-row cases
+  are covered. `npm test` passed with zero abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit; SAP reservation status rules remain
+  documented in `ANOMALIES.md`.
+- Added single and bulk sales-order stock reads in a requested unit. Results
+  expose unrestricted, reserved, and available quantities in both the requested
+  unit and material base unit; duplicate item reads share one stock snapshot.
+  Tests cover alternate-unit conversion, shared bulk reads, and unknown units.
+  `npm test` passed with zero abaplint issues across
+  134 files, successful transpilation, and ABAP Unit. Target conversion data and
+  rounding remain documented in `ANOMALIES.md`.
+- Extended bulk unit stock reads to accept different reservation cutoffs for the
+  same sales-order item. The service reuses the batched physical-stock read and
+  calculates each cutoff's reservation and availability totals independently.
+  Tests verify both cutoff totals and the retained cutoff in each result.
+  `npm test` passed with zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit.
+- Added order-scoped reservation issue methods for base-unit and UOM quantities.
+  They check every reservation header for movement type 231 and the requested
+  sales order/item before reusing the existing issue validation and posting
+  flow. Tests cover valid base/UOM issues, wrong sales-order assignment, and a
+  non-231 reservation. `npm test` passed with zero abaplint issues across 134
+  files, successful transpilation, and ABAP Unit. Target BAPI header behavior
+  and SAP-side stock checks remain in `ANOMALIES.md`.
+- Added matching sales-order reservation reversal methods in base units and
+  alternative units. They validate the same movement type and order/item header
+  scope and reuse the existing withdrawn-quantity limit and movement code 06
+  flow. Tests cover base and UOM reversals and a mismatched sales order.
+  `npm test` passed with zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit.
+- Added bulk sales-order issue and reversal methods for base-unit and UOM
+  quantities. Each reservation document is checked against movement type 231
+  and the requested order/item before its separate posting; a scope failure is
+  isolated to that reservation while later reservations continue. Tests cover
+  all four entry points and continuation after a mismatched reservation.
+  `npm test` passed with zero abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit.
+- Added `CREATE_RES_ISSUE_SERVICE()` to wire the reservation reader,
+  goods-movement adapter, and UOM repository through the production factory.
+  Construction coverage and README usage are updated.
+- Extended sales-order issue and return postings with opt-in special stock E in
+  both base-unit and unit-aware methods. The shared movement validator permits
+  E only for movements 231/232 with sales-order assignment; blank remains the
+  unrestricted-stock default. Tests cover E mapping and rejection of other
+  indicators. `npm test` passed with zero lint issues and successful ABAP Unit;
+  target movement customizing and return eligibility remain in
+  `ANOMALIES.md`.
+- Added `TRANSFER_SALES_ORDER_STOCK`/411E and `TRANSFER_TO_SALES_STOCK`/413E,
+  with UOM variants for both directions between sales-order stock and own stock.
+  The shared movement validator requires the special-stock indicator, correct
+  GM code, and sales-order/item assignment. Tests cover base and converted
+  quantities plus missing assignment rejection.
+  `npm test` passed with zero lint issues across 134 files, successful
+  transpilation, and ABAP Unit. Target authorizations and movement configuration
+  are recorded in `ANOMALIES.md`.
+- Added `TRANSFER_SALES_ORDER_ALLOC` to post the location/batch splits from a
+  sales-order allocation preview as movement 413/E. It reuses the strict
+  summary/split validation shared with sales-order issue posting, and requires
+  full allocation by default. Tests verify 413/E mapping and split preservation.
+  `npm test` passed with zero lint issues and ABAP Unit; preview snapshot limits
+  are documented in `ANOMALIES.md`.
+- Added `ISSUE_SO_ALLOC_RECHECKED` and `TRANSFER_SO_ALLOC_RECHECKED` to compare
+  an original sales-order allocation preview with a caller-regenerated preview
+  before posting. They check summary, sales-item, location, and batch rows, and
+  post the fresh result only when all rows match. Changed previews are rejected
+  before the movement API call. Tests cover a 231 issue, a 413 transfer, and
+  changed splits. `npm test` passed with zero abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit. Caller freshness and the remaining
+  stock race are documented in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_REPL_SOURCE_SERVICE` to expose
+  SAP-backed purchasing-source selection through the production factory.
+  Added its constructor to the wiring test and README. Source-list and quota
+  query semantics remain documented in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_SALES_ORDER_SERVICE` for the
+  standard sales-order read and change workflow, backed by the SAP sales-order
+  BAPI adapter. Added the constructor to production coverage and README;
+  target BAPI semantics remain in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_CC_RESERVATION_SERVICE` to bind
+  cost-center reservation flows to MARD stock, the reservation BAPI and
+  reader, material units, and ATP. Added construction coverage and README
+  wiring instructions. SAP reservation semantics remain documented in
+  `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_PREQ_SERVICE` to bind the
+  replenishment-requisition workflow to its standard BAPI adapter. Added it to
+  construction coverage and the production wiring README. Target PR API
+  behavior remains documented in `ANOMALIES.md`.
+- Added production factory methods for planned-order and production-order
+  services. The production-order constructor now includes its component ATP
+  checker, so the existing ATP-gated release methods are available through the
+  standard composition. Extended construction coverage and README; target BAPI
+  and ATP semantics remain recorded in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_PURCHASE_ORDER_SERVICE` to wire
+  PO workflows to the purchase-order BAPI and material UOM converter.
+  Construction coverage and README now include the production entry point.
+  Local validation checks the binding; purchasing BAPI behavior remains
+  documented in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_STOCK_TRANSFER_SERVICE` to wire
+  in-transit stock reads to the SAP transfer-stock repository and material UOM
+  converter. Extended the construction test and README. Target STO and
+  `MARD-UMLME` query behavior remains documented in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_PROJECT_RESV_SERVICE` to compose
+  the project reservation BAPI, WBS stock reader, shared material UOM
+  converter, and goods-movement adapter used for reservation issues. Extended
+  production construction coverage and README. Local validation confirms
+  construction only; target BAPI and WBS behavior remain listed in
+  `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_PROJECT_STOCK_SERVICE` to wire
+  WBS stock and reservation reads to the project-stock repository and UOM
+  converter. Extended production construction coverage and README; local tests
+  verify construction, while target `MSPR`/`RESB` query semantics remain
+  documented in `ANOMALIES.md`.
+- Added `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_SALES_ORDER_ALLOC`
+  to wire the sales-order allocation workflow to its sales-order BAPI, MARD
+  stock repository, ATP adapter, and reservation BAPI. Extended the production
+  construction coverage and README. Local validation checks service
+  construction; target BAPI behavior remains covered by the existing
+  sales-order reservation notes in `ANOMALIES.md`.
 - Added item- and schedule-line-specific FEFO minimum shelf life to sales-order
   previews and reservations. Schedule-line settings override item-wide
   settings, while `iv_fefo_min_days` remains a floor; batch results report the
@@ -4299,3 +5036,483 @@
   by ABAP Unit. `npm test` passed with zero lint issues across 130 files and
   1,145 transpiler outputs. Target SAP API validation remains in
   `ANOMALIES.md`.
+- Added `POST_SO_ISSUE_REMAINING` to issue all remaining quantities from a
+  caller-selected set of reservations for one sales-order item. It verifies
+  movement type and order/item scope, skips fully withdrawn items, derives
+  base-unit requests, and delegates to the existing per-reservation bulk issue
+  path for a second state check and posting. Tests cover open-quantity mapping,
+  wrong scope, and fully withdrawn reservations. The double read, live BAPI
+  validation, and independent per-reservation commits are recorded in
+  `ANOMALIES.md`.
+- Added `POST_SO_ISSUE_REMAINING_ATOMIC`, which uses the same validated open
+  quantities and sales-order scope but stages all selected reservation issues
+  before one shared commit. Tests cover successful posting and rollback when
+  the order scope changes between the initial read and the posting recheck.
+  Verify shared-LUW behavior in the target SAP release; see `ANOMALIES.md`.
+- Added request-ID selection to `RELEASE_SO_FEFO_RESERVATIONS`. The method still
+  validates the full committed result, then deletes all batch/location
+  reservations for selected demand IDs; empty selection releases all. Tests
+  cover selecting one of two demands and duplicate-ID rejection before the
+  delete API.
+- Added reservation-number selection to `RELEASE_SO_FEFO_RESERVATIONS` so a
+  caller can release one batch/location split from a multi-split FEFO demand.
+  The service validates selected numbers against the fully matched committed
+  result, rejects duplicates, unknown numbers, and mixed selector modes, and
+  keeps the existing all-rows default when no selector is supplied.
+- Hardened release validation to reject blank, nonpositive, or duplicate
+  request/location/batch split keys before deletion, including a correlated
+  result tampering case where both preview and reservation rows repeat a split.
+- Added `PREVIEW_SO_ISSUE_REMAINING` as a read-only entry point for the selected
+  sales-order reservations. It returns issueable item keys, remaining base-unit
+  quantities, base-unit ISO codes, locations, and batches without posting; it
+  rejects missing ISO mappings, and the posting methods keep their own re-read
+  and eligibility checks.
+- Added `PREVIEW_CC_ISSUE_REMAINING` and `POST_CC_ISSUE_REMAINING`. The preview
+  can list all open cost-center reservations or filter by selected reservation
+  numbers; posting requires an explicit selection and issues the open
+  base-unit quantities through the existing scope-checked bulk path.
+- Added `POST_CC_ISSUE_REMAINING_ATOMIC`. It uses the same selected open
+  quantities, rechecks cost-center scope before each reservation movement, and
+  requests one shared commit or rollback. Target LUW behavior remains noted in
+  `ANOMALIES.md`.
+- Added `POST_CC_ISSUE_REV_ATOMIC` for unit-aware cost-center withdrawal
+  reversals. It rejects invalid simulation flags and missing posting dates
+  before repository reads, validates the full selected scope before staging the
+  group, and requests one shared commit or rollback. Tests cover unit conversion,
+  commit behavior, and early flag rejection; target scope-query and LUW behavior
+  remain noted in `ANOMALIES.md`.
+- Added `PREVIEW_REMAINING_COMPONENTS` and `ISSUE_REMAINING_COMPONENTS` for an
+  explicit set of production-order reservation items. The preview returns only
+  open 261 components; posting issues the captured open quantities through the
+  existing bulk path, which rereads and revalidates before one material
+  document. Duplicate keys, invalid test flags, and non-261 issues are rejected;
+  invalid flags fail before reads. The read snapshot limits are recorded in
+  `ANOMALIES.md`.
+- Added `PREVIEW_RETURNABLE_COMPONENTS` and `RETURN_REMAINING_COMPONENTS` for
+  selected production-order reservation items. The preview includes fully
+  withdrawn 261 items and reports the withdrawn balance; posting rereads and
+  reverses those captured quantities together. Tests cover final-issue rows,
+  duplicate selection, UOM-free full-balance posting, and early test-flag
+  rejection. SAP reversal eligibility remains documented in `ANOMALIES.md`.
+- Added `PREVIEW_CC_REV_REMAINING` and `POST_CC_REV_REMAINING_ATOMIC` for
+  selected cost-center reservation items. The preview requires movement 201
+  and reports withdrawn base quantities; posting reverses the full selected
+  balances in one LUW and rechecks cost-center scope before staging each
+  reservation. Tests cover preview mapping, one-commit posting, duplicate-key
+  rejection, and rollback when scope changes. Target SAP behavior is recorded
+  in `ANOMALIES.md`.
+- Added `PREVIEW_CC_REMAINING_ITEMS` and `POST_CC_REMAINING_ITEMS_ATOMIC` so
+  callers can choose exact reservation/item keys instead of issuing every item
+  in selected reservation documents. Duplicate or missing keys are rejected;
+  atomic posting rechecks cost-center scope and commits the selected items once.
+  Exact-item tests cover selection, quantity mapping, and duplicate rejection.
+- Added `POST_CC_REMAINING_ITEMS` as the independent-commit counterpart. It
+  applies the exact item selection, then continues per reservation while
+  returning per-document bulk results; the partial-success behavior is
+  recorded in `ANOMALIES.md`.
+- Added `POST_CC_REV_REMAINING_BULK` alongside the atomic full-balance reversal.
+  It uses the same exact item preview but commits each reservation separately;
+  tests verify two selected reservations produce two documents and commits.
+  Partial-success and target SAP behavior remain in `ANOMALIES.md`.
+- Added `PREVIEW_SO_REV_REMAINING` and bulk/atomic posting methods for the
+  withdrawn balances of selected sales-order reservation documents. The preview
+  validates movement 231 and sales-order item scope, rejects duplicate or
+  missing selections, rejects negative or over-withdrawn rows, and skips
+  zero-withdrawal items. Posting repeats the
+  reservation check; bulk mode commits per reservation and atomic mode requests
+  one shared commit. Tests cover quantity mapping, malformed balances,
+  two-document bulk behavior, atomic grouping, and mismatched order scope.
+  Target SAP LUW and reversal
+  behavior are recorded in `ANOMALIES.md`. `npm test` passed with 0 abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit completion.
+- Added exact-item sales-order reversal selection with
+  `PREVIEW_SO_REV_REMAINING_ITEMS`, `POST_SO_REV_REM_ITEMS_BULK`, and
+  `POST_SO_REV_REM_ITEMS_ATOMIC`. It reuses the movement-231 and order-item
+  validation, rejects duplicate or unavailable reservation/item keys, and
+  delegates posting to the per-reservation or shared-LUW paths. Tests cover
+  selecting one of two items, bulk and atomic posting, missing keys, and
+  duplicate-key rejection. Snapshot and SAP reversal limits are in
+  `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134 files,
+  transpilation completed, and ABAP Unit exited successfully.
+- Added exact-item sales-order issue methods with
+  `PREVIEW_SO_ISSUE_REM_ITEMS`, `POST_SO_ISSUE_REM_ITEMS_BULK`, and
+  `POST_SO_ISSUE_REM_ITEMS_ATOMIC`. They validate movement 231 and order-item
+  scope, require positive open quantities on every selected key, and re-read
+  selected reservations before posting. Tests cover selecting one of two items,
+  bulk and atomic posting, and missing/duplicate-key rejection. Snapshot and SAP
+  LUW limits are recorded in `ANOMALIES.md`. `npm test` passed with 0 abaplint
+  issues across 134 files, successful transpilation, and ABAP Unit completion.
+- Added `RETURN_REMAINING_BULK` to return selected production component balances
+  with independent per-reservation commits. It reuses the exact-key preview,
+  groups multiple selected items into one reservation movement, rereads each
+  production order before posting, and reports success or failure per
+  reservation. Tests cover two reservations producing separate documents and
+  commits, plus continuation after a later reservation read fails. Target SAP
+  reversal and snapshot limits are recorded in `ANOMALIES.md`. `npm test` passed
+  with 0 abaplint issues across 134 files, successful transpilation, and ABAP
+  Unit completion.
+- Added `ISSUE_REMAINING_BULK` for selected production component balances. It
+  groups open 261 quantities per reservation, commits each group independently,
+  returns per-reservation outcomes, and continues after a failed group. Tests
+  cover multiple items grouped into one reservation document, separate
+  reservation commits, and continuation after a later reservation detail read
+  fails. Snapshot and
+  partial-success limits are recorded in `ANOMALIES.md`. `npm test` passed:
+  0 abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0.
+- Added optional production order item mapping to production receipts. The
+  typed receipt line now carries AFPO's item number through the goods-movement
+  interface to BAPI `ORDER_ITM`, enabling co-product receipt selection. A test
+  verifies the production item survives receipt request construction; target
+  BAPI field behavior is recorded in `ANOMALIES.md`.
+- Added `ISSUE_UNPLANNED_PROD_BULK_UOM`. It converts all production-order
+  issue lines to their mapped material base unit before the first goods
+  movement, then preserves the existing per-order commit and continuation
+  results. Tests cover two converted orders and reject a bad later unit before
+  any create or commit. Target ratios and BAPI quantity behavior are noted in
+  `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit exit 0.
+- Added `RETURN_PROD_ORDERS_BULK` and `RETURN_PROD_ORDERS_BULK_UOM` for direct
+  movement-262 returns across distinct production orders. The base-unit path
+  validates all orders and lines before posting, commits independently per
+  order, and continues after a BAPI failure. The UOM path converts every line
+  before the first post. Tests cover continuation, two converted orders, and
+  rejection of an unsupported later unit before any create or commit. SAP
+  posting and reversal limits are recorded in `ANOMALIES.md`.
+- Added `RETURN_PROD_ORDERS_ATOMIC` and `RETURN_PROD_ORDERS_ATOMIC_UOM` to stage
+  one 262 movement per order and commit the group once, rolling back all staged
+  results when a movement or commit fails. The UOM wrapper converts the full
+  request before staging. Tests cover success, create and commit rollback,
+  converted quantities, and invalid-unit prevalidation. Repeated-call LUW
+  behavior remains a target SAP verification item. `npm test` passed with 0
+  abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0.
+- Added `RETURN_SALES_ORDERS_BULK` and `RETURN_SALES_ORDERS_BULK_UOM` for
+  independent movement-232 returns across distinct sales documents. Bulk mode
+  validates every order and line before posting, then continues after a failed
+  order while retaining per-order outcomes. The UOM variant converts the full
+  request before the first post. Tests cover special-stock E mapping,
+  continuation, converted quantities, and unsupported later-unit rejection.
+  Sales-order and stock eligibility remain SAP checks in `ANOMALIES.md`.
+- Added `RETURN_SALES_ORDERS_ATOMIC` and `RETURN_SALES_ORDERS_ATOMIC_UOM` to
+  stage one movement-232 document per distinct sales order and commit the group
+  once. Movement and commit failures roll back provisional results; the UOM
+  method converts the full request before staging. Tests cover group success,
+  movement and commit rollback, special-stock E, converted quantities, and
+  invalid-unit prevalidation. Target SAP LUW behavior is in `ANOMALIES.md`.
+  `npm test` passed: 0 abaplint issues across 134 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Added `ISSUE_SALES_ORDERS_BULK` and `ISSUE_SALES_ORDERS_BULK_UOM` for
+  independent movement-231 issues across distinct sales documents. The base
+  path prevalidates the full request and continues after an order failure; the
+  UOM path converts every line before the first post. Tests cover special-stock
+  E mapping, failure continuation, converted quantities, and rejection of an
+  unsupported later unit before any create or commit. SAP issue eligibility is
+  recorded in `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134
+  files, successful transpilation, and ABAP Unit exit 0.
+- Added `ISSUE_SALES_ORDERS_ATOMIC` and `ISSUE_SALES_ORDERS_ATOMIC_UOM` to stage
+  one movement-231 document per distinct sales order and commit the group once.
+  Movement and commit failures roll back provisional results; UOM conversion
+  validates the full request before staging. Tests cover group success,
+  movement and commit rollback, special-stock E, converted quantities, and
+  invalid-unit prevalidation. Target SAP LUW behavior is recorded in
+  `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit exit 0.
+- Added `ISSUE_PROD_ORDERS_ATOMIC` and `ISSUE_PROD_ORDERS_ATOMIC_UOM` for
+  group-wide movement-261 issue across distinct production orders. The service
+  validates every order and line before staging, converts all UOM lines before
+  staging, and rolls back provisional results when a movement or shared commit
+  fails. Tests cover success, movement and commit rollback, converted
+  quantities, and invalid-unit prevalidation. Repeated-call SAP LUW behavior is
+  recorded in `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134
+  files, successful transpilation, and ABAP Unit exit 0.
+- Added `TRANSFER_SALES_STOCK_BULK` and `TRANSFER_SALES_STOCK_ATOMIC` for
+  movement-411/E transfers from sales-order stock to own stock across distinct
+  sales documents, with UOM variants. Bulk mode commits each order separately
+  and continues after a posting failure; atomic mode stages all orders and
+  commits once, clearing provisional document results after movement or commit
+  failure. Tests cover mapping, continuation, shared commit and rollback,
+  converted quantities, and invalid-unit prevalidation. SAP LUW and eligibility
+  checks are noted in `ANOMALIES.md`. `npm test` passed with 0 abaplint issues
+  across 134 files, successful transpilation, and ABAP Unit exit 0.
+- Added grouped movement-413/E transfers from own stock into sales-order stock:
+  `TRANSFER_TO_SALES_STOCK_BULK`, `TRANSFER_TO_SALES_STOCK_ATOMIC`, and their
+  UOM forms. Bulk mode commits independently and continues after a failed order;
+  atomic mode stages one document per order and rolls back on movement or commit
+  failure. Tests cover mapping, continuation, atomic commit and rollback,
+  converted quantities, and full-request invalid-unit rejection. Target SAP LUW
+  and eligibility checks are in `ANOMALIES.md`. `npm test` passed with 0
+  abaplint issues across 134 files, successful transpilation, and ABAP Unit exit
+  0.
+- Added UOM-aware production receipts for single orders and multi-order bulk
+  and atomic posting. The service requires material identity for conversion,
+  applies caller-supplied base-unit/ISO mappings, and preserves optional batch,
+  location, and co-product item fields. Multi-order UOM methods convert the
+  full request before posting. Tests cover the single, bulk, and atomic mappings
+  and reject an unsupported later unit before any movement. Target ratio,
+  rounding, and BAPI unit behavior are recorded in `ANOMALIES.md`. `npm test`
+  passed: 0 abaplint issues across 134 files, transpilation succeeded, and ABAP
+  Unit exited 0.
+- Added UOM-aware purchase-order receipts for single, bulk, and atomic flows.
+  The service converts each material quantity to the mapped base unit while
+  preserving PO item, plant, storage location, and batch fields. Bulk and
+  atomic forms convert and validate the complete request before posting. Tests
+  cover all three entry points and reject an unsupported later unit before any
+  receipt call. PO-unit, open-quantity, and rounding checks are recorded in
+  `ANOMALIES.md`. `npm test` passed: 0 abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit exit 0.
+- Added `ISSUE_STO_UOM` and `RECEIVE_STO_UOM` for alternative-unit STO goods
+  issue and receipt. Both prevalidate material mappings and all lines, convert
+  quantities to mapped base units, and preserve PO item, batch, and plant/
+  storage-location data. Tests verify 351/101 movement mapping and reject a
+  later unsupported unit before any BAPI call. Target STO item-unit and
+  remaining-quantity behavior is recorded in `ANOMALIES.md`. `npm test` passed
+  with 0 abaplint issues across 134 files, successful transpilation, and ABAP
+  Unit exit 0.
+- Added grouped cost-center issue APIs. Bulk mode prevalidates all distinct
+  cost centers and lines, commits once per center, and continues after errors;
+  its UOM form converts all quantities before posting. Atomic mode stages all
+  center documents and shares one commit, with rollback and provisional-result
+  clearing after movement or commit failure. Tests cover unit conversion,
+  invalid later units, and both rollback paths. Target LUW limits are recorded
+  in `ANOMALIES.md`.
+- Added grouped cost-center return APIs for movement 202. Bulk and atomic forms
+  mirror the issue transaction scopes, with UOM variants converting the full
+  request before posting. The result preserves per-center outcomes, and atomic
+  failures clear staged document identifiers after rollback. Tests cover the
+  movement mapping, per-center continuation, conversion, invalid later units,
+  and both rollback paths. `npm test` passed with 0 abaplint issues across 134
+  files, successful transpilation, and ABAP Unit exit 0.
+- Added typed PO vendor returns with movement 122: single, bulk, atomic, and
+  UOM-aware entry points. Bulk mode commits each PO independently; atomic mode
+  shares one commit and clears provisional document identifiers on failure.
+  UOM forms convert the full request before posting. Tests cover mapping,
+  conversion, continuation, prevalidation, and rollback. Target PO eligibility
+  and LUW behavior are recorded in `ANOMALIES.md`. `npm test` passed with 0
+  abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0.
+- Added material-to-material transfer posting with movement 309 and an
+  alternative-unit form. The service carries source and receiving materials,
+  optional receiving plant/location and batch, converts source quantities to
+  base units, and requires matching base-unit/ISO mappings for both materials.
+  Movement-309 target-system and catch-weight limitations are recorded in
+  `ANOMALIES.md`. `npm test` passed with 0 abaplint issues across 134 files,
+  successful transpilation, and ABAP Unit exit 0.
+- Added direct material-to-material LIFO posting with movement 310 and a UOM
+  form. Both entry points share the 309 validation and preserve receiving
+  plant/location and batch fields; UOM quantities convert to the matched
+  source/receiving base unit. SAP's direct-MIGO LIFO description and the API
+  posting-path caveat are recorded in `ANOMALIES.md`. `npm test` passed with 0
+  abaplint issues across 134 files, successful transpilation, and ABAP Unit
+  exit 0.
+- Added an optional exact batch to multi-demand cost-center FEFO previews. The
+  selected batch remains subject to the same effective expiry and shelf-life
+  checks, and other batches cannot fill its shortfall. Tests cover a partial
+  allocation with another eligible batch available. `npm test` passed with 0
+  abaplint issues across 136 files, successful transpilation, and ABAP Unit
+  exit 0; validation details are in `ANOMALIES.md`.
+- Extended atomic cost-center FEFO reservations to accept an optional exact
+  batch on individual demand rows while other rows continue normal FEFO. The
+  full group still preallocates before creating reservations. `npm test` passed
+  with 0 abaplint issues across 136 files, successful transpilation, and ABAP
+  Unit exit 0; SAP stock and reservation behavior remains documented in
+  `ANOMALIES.md`.
+- Extended single cost-center FEFO preview and reservation to accept an exact
+  batch filter. `iv_batch_min_days` can further raise that selected batch's
+  minimum remaining shelf life; FEFO still applies the later effective date.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Extended sales-order FEFO with partial exact-batch selections. Selected items
+  or schedule lines stay on their chosen batch; unselected demand still follows
+  FEFO, and per-selection shelf-life requirements combine with FEFO minimums.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0.
+- Extended bulk cost-center FEFO to honor an optional exact batch per demand,
+  forwarding the filter through the atomic per-demand allocation path. The
+  selected lot still must meet the effective expiry date. `npm test` passed
+  with 0 abaplint issues across 136 files, successful transpilation, and ABAP
+  Unit exit 0.
+- Extended `ALLOCATE_LOCATION_BY_DATE_UOM` and
+  `ALLOCATE_LOCATION_DATE_UOM_ATP` with the same caller-resolved projected
+  location receipts accepted by the base-unit APIs. Demand quantities convert
+  through cached material UOM ratios; receipt quantities stay in base units,
+  and both results preserve caller order. Regression coverage checks receipt
+  date validation before reads, source/base-unit splits, location selection,
+  safety-stock replenishment, duplicate-request rejection before repository
+  reads, and cumulative ATP checks. `npm test` passed with 0 abaplint issues
+  across 136 files, successful transpilation, and ABAP Unit exit 0. Validation
+  notes are in `ANOMALIES.md`.
+- Extended `ALLOCATE_PLANTS_BY_DATE_LOC`, its UOM wrapper, and its ATP preview
+  with caller-resolved location receipts in material base units. Receipts are
+  source-plant scoped, become available on their date, replenish any remaining
+  static safety-stock buffer, and retain source-location filtering. Regression
+  tests cover date ordering, late receipt availability, location splits,
+  safety-stock protection, invalid-date rejection before reads, UOM conversion,
+  and ATP requests. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. Target-system limitations are
+  in `ANOMALIES.md`.
+- Extended dated cross-plant FEFO allocation, its UOM wrapper, and its ATP
+  preview with caller-resolved projected batch receipts in material base units.
+  Receipts enter the shared FEFO balance on their receipt date and keep the
+  existing expiry, shelf-life, location-filter, and safety-stock behavior.
+  Regression coverage checks date gating, safety-stock replenishment, UOM
+  quantities, ATP forwarding, and invalid receipt dates before stock reads.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0.
+  Callers provide the receipt's source plant, location, batch, expiry, and
+  quantity; the service does not derive or confirm those assignments from SAP
+  planning documents. Details and target-system caveats are in `README.md` and
+  `ANOMALIES.md`.
+- Extended the as-of-date cross-plant FEFO snapshot, its unit-aware wrapper, and
+  its ATP preview with the same caller-resolved batch receipts. Receipts dated
+  on or before the snapshot date join its balances before safety-stock
+  protection; later receipts are ignored. Regression coverage checks the
+  snapshot cutoff, FEFO splits, safety-stock handling, base-unit conversion,
+  ATP request totals, and invalid dates before stock or UOM reads. `npm test`
+  passed with 0 abaplint issues across 136 files, successful transpilation, and
+  ABAP Unit exit 0. Callers still provide the snapshot quantity and SAP ATP does
+  not receive the batch assignments; details are in `README.md` and
+  `ANOMALIES.md`.
+- Extended single-plant FEFO allocation, its unit-aware wrapper, and its ATP
+  preview with caller-resolved dated batch receipts. Per-demand as-of dates
+  gate receipt availability even when demands are processed out of date order,
+  and due receipts replenish a remaining static safety-stock buffer before
+  allocation. Regression coverage checks date gating, buffer replenishment,
+  UOM conversion, ATP forwarding, and invalid receipt rejection before UOM
+  reads. `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0. Target-system limits are in
+  `README.md` and `ANOMALIES.md`.
+- Extended quality-stock FEFO, its UOM wrapper, and ATP comparison with
+  caller-resolved projected batch receipts interpreted as future
+  quality-inspection stock. Receipts follow per-demand as-of dates and retain
+  expiry, location, and batch filters. Tests cover receipt cutoff, unit
+  conversion, ATP forwarding, and bad-date rejection before UOM or stock reads.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0. Target stock-category and ATP limits are
+  recorded in `ANOMALIES.md`.
+- Extended exact-batch allocation, its UOM wrapper, and ATP preview with
+  caller-resolved projected batch receipts. Receipt availability follows each
+  demand's as-of date, and due receipts replenish the residual static
+  safety-stock buffer before allocation. Regression coverage checks cutoff,
+  safety-stock, UOM, ATP, and pre-UOM date validation. `npm test` passed with 0
+  abaplint issues across 136 files, successful transpilation, and ABAP Unit exit
+  0. Target-system limits are recorded in `README.md` and `ANOMALIES.md`.
+- Extended cross-plant exact-batch allocation, date-prioritized allocation,
+  their UOM wrappers, and ATP previews with caller-resolved projected batch
+  receipts in material base units. Receipt quantities enter the mapped source
+  plant/batch balance on their receipt date, using each demand's `as_of_date`
+  or `required_date` as its cutoff. Due receipts replenish a remaining static
+  safety-stock buffer. Regression coverage checks current-date and dated
+  cutoffs, date ordering, unit conversion, and invalid source mapping before
+  UOM reads. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. SAP routing, receipt, and ATP
+  behavior limits are in `README.md` and `ANOMALIES.md`.
+- Added per-demand `minimum_shelf_life_days` to cross-plant exact-batch
+  allocation, date-prioritized demands, UOM conversions, and ATP previews.
+  The base demand form requires an explicit as-of date for positive minimums;
+  the undated UOM wrapper uses today and date-aware wrappers use
+  `required_date`. Positive minimums reject unknown or too-near expiry and
+  filter both availability totals and source/location splits.
+  Regression coverage checks the expiry boundary and the date ATP/UOM
+  propagation. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. SAP batch master and ATP
+  behavior limits are in `README.md` and `ANOMALIES.md`.
+- Added `iv_include_undated_batches` to single- and cross-plant exact-batch
+  allocation, including date-prioritized, UOM, and ATP wrappers. Its default
+  keeps existing behavior; setting it false excludes current stock and
+  projected receipts without a known expiry from availability and allocation
+  splits. Invalid flag values fail before UOM or stock reads. Regression
+  coverage checks both current and projected undated batches, wrapper
+  forwarding, ATP suppression for excluded stock, and pre-read validation.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0. Target expiry-data and ATP limits are in
+  `README.md` and `ANOMALIES.md`.
+- Added `iv_include_undated_batches` to cost-center exact-batch and FEFO
+  previews, atomic and bulk reservations, and single-demand preview/reservation.
+  The default preserves inclusion of batches with unknown expiry; setting the
+  flag false removes them from available quantity and selected splits. Tests
+  cover batch and FEFO selection and option forwarding across reservation
+  entry points. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. Target metadata and ATP
+  limits are recorded in `README.md` and `ANOMALIES.md`.
+- Added `iv_require_full_quantity` to cost-center plant, dated, location,
+  exact-batch, and FEFO multi-demand previews. Short demands now receive zero
+  allocation under this option, leaving the remaining balance available for
+  later requests; dated ATP previews apply the same local rule while retaining
+  separate SAP diagnostics. Regression coverage exercises every preview path
+  and both dated ATP modes. `npm test` passed with 0 abaplint issues across 136
+  files, successful transpilation, and ABAP Unit exit 0. The snapshot and
+  concurrency limits are documented in `ANOMALIES.md`.
+- Added `iv_require_full_quantity` to sales-order FEFO previews in base and
+  alternative units. An underfilled request receives zero allocation and does
+  not consume eligible item stock, allowing a later smaller request to use the
+  balance. The option is validated before stock reads and defaults to the
+  existing partial behavior. Regression coverage includes repeated base-unit
+  and UOM requests. `npm test` passed with 0 abaplint issues across 136 files,
+  successful transpilation, and ABAP Unit exit 0. Snapshot and locking limits
+  are recorded in `README.md` and `ANOMALIES.md`.
+- Extended `iv_require_full_quantity` to aggregate sales-order issue previews
+  in base and alternative units. Underfilled requests now receive zero
+  coverage without consuming the shared item/cutoff balance. Tests verify a
+  later smaller request can use that balance, including after UOM conversion.
+  `npm test` passed with 0 abaplint issues across 136 files, successful
+  transpilation, and ABAP Unit exit 0. Snapshot limits remain in
+  `ANOMALIES.md`.
+- Added `preview_cost_center_fefo_date` for date-prioritized batch previews.
+  Earlier required dates consume shared stock first, descending integer
+  priority breaks same-date ties, and input order is stable for equal keys.
+  Results return in caller order and echo each date and priority; expiry checks
+  use the latest of shared as-of, row FEFO as-of, and required date. Regression
+  coverage checks date/priority allocation, caller-order results, and rejection
+  of invalid dates before stock reads. `npm run lint` reported zero issues,
+  and `npm run unit` completed transpilation and ABAP Unit with exit 0. The
+  combined `npm test` launcher hits a WSL 1 nested-Node error, so its two
+  constituent scripts were run separately.
+- Added `reserve_cc_fefo_date_atomic`, which applies required-date and
+  descending-priority order to the existing preallocate/create/commit flow and
+  returns result items in caller order. Its regression checks allocation order,
+  same-date priority, caller-order results with echoed date/priority, and
+  test-run behavior. `npm run lint` reported zero issues, and `npm run unit`
+  completed transpilation and ABAP Unit with exit 0. Validate the local snapshot
+  and concurrency limits in `ANOMALIES.md`.
+- Added `reserve_cc_fefo_date_bulk`, which runs independent FEFO reservations
+  in required-date and descending-priority order, then returns item rows in
+  caller order with echoed date/priority. Regression coverage checks call
+  ordering, output ordering, and invalid-date rejection before stock reads. The
+  bulk method keeps per-demand commit behavior, so earlier successful calls
+  remain committed after a later failure. `npm run lint` reported zero issues,
+  and `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added opt-in required-date/priority ordering to aggregate sales-order stock
+  issue previews in base and alternative units. Earlier dates consume repeated
+  item/cutoff balances first, higher priorities run first within a date, and
+  equal keys preserve input order. Results return in caller order and echo date
+  and priority; invalid required dates are rejected before repository reads.
+  `npm run lint` reported zero issues and `npm run unit` completed transpilation
+  and ABAP Unit with exit 0. The reservation cutoff remains independent from
+  demand ordering; the snapshot limit is recorded in `ANOMALIES.md`.
+- Extended FEFO sales-order stock issue previews in base and alternative units
+  with the same optional date/priority ordering. A demand's required date raises
+  its expiry cutoff, so earlier requests can use a batch that expires before a
+  later demand; result summaries and splits return in caller order. Regression
+  coverage checks batch eligibility by row date, priority, UOM conversion, and
+  invalid-date rejection before reads. `npm run lint` reported zero issues and
+  `npm run unit` completed transpilation and ABAP Unit with exit 0.
+- Added opt-in priority handling to cost-center FEFO atomic and bulk reservations.
+  Atomic allocation and create calls now process higher integer priorities
+  first while keeping result rows and API responses attached to caller-order
+  requests. Bulk reservation calls run independently in priority order and
+  restore caller order afterward. Invalid flags and priority mode on unbatched
+  non-FEFO requests are rejected before stock reads. Tests verify FEFO batch
+  assignment, create-call order, result order, and priority echo. `npm run lint`
+  reported zero issues across 138 files; `npm run unit` completed transpilation
+  and ABAP Unit with exit 0. Stock snapshot and concurrency limits are in
+  `ANOMALIES.md`.
+- Added the same priority option to explicit-batch cost-center previews and
+  reservation flows. Shared stock for the selected batch is allocated by
+  descending priority with stable input-order ties; atomic and bulk create calls
+  follow that order while returning results in caller order. Unbatched requests
+  cannot enable priority mode. Regression tests cover shared batch/location
+  allocation, API dispatch order, echoed priority, and response mapping.
+  `npm run lint` reported zero issues across 138 files, and `npm run unit`
+  completed transpilation and ABAP Unit with exit 0. The snapshot and SAP
+  reservation visibility limits are recorded in `ANOMALIES.md`.

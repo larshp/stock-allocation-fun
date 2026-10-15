@@ -86,11 +86,13 @@ INTERFACE zif_stock_repository PUBLIC.
     WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_batch_stock_status,
-      storage_location      TYPE mard-lgort,
-      batch                 TYPE mchb-charg,
-      expiration_date       TYPE mcha-vfdat,
-      unrestricted_quantity TYPE mchb-clabs,
-      available_quantity    TYPE mchb-clabs,
+      storage_location            TYPE mard-lgort,
+      batch                       TYPE mchb-charg,
+      expiration_date             TYPE mcha-vfdat,
+      unrestricted_quantity       TYPE mchb-clabs,
+      available_quantity          TYPE mchb-clabs,
+      quality_inspection_quantity TYPE mchb-cinsm,
+      blocked_quantity            TYPE mchb-cspem,
     END OF ty_batch_stock_status.
   TYPES ty_batch_stock_statuses TYPE STANDARD TABLE OF
     ty_batch_stock_status WITH EMPTY KEY.

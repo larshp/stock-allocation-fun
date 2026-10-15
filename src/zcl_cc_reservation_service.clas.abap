@@ -106,6 +106,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         required_date               TYPE d,
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
+        priority                    TYPE i,
         minimum_shelf_life_days     TYPE i,
       END OF ty_batch_preview_demand.
     TYPES ty_batch_preview_demands TYPE STANDARD TABLE OF
@@ -115,6 +116,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         request_id        TYPE c LENGTH 30,
         cost_center       TYPE bapi2093_res_head-costcenter,
         selected_batch    TYPE mchb-charg,
+        priority          TYPE i,
         allocation        TYPE zcl_stock_service=>ty_unit_allocation_summary,
         batch_allocations TYPE zcl_stock_service=>ty_unit_batch_splits,
       END OF ty_batch_demand_preview.
@@ -124,11 +126,14 @@ CLASS zcl_cc_reservation_service DEFINITION
       BEGIN OF ty_fefo_preview_demand,
         request_id                  TYPE c LENGTH 30,
         material                    TYPE mard-matnr,
+        batch                       TYPE mchb-charg,
         plant                       TYPE mard-werks,
         cost_center                 TYPE bapi2093_res_head-costcenter,
         storage_location            TYPE mard-lgort,
         fallback_to_other_locations TYPE abap_bool,
         requested_quantity          TYPE mard-labst,
+        priority                    TYPE i,
+        require_full_quantity       TYPE abap_bool,
         unit                        TYPE mara-meins,
         fefo_as_of_date             TYPE d,
         minimum_shelf_life_days     TYPE i,
@@ -136,11 +141,33 @@ CLASS zcl_cc_reservation_service DEFINITION
     TYPES ty_fefo_preview_demands TYPE STANDARD TABLE OF
       ty_fefo_preview_demand WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_dated_fefo_preview_demand,
+        request_id                  TYPE c LENGTH 30,
+        material                    TYPE mard-matnr,
+        batch                       TYPE mchb-charg,
+        plant                       TYPE mard-werks,
+        cost_center                 TYPE bapi2093_res_head-costcenter,
+        storage_location            TYPE mard-lgort,
+        fallback_to_other_locations TYPE abap_bool,
+        requested_quantity          TYPE mard-labst,
+        require_full_quantity       TYPE abap_bool,
+        unit                        TYPE mara-meins,
+        required_date               TYPE d,
+        priority                    TYPE i,
+        fefo_as_of_date             TYPE d,
+        minimum_shelf_life_days     TYPE i,
+      END OF ty_dated_fefo_preview_demand.
+    TYPES ty_dated_fefo_preview_demands TYPE STANDARD TABLE OF
+      ty_dated_fefo_preview_demand WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_fefo_demand_preview,
         request_id              TYPE c LENGTH 30,
         cost_center             TYPE bapi2093_res_head-costcenter,
+        required_date           TYPE d,
+        priority                TYPE i,
         as_of_date              TYPE d,
         minimum_shelf_life_days TYPE i,
+        require_full_quantity   TYPE abap_bool,
         allocation              TYPE zcl_stock_service=>ty_unit_allocation_summary,
         batch_allocations       TYPE zcl_stock_service=>ty_unit_batch_splits,
       END OF ty_fefo_demand_preview.
@@ -159,6 +186,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         fallback_to_other_locations TYPE abap_bool,
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
+        priority                    TYPE i,
         minimum_shelf_life_days     TYPE i,
       END OF ty_atomic_reservation_demand.
     TYPES ty_atomic_reservation_demands TYPE STANDARD TABLE OF
@@ -166,6 +194,8 @@ CLASS zcl_cc_reservation_service DEFINITION
     TYPES:
       BEGIN OF ty_atomic_reservation_line,
         request_id                TYPE c LENGTH 30,
+        required_date             TYPE d,
+        priority                  TYPE i,
         allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
         storage_allocations       TYPE zcl_stock_service=>ty_unit_storage_splits,
         batch_allocations         TYPE zcl_stock_service=>ty_unit_batch_splits,
@@ -183,6 +213,8 @@ CLASS zcl_cc_reservation_service DEFINITION
     TYPES:
       BEGIN OF ty_bulk_reservation_item,
         request_id                TYPE c LENGTH 30,
+        required_date             TYPE d,
+        priority                  TYPE i,
         allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
         storage_allocations       TYPE zcl_stock_service=>ty_unit_storage_splits,
         batch_allocations         TYPE zcl_stock_service=>ty_unit_batch_splits,
@@ -335,10 +367,11 @@ CLASS zcl_cc_reservation_service DEFINITION
 
     METHODS preview_cost_center_demands
       IMPORTING
-        it_demands              TYPE ty_preview_demands
-        iv_protect_safety_stock TYPE abap_bool DEFAULT abap_false
+        it_demands               TYPE ty_preview_demands
+        iv_protect_safety_stock  TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rt_previews)      TYPE ty_demand_previews
+        VALUE(rt_previews)       TYPE ty_demand_previews
       RAISING
         zcx_invalid_stock_request.
 
@@ -356,6 +389,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_false
         iv_check_atp                   TYPE abap_bool DEFAULT abap_false
         iv_atp_check_rule              TYPE zif_material_availability_api=>ty_check_rule
           OPTIONAL
@@ -372,6 +406,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
           OPTIONAL
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_previews)           TYPE ty_location_demand_previews
       RAISING
@@ -385,6 +420,9 @@ CLASS zcl_cc_reservation_service DEFINITION
         it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
           OPTIONAL
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_previews)           TYPE ty_batch_demand_previews
       RAISING
@@ -399,9 +437,71 @@ CLASS zcl_cc_reservation_service DEFINITION
           OPTIONAL
         iv_as_of_date                TYPE d DEFAULT sy-datum
         iv_min_days                  TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rt_previews)           TYPE ty_fefo_demand_previews
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_cost_center_fefo_date
+      IMPORTING
+        it_demands                   TYPE ty_dated_fefo_preview_demands
+        it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_min_days                  TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_previews)           TYPE ty_fefo_demand_previews
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_cc_fefo_date_atomic
+      IMPORTING
+        it_demands                   TYPE ty_dated_fefo_preview_demands
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
+        iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_check_atp                 TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule            TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
+        iv_require_atp_confirmation  TYPE abap_bool DEFAULT abap_false
+        it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_atomic_reservation_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS reserve_cc_fefo_date_bulk
+      IMPORTING
+        it_demands                   TYPE ty_dated_fefo_preview_demands
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
+        iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
+        iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_check_atp                 TYPE abap_bool DEFAULT abap_false
+        iv_atp_check_rule            TYPE zif_material_availability_api=>ty_check_rule
+          OPTIONAL
+        iv_require_atp_confirmation  TYPE abap_bool DEFAULT abap_false
+        it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_bulk_reservation_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -411,8 +511,10 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority    TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
         iv_check_atp                 TYPE abap_bool DEFAULT abap_false
         iv_atp_check_rule            TYPE zif_material_availability_api=>ty_check_rule
           OPTIONAL
@@ -432,8 +534,10 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority    TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
         iv_check_atp                 TYPE abap_bool DEFAULT abap_false
         iv_atp_check_rule            TYPE zif_material_availability_api=>ty_check_rule
           OPTIONAL
@@ -481,6 +585,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
         iv_batch_min_days            TYPE i DEFAULT 0
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
@@ -513,6 +618,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool DEFAULT abap_false
         iv_fefo_as_of_date           TYPE d DEFAULT sy-datum
         iv_fefo_min_days             TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
         iv_batch_min_days            TYPE i DEFAULT 0
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
@@ -565,6 +671,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_use_fefo_batches          TYPE abap_bool
         iv_fefo_as_of_date           TYPE d
         iv_fefo_min_days             TYPE i
+        iv_include_undated_batches   TYPE abap_bool
         iv_batch_min_days            TYPE i
         iv_require_full_alloc        TYPE abap_bool
         iv_protect_safety_stock      TYPE abap_bool
@@ -875,8 +982,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     DATA lt_unit_demands TYPE zcl_stock_service=>ty_unit_demands.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocations.
 
-    IF iv_protect_safety_stock <> abap_true
-        AND iv_protect_safety_stock <> abap_false.
+    IF ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     IF it_demands IS INITIAL.
@@ -907,8 +1016,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     ENDLOOP.
 
     lt_allocations = mo_stock_service->allocate_demands_in_units(
-      it_demands              = lt_unit_demands
-      iv_protect_safety_stock = iv_protect_safety_stock ).
+      it_demands               = lt_unit_demands
+      iv_protect_safety_stock  = iv_protect_safety_stock
+      iv_require_full_quantity = iv_require_full_quantity ).
     IF lines( lt_allocations ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -956,6 +1066,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           AND iv_include_sched_agmt_receipts <> abap_false )
         OR ( iv_protect_safety_stock <> abap_true
           AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false )
         OR ( iv_check_atp <> abap_true
           AND iv_check_atp <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1008,7 +1120,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         iv_include_planned_receipts    = iv_include_planned_receipts
         iv_include_fixed_planned       = iv_include_fixed_planned
         iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
-        iv_protect_safety_stock        = iv_protect_safety_stock ).
+        iv_protect_safety_stock        = iv_protect_safety_stock
+        iv_require_full_quantity       = iv_require_full_quantity ).
       IF lines( lt_atp_allocations ) <> lines( it_demands ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1025,7 +1138,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         iv_include_planned_receipts    = iv_include_planned_receipts
         iv_include_fixed_planned       = iv_include_fixed_planned
         iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
-        iv_protect_safety_stock        = iv_protect_safety_stock ).
+        iv_protect_safety_stock        = iv_protect_safety_stock
+        iv_require_full_quantity       = iv_require_full_quantity ).
       IF lines( lt_allocations ) <> lines( it_demands ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1073,8 +1187,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     DATA lt_unit_demands TYPE zcl_stock_service=>ty_unit_location_demands.
     DATA ls_location_result TYPE zcl_stock_service=>ty_unit_location_result.
 
-    IF iv_protect_safety_stock <> abap_true
-        AND iv_protect_safety_stock <> abap_false.
+    IF ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     IF it_demands IS INITIAL.
@@ -1112,7 +1228,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_demands                   = lt_unit_demands
       it_storage_location_priority = it_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
-      iv_protect_safety_stock      = iv_protect_safety_stock ).
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_require_full_quantity     = iv_require_full_quantity ).
     IF lines( ls_location_result-allocations ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -1144,18 +1261,30 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   METHOD preview_cost_center_batches.
     DATA lt_unique_demands TYPE HASHED TABLE OF ty_batch_preview_demand
       WITH UNIQUE KEY request_id.
+    DATA lt_sorted_demands TYPE ty_batch_preview_demands.
     DATA lt_unit_demands TYPE zcl_stock_service=>ty_unit_batch_demands.
     DATA ls_batch_result TYPE zcl_stock_service=>ty_unit_batch_result.
 
-    IF iv_protect_safety_stock <> abap_true
-        AND iv_protect_safety_stock <> abap_false.
+    IF ( iv_protect_safety_stock <> abap_true
+          AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false )
+        OR ( iv_prioritize_by_priority <> abap_true
+          AND iv_prioritize_by_priority <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     IF it_demands IS INITIAL.
       RETURN.
     ENDIF.
 
-    LOOP AT it_demands INTO DATA(ls_demand).
+    lt_sorted_demands = it_demands.
+    IF iv_prioritize_by_priority = abap_true.
+      SORT lt_sorted_demands STABLE BY priority DESCENDING.
+    ENDIF.
+
+    LOOP AT lt_sorted_demands INTO DATA(ls_demand).
       IF ls_demand-request_id IS INITIAL
           OR ls_demand-material IS INITIAL
           OR ls_demand-plant IS INITIAL
@@ -1197,14 +1326,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_demands                   = lt_unit_demands
       it_storage_location_priority = it_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
-      iv_protect_safety_stock      = iv_protect_safety_stock ).
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity ).
     IF lines( ls_batch_result-allocations ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
     LOOP AT it_demands INTO ls_demand.
       READ TABLE ls_batch_result-allocations
-        INTO DATA(ls_allocation) INDEX sy-tabix.
+        INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_demand-request_id.
       IF sy-subrc <> 0
           OR ls_allocation-allocation-request_id <> ls_demand-request_id.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1215,6 +1347,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       <ls_preview>-request_id = ls_demand-request_id.
       <ls_preview>-cost_center = ls_demand-cost_center.
       <ls_preview>-selected_batch = ls_demand-batch.
+      <ls_preview>-priority = ls_demand-priority.
       <ls_preview>-allocation = ls_allocation.
       LOOP AT ls_batch_result-batch_allocations INTO DATA(ls_batch_allocation).
         IF ls_batch_allocation-batch_allocation-request_id =
@@ -1228,13 +1361,20 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   METHOD preview_cost_center_fefo.
     DATA lt_unique_demands TYPE HASHED TABLE OF ty_fefo_preview_demand
       WITH UNIQUE KEY request_id.
+    DATA lt_sorted_demands TYPE ty_fefo_preview_demands.
     DATA lt_unit_demands TYPE zcl_stock_service=>ty_unit_fefo_demands.
     DATA ls_fefo_result TYPE zcl_stock_service=>ty_unit_batch_result.
 
     IF iv_as_of_date IS INITIAL
         OR iv_min_days < 0
         OR ( iv_protect_safety_stock <> abap_true
-          AND iv_protect_safety_stock <> abap_false ).
+          AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false )
+        OR ( iv_prioritize_by_priority <> abap_true
+          AND iv_prioritize_by_priority <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     IF zcl_date_validation=>is_valid_gregorian_date(
@@ -1245,7 +1385,12 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    LOOP AT it_demands INTO DATA(ls_demand).
+    lt_sorted_demands = it_demands.
+    IF iv_prioritize_by_priority = abap_true.
+      SORT lt_sorted_demands STABLE BY priority DESCENDING.
+    ENDIF.
+
+    LOOP AT lt_sorted_demands INTO DATA(ls_demand).
       IF ls_demand-request_id IS INITIAL
           OR ls_demand-material IS INITIAL
           OR ls_demand-plant IS INITIAL
@@ -1254,7 +1399,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-minimum_shelf_life_days < 0
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-fallback_to_other_locations <> abap_true
-            AND ls_demand-fallback_to_other_locations <> abap_false ).
+            AND ls_demand-fallback_to_other_locations <> abap_false )
+          OR ( ls_demand-require_full_quantity <> abap_true
+            AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_demand-fefo_as_of_date IS NOT INITIAL
@@ -1269,11 +1416,13 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
         material                    = ls_demand-material
+        batch                       = ls_demand-batch
         plant                       = ls_demand-plant
         storage_location            = ls_demand-storage_location
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
+        require_full_quantity       = ls_demand-require_full_quantity
         requested_unit              = ls_demand-unit
         fefo_as_of_date             = ls_demand-fefo_as_of_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
@@ -1286,14 +1435,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_allowed_storage_locations = it_allowed_storage_locations
       iv_as_of_date                = iv_as_of_date
       iv_min_days                  = iv_min_days
-      iv_protect_safety_stock      = iv_protect_safety_stock ).
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity ).
     IF lines( ls_fefo_result-allocations ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
     LOOP AT it_demands INTO ls_demand.
       READ TABLE ls_fefo_result-allocations
-        INTO DATA(ls_allocation) INDEX sy-tabix.
+        INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_demand-request_id.
       IF sy-subrc <> 0
           OR ls_allocation-allocation-request_id <> ls_demand-request_id.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1303,6 +1455,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         FIELD-SYMBOL(<ls_preview>).
       <ls_preview>-request_id = ls_demand-request_id.
       <ls_preview>-cost_center = ls_demand-cost_center.
+      <ls_preview>-priority = ls_demand-priority.
+      <ls_preview>-require_full_quantity =
+        ls_demand-require_full_quantity.
       <ls_preview>-as_of_date = iv_as_of_date.
       IF ls_demand-fefo_as_of_date > <ls_preview>-as_of_date.
         <ls_preview>-as_of_date = ls_demand-fefo_as_of_date.
@@ -1324,6 +1479,256 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD preview_cost_center_fefo_date.
+    DATA lt_sorted_demands TYPE ty_dated_fefo_preview_demands.
+    DATA lt_fefo_demands TYPE ty_fefo_preview_demands.
+    DATA lt_sorted_previews TYPE ty_fefo_demand_previews.
+    DATA lv_effective_date TYPE d.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-required_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_demand-fefo_as_of_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-fefo_as_of_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      lv_effective_date = ls_demand-required_date.
+      IF ls_demand-fefo_as_of_date > lv_effective_date.
+        lv_effective_date = ls_demand-fefo_as_of_date.
+      ENDIF.
+      APPEND VALUE #(
+        request_id                  = ls_demand-request_id
+        material                    = ls_demand-material
+        batch                       = ls_demand-batch
+        plant                       = ls_demand-plant
+        cost_center                 = ls_demand-cost_center
+        storage_location            = ls_demand-storage_location
+        fallback_to_other_locations =
+          ls_demand-fallback_to_other_locations
+        requested_quantity          = ls_demand-requested_quantity
+        require_full_quantity       = ls_demand-require_full_quantity
+        unit                        = ls_demand-unit
+        required_date               = ls_demand-required_date
+        priority                    = ls_demand-priority
+        fefo_as_of_date             = lv_effective_date
+        minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
+        TO lt_sorted_demands.
+    ENDLOOP.
+
+    SORT lt_sorted_demands STABLE BY required_date ASCENDING
+      priority DESCENDING.
+    LOOP AT lt_sorted_demands INTO ls_demand.
+      APPEND VALUE #(
+        request_id                  = ls_demand-request_id
+        material                    = ls_demand-material
+        batch                       = ls_demand-batch
+        plant                       = ls_demand-plant
+        cost_center                 = ls_demand-cost_center
+        storage_location            = ls_demand-storage_location
+        fallback_to_other_locations =
+          ls_demand-fallback_to_other_locations
+        requested_quantity          = ls_demand-requested_quantity
+        require_full_quantity       = ls_demand-require_full_quantity
+        unit                        = ls_demand-unit
+        fefo_as_of_date             = ls_demand-fefo_as_of_date
+        minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
+        TO lt_fefo_demands.
+    ENDLOOP.
+
+    lt_sorted_previews = preview_cost_center_fefo(
+      it_demands                   = lt_fefo_demands
+      it_location_priority         = it_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_min_days                  = iv_min_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_require_full_quantity     = iv_require_full_quantity ).
+    IF lines( lt_sorted_previews ) <> lines( it_demands ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_sorted_previews INTO DATA(ls_preview)
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_preview-required_date = ls_demand-required_date.
+      ls_preview-priority = ls_demand-priority.
+      APPEND ls_preview TO rt_previews.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD reserve_cc_fefo_date_atomic.
+    TYPES:
+      BEGIN OF ty_ordered_demand,
+        required_date TYPE d,
+        priority      TYPE i,
+        demand        TYPE ty_atomic_reservation_demand,
+      END OF ty_ordered_demand.
+    TYPES ty_ordered_demands TYPE STANDARD TABLE OF ty_ordered_demand
+      WITH EMPTY KEY.
+    DATA lt_ordered_demands TYPE ty_ordered_demands.
+    DATA lt_sorted_demands TYPE ty_atomic_reservation_demands.
+    DATA lt_sorted_items TYPE ty_atomic_reservation_lines.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-required_date ) <> abap_true
+          OR ( ls_demand-fefo_as_of_date IS NOT INITIAL
+            AND zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_demand-fefo_as_of_date ) <> abap_true ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      APPEND VALUE #(
+        required_date = ls_demand-required_date
+        priority      = ls_demand-priority
+        demand        = VALUE #(
+          request_id                  = ls_demand-request_id
+          material                    = ls_demand-material
+          plant                       = ls_demand-plant
+          cost_center                 = ls_demand-cost_center
+          batch                       = ls_demand-batch
+          required_date               = ls_demand-required_date
+          fefo_as_of_date             = ls_demand-fefo_as_of_date
+          storage_location            = ls_demand-storage_location
+          fallback_to_other_locations =
+            ls_demand-fallback_to_other_locations
+          requested_quantity          = ls_demand-requested_quantity
+          unit                        = ls_demand-unit
+          priority                    = ls_demand-priority
+          minimum_shelf_life_days     =
+            ls_demand-minimum_shelf_life_days ) )
+        TO lt_ordered_demands.
+    ENDLOOP.
+
+    SORT lt_ordered_demands STABLE BY required_date ASCENDING
+      priority DESCENDING.
+    LOOP AT lt_ordered_demands INTO DATA(ls_ordered_demand).
+      APPEND ls_ordered_demand-demand TO lt_sorted_demands.
+    ENDLOOP.
+
+    rs_result = reserve_cost_centers_atomic(
+      it_demands                   = lt_sorted_demands
+      iv_test_run                  = iv_test_run
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_use_fefo_batches          = abap_true
+      iv_fefo_as_of_date           = iv_fefo_as_of_date
+      iv_fefo_min_days             = iv_fefo_min_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_check_atp                 = iv_check_atp
+      iv_atp_check_rule            = iv_atp_check_rule
+      iv_require_atp_confirmation  = iv_require_atp_confirmation
+      it_location_priority         = it_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations ).
+
+    lt_sorted_items = rs_result-items.
+    IF lines( lt_sorted_items ) <> lines( it_demands ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    CLEAR rs_result-items.
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_sorted_items INTO DATA(ls_sorted_item)
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_sorted_item-required_date = ls_demand-required_date.
+      ls_sorted_item-priority = ls_demand-priority.
+      APPEND ls_sorted_item TO rs_result-items.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD reserve_cc_fefo_date_bulk.
+    TYPES:
+      BEGIN OF ty_ordered_demand,
+        required_date TYPE d,
+        priority      TYPE i,
+        demand        TYPE ty_atomic_reservation_demand,
+      END OF ty_ordered_demand.
+    TYPES ty_ordered_demands TYPE STANDARD TABLE OF ty_ordered_demand
+      WITH EMPTY KEY.
+    DATA lt_ordered_demands TYPE ty_ordered_demands.
+    DATA lt_sorted_demands TYPE ty_atomic_reservation_demands.
+    DATA lt_sorted_items TYPE ty_bulk_reservation_items.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-required_date ) <> abap_true
+          OR ( ls_demand-fefo_as_of_date IS NOT INITIAL
+            AND zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_demand-fefo_as_of_date ) <> abap_true ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      APPEND VALUE #(
+        required_date = ls_demand-required_date
+        priority      = ls_demand-priority
+        demand        = VALUE #(
+          request_id                  = ls_demand-request_id
+          material                    = ls_demand-material
+          plant                       = ls_demand-plant
+          cost_center                 = ls_demand-cost_center
+          batch                       = ls_demand-batch
+          required_date               = ls_demand-required_date
+          fefo_as_of_date             = ls_demand-fefo_as_of_date
+          storage_location            = ls_demand-storage_location
+          fallback_to_other_locations =
+            ls_demand-fallback_to_other_locations
+          requested_quantity          = ls_demand-requested_quantity
+          unit                        = ls_demand-unit
+          priority                    = ls_demand-priority
+          minimum_shelf_life_days     =
+            ls_demand-minimum_shelf_life_days ) )
+        TO lt_ordered_demands.
+    ENDLOOP.
+
+    SORT lt_ordered_demands STABLE BY required_date ASCENDING
+      priority DESCENDING.
+    LOOP AT lt_ordered_demands INTO DATA(ls_ordered_demand).
+      APPEND ls_ordered_demand-demand TO lt_sorted_demands.
+    ENDLOOP.
+
+    rs_result = reserve_cost_centers_bulk(
+      it_demands                   = lt_sorted_demands
+      iv_test_run                  = iv_test_run
+      iv_protect_safety_stock      = iv_protect_safety_stock
+      iv_use_fefo_batches          = abap_true
+      iv_fefo_as_of_date           = iv_fefo_as_of_date
+      iv_fefo_min_days             = iv_fefo_min_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_check_atp                 = iv_check_atp
+      iv_atp_check_rule            = iv_atp_check_rule
+      iv_require_atp_confirmation  = iv_require_atp_confirmation
+      it_location_priority         = it_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations ).
+
+    lt_sorted_items = rs_result-items.
+    IF lines( lt_sorted_items ) <> lines( it_demands ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    CLEAR rs_result-items.
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_sorted_items INTO DATA(ls_sorted_item)
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_sorted_item-required_date = ls_demand-required_date.
+      ls_sorted_item-priority = ls_demand-priority.
+      APPEND ls_sorted_item TO rs_result-items.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD reserve_cost_centers_atomic.
     TYPES:
       BEGIN OF ty_atomic_atp_day,
@@ -1342,6 +1747,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     TYPES:
       BEGIN OF ty_prepared_atomic_request,
         request_id TYPE c LENGTH 30,
+        priority   TYPE i,
         request    TYPE zif_cc_reservation_api=>ty_request,
       END OF ty_prepared_atomic_request.
     TYPES ty_prepared_atomic_requests TYPE STANDARD TABLE OF
@@ -1381,8 +1787,12 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           AND iv_test_run <> abap_false )
         OR ( iv_protect_safety_stock <> abap_true
           AND iv_protect_safety_stock <> abap_false )
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
         OR ( iv_use_fefo_batches <> abap_true
           AND iv_use_fefo_batches <> abap_false )
+        OR ( iv_prioritize_by_priority <> abap_true
+          AND iv_prioritize_by_priority <> abap_false )
         OR ( iv_check_atp <> abap_true
           AND iv_check_atp <> abap_false )
         OR ( iv_require_atp_confirmation <> abap_true
@@ -1475,6 +1885,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         requested_quantity          = ls_demand-requested_quantity
         unit                        = ls_demand-unit
         required_date               = ls_demand-required_date
+        priority                    = ls_demand-priority
         minimum_shelf_life_days     =
           ls_demand-minimum_shelf_life_days )
         TO lt_batch_demands.
@@ -1483,22 +1894,27 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         material                    = ls_demand-material
         plant                       = ls_demand-plant
         cost_center                 = ls_demand-cost_center
+        batch                       = ls_demand-batch
         storage_location            = ls_demand-storage_location
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
         unit                        = ls_demand-unit
         fefo_as_of_date             = lv_demand_fefo_as_of_date
+        priority                    = ls_demand-priority
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days )
         TO lt_fefo_demands.
     ENDLOOP.
 
-    IF lv_batch_mode = abap_true
+    IF iv_use_fefo_batches <> abap_true
+        AND lv_batch_mode = abap_true
         AND lv_unbatched_mode = abap_true.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
-    IF iv_use_fefo_batches = abap_true
-        AND lv_batch_mode = abap_true.
+    IF iv_prioritize_by_priority = abap_true
+        AND iv_use_fefo_batches <> abap_true
+        AND ( lv_batch_mode <> abap_true
+          OR lv_unbatched_mode = abap_true ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -1509,7 +1925,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         it_allowed_storage_locations = it_allowed_storage_locations
         iv_as_of_date                = iv_fefo_as_of_date
         iv_min_days                  = iv_fefo_min_days
-        iv_protect_safety_stock      = iv_protect_safety_stock ).
+        iv_protect_safety_stock      = iv_protect_safety_stock
+        iv_include_undated_batches   = iv_include_undated_batches
+        iv_prioritize_by_priority    = iv_prioritize_by_priority ).
       IF lines( lt_fefo_previews ) <> lines( it_demands ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1518,7 +1936,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         it_demands                   = lt_batch_demands
         it_location_priority         = it_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
-        iv_protect_safety_stock      = iv_protect_safety_stock ).
+        iv_protect_safety_stock      = iv_protect_safety_stock
+        iv_include_undated_batches   = iv_include_undated_batches
+        iv_prioritize_by_priority    = iv_prioritize_by_priority ).
       IF lines( lt_batch_previews ) <> lines( it_demands ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1538,6 +1958,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       APPEND INITIAL LINE TO rs_result-items
         ASSIGNING FIELD-SYMBOL(<ls_new_line>).
       <ls_new_line>-request_id = ls_demand-request_id.
+      <ls_new_line>-required_date = ls_demand-required_date.
+      <ls_new_line>-priority = ls_demand-priority.
       IF iv_use_fefo_batches = abap_true.
         READ TABLE lt_fefo_previews INTO DATA(ls_fefo_preview)
           INDEX lv_request_index.
@@ -1772,15 +2194,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       ENDIF.
       APPEND VALUE #(
         request_id = ls_demand-request_id
+        priority   = ls_demand-priority
         request    = ls_api_request )
         TO lt_api_requests.
     ENDLOOP.
 
-    CLEAR lv_request_index.
+    IF iv_prioritize_by_priority = abap_true.
+      SORT lt_api_requests STABLE BY priority DESCENDING.
+    ENDIF.
     LOOP AT lt_api_requests INTO DATA(ls_prepared_request).
-      ADD 1 TO lv_request_index.
       READ TABLE rs_result-items ASSIGNING FIELD-SYMBOL(<ls_line>)
-        INDEX lv_request_index.
+        WITH KEY request_id = ls_prepared_request-request_id.
       IF sy-subrc <> 0
           OR <ls_line>-request_id <> ls_prepared_request-request_id.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1902,6 +2326,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_locations TYPE HASHED TABLE OF mard-lgort
       WITH UNIQUE KEY table_line.
+    DATA lt_ordered_demands TYPE ty_atomic_reservation_demands.
+    DATA lt_ordered_items TYPE ty_bulk_reservation_items.
+    DATA lv_batch_mode TYPE abap_bool.
+    DATA lv_unbatched_mode TYPE abap_bool.
     FIELD-SYMBOLS <ls_item> TYPE ty_bulk_reservation_item.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
@@ -1909,6 +2337,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           AND iv_protect_safety_stock <> abap_false )
         OR ( iv_use_fefo_batches <> abap_true
           AND iv_use_fefo_batches <> abap_false )
+        OR ( iv_prioritize_by_priority <> abap_true
+          AND iv_prioritize_by_priority <> abap_false )
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
         OR ( iv_check_atp <> abap_true
           AND iv_check_atp <> abap_false )
         OR ( iv_require_atp_confirmation <> abap_true
@@ -1976,30 +2408,49 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ( ls_demand-storage_location IS NOT INITIAL
             AND it_allowed_storage_locations IS NOT INITIAL
             AND NOT line_exists( lt_seen_locations[
-              table_line = ls_demand-storage_location ] ) )
-          OR ( iv_use_fefo_batches = abap_true
-            AND ls_demand-batch IS NOT INITIAL ).
+              table_line = ls_demand-storage_location ] ) ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       INSERT ls_demand-request_id INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      IF ls_demand-batch IS INITIAL.
+        lv_unbatched_mode = abap_true.
+      ELSE.
+        lv_batch_mode = abap_true.
+      ENDIF.
     ENDLOOP.
+
+    IF iv_prioritize_by_priority = abap_true
+        AND iv_use_fefo_batches <> abap_true
+        AND ( lv_batch_mode <> abap_true
+          OR lv_unbatched_mode = abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    lt_ordered_demands = it_demands.
+    IF iv_prioritize_by_priority = abap_true.
+      SORT lt_ordered_demands STABLE BY priority DESCENDING.
+    ENDIF.
 
     rs_result-is_successful = abap_true.
     rs_result-is_test_run = iv_test_run.
-    LOOP AT it_demands INTO ls_demand.
+    LOOP AT lt_ordered_demands INTO ls_demand.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_item>.
       <ls_item>-request_id = ls_demand-request_id.
+      <ls_item>-required_date = ls_demand-required_date.
+      <ls_item>-priority = ls_demand-priority.
       TRY.
           DATA(ls_single_result) = reserve_cost_centers_atomic(
             it_demands                   = VALUE #( ( ls_demand ) )
             iv_test_run                  = iv_test_run
             iv_protect_safety_stock      = iv_protect_safety_stock
             iv_use_fefo_batches          = iv_use_fefo_batches
+            iv_prioritize_by_priority    = iv_prioritize_by_priority
             iv_fefo_as_of_date           = iv_fefo_as_of_date
             iv_fefo_min_days             = iv_fefo_min_days
+            iv_include_undated_batches   = iv_include_undated_batches
             iv_check_atp                 = iv_check_atp
             iv_atp_check_rule            = iv_atp_check_rule
             iv_require_atp_confirmation  = iv_require_atp_confirmation
@@ -2035,6 +2486,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             TO rs_result-messages.
           rs_result-is_successful = abap_false.
       ENDTRY.
+    ENDLOOP.
+
+    lt_ordered_items = rs_result-items.
+    CLEAR rs_result-items.
+    LOOP AT it_demands INTO ls_demand.
+      READ TABLE lt_ordered_items INTO DATA(ls_ordered_item)
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND ls_ordered_item TO rs_result-items.
     ENDLOOP.
   ENDMETHOD.
 
@@ -2214,6 +2676,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_use_fefo_batches          = iv_use_fefo_batches
       iv_fefo_as_of_date           = iv_fefo_as_of_date
       iv_fefo_min_days             = iv_fefo_min_days
+      iv_include_undated_batches   = iv_include_undated_batches
       iv_batch_min_days            = iv_batch_min_days
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
@@ -2335,6 +2798,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_use_fefo_batches          = iv_use_fefo_batches
       iv_fefo_as_of_date           = iv_fefo_as_of_date
       iv_fefo_min_days             = iv_fefo_min_days
+      iv_include_undated_batches   = iv_include_undated_batches
       iv_batch_min_days            = iv_batch_min_days
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
@@ -2403,18 +2867,14 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
-    IF iv_use_fefo_batches = abap_true
-        AND iv_batch_supplied = abap_true.
-      RAISE EXCEPTION TYPE zcx_invalid_reservation.
-    ENDIF.
-
     IF iv_fefo_min_days < 0
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
         OR ( iv_fefo_min_days > 0
           AND iv_use_fefo_batches <> abap_true )
         OR iv_batch_min_days < 0
         OR ( iv_batch_min_days > 0
-          AND ( iv_batch_supplied <> abap_true
-            OR iv_use_fefo_batches = abap_true ) )
+          AND iv_batch_supplied <> abap_true )
         OR ( iv_use_fefo_batches = abap_true
           AND iv_fefo_as_of_date IS INITIAL ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -2463,13 +2923,16 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         it_demands                   = VALUE #(
           ( material                    = iv_material
             plant                       = iv_plant
+            batch                       = iv_batch
             storage_location            = iv_storage_location
             fallback_to_other_locations = iv_allow_fallback
             requested_quantity          = ls_conversion-base_quantity
             fefo_as_of_date             =
-              lv_effective_fefo_as_of_date ) )
+              lv_effective_fefo_as_of_date
+            minimum_shelf_life_days     = iv_batch_min_days ) )
         iv_as_of_date                = iv_fefo_as_of_date
         iv_min_days                  = iv_fefo_min_days
+        iv_include_undated_batches   = iv_include_undated_batches
         it_storage_location_priority = it_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
         iv_protect_safety_stock      = iv_protect_safety_stock ).
@@ -2488,7 +2951,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               iv_batch_min_days ) )
         it_storage_location_priority = it_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
-        iv_protect_safety_stock      = iv_protect_safety_stock ).
+        iv_protect_safety_stock      = iv_protect_safety_stock
+        iv_include_undated_batches   = iv_include_undated_batches ).
       READ TABLE ls_batch_result-allocations INDEX 1 INTO ls_allocation.
     ELSE.
       ls_location_result = mo_stock_service->allocate_by_storage_location(

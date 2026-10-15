@@ -20,6 +20,35 @@ CLASS zcl_project_stock_service DEFINITION
       END OF ty_demand.
     TYPES ty_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_priority_fefo_demand,
+        request_id              TYPE c LENGTH 30,
+        priority                TYPE i,
+        wbs_element             TYPE ty_wbs_element,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        storage_location        TYPE mard-lgort,
+        batch                   TYPE mchb-charg,
+        requested_quantity      TYPE mard-labst,
+        unit                    TYPE mara-meins,
+        fefo_as_of_date         TYPE d,
+        minimum_shelf_life_days TYPE i,
+      END OF ty_priority_fefo_demand.
+    TYPES ty_priority_fefo_demands TYPE STANDARD TABLE OF
+      ty_priority_fefo_demand WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_location_demand,
+        request_id         TYPE c LENGTH 30,
+        priority           TYPE i,
+        wbs_element        TYPE ty_wbs_element,
+        material           TYPE mard-matnr,
+        plant              TYPE mard-werks,
+        storage_location   TYPE mard-lgort,
+        requested_quantity TYPE mard-labst,
+        unit               TYPE mara-meins,
+      END OF ty_priority_location_demand.
+    TYPES ty_priority_location_demands TYPE STANDARD TABLE OF
+      ty_priority_location_demand WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_dated_fefo_demand,
         request_id              TYPE c LENGTH 30,
         required_date           TYPE d,
@@ -52,6 +81,37 @@ CLASS zcl_project_stock_service DEFINITION
       END OF ty_transfer_demand.
     TYPES ty_transfer_demands TYPE STANDARD TABLE OF
       ty_transfer_demand WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_transfer_fefo_demand,
+        request_id              TYPE c LENGTH 30,
+        priority                TYPE i,
+        source_wbs_element      TYPE ty_wbs_element,
+        destination_wbs_element TYPE ty_wbs_element,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        storage_location        TYPE mard-lgort,
+        batch                   TYPE mchb-charg,
+        requested_quantity      TYPE mard-labst,
+        unit                    TYPE mara-meins,
+        fefo_as_of_date         TYPE d,
+        minimum_shelf_life_days TYPE i,
+      END OF ty_priority_transfer_fefo_demand.
+    TYPES ty_priority_transfer_fefo_demands TYPE STANDARD TABLE OF
+      ty_priority_transfer_fefo_demand WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_location_transfer_demand,
+        request_id              TYPE c LENGTH 30,
+        priority                TYPE i,
+        source_wbs_element      TYPE ty_wbs_element,
+        destination_wbs_element TYPE ty_wbs_element,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        storage_location        TYPE mard-lgort,
+        requested_quantity      TYPE mard-labst,
+        unit                    TYPE mara-meins,
+      END OF ty_priority_location_transfer_demand.
+    TYPES ty_priority_location_transfer_demands TYPE STANDARD TABLE OF
+      ty_priority_location_transfer_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_transfer_demand,
         request_id              TYPE c LENGTH 30,
@@ -86,10 +146,82 @@ CLASS zcl_project_stock_service DEFINITION
     TYPES ty_transfer_assignments TYPE STANDARD TABLE OF
       ty_transfer_assignment WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_priority_transfer_assignment,
+        request_id              TYPE c LENGTH 30,
+        source_wbs_element      TYPE ty_wbs_element,
+        destination_wbs_element TYPE ty_wbs_element,
+        priority                TYPE i,
+      END OF ty_priority_transfer_assignment.
+    TYPES ty_priority_transfer_assignments TYPE STANDARD TABLE OF
+      ty_priority_transfer_assignment WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_result,
         allocation      TYPE zcl_stock_service=>ty_unit_batch_result,
         wbs_assignments TYPE ty_wbs_assignments,
       END OF ty_result.
+    TYPES:
+      BEGIN OF ty_fefo_atp_result,
+        local_estimate TYPE ty_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_fefo_atp_result.
+    TYPES:
+      BEGIN OF ty_priority_fefo_allocation,
+        allocation TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        priority   TYPE i,
+      END OF ty_priority_fefo_allocation.
+    TYPES ty_priority_fefo_allocations TYPE STANDARD TABLE OF
+      ty_priority_fefo_allocation WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_fefo_batch_split,
+        split    TYPE zcl_stock_service=>ty_unit_batch_split,
+        priority TYPE i,
+      END OF ty_priority_fefo_batch_split.
+    TYPES ty_priority_fefo_batch_splits TYPE STANDARD TABLE OF
+      ty_priority_fefo_batch_split WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_wbs_assignment,
+        request_id  TYPE c LENGTH 30,
+        wbs_element TYPE ty_wbs_element,
+        priority    TYPE i,
+      END OF ty_priority_wbs_assignment.
+    TYPES ty_priority_wbs_assignments TYPE STANDARD TABLE OF
+      ty_priority_wbs_assignment WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_fefo_result,
+        allocations       TYPE ty_priority_fefo_allocations,
+        batch_allocations TYPE ty_priority_fefo_batch_splits,
+        wbs_assignments   TYPE ty_priority_wbs_assignments,
+      END OF ty_priority_fefo_result.
+    TYPES:
+      BEGIN OF ty_priority_fefo_atp_result,
+        local_estimate TYPE ty_priority_fefo_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_priority_fefo_atp_result.
+    TYPES:
+      BEGIN OF ty_priority_location_allocation,
+        allocation TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        priority   TYPE i,
+      END OF ty_priority_location_allocation.
+    TYPES ty_priority_location_allocations TYPE STANDARD TABLE OF
+      ty_priority_location_allocation WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_location_split,
+        split    TYPE zcl_stock_service=>ty_unit_storage_split,
+        priority TYPE i,
+      END OF ty_priority_location_split.
+    TYPES ty_priority_location_splits TYPE STANDARD TABLE OF
+      ty_priority_location_split WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_priority_location_result,
+        allocations         TYPE ty_priority_location_allocations,
+        storage_allocations TYPE ty_priority_location_splits,
+        wbs_assignments     TYPE ty_priority_wbs_assignments,
+      END OF ty_priority_location_result.
+    TYPES:
+      BEGIN OF ty_priority_loc_atp_result,
+        local_estimate TYPE ty_priority_location_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_priority_loc_atp_result.
     TYPES:
       BEGIN OF ty_dated_fefo_allocation,
         allocation    TYPE zcl_stock_service=>ty_unit_allocation_summary,
@@ -121,6 +253,11 @@ CLASS zcl_project_stock_service DEFINITION
         batch_allocations TYPE ty_dated_fefo_batch_splits,
         wbs_assignments   TYPE ty_dated_wbs_assignments,
       END OF ty_dated_fefo_result.
+    TYPES:
+      BEGIN OF ty_dated_fefo_atp_result,
+        local_estimate TYPE ty_dated_fefo_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_dated_fefo_atp_result.
     TYPES:
       BEGIN OF ty_dated_location_demand,
         request_id         TYPE c LENGTH 30,
@@ -173,15 +310,30 @@ CLASS zcl_project_stock_service DEFINITION
         wbs_assignments     TYPE ty_dated_wbs_assignments,
       END OF ty_dated_location_result.
     TYPES:
+      BEGIN OF ty_dated_location_atp_result,
+        local_estimate TYPE ty_dated_location_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_dated_location_atp_result.
+    TYPES:
       BEGIN OF ty_location_result,
         allocation      TYPE zcl_stock_service=>ty_unit_location_result,
         wbs_assignments TYPE ty_wbs_assignments,
       END OF ty_location_result.
     TYPES:
+      BEGIN OF ty_location_atp_result,
+        local_estimate TYPE ty_location_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_location_atp_result.
+    TYPES:
       BEGIN OF ty_transfer_result,
         allocation           TYPE zcl_stock_service=>ty_unit_batch_result,
         transfer_assignments TYPE ty_transfer_assignments,
       END OF ty_transfer_result.
+    TYPES:
+      BEGIN OF ty_transfer_atp_result,
+        local_estimate TYPE ty_transfer_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_transfer_atp_result.
     TYPES:
       BEGIN OF ty_dated_transfer_assignment,
         request_id              TYPE c LENGTH 30,
@@ -199,16 +351,53 @@ CLASS zcl_project_stock_service DEFINITION
         transfer_assignments TYPE ty_dated_transfer_assignments,
       END OF ty_dated_transfer_result.
     TYPES:
+      BEGIN OF ty_dated_transfer_atp_result,
+        local_estimate TYPE ty_dated_transfer_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_dated_transfer_atp_result.
+    TYPES:
+      BEGIN OF ty_priority_transfer_fefo_result,
+        allocations          TYPE ty_priority_fefo_allocations,
+        batch_allocations    TYPE ty_priority_fefo_batch_splits,
+        transfer_assignments TYPE ty_priority_transfer_assignments,
+      END OF ty_priority_transfer_fefo_result.
+    TYPES:
+      BEGIN OF ty_priority_transfer_fefo_atp_result,
+        local_estimate TYPE ty_priority_transfer_fefo_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_priority_transfer_fefo_atp_result.
+    TYPES:
       BEGIN OF ty_dated_location_transfer_result,
         allocations          TYPE ty_dated_location_allocations,
         storage_allocations  TYPE ty_dated_location_splits,
         transfer_assignments TYPE ty_dated_transfer_assignments,
       END OF ty_dated_location_transfer_result.
     TYPES:
+      BEGIN OF ty_dated_location_transfer_atp_result,
+        local_estimate TYPE ty_dated_location_transfer_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_dated_location_transfer_atp_result.
+    TYPES:
+      BEGIN OF ty_priority_location_transfer_result,
+        allocations          TYPE ty_priority_location_allocations,
+        storage_allocations  TYPE ty_priority_location_splits,
+        transfer_assignments TYPE ty_priority_transfer_assignments,
+      END OF ty_priority_location_transfer_result.
+    TYPES:
+      BEGIN OF ty_priority_transfer_loc_atp_result,
+        local_estimate TYPE ty_priority_location_transfer_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_priority_transfer_loc_atp_result.
+    TYPES:
       BEGIN OF ty_transfer_location_result,
         allocation           TYPE zcl_stock_service=>ty_unit_location_result,
         transfer_assignments TYPE ty_transfer_assignments,
       END OF ty_transfer_location_result.
+    TYPES:
+      BEGIN OF ty_transfer_loc_atp_result,
+        local_estimate TYPE ty_transfer_location_result,
+        atp_checks     TYPE zcl_stock_service=>ty_local_atp_checks,
+      END OF ty_transfer_loc_atp_result.
     TYPES:
       BEGIN OF ty_available_stock,
         material           TYPE mard-matnr,
@@ -409,9 +598,11 @@ CLASS zcl_project_stock_service DEFINITION
 
     METHODS constructor
       IMPORTING
-        io_repository     TYPE REF TO zif_project_stock_repository OPTIONAL
-        io_uom_converter  TYPE REF TO zif_material_uom_converter OPTIONAL
-        io_uom_repository TYPE REF TO zif_material_uom_repository OPTIONAL.
+        io_repository                TYPE REF TO zif_project_stock_repository OPTIONAL
+        io_uom_converter             TYPE REF TO zif_material_uom_converter OPTIONAL
+        io_uom_repository            TYPE REF TO zif_material_uom_repository OPTIONAL
+        io_material_availability_api TYPE REF TO
+          zif_material_availability_api OPTIONAL.
 
     METHODS read_available_stock
       IMPORTING
@@ -537,6 +728,61 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_fefo_atp
+      IMPORTING
+        it_demands                   TYPE ty_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_fefo_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_fefo_priority
+      IMPORTING
+        it_demands                   TYPE ty_priority_fefo_demands
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_fefo_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_fefo_priority_atp
+      IMPORTING
+        it_demands                   TYPE ty_priority_fefo_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_fefo_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_fefo_by_date
       IMPORTING
         it_demands                   TYPE ty_dated_fefo_demands
@@ -554,6 +800,24 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_fefo_by_date_atp
+      IMPORTING
+        it_demands                   TYPE ty_dated_fefo_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_dated_fefo_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_by_location
       IMPORTING
         it_demands                   TYPE ty_demands
@@ -568,6 +832,52 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_by_location_atp
+      IMPORTING
+        it_demands                   TYPE ty_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_location_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_by_location_priority
+      IMPORTING
+        it_demands                   TYPE ty_priority_location_demands
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_location_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_location_priority_atp
+      IMPORTING
+        it_demands                   TYPE ty_priority_location_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_loc_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_by_location_date
       IMPORTING
         it_demands                   TYPE ty_dated_location_demands
@@ -579,6 +889,21 @@ CLASS zcl_project_stock_service DEFINITION
         iv_reservation_through_date  TYPE d OPTIONAL
       RETURNING
         VALUE(rs_result)             TYPE ty_dated_location_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_by_location_date_atp
+      IMPORTING
+        it_demands                   TYPE ty_dated_location_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_dated_location_atp_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -599,6 +924,61 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_transfer_fefo_atp
+      IMPORTING
+        it_demands                   TYPE ty_transfer_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_transfer_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_transfer_fefo_priority
+      IMPORTING
+        it_demands                   TYPE ty_priority_transfer_fefo_demands
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_transfer_fefo_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_transfer_fefo_prio_atp
+      IMPORTING
+        it_demands                   TYPE ty_priority_transfer_fefo_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_transfer_fefo_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_transfer_fefo_by_date
       IMPORTING
         it_demands                   TYPE ty_dated_transfer_demands
@@ -616,6 +996,24 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_transfer_fefo_date_atp
+      IMPORTING
+        it_demands                   TYPE ty_dated_transfer_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_dated_transfer_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_transfer_by_location
       IMPORTING
         it_demands                   TYPE ty_transfer_demands
@@ -630,6 +1028,52 @@ CLASS zcl_project_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS preview_transfer_loc_atp
+      IMPORTING
+        it_demands                   TYPE ty_transfer_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_transfer_loc_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_transfer_loc_priority
+      IMPORTING
+        it_demands                   TYPE ty_priority_location_transfer_demands
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_location_transfer_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_transfer_loc_prio_atp
+      IMPORTING
+        it_demands                   TYPE ty_priority_location_transfer_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        iv_atp_check_date            TYPE d OPTIONAL
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_priority_transfer_loc_atp_result
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_transfer_location_date
       IMPORTING
         it_demands                   TYPE ty_dated_location_transfer_demands
@@ -641,6 +1085,21 @@ CLASS zcl_project_stock_service DEFINITION
         iv_reservation_through_date  TYPE d OPTIONAL
       RETURNING
         VALUE(rs_result)             TYPE ty_dated_location_transfer_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_transfer_loc_date_atp
+      IMPORTING
+        it_demands                   TYPE ty_dated_location_transfer_demands
+        iv_check_rule                TYPE zif_material_availability_api=>ty_check_rule
+        it_storage_location_priority TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        it_allowed_storage_locations TYPE zcl_stock_service=>ty_storage_locations
+          OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+        iv_reservation_through_date  TYPE d OPTIONAL
+      RETURNING
+        VALUE(rs_result)             TYPE ty_dated_location_transfer_atp_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -701,13 +1160,23 @@ CLASS zcl_project_stock_service DEFINITION
       ty_dated_fefo_works TYPE STANDARD TABLE OF
         ty_dated_fefo_work WITH EMPTY KEY,
       BEGIN OF ty_dated_fefo_index,
-        request_id    TYPE c LENGTH 30,
-        input_index   TYPE i,
-        required_date TYPE d,
-        priority      TYPE i,
+        request_id        TYPE c LENGTH 30,
+        caller_request_id TYPE c LENGTH 30,
+        input_index       TYPE i,
+        required_date     TYPE d,
+        priority          TYPE i,
       END OF ty_dated_fefo_index,
       ty_dated_fefo_indexes TYPE HASHED TABLE OF ty_dated_fefo_index
         WITH UNIQUE KEY request_id,
+      BEGIN OF ty_project_atp_demand,
+        material           TYPE mard-matnr,
+        plant              TYPE mard-werks,
+        base_unit          TYPE mara-meins,
+        required_date      TYPE d,
+        allocated_quantity TYPE mard-labst,
+      END OF ty_project_atp_demand,
+      ty_project_atp_demands TYPE STANDARD TABLE OF
+        ty_project_atp_demand WITH EMPTY KEY,
       BEGIN OF ty_dated_allocation_order,
         input_index TYPE i,
         result      TYPE ty_dated_fefo_allocation,
@@ -815,6 +1284,17 @@ CLASS zcl_project_stock_service DEFINITION
     DATA mo_repository TYPE REF TO zif_project_stock_repository.
     DATA mo_uom_converter TYPE REF TO zif_material_uom_converter.
     DATA mo_uom_repository TYPE REF TO zif_material_uom_repository.
+    DATA mo_material_availability_api TYPE REF TO
+      zif_material_availability_api.
+
+    METHODS get_project_atp_checks
+      IMPORTING
+        it_demands       TYPE ty_project_atp_demands
+        iv_check_rule    TYPE zif_material_availability_api=>ty_check_rule
+      RETURNING
+        VALUE(rt_checks) TYPE zcl_stock_service=>ty_local_atp_checks
+      RAISING
+        zcx_invalid_stock_request.
 
     METHODS validate_optional_date
       IMPORTING
@@ -868,6 +1348,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     IF mo_uom_converter IS NOT BOUND.
       mo_uom_converter = NEW zcl_material_uom_converter(
         io_repository = mo_uom_repository ).
+    ENDIF.
+
+    mo_material_availability_api = io_material_availability_api.
+    IF mo_material_availability_api IS NOT BOUND.
+      mo_material_availability_api = NEW zcl_bapi_mat_avail_api( ).
     ENDIF.
   ENDMETHOD.
 
@@ -2133,12 +2618,167 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD preview_fefo_priority.
+    TYPES:
+      BEGIN OF ty_indexed_demand,
+        input_index TYPE i,
+        demand      TYPE ty_priority_fefo_demand,
+      END OF ty_indexed_demand,
+      ty_indexed_demands TYPE STANDARD TABLE OF ty_indexed_demand
+        WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_request_context,
+        input_index         TYPE i,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE ty_wbs_element,
+        priority            TYPE i,
+      END OF ty_request_context,
+      ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
+        WITH EMPTY KEY.
+    DATA lt_indexed_demands TYPE ty_indexed_demands.
+    DATA lt_contexts TYPE ty_request_contexts.
+    DATA lt_base_demands TYPE ty_demands.
+    DATA ls_base_result TYPE ty_result.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    LOOP AT it_demands INTO DATA(ls_input_demand).
+      IF ls_input_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        input_index = sy-tabix
+        demand      = ls_input_demand )
+        TO lt_indexed_demands.
+    ENDLOOP.
+    SORT lt_indexed_demands STABLE BY demand-priority DESCENDING.
+
+    LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        wbs_element             = ls_indexed_demand-demand-wbs_element
+        material                = ls_indexed_demand-demand-material
+        plant                   = ls_indexed_demand-demand-plant
+        storage_location        =
+          ls_indexed_demand-demand-storage_location
+        batch                   = ls_indexed_demand-demand-batch
+        requested_quantity      =
+          ls_indexed_demand-demand-requested_quantity
+        unit                    = ls_indexed_demand-demand-unit
+        fefo_as_of_date         =
+          ls_indexed_demand-demand-fefo_as_of_date
+        minimum_shelf_life_days =
+          ls_indexed_demand-demand-minimum_shelf_life_days )
+        TO lt_base_demands.
+      APPEND VALUE #(
+        input_index         = ls_indexed_demand-input_index
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_indexed_demand-demand-request_id
+        wbs_element         = ls_indexed_demand-demand-wbs_element
+        priority            = ls_indexed_demand-demand-priority )
+        TO lt_contexts.
+    ENDLOOP.
+
+    ls_base_result = preview_fefo(
+      it_demands                   = lt_base_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    SORT lt_contexts BY input_index ASCENDING.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_base_result-allocation-allocations
+          INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_allocation-allocation-request_id = ls_context-request_id.
+      ls_allocation-allocation-priority = ls_context-priority.
+      APPEND VALUE #(
+        allocation = ls_allocation
+        priority   = ls_context-priority )
+        TO rs_result-allocations.
+
+      LOOP AT ls_base_result-allocation-batch_allocations
+          INTO DATA(ls_batch_split)
+          WHERE batch_allocation-request_id =
+            ls_context-internal_request_id.
+        ls_batch_split-batch_allocation-request_id = ls_context-request_id.
+        APPEND VALUE #(
+          split    = ls_batch_split
+          priority = ls_context-priority )
+          TO rs_result-batch_allocations.
+      ENDLOOP.
+
+      APPEND VALUE #(
+        request_id  = ls_context-request_id
+        wbs_element = ls_context-wbs_element
+        priority    = ls_context-priority )
+        TO rs_result-wbs_assignments.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_fefo_priority_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_fefo_priority(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_fefo_by_date.
     DATA lt_work TYPE ty_dated_fefo_works.
     DATA lt_sorted_demands TYPE ty_demands.
     DATA lt_demand_indexes TYPE ty_dated_fefo_indexes.
     DATA lt_allocation_order TYPE ty_dated_allocation_orders.
     DATA lt_split_order TYPE ty_dated_split_orders.
+    DATA ls_internal_demand TYPE ty_dated_fefo_demand.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -2148,20 +2788,24 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ENDIF.
       validate_required_date( iv_date = ls_demand-required_date ).
       validate_optional_date( iv_date = ls_demand-fefo_as_of_date ).
+      lv_internal_request_id = |D{ lv_input_index }|.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
-        input_index   = lv_input_index
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id        = lv_internal_request_id
+        caller_request_id = ls_demand-request_id
+        input_index       = lv_input_index
+        required_date     = ls_demand-required_date
+        priority          = ls_demand-priority )
         INTO TABLE lt_demand_indexes.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
       APPEND VALUE #(
         input_index   = lv_input_index
         required_date = ls_demand-required_date
         priority      = ls_demand-priority
-        demand        = ls_demand ) TO lt_work.
+        demand        = ls_internal_demand ) TO lt_work.
     ENDLOOP.
 
     SORT lt_work BY required_date ASCENDING
@@ -2210,11 +2854,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
-      APPEND VALUE #(
-        input_index   = lv_input_index
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority
-        demand        = ls_demand ) TO lt_work.
+      ls_local_allocation-allocation-request_id =
+        ls_allocation_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
@@ -2237,6 +2878,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_split-batch_allocation-request_id =
+        ls_split_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_split_index-input_index
         split_index = lv_split_index
@@ -2259,6 +2902,177 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         required_date = ls_demand-required_date
         priority      = ls_demand-priority )
         TO rs_result-wbs_assignments.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_fefo_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_fefo(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocation-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           = ls_allocation-allocation-material
+        plant              = ls_allocation-allocation-plant
+        base_unit          = ls_allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
+  METHOD preview_fefo_by_date_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = preview_fefo_by_date(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = ls_allocation-required_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
+  METHOD get_project_atp_checks.
+    DATA lv_cumulative_quantity TYPE mard-labst.
+    DATA lv_previous_material TYPE mard-matnr.
+    DATA lv_previous_plant TYPE mard-werks.
+    DATA lv_previous_unit TYPE mara-meins.
+    DATA lv_confirmed_quantity TYPE mard-labst.
+    FIELD-SYMBOLS <ls_atp_check> TYPE
+      zcl_stock_service=>ty_local_atp_check.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      READ TABLE rt_checks ASSIGNING <ls_atp_check>
+        WITH KEY material = ls_demand-material
+                 plant = ls_demand-plant
+                 base_unit = ls_demand-base_unit
+                 check_date = ls_demand-required_date.
+      IF sy-subrc = 0.
+        <ls_atp_check>-allocated_base_quantity =
+          <ls_atp_check>-allocated_base_quantity
+          + ls_demand-allocated_quantity.
+      ELSE.
+        APPEND VALUE #(
+          material                = ls_demand-material
+          plant                   = ls_demand-plant
+          base_unit               = ls_demand-base_unit
+          check_date              = ls_demand-required_date
+          allocated_base_quantity = ls_demand-allocated_quantity )
+          TO rt_checks.
+      ENDIF.
+    ENDLOOP.
+
+    SORT rt_checks BY material ASCENDING
+                      plant ASCENDING
+                      base_unit ASCENDING
+                      check_date ASCENDING.
+    LOOP AT rt_checks ASSIGNING <ls_atp_check>.
+      IF sy-tabix = 1
+          OR <ls_atp_check>-material <> lv_previous_material
+          OR <ls_atp_check>-plant <> lv_previous_plant
+          OR <ls_atp_check>-base_unit <> lv_previous_unit.
+        CLEAR lv_cumulative_quantity.
+      ENDIF.
+      lv_cumulative_quantity = lv_cumulative_quantity
+        + <ls_atp_check>-allocated_base_quantity.
+      <ls_atp_check>-cumulative_base_quantity =
+        lv_cumulative_quantity.
+      <ls_atp_check>-atp_result =
+        mo_material_availability_api->check_availability(
+          is_request = VALUE #(
+            material           = <ls_atp_check>-material
+            plant              = <ls_atp_check>-plant
+            unit               = <ls_atp_check>-base_unit
+            check_rule         = iv_check_rule
+            required_date      = <ls_atp_check>-check_date
+            requested_quantity = lv_cumulative_quantity ) ).
+
+      IF <ls_atp_check>-atp_result-is_check_relevant = abap_true.
+        IF <ls_atp_check>-atp_result-is_fully_available = abap_true.
+          <ls_atp_check>-confirmed_base_quantity =
+            lv_cumulative_quantity.
+        ELSE.
+          CLEAR lv_confirmed_quantity.
+          LOOP AT <ls_atp_check>-atp_result-confirmation_lines
+              INTO DATA(ls_confirmation).
+            IF ls_confirmation-confirmed_quantity <= 0
+                OR ls_confirmation-confirmed_date IS INITIAL
+                OR ls_confirmation-confirmed_date
+                  > <ls_atp_check>-check_date.
+              CONTINUE.
+            ENDIF.
+            lv_confirmed_quantity = lv_confirmed_quantity
+              + ls_confirmation-confirmed_quantity.
+            IF lv_confirmed_quantity >= lv_cumulative_quantity.
+              lv_confirmed_quantity = lv_cumulative_quantity.
+              EXIT.
+            ENDIF.
+          ENDLOOP.
+          <ls_atp_check>-confirmed_base_quantity =
+            lv_confirmed_quantity.
+        ENDIF.
+        <ls_atp_check>-unconfirmed_base_quantity =
+          lv_cumulative_quantity
+          - <ls_atp_check>-confirmed_base_quantity.
+      ENDIF.
+
+      lv_previous_material = <ls_atp_check>-material.
+      lv_previous_plant = <ls_atp_check>-plant.
+      lv_previous_unit = <ls_atp_check>-base_unit.
     ENDLOOP.
   ENDMETHOD.
 
@@ -2552,12 +3366,156 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD preview_by_location_priority.
+    TYPES:
+      BEGIN OF ty_indexed_demand,
+        input_index TYPE i,
+        demand      TYPE ty_priority_location_demand,
+      END OF ty_indexed_demand,
+      ty_indexed_demands TYPE STANDARD TABLE OF ty_indexed_demand
+        WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_request_context,
+        input_index         TYPE i,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE ty_wbs_element,
+        priority            TYPE i,
+      END OF ty_request_context,
+      ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
+        WITH EMPTY KEY.
+    DATA lt_indexed_demands TYPE ty_indexed_demands.
+    DATA lt_contexts TYPE ty_request_contexts.
+    DATA lt_base_demands TYPE ty_demands.
+    DATA ls_base_result TYPE ty_location_result.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    LOOP AT it_demands INTO DATA(ls_input_demand).
+      IF ls_input_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        input_index = sy-tabix
+        demand      = ls_input_demand )
+        TO lt_indexed_demands.
+    ENDLOOP.
+    SORT lt_indexed_demands STABLE BY demand-priority DESCENDING.
+
+    LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id         = lv_internal_request_id
+        wbs_element        = ls_indexed_demand-demand-wbs_element
+        material           = ls_indexed_demand-demand-material
+        plant              = ls_indexed_demand-demand-plant
+        storage_location   = ls_indexed_demand-demand-storage_location
+        requested_quantity =
+          ls_indexed_demand-demand-requested_quantity
+        unit               = ls_indexed_demand-demand-unit )
+        TO lt_base_demands.
+      APPEND VALUE #(
+        input_index         = ls_indexed_demand-input_index
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_indexed_demand-demand-request_id
+        wbs_element         = ls_indexed_demand-demand-wbs_element
+        priority            = ls_indexed_demand-demand-priority )
+        TO lt_contexts.
+    ENDLOOP.
+
+    ls_base_result = preview_by_location(
+      it_demands                   = lt_base_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    SORT lt_contexts BY input_index ASCENDING.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_base_result-allocation-allocations
+          INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_allocation-allocation-request_id = ls_context-request_id.
+      ls_allocation-allocation-priority = ls_context-priority.
+      APPEND VALUE #(
+        allocation = ls_allocation
+        priority   = ls_context-priority )
+        TO rs_result-allocations.
+
+      LOOP AT ls_base_result-allocation-storage_allocations
+          INTO DATA(ls_storage_split)
+          WHERE storage_allocation-request_id =
+            ls_context-internal_request_id.
+        ls_storage_split-storage_allocation-request_id =
+          ls_context-request_id.
+        APPEND VALUE #(
+          split    = ls_storage_split
+          priority = ls_context-priority )
+          TO rs_result-storage_allocations.
+      ENDLOOP.
+
+      APPEND VALUE #(
+        request_id  = ls_context-request_id
+        wbs_element = ls_context-wbs_element
+        priority    = ls_context-priority )
+        TO rs_result-wbs_assignments.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_location_priority_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_by_location_priority(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_by_location_date.
     DATA lt_work TYPE ty_dated_location_works.
     DATA lt_sorted_demands TYPE ty_demands.
     DATA lt_demand_indexes TYPE ty_dated_fefo_indexes.
     DATA lt_allocation_order TYPE ty_dated_location_allocation_orders.
     DATA lt_split_order TYPE ty_dated_location_split_orders.
+    DATA ls_internal_demand TYPE ty_dated_location_demand.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -2566,20 +3524,24 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       validate_required_date( iv_date = ls_demand-required_date ).
+      lv_internal_request_id = |D{ lv_input_index }|.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
-        input_index   = lv_input_index
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id        = lv_internal_request_id
+        caller_request_id = ls_demand-request_id
+        input_index       = lv_input_index
+        required_date     = ls_demand-required_date
+        priority          = ls_demand-priority )
         INTO TABLE lt_demand_indexes.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
       APPEND VALUE #(
         input_index   = lv_input_index
         required_date = ls_demand-required_date
         priority      = ls_demand-priority
-        demand        = ls_demand ) TO lt_work.
+        demand        = ls_internal_demand ) TO lt_work.
     ENDLOOP.
 
     SORT lt_work BY required_date ASCENDING
@@ -2617,6 +3579,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_allocation-allocation-request_id =
+        ls_allocation_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
@@ -2639,6 +3603,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_split-storage_allocation-request_id =
+        ls_split_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_split_index-input_index
         split_index = lv_split_index
@@ -2663,6 +3629,82 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         TO rs_result-wbs_assignments.
     ENDLOOP.
   ENDMETHOD.
+
+  METHOD preview_by_location_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_by_location(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocation-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           = ls_allocation-allocation-material
+        plant              = ls_allocation-allocation-plant
+        base_unit          = ls_allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
+  METHOD preview_by_location_date_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = preview_by_location_date(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = ls_allocation-required_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_transfer_fefo.
     DATA lt_stock_demands TYPE ty_demands.
 
@@ -2708,12 +3750,219 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     rs_result-allocation = ls_stock_preview-allocation.
   ENDMETHOD.
 
+  METHOD preview_transfer_fefo_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_fefo(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocation-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           = ls_allocation-allocation-material
+        plant              = ls_allocation-allocation-plant
+        base_unit          = ls_allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
+  METHOD preview_transfer_fefo_priority.
+    TYPES:
+      BEGIN OF ty_indexed_demand,
+        input_index TYPE i,
+        demand      TYPE ty_priority_transfer_fefo_demand,
+      END OF ty_indexed_demand,
+      ty_indexed_demands TYPE STANDARD TABLE OF ty_indexed_demand
+        WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_transfer_context,
+        input_index             TYPE i,
+        internal_request_id     TYPE c LENGTH 30,
+        request_id              TYPE c LENGTH 30,
+        source_wbs_element      TYPE ty_wbs_element,
+        destination_wbs_element TYPE ty_wbs_element,
+        priority                TYPE i,
+      END OF ty_transfer_context,
+      ty_transfer_contexts TYPE STANDARD TABLE OF ty_transfer_context
+        WITH EMPTY KEY.
+    DATA lt_indexed_demands TYPE ty_indexed_demands.
+    DATA lt_contexts TYPE ty_transfer_contexts.
+    DATA lt_base_demands TYPE ty_transfer_demands.
+    DATA ls_base_result TYPE ty_transfer_result.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    LOOP AT it_demands INTO DATA(ls_input_demand).
+      IF ls_input_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        input_index = sy-tabix
+        demand      = ls_input_demand )
+        TO lt_indexed_demands.
+    ENDLOOP.
+    SORT lt_indexed_demands STABLE BY demand-priority DESCENDING.
+
+    LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        source_wbs_element      =
+          ls_indexed_demand-demand-source_wbs_element
+        destination_wbs_element =
+          ls_indexed_demand-demand-destination_wbs_element
+        material                = ls_indexed_demand-demand-material
+        plant                   = ls_indexed_demand-demand-plant
+        storage_location        =
+          ls_indexed_demand-demand-storage_location
+        batch                   = ls_indexed_demand-demand-batch
+        requested_quantity      =
+          ls_indexed_demand-demand-requested_quantity
+        unit                    = ls_indexed_demand-demand-unit
+        fefo_as_of_date         =
+          ls_indexed_demand-demand-fefo_as_of_date
+        minimum_shelf_life_days =
+          ls_indexed_demand-demand-minimum_shelf_life_days )
+        TO lt_base_demands.
+      APPEND VALUE #(
+        input_index             = ls_indexed_demand-input_index
+        internal_request_id     = lv_internal_request_id
+        request_id              = ls_indexed_demand-demand-request_id
+        source_wbs_element      =
+          ls_indexed_demand-demand-source_wbs_element
+        destination_wbs_element =
+          ls_indexed_demand-demand-destination_wbs_element
+        priority                = ls_indexed_demand-demand-priority )
+        TO lt_contexts.
+    ENDLOOP.
+
+    ls_base_result = preview_transfer_fefo(
+      it_demands                   = lt_base_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    SORT lt_contexts BY input_index ASCENDING.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_base_result-allocation-allocations
+          INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_allocation-allocation-request_id = ls_context-request_id.
+      ls_allocation-allocation-priority = ls_context-priority.
+      APPEND VALUE #(
+        allocation = ls_allocation
+        priority   = ls_context-priority )
+        TO rs_result-allocations.
+
+      LOOP AT ls_base_result-allocation-batch_allocations
+          INTO DATA(ls_batch_split)
+          WHERE batch_allocation-request_id =
+            ls_context-internal_request_id.
+        ls_batch_split-batch_allocation-request_id =
+          ls_context-request_id.
+        APPEND VALUE #(
+          split    = ls_batch_split
+          priority = ls_context-priority )
+          TO rs_result-batch_allocations.
+      ENDLOOP.
+
+      APPEND VALUE #(
+        request_id              = ls_context-request_id
+        source_wbs_element      = ls_context-source_wbs_element
+        destination_wbs_element = ls_context-destination_wbs_element
+        priority                = ls_context-priority )
+        TO rs_result-transfer_assignments.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_transfer_fefo_prio_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_fefo_priority(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_transfer_fefo_by_date.
     DATA lt_work TYPE ty_dated_transfer_works.
     DATA lt_sorted_demands TYPE ty_transfer_demands.
     DATA lt_demand_indexes TYPE ty_dated_fefo_indexes.
     DATA lt_allocation_order TYPE ty_dated_allocation_orders.
     DATA lt_split_order TYPE ty_dated_split_orders.
+    DATA ls_internal_demand TYPE ty_dated_transfer_demand.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -2727,20 +3976,24 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ENDIF.
       validate_required_date( iv_date = ls_demand-required_date ).
       validate_optional_date( iv_date = ls_demand-fefo_as_of_date ).
+      lv_internal_request_id = |D{ lv_input_index }|.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
-        input_index   = lv_input_index
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id        = lv_internal_request_id
+        caller_request_id = ls_demand-request_id
+        input_index       = lv_input_index
+        required_date     = ls_demand-required_date
+        priority          = ls_demand-priority )
         INTO TABLE lt_demand_indexes.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
       APPEND VALUE #(
         input_index   = lv_input_index
         required_date = ls_demand-required_date
         priority      = ls_demand-priority
-        demand        = ls_demand ) TO lt_work.
+        demand        = ls_internal_demand ) TO lt_work.
     ENDLOOP.
 
     SORT lt_work BY required_date ASCENDING
@@ -2790,6 +4043,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_allocation-allocation-request_id =
+        ls_allocation_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
@@ -2812,6 +4067,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_split-batch_allocation-request_id =
+        ls_split_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_split_index-input_index
         split_index = lv_split_index
@@ -2837,6 +4094,45 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         TO rs_result-transfer_assignments.
     ENDLOOP.
   ENDMETHOD.
+
+  METHOD preview_transfer_fefo_date_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_fefo_by_date(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = iv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = ls_allocation-required_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_transfer_by_location.
     DATA lt_stock_demands TYPE ty_demands.
 
@@ -2877,12 +4173,205 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     rs_result-allocation = ls_stock_preview-allocation.
   ENDMETHOD.
 
+  METHOD preview_transfer_loc_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_by_location(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocation-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           = ls_allocation-allocation-material
+        plant              = ls_allocation-allocation-plant
+        base_unit          = ls_allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
+  METHOD preview_transfer_loc_priority.
+    TYPES:
+      BEGIN OF ty_indexed_demand,
+        input_index TYPE i,
+        demand      TYPE ty_priority_location_transfer_demand,
+      END OF ty_indexed_demand,
+      ty_indexed_demands TYPE STANDARD TABLE OF ty_indexed_demand
+        WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_transfer_context,
+        input_index             TYPE i,
+        internal_request_id     TYPE c LENGTH 30,
+        request_id              TYPE c LENGTH 30,
+        source_wbs_element      TYPE ty_wbs_element,
+        destination_wbs_element TYPE ty_wbs_element,
+        priority                TYPE i,
+      END OF ty_transfer_context,
+      ty_transfer_contexts TYPE STANDARD TABLE OF ty_transfer_context
+        WITH EMPTY KEY.
+    DATA lt_indexed_demands TYPE ty_indexed_demands.
+    DATA lt_contexts TYPE ty_transfer_contexts.
+    DATA lt_base_demands TYPE ty_transfer_demands.
+    DATA ls_base_result TYPE ty_transfer_location_result.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    LOOP AT it_demands INTO DATA(ls_input_demand).
+      IF ls_input_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        input_index = sy-tabix
+        demand      = ls_input_demand )
+        TO lt_indexed_demands.
+    ENDLOOP.
+    SORT lt_indexed_demands STABLE BY demand-priority DESCENDING.
+
+    LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        source_wbs_element      =
+          ls_indexed_demand-demand-source_wbs_element
+        destination_wbs_element =
+          ls_indexed_demand-demand-destination_wbs_element
+        material                = ls_indexed_demand-demand-material
+        plant                   = ls_indexed_demand-demand-plant
+        storage_location        =
+          ls_indexed_demand-demand-storage_location
+        requested_quantity      =
+          ls_indexed_demand-demand-requested_quantity
+        unit                    = ls_indexed_demand-demand-unit )
+        TO lt_base_demands.
+      APPEND VALUE #(
+        input_index             = ls_indexed_demand-input_index
+        internal_request_id     = lv_internal_request_id
+        request_id              = ls_indexed_demand-demand-request_id
+        source_wbs_element      =
+          ls_indexed_demand-demand-source_wbs_element
+        destination_wbs_element =
+          ls_indexed_demand-demand-destination_wbs_element
+        priority                = ls_indexed_demand-demand-priority )
+        TO lt_contexts.
+    ENDLOOP.
+
+    ls_base_result = preview_transfer_by_location(
+      it_demands                   = lt_base_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    SORT lt_contexts BY input_index ASCENDING.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_base_result-allocation-allocations
+          INTO DATA(ls_allocation)
+        WITH KEY allocation-request_id = ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_allocation-allocation-request_id = ls_context-request_id.
+      ls_allocation-allocation-priority = ls_context-priority.
+      APPEND VALUE #(
+        allocation = ls_allocation
+        priority   = ls_context-priority )
+        TO rs_result-allocations.
+
+      LOOP AT ls_base_result-allocation-storage_allocations
+          INTO DATA(ls_storage_split)
+          WHERE storage_allocation-request_id =
+            ls_context-internal_request_id.
+        ls_storage_split-storage_allocation-request_id =
+          ls_context-request_id.
+        APPEND VALUE #(
+          split    = ls_storage_split
+          priority = ls_context-priority )
+          TO rs_result-storage_allocations.
+      ENDLOOP.
+
+      APPEND VALUE #(
+        request_id              = ls_context-request_id
+        source_wbs_element      = ls_context-source_wbs_element
+        destination_wbs_element = ls_context-destination_wbs_element
+        priority                = ls_context-priority )
+        TO rs_result-transfer_assignments.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_transfer_loc_prio_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+    DATA lv_atp_check_date TYPE d.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    lv_atp_check_date = sy-datum.
+    IF iv_atp_check_date IS NOT INITIAL.
+      validate_required_date( iv_date = iv_atp_check_date ).
+      lv_atp_check_date = iv_atp_check_date.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_loc_priority(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = lv_atp_check_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
+  ENDMETHOD.
+
   METHOD preview_transfer_location_date.
     DATA lt_work TYPE ty_dated_location_transfer_works.
     DATA lt_sorted_demands TYPE ty_transfer_demands.
     DATA lt_demand_indexes TYPE ty_dated_fefo_indexes.
     DATA lt_allocation_order TYPE ty_dated_location_allocation_orders.
     DATA lt_split_order TYPE ty_dated_location_split_orders.
+    DATA ls_internal_demand TYPE ty_dated_location_transfer_demand.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
 
     validate_optional_date( iv_date = iv_reservation_through_date ).
@@ -2896,20 +4385,24 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       validate_required_date( iv_date = ls_demand-required_date ).
+      lv_internal_request_id = |D{ lv_input_index }|.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
-        input_index   = lv_input_index
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id        = lv_internal_request_id
+        caller_request_id = ls_demand-request_id
+        input_index       = lv_input_index
+        required_date     = ls_demand-required_date
+        priority          = ls_demand-priority )
         INTO TABLE lt_demand_indexes.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
       APPEND VALUE #(
         input_index   = lv_input_index
         required_date = ls_demand-required_date
         priority      = ls_demand-priority
-        demand        = ls_demand ) TO lt_work.
+        demand        = ls_internal_demand ) TO lt_work.
     ENDLOOP.
 
     SORT lt_work BY required_date ASCENDING
@@ -2948,6 +4441,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_allocation-allocation-request_id =
+        ls_allocation_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
@@ -2970,6 +4465,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_local_split-storage_allocation-request_id =
+        ls_split_index-caller_request_id.
       APPEND VALUE #(
         input_index = ls_split_index-input_index
         split_index = lv_split_index
@@ -2995,6 +4492,41 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         priority                = ls_demand-priority )
         TO rs_result-transfer_assignments.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_transfer_loc_date_atp.
+    DATA lt_atp_demands TYPE ty_project_atp_demands.
+
+    IF iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rs_result-local_estimate = preview_transfer_location_date(
+      it_demands                   = it_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT rs_result-local_estimate-allocations
+        INTO DATA(ls_allocation).
+      IF ls_allocation-allocation-allocation-allocated_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+      APPEND VALUE #(
+        material           =
+          ls_allocation-allocation-allocation-material
+        plant              = ls_allocation-allocation-allocation-plant
+        base_unit          = ls_allocation-allocation-base_unit
+        required_date      = ls_allocation-required_date
+        allocated_quantity =
+          ls_allocation-allocation-allocation-allocated_quantity )
+        TO lt_atp_demands.
+    ENDLOOP.
+
+    rs_result-atp_checks = get_project_atp_checks(
+      it_demands    = lt_atp_demands
+      iv_check_rule = iv_check_rule ).
   ENDMETHOD.
 
   METHOD subtract_project_reservations.

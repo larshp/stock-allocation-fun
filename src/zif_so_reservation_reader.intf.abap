@@ -24,9 +24,12 @@ INTERFACE zif_so_reservation_reader PUBLIC.
   TYPES ty_items TYPE STANDARD TABLE OF ty_item WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_result,
-      items         TYPE ty_items,
-      messages      TYPE zif_so_reservation_api=>ty_messages,
-      is_successful TYPE abap_bool,
+      movement_type       TYPE bapi2093_res_head_detail-move_type,
+      sales_document      TYPE bapi2093_res_head_detail-sales_ord,
+      sales_document_item TYPE bapi2093_res_head_detail-s_ord_item,
+      items               TYPE ty_items,
+      messages            TYPE zif_so_reservation_api=>ty_messages,
+      is_successful       TYPE abap_bool,
     END OF ty_result.
 
   METHODS read_reservation

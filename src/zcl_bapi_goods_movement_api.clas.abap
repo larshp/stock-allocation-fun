@@ -39,6 +39,7 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-move_batch = ls_movement_item-receiving_batch.
       ls_item-costcenter = ls_movement_item-cost_center.
       ls_item-orderid = ls_movement_item-order_id.
+      ls_item-order_itm = ls_movement_item-order_item.
       ls_item-val_sales_ord = ls_movement_item-sales_order.
       ls_item-val_s_ord_item = ls_movement_item-sales_order_item.
       ls_item-wbs_element = ls_movement_item-wbs_element.

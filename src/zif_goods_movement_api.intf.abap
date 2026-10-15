@@ -22,6 +22,7 @@ INTERFACE zif_goods_movement_api PUBLIC.
       receiving_batch            TYPE mchb-charg,
       cost_center                TYPE c LENGTH 10,
       order_id                   TYPE c LENGTH 12,
+      order_item                 TYPE afpo-posnr,
       sales_order                TYPE c LENGTH 10,
       sales_order_item           TYPE c LENGTH 6,
       wbs_element                TYPE c LENGTH 24,

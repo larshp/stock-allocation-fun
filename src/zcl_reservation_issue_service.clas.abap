@@ -15,6 +15,25 @@ CLASS zcl_reservation_issue_service DEFINITION
     TYPES ty_issue_requests TYPE STANDARD TABLE OF
       ty_issue_request WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_reservation_item_key,
+        reservation_number TYPE bapi2093_res_key-reserv_no,
+        reservation_item   TYPE bapi2093_res_item_detail-res_item,
+      END OF ty_reservation_item_key.
+    TYPES ty_reservation_item_keys TYPE STANDARD TABLE OF
+      ty_reservation_item_key WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_remaining_issue_request,
+        reservation_number TYPE bapi2093_res_key-reserv_no,
+        reservation_item   TYPE bapi2093_res_item_detail-res_item,
+        base_quantity      TYPE mard-labst,
+        base_unit          TYPE mara-meins,
+        base_unit_iso      TYPE bapi2093_res_item_detail-base_uom_iso,
+        storage_location   TYPE mard-lgort,
+        batch              TYPE bapi2093_res_item_detail-batch,
+      END OF ty_remaining_issue_request.
+    TYPES ty_remaining_issue_requests TYPE STANDARD TABLE OF
+      ty_remaining_issue_request WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_issue_request_in_unit,
         reservation_number TYPE bapi2093_res_key-reserv_no,
         reservation_item   TYPE bapi2093_res_item_detail-res_item,
@@ -25,6 +44,8 @@ CLASS zcl_reservation_issue_service DEFINITION
       END OF ty_issue_request_in_unit.
     TYPES ty_issue_requests_in_unit TYPE STANDARD TABLE OF
       ty_issue_request_in_unit WITH EMPTY KEY.
+    TYPES ty_cc_reservation_numbers TYPE STANDARD TABLE OF resb-rsnum
+      WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_issue_item,
         reservation_number TYPE bapi2093_res_key-reserv_no,
@@ -71,6 +92,238 @@ CLASS zcl_reservation_issue_service DEFINITION
         iv_test_run      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_sales_order_issue
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_sales_order_issue_uom
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests_in_unit
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_bulk
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_remaining
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_so_issue_remaining
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+      RETURNING
+        VALUE(rt_requests)     TYPE ty_remaining_issue_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_remaining_atomic
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_so_issue_rem_items
+      IMPORTING
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        it_item_keys       TYPE ty_reservation_item_keys
+      RETURNING
+        VALUE(rt_requests) TYPE ty_remaining_issue_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_rem_items_bulk
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_item_keys      TYPE ty_reservation_item_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_rem_items_atomic
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_item_keys      TYPE ty_reservation_item_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_so_rev_remaining
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+      RETURNING
+        VALUE(rt_requests)     TYPE ty_remaining_issue_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_rev_remaining_bulk
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_rev_remaining_atomic
+      IMPORTING
+        iv_sales_document      TYPE vbap-vbeln
+        iv_item_number         TYPE vbap-posnr
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_so_rev_remaining_items
+      IMPORTING
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        it_item_keys       TYPE ty_reservation_item_keys
+      RETURNING
+        VALUE(rt_requests) TYPE ty_remaining_issue_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_rev_rem_items_bulk
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_item_keys      TYPE ty_reservation_item_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_rev_rem_items_atomic
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_item_keys      TYPE ty_reservation_item_keys
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_issue_bulk_uom
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests_in_unit
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_reversal_bulk
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_so_reversal_bulk_uom
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests_in_unit
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_sales_order_reversal
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_sales_order_reversal_uom
+      IMPORTING
+        iv_sales_document TYPE vbap-vbeln
+        iv_item_number    TYPE vbap-posnr
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_issue_requests_in_unit
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -186,6 +439,68 @@ CLASS zcl_reservation_issue_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS preview_cc_issue_remaining
+      IMPORTING
+        iv_cost_center         TYPE rkpf-kostl
+        it_reservation_numbers TYPE ty_cc_reservation_numbers OPTIONAL
+      RETURNING
+        VALUE(rt_reservations) TYPE zif_cc_reservation_read_repo=>ty_reservations
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_cc_remaining_items
+      IMPORTING
+        iv_cost_center         TYPE rkpf-kostl
+        it_item_keys           TYPE zif_cc_reservation_read_repo=>ty_item_keys
+      RETURNING
+        VALUE(rt_reservations) TYPE zif_cc_reservation_read_repo=>ty_reservations
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_issue_remaining
+      IMPORTING
+        iv_cost_center         TYPE rkpf-kostl
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE ty_cc_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_issue_remaining_atomic
+      IMPORTING
+        iv_cost_center         TYPE rkpf-kostl
+        is_header              TYPE zif_goods_movement_api=>ty_header
+        it_reservation_numbers TYPE ty_cc_reservation_numbers
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_remaining_items_atomic
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_remaining_items
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
     METHODS post_cc_goods_issue_in_unit
       IMPORTING
         iv_cost_center   TYPE rkpf-kostl
@@ -252,6 +567,48 @@ CLASS zcl_reservation_issue_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS post_cc_issue_rev_atomic
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_requests      TYPE ty_issue_requests_in_unit
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_cc_rev_remaining
+      IMPORTING
+        iv_cost_center     TYPE rkpf-kostl
+        it_item_keys       TYPE zif_cc_reservation_read_repo=>ty_item_keys
+      RETURNING
+        VALUE(rt_requests) TYPE ty_remaining_issue_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_rev_remaining_atomic
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_atomic_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS post_cc_rev_remaining_bulk
+      IMPORTING
+        iv_cost_center   TYPE rkpf-kostl
+        is_header        TYPE zif_goods_movement_api=>ty_header
+        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_issue_result
+      RAISING
+        zcx_invalid_goods_movement.
+
   PRIVATE SECTION.
     TYPES:
       BEGIN OF ty_movement_request,
@@ -270,38 +627,44 @@ CLASS zcl_reservation_issue_service DEFINITION
         reservation_number TYPE bapi2093_res_key-reserv_no,
         reservation_item   TYPE bapi2093_res_item_detail-res_item,
       END OF ty_item_key.
-
     METHODS post_reservation_movement
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_movement_requests
-        iv_test_run      TYPE abap_bool
-        iv_is_reversal   TYPE abap_bool
-        iv_defer_commit  TYPE abap_bool DEFAULT abap_false
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_movement_requests
+        iv_test_run       TYPE abap_bool
+        iv_is_reversal    TYPE abap_bool
+        iv_defer_commit   TYPE abap_bool DEFAULT abap_false
+        iv_sales_document TYPE vbap-vbeln OPTIONAL
+        iv_sales_item     TYPE vbap-posnr OPTIONAL
       RETURNING
-        VALUE(rs_result) TYPE zif_goods_movement_api=>ty_result
+        VALUE(rs_result)  TYPE zif_goods_movement_api=>ty_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_reservation_movement_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_movement_requests
-        iv_test_run      TYPE abap_bool
-        iv_is_reversal   TYPE abap_bool
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_movement_requests
+        iv_test_run       TYPE abap_bool
+        iv_is_reversal    TYPE abap_bool
+        iv_sales_document TYPE vbap-vbeln OPTIONAL
+        iv_sales_item     TYPE vbap-posnr OPTIONAL
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)  TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_reservation_atomic
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_movement_requests
-        iv_test_run      TYPE abap_bool
-        iv_is_reversal   TYPE abap_bool
+        is_header         TYPE zif_goods_movement_api=>ty_header
+        it_requests       TYPE ty_movement_requests
+        iv_test_run       TYPE abap_bool
+        iv_is_reversal    TYPE abap_bool
+        iv_sales_document TYPE vbap-vbeln OPTIONAL
+        iv_sales_item     TYPE vbap-posnr OPTIONAL
+        iv_cost_center    TYPE rkpf-kostl OPTIONAL
       RETURNING
-        VALUE(rs_result) TYPE ty_atomic_issue_result
+        VALUE(rs_result)  TYPE ty_atomic_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -380,6 +743,717 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
       it_requests    = lt_requests
       iv_test_run    = iv_test_run
       iv_is_reversal = abap_false ).
+  ENDMETHOD.
+
+  METHOD post_sales_order_issue.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_base_requests( it_requests ).
+    rs_result = post_reservation_movement(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_sales_order_issue_uom.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_unit_requests( it_requests ).
+    rs_result = post_reservation_movement(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_so_issue_bulk.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_base_requests( it_requests ).
+    rs_result = post_reservation_movement_bulk(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_so_issue_remaining.
+    DATA lt_requests TYPE ty_issue_requests.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_remaining_requests) = preview_so_issue_remaining(
+      iv_sales_document      = iv_sales_document
+      iv_item_number         = iv_item_number
+      it_reservation_numbers = it_reservation_numbers ).
+
+    LOOP AT lt_remaining_requests INTO DATA(ls_remaining_request).
+      APPEND VALUE #(
+        reservation_number = ls_remaining_request-reservation_number
+        reservation_item   = ls_remaining_request-reservation_item
+        base_quantity      = ls_remaining_request-base_quantity
+        storage_location   = ls_remaining_request-storage_location
+        batch              = ls_remaining_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    IF lt_requests IS INITIAL.
+      rs_result-is_successful = abap_true.
+      rs_result-is_test_run = iv_test_run.
+      RETURN.
+    ENDIF.
+
+    rs_result = post_so_issue_bulk(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_so_issue_remaining_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_remaining_requests) = preview_so_issue_remaining(
+      iv_sales_document      = iv_sales_document
+      iv_item_number         = iv_item_number
+      it_reservation_numbers = it_reservation_numbers ).
+    LOOP AT lt_remaining_requests INTO DATA(ls_remaining_request).
+      APPEND VALUE #(
+        reservation_number = ls_remaining_request-reservation_number
+        reservation_item   = ls_remaining_request-reservation_item
+        quantity           = ls_remaining_request-base_quantity
+        unit               = ls_remaining_request-base_unit
+        storage_location   = ls_remaining_request-storage_location
+        batch              = ls_remaining_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header         = is_header
+      it_requests       = lt_movement_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD preview_so_issue_remaining.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_reservation_reads TYPE zcl_so_res_read_service=>ty_reservation_reads.
+
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR it_reservation_numbers IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      IF lv_reservation_number IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT lv_reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    TRY.
+        lt_reservation_reads = mo_reservation_read_service->read_reservations(
+          it_reservation_numbers = it_reservation_numbers ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDTRY.
+
+    LOOP AT lt_reservation_reads INTO DATA(ls_reservation_read).
+      IF ls_reservation_read-read_result-is_successful <> abap_true
+          OR ls_reservation_read-read_result-movement_type <> '231'
+          OR ls_reservation_read-read_result-sales_document
+            <> iv_sales_document
+          OR ls_reservation_read-read_result-sales_document_item
+            <> iv_item_number.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      LOOP AT ls_reservation_read-read_result-items
+          INTO DATA(ls_reservation_item).
+        IF ls_reservation_item-is_deleted = abap_true.
+          CONTINUE.
+        ENDIF.
+        IF ls_reservation_item-required_quantity
+            < ls_reservation_item-withdrawn_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+
+        DATA(lv_open_quantity) = ls_reservation_item-required_quantity
+          - ls_reservation_item-withdrawn_quantity.
+        IF lv_open_quantity = 0.
+          CONTINUE.
+        ENDIF.
+        IF ls_reservation_item-movement_allowed <> abap_true
+            OR ls_reservation_item-is_final_issue = abap_true
+            OR ls_reservation_item-item_number IS INITIAL
+            OR ls_reservation_item-base_unit IS INITIAL
+            OR ls_reservation_item-base_unit_iso IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+
+        APPEND VALUE #(
+          reservation_number = ls_reservation_read-reservation_number
+          reservation_item   = ls_reservation_item-item_number
+          base_quantity      = lv_open_quantity
+          base_unit          = ls_reservation_item-base_unit
+          base_unit_iso      = ls_reservation_item-base_unit_iso
+          storage_location   = ls_reservation_item-storage_location
+          batch              = ls_reservation_item-batch )
+          TO rt_requests.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_so_issue_rem_items.
+    DATA lt_selected_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_found_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_seen_reads TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers.
+    DATA lt_reservation_reads TYPE zcl_so_res_read_service=>ty_reservation_reads.
+
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR it_item_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_item_keys INTO DATA(ls_item_key).
+      IF ls_item_key-reservation_number IS INITIAL
+          OR ls_item_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_item_key-reservation_number
+        reservation_item   = ls_item_key-reservation_item )
+        INTO TABLE lt_selected_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_item_key-reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc = 0.
+        APPEND ls_item_key-reservation_number TO lt_reservation_numbers.
+      ENDIF.
+    ENDLOOP.
+
+    TRY.
+        lt_reservation_reads = mo_reservation_read_service->read_reservations(
+          it_reservation_numbers = lt_reservation_numbers ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDTRY.
+
+    LOOP AT lt_reservation_reads INTO DATA(ls_reservation_read).
+      IF NOT line_exists( lt_seen_reservations[
+            table_line = ls_reservation_read-reservation_number ] )
+          OR ls_reservation_read-read_result-is_successful <> abap_true
+          OR ls_reservation_read-read_result-movement_type <> '231'
+          OR ls_reservation_read-read_result-sales_document
+            <> iv_sales_document
+          OR ls_reservation_read-read_result-sales_document_item
+            <> iv_item_number.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_reservation_read-reservation_number INTO TABLE lt_seen_reads.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      LOOP AT ls_reservation_read-read_result-items
+          INTO DATA(ls_reservation_item).
+        IF ls_reservation_item-is_deleted = abap_true.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_selected_keys TRANSPORTING NO FIELDS
+          WITH TABLE KEY reservation_number =
+                           ls_reservation_read-reservation_number
+                         reservation_item =
+                           ls_reservation_item-item_number.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+        IF ls_reservation_item-required_quantity < 0
+            OR ls_reservation_item-withdrawn_quantity < 0
+            OR ls_reservation_item-required_quantity
+              < ls_reservation_item-withdrawn_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF ls_reservation_item-required_quantity
+            = ls_reservation_item-withdrawn_quantity
+            OR ls_reservation_item-movement_allowed <> abap_true
+            OR ls_reservation_item-is_final_issue = abap_true
+            OR ls_reservation_item-item_number IS INITIAL
+            OR ls_reservation_item-base_unit IS INITIAL
+            OR ls_reservation_item-base_unit_iso IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+
+        INSERT VALUE #(
+          reservation_number = ls_reservation_read-reservation_number
+          reservation_item   = ls_reservation_item-item_number )
+          INTO TABLE lt_found_keys.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        APPEND VALUE #(
+          reservation_number = ls_reservation_read-reservation_number
+          reservation_item   = ls_reservation_item-item_number
+          base_quantity      = ls_reservation_item-required_quantity
+            - ls_reservation_item-withdrawn_quantity
+          base_unit          = ls_reservation_item-base_unit
+          base_unit_iso      = ls_reservation_item-base_unit_iso
+          storage_location   = ls_reservation_item-storage_location
+          batch              = ls_reservation_item-batch ) TO rt_requests.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF lines( lt_seen_reads ) <> lines( lt_seen_reservations )
+        OR lines( lt_found_keys ) <> lines( lt_selected_keys ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD post_so_issue_rem_items_bulk.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_remaining_requests) = preview_so_issue_rem_items(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      it_item_keys      = it_item_keys ).
+    LOOP AT lt_remaining_requests INTO DATA(ls_remaining_request).
+      APPEND VALUE #(
+        reservation_number = ls_remaining_request-reservation_number
+        reservation_item   = ls_remaining_request-reservation_item
+        quantity           = ls_remaining_request-base_quantity
+        unit               = ls_remaining_request-base_unit
+        storage_location   = ls_remaining_request-storage_location
+        batch              = ls_remaining_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_so_issue_bulk_uom(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_so_issue_rem_items_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_remaining_requests) = preview_so_issue_rem_items(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      it_item_keys      = it_item_keys ).
+    LOOP AT lt_remaining_requests INTO DATA(ls_remaining_request).
+      APPEND VALUE #(
+        reservation_number = ls_remaining_request-reservation_number
+        reservation_item   = ls_remaining_request-reservation_item
+        quantity           = ls_remaining_request-base_quantity
+        unit               = ls_remaining_request-base_unit
+        storage_location   = ls_remaining_request-storage_location
+        batch              = ls_remaining_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header         = is_header
+      it_requests       = lt_movement_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD preview_so_rev_remaining.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_seen_reads TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_seen_items TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_reservation_reads TYPE zcl_so_res_read_service=>ty_reservation_reads.
+
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR it_reservation_numbers IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      IF lv_reservation_number IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT lv_reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    TRY.
+        lt_reservation_reads = mo_reservation_read_service->read_reservations(
+          it_reservation_numbers = it_reservation_numbers ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDTRY.
+
+    LOOP AT lt_reservation_reads INTO DATA(ls_reservation_read).
+      IF NOT line_exists( lt_seen_reservations[
+            table_line = ls_reservation_read-reservation_number ] )
+          OR ls_reservation_read-read_result-is_successful <> abap_true
+          OR ls_reservation_read-read_result-movement_type <> '231'
+          OR ls_reservation_read-read_result-sales_document
+            <> iv_sales_document
+          OR ls_reservation_read-read_result-sales_document_item
+            <> iv_item_number.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_reservation_read-reservation_number INTO TABLE lt_seen_reads.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      LOOP AT ls_reservation_read-read_result-items
+          INTO DATA(ls_reservation_item).
+        IF ls_reservation_item-is_deleted = abap_true.
+          CONTINUE.
+        ENDIF.
+        IF ls_reservation_item-required_quantity < 0
+            OR ls_reservation_item-withdrawn_quantity < 0
+            OR ls_reservation_item-required_quantity
+              < ls_reservation_item-withdrawn_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF ls_reservation_item-withdrawn_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        IF ls_reservation_item-item_number IS INITIAL
+            OR ls_reservation_item-base_unit IS INITIAL
+            OR ls_reservation_item-base_unit_iso IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+
+        INSERT VALUE #(
+          reservation_number = ls_reservation_read-reservation_number
+          reservation_item   = ls_reservation_item-item_number )
+          INTO TABLE lt_seen_items.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        APPEND VALUE #(
+          reservation_number = ls_reservation_read-reservation_number
+          reservation_item   = ls_reservation_item-item_number
+          base_quantity      = ls_reservation_item-withdrawn_quantity
+          base_unit          = ls_reservation_item-base_unit
+          base_unit_iso      = ls_reservation_item-base_unit_iso
+          storage_location   = ls_reservation_item-storage_location
+          batch              = ls_reservation_item-batch ) TO rt_requests.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF lines( lt_seen_reads ) <> lines( lt_seen_reservations ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD post_so_rev_remaining_bulk.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_so_rev_remaining(
+      iv_sales_document      = iv_sales_document
+      iv_item_number         = iv_item_number
+      it_reservation_numbers = it_reservation_numbers ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_so_reversal_bulk_uom(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_so_rev_remaining_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_so_rev_remaining(
+      iv_sales_document      = iv_sales_document
+      iv_item_number         = iv_item_number
+      it_reservation_numbers = it_reservation_numbers ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header         = is_header
+      it_requests       = lt_movement_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD preview_so_rev_remaining_items.
+    DATA lt_selected_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_found_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF
+      bapi2093_res_key-reserv_no WITH UNIQUE KEY table_line.
+    DATA lt_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers.
+    DATA lt_all_requests TYPE ty_remaining_issue_requests.
+
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR it_item_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_item_keys INTO DATA(ls_item_key).
+      IF ls_item_key-reservation_number IS INITIAL
+          OR ls_item_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_item_key-reservation_number
+        reservation_item   = ls_item_key-reservation_item )
+        INTO TABLE lt_selected_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_item_key-reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc = 0.
+        APPEND ls_item_key-reservation_number TO lt_reservation_numbers.
+      ENDIF.
+    ENDLOOP.
+
+    lt_all_requests = preview_so_rev_remaining(
+      iv_sales_document      = iv_sales_document
+      iv_item_number         = iv_item_number
+      it_reservation_numbers = lt_reservation_numbers ).
+    LOOP AT lt_all_requests INTO DATA(ls_request).
+      READ TABLE lt_selected_keys TRANSPORTING NO FIELDS
+        WITH TABLE KEY reservation_number = ls_request-reservation_number
+                       reservation_item   = ls_request-reservation_item.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_request-reservation_number
+        reservation_item   = ls_request-reservation_item )
+        INTO TABLE lt_found_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND ls_request TO rt_requests.
+    ENDLOOP.
+
+    IF lines( lt_found_keys ) <> lines( lt_selected_keys ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD post_so_rev_rem_items_bulk.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_so_rev_remaining_items(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      it_item_keys      = it_item_keys ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_so_reversal_bulk_uom(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_so_rev_rem_items_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_so_rev_remaining_items(
+      iv_sales_document = iv_sales_document
+      iv_item_number    = iv_item_number
+      it_item_keys      = it_item_keys ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header         = is_header
+      it_requests       = lt_movement_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_so_issue_bulk_uom.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_unit_requests( it_requests ).
+    rs_result = post_reservation_movement_bulk(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_false
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_so_reversal_bulk.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_base_requests( it_requests ).
+    rs_result = post_reservation_movement_bulk(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_so_reversal_bulk_uom.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_unit_requests( it_requests ).
+    rs_result = post_reservation_movement_bulk(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_sales_order_reversal.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_base_requests( it_requests ).
+    rs_result = post_reservation_movement(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
+  ENDMETHOD.
+
+  METHOD post_sales_order_reversal_uom.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_unit_requests( it_requests ).
+    rs_result = post_reservation_movement(
+      is_header         = is_header
+      it_requests       = lt_requests
+      iv_test_run       = iv_test_run
+      iv_is_reversal    = abap_true
+      iv_sales_document = iv_sales_document
+      iv_sales_item     = iv_item_number ).
   ENDMETHOD.
 
   METHOD post_goods_issue_reversal.
@@ -487,6 +1561,233 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
       iv_is_reversal = abap_false ).
   ENDMETHOD.
 
+  METHOD preview_cc_issue_remaining.
+    DATA lt_selected_numbers TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+    DATA ls_read_result TYPE zcl_cc_reservation_service=>ty_reservation_read_result.
+
+    IF iv_cost_center IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_reservation_numbers INTO DATA(lv_reservation_number).
+      IF lv_reservation_number IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT lv_reservation_number INTO TABLE lt_selected_numbers.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    TRY.
+        ls_read_result = mo_cost_center_service->read_cost_center_reservations(
+          iv_cost_center = iv_cost_center ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDTRY.
+    IF ls_read_result-is_successful <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT ls_read_result-reservations INTO DATA(ls_reservation).
+      IF it_reservation_numbers IS INITIAL
+          OR line_exists( lt_selected_numbers[
+            table_line = ls_reservation-reservation_number ] ).
+        APPEND ls_reservation TO rt_reservations.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_reservation_numbers INTO lv_reservation_number.
+      READ TABLE rt_reservations TRANSPORTING NO FIELDS
+        WITH KEY reservation_number = lv_reservation_number.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_cc_remaining_items.
+    DATA lt_seen_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_seen_numbers TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+    DATA lt_reservation_numbers TYPE ty_cc_reservation_numbers.
+    DATA lt_open_reservations TYPE zif_cc_reservation_read_repo=>ty_reservations.
+    DATA lt_seen_open_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+
+    IF iv_cost_center IS INITIAL OR it_item_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_item_keys INTO DATA(ls_item_key).
+      IF ls_item_key-reservation_number IS INITIAL
+          OR ls_item_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_item_key-reservation_number
+        reservation_item   = ls_item_key-reservation_item )
+        INTO TABLE lt_seen_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_item_key-reservation_number INTO TABLE lt_seen_numbers.
+      IF sy-subrc = 0.
+        APPEND ls_item_key-reservation_number TO lt_reservation_numbers.
+      ENDIF.
+    ENDLOOP.
+
+    lt_open_reservations = preview_cc_issue_remaining(
+      iv_cost_center         = iv_cost_center
+      it_reservation_numbers = lt_reservation_numbers ).
+    LOOP AT lt_open_reservations INTO DATA(ls_open_reservation).
+      READ TABLE lt_seen_keys TRANSPORTING NO FIELDS
+        WITH TABLE KEY reservation_number =
+                         ls_open_reservation-reservation_number
+                       reservation_item =
+                         ls_open_reservation-reservation_item.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_open_reservation-reservation_number
+        reservation_item   = ls_open_reservation-reservation_item )
+        INTO TABLE lt_seen_open_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_item_keys INTO ls_item_key.
+      READ TABLE lt_open_reservations INTO ls_open_reservation
+        WITH KEY reservation_number = ls_item_key-reservation_number
+                 reservation_item   = ls_item_key-reservation_item.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND ls_open_reservation TO rt_reservations.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD post_cc_issue_remaining.
+    DATA lt_requests TYPE ty_issue_requests.
+
+    IF it_reservation_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_reservations) = preview_cc_issue_remaining(
+      iv_cost_center         = iv_cost_center
+      it_reservation_numbers = it_reservation_numbers ).
+    LOOP AT lt_reservations INTO DATA(ls_reservation).
+      APPEND VALUE #(
+        reservation_number = ls_reservation-reservation_number
+        reservation_item   = ls_reservation-reservation_item
+        base_quantity      = ls_reservation-open_quantity
+        storage_location   = ls_reservation-storage_location
+        batch              = ls_reservation-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_cc_goods_issue_bulk(
+      iv_cost_center = iv_cost_center
+      is_header      = is_header
+      it_requests    = lt_requests
+      iv_test_run    = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD post_cc_issue_remaining_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF it_reservation_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_reservations) = preview_cc_issue_remaining(
+      iv_cost_center         = iv_cost_center
+      it_reservation_numbers = it_reservation_numbers ).
+    LOOP AT lt_reservations INTO DATA(ls_reservation).
+      APPEND VALUE #(
+        reservation_number = ls_reservation-reservation_number
+        reservation_item   = ls_reservation-reservation_item
+        quantity           = ls_reservation-open_quantity
+        unit               = ls_reservation-unit
+        storage_location   = ls_reservation-storage_location
+        batch              = ls_reservation-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header      = is_header
+      it_requests    = lt_movement_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_false
+      iv_cost_center = iv_cost_center ).
+  ENDMETHOD.
+
+  METHOD post_cc_remaining_items_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_reservations) = preview_cc_remaining_items(
+      iv_cost_center = iv_cost_center
+      it_item_keys   = it_item_keys ).
+    LOOP AT lt_reservations INTO DATA(ls_reservation).
+      APPEND VALUE #(
+        reservation_number = ls_reservation-reservation_number
+        reservation_item   = ls_reservation-reservation_item
+        quantity           = ls_reservation-open_quantity
+        unit               = ls_reservation-unit
+        storage_location   = ls_reservation-storage_location
+        batch              = ls_reservation-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header      = is_header
+      it_requests    = lt_movement_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_false
+      iv_cost_center = iv_cost_center ).
+  ENDMETHOD.
+
+  METHOD post_cc_remaining_items.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_reservations) = preview_cc_remaining_items(
+      iv_cost_center = iv_cost_center
+      it_item_keys   = it_item_keys ).
+    LOOP AT lt_reservations INTO DATA(ls_reservation).
+      APPEND VALUE #(
+        reservation_number = ls_reservation-reservation_number
+        reservation_item   = ls_reservation-reservation_item
+        quantity           = ls_reservation-open_quantity
+        unit               = ls_reservation-unit
+        storage_location   = ls_reservation-storage_location
+        batch              = ls_reservation-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_cc_goods_issue_bulk_unit(
+      iv_cost_center = iv_cost_center
+      is_header      = is_header
+      it_requests    = lt_requests
+      iv_test_run    = iv_test_run ).
+  ENDMETHOD.
+
   METHOD post_cc_goods_issue_in_unit.
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     validate_cc_item_scope(
@@ -559,6 +1860,175 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
       iv_is_reversal = abap_true ).
   ENDMETHOD.
 
+  METHOD post_cc_issue_rev_atomic.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_requests) = normalize_unit_requests( it_requests ).
+    validate_cc_reversal_scope(
+      iv_cost_center = iv_cost_center
+      it_requests    = lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header      = is_header
+      it_requests    = lt_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_true
+      iv_cost_center = iv_cost_center ).
+  ENDMETHOD.
+
+  METHOD preview_cc_rev_remaining.
+    DATA lt_seen_keys TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_seen_reservations TYPE HASHED TABLE OF resb-rsnum
+      WITH UNIQUE KEY table_line.
+    DATA lt_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers.
+    DATA lt_reads TYPE zcl_so_res_read_service=>ty_reservation_reads.
+    DATA lt_scope_requests TYPE ty_movement_requests.
+    DATA lt_seen_items TYPE HASHED TABLE OF ty_item_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+
+    IF iv_cost_center IS INITIAL OR it_item_keys IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_item_keys INTO DATA(ls_item_key).
+      IF ls_item_key-reservation_number IS INITIAL
+          OR ls_item_key-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        reservation_number = ls_item_key-reservation_number
+        reservation_item   = ls_item_key-reservation_item )
+        INTO TABLE lt_seen_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        reservation_number = ls_item_key-reservation_number
+        reservation_item   = ls_item_key-reservation_item
+        quantity           = 1
+        is_unit_quantity   = abap_false ) TO lt_scope_requests.
+      INSERT ls_item_key-reservation_number INTO TABLE lt_seen_reservations.
+      IF sy-subrc = 0.
+        APPEND ls_item_key-reservation_number TO lt_reservation_numbers.
+      ENDIF.
+    ENDLOOP.
+
+    validate_cc_reversal_scope(
+      iv_cost_center = iv_cost_center
+      it_requests    = lt_scope_requests ).
+    TRY.
+        lt_reads = mo_reservation_read_service->read_reservations(
+          it_reservation_numbers = lt_reservation_numbers ).
+      CATCH zcx_invalid_reservation.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDTRY.
+
+    LOOP AT lt_reads INTO DATA(ls_read).
+      IF ls_read-read_result-is_successful <> abap_true
+          OR ls_read-read_result-movement_type <> '201'.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      LOOP AT ls_read-read_result-items INTO DATA(ls_item).
+        READ TABLE lt_seen_keys TRANSPORTING NO FIELDS
+          WITH TABLE KEY reservation_number = ls_item-reservation_number
+                         reservation_item = ls_item-item_number.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+        IF ls_item-is_deleted = abap_true
+            OR ls_item-required_quantity < ls_item-withdrawn_quantity
+            OR ls_item-withdrawn_quantity <= 0
+            OR ls_item-base_unit IS INITIAL
+            OR ls_item-base_unit_iso IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        INSERT VALUE #(
+          reservation_number = ls_item-reservation_number
+          reservation_item   = ls_item-item_number ) INTO TABLE lt_seen_items.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        APPEND VALUE #(
+          reservation_number = ls_item-reservation_number
+          reservation_item   = ls_item-item_number
+          base_quantity      = ls_item-withdrawn_quantity
+          base_unit          = ls_item-base_unit
+          base_unit_iso      = ls_item-base_unit_iso
+          storage_location   = ls_item-storage_location
+          batch              = ls_item-batch ) TO rt_requests.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF lines( lt_seen_items ) <> lines( lt_seen_keys ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD post_cc_rev_remaining_atomic.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_cc_rev_remaining(
+      iv_cost_center = iv_cost_center
+      it_item_keys   = it_item_keys ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    DATA(lt_movement_requests) = normalize_unit_requests( lt_requests ).
+    rs_result = post_reservation_atomic(
+      is_header      = is_header
+      it_requests    = lt_movement_requests
+      iv_test_run    = iv_test_run
+      iv_is_reversal = abap_true
+      iv_cost_center = iv_cost_center ).
+  ENDMETHOD.
+
+  METHOD post_cc_rev_remaining_bulk.
+    DATA lt_requests TYPE ty_issue_requests_in_unit.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(lt_return_requests) = preview_cc_rev_remaining(
+      iv_cost_center = iv_cost_center
+      it_item_keys   = it_item_keys ).
+    LOOP AT lt_return_requests INTO DATA(ls_return_request).
+      APPEND VALUE #(
+        reservation_number = ls_return_request-reservation_number
+        reservation_item   = ls_return_request-reservation_item
+        quantity           = ls_return_request-base_quantity
+        unit               = ls_return_request-base_unit
+        storage_location   = ls_return_request-storage_location
+        batch              = ls_return_request-batch ) TO lt_requests.
+    ENDLOOP.
+
+    rs_result = post_cc_issue_rev_bulk_unit(
+      iv_cost_center = iv_cost_center
+      is_header      = is_header
+      it_requests    = lt_requests
+      iv_test_run    = iv_test_run ).
+  ENDMETHOD.
+
   METHOD post_reservation_movement_bulk.
     DATA lt_seen_requests TYPE HASHED TABLE OF ty_item_key
       WITH UNIQUE KEY reservation_number reservation_item.
@@ -571,6 +2041,10 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
 
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
+        OR ( ( iv_sales_document IS INITIAL
+            AND iv_sales_item IS NOT INITIAL )
+          OR ( iv_sales_document IS NOT INITIAL
+            AND iv_sales_item IS INITIAL ) )
         OR ( iv_test_run <> abap_true
           AND iv_test_run <> abap_false )
         OR ( iv_is_reversal <> abap_true
@@ -616,10 +2090,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
 
       TRY.
           <ls_item>-movement_result = post_reservation_movement(
-            is_header      = is_header
-            it_requests    = lt_group_requests
-            iv_test_run    = iv_test_run
-            iv_is_reversal = iv_is_reversal ).
+            is_header         = is_header
+            it_requests       = lt_group_requests
+            iv_test_run       = iv_test_run
+            iv_is_reversal    = iv_is_reversal
+            iv_sales_document = iv_sales_document
+            iv_sales_item     = iv_sales_item ).
         CATCH zcx_invalid_goods_movement.
           APPEND VALUE #(
             type    = 'E'
@@ -653,7 +2129,10 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_is_reversal <> abap_true
-          AND iv_is_reversal <> abap_false ).
+          AND iv_is_reversal <> abap_false )
+        OR ( iv_cost_center IS NOT INITIAL
+          AND ( iv_sales_document IS NOT INITIAL
+            OR iv_sales_item IS NOT INITIAL ) ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -705,12 +2184,25 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
 
       DATA lv_call_raised TYPE abap_bool.
       TRY.
+          IF iv_cost_center IS NOT INITIAL.
+            IF iv_is_reversal = abap_true.
+              validate_cc_reversal_scope(
+                iv_cost_center = iv_cost_center
+                it_requests    = lt_group_requests ).
+            ELSE.
+              validate_cc_item_scope(
+                iv_cost_center = iv_cost_center
+                it_requests    = lt_group_requests ).
+            ENDIF.
+          ENDIF.
           <ls_item>-movement_result = post_reservation_movement(
-            is_header       = is_header
-            it_requests     = lt_group_requests
-            iv_test_run     = iv_test_run
-            iv_is_reversal  = iv_is_reversal
-            iv_defer_commit = xsdbool( iv_test_run = abap_false ) ).
+            is_header         = is_header
+            it_requests       = lt_group_requests
+            iv_test_run       = iv_test_run
+            iv_is_reversal    = iv_is_reversal
+            iv_defer_commit   = xsdbool( iv_test_run = abap_false )
+            iv_sales_document = iv_sales_document
+            iv_sales_item     = iv_sales_item ).
         CATCH zcx_invalid_goods_movement.
           lv_call_raised = abap_true.
           APPEND VALUE #(
@@ -793,6 +2285,10 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     IF is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL
         OR it_requests IS INITIAL
+        OR ( ( iv_sales_document IS INITIAL
+            AND iv_sales_item IS NOT INITIAL )
+          OR ( iv_sales_document IS NOT INITIAL
+            AND iv_sales_item IS INITIAL ) )
         OR ( iv_test_run <> abap_true
           AND iv_test_run <> abap_false )
         OR ( iv_defer_commit <> abap_true
@@ -842,6 +2338,17 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
       APPEND LINES OF ls_reservation_read-read_result-messages
         TO lt_read_messages.
       IF ls_reservation_read-read_result-is_successful = abap_false.
+        lv_read_failed = abap_true.
+      ELSEIF iv_sales_document IS NOT INITIAL
+          AND ( ls_reservation_read-read_result-movement_type <> '231'
+            OR ls_reservation_read-read_result-sales_document
+              <> iv_sales_document
+            OR ls_reservation_read-read_result-sales_document_item
+              <> iv_sales_item ).
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Reservation is not assigned to the requested sales order item' )
+          TO lt_read_messages.
         lv_read_failed = abap_true.
       ELSE.
         APPEND LINES OF ls_reservation_read-read_result-items

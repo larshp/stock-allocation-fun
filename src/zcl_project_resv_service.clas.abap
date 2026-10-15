@@ -349,6 +349,18 @@ CLASS zcl_project_resv_service DEFINITION
         reservation TYPE ty_allocation_result,
       END OF ty_fefo_reservation_result.
     TYPES:
+      BEGIN OF ty_prio_fefo_resv_result,
+        preview     TYPE
+          zcl_project_stock_service=>ty_priority_fefo_result,
+        reservation TYPE ty_allocation_result,
+      END OF ty_prio_fefo_resv_result.
+    TYPES:
+      BEGIN OF ty_prio_location_resv_result,
+        preview     TYPE
+          zcl_project_stock_service=>ty_priority_location_result,
+        reservation TYPE ty_allocation_result,
+      END OF ty_prio_location_resv_result.
+    TYPES:
       BEGIN OF ty_dated_fefo_reservation_result,
         preview     TYPE zcl_project_stock_service=>ty_dated_fefo_result,
         reservation TYPE ty_allocation_result,
@@ -735,6 +747,29 @@ CLASS zcl_project_resv_service DEFINITION
         zcx_invalid_stock_request
         zcx_invalid_reservation.
 
+    METHODS reserve_wbs_fefo_priority
+      IMPORTING
+        it_demands                   TYPE
+          zcl_project_stock_service=>ty_priority_fefo_demands
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_allowed_storage_locations TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_as_of_date                TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
+        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date  TYPE d OPTIONAL
+        iv_required_date             TYPE d OPTIONAL
+        it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_prio_fefo_resv_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_reservation.
+
     METHODS reserve_wbs_fefo_by_date
       IMPORTING
         it_demands                   TYPE zcl_project_stock_service=>ty_dated_fefo_demands
@@ -787,6 +822,26 @@ CLASS zcl_project_resv_service DEFINITION
         iv_atomic                    TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)             TYPE ty_location_reservation_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_reservation.
+
+    METHODS reserve_wbs_location_priority
+      IMPORTING
+        it_demands                   TYPE
+          zcl_project_stock_service=>ty_priority_location_demands
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_allowed_storage_locations TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date  TYPE d OPTIONAL
+        iv_required_date             TYPE d OPTIONAL
+        it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_prio_location_resv_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
@@ -3772,12 +3827,267 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_atomic                  = iv_atomic ).
   ENDMETHOD.
 
+  METHOD reserve_wbs_fefo_priority.
+    TYPES:
+      BEGIN OF ty_reservation_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zif_project_stock_repository=>ty_wbs_element,
+        priority            TYPE i,
+      END OF ty_reservation_context,
+      ty_reservation_contexts TYPE STANDARD TABLE OF
+        ty_reservation_context WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_reservation_contexts.
+    DATA lt_priority_demands TYPE
+      zcl_project_stock_service=>ty_priority_fefo_demands.
+    DATA lt_validation_demands TYPE zcl_project_stock_service=>ty_demands.
+    DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
+    DATA lt_splits TYPE ty_allocation_splits.
+    DATA lt_rechecked_splits TYPE ty_allocation_splits.
+    DATA lv_include_undated_batches TYPE abap_bool.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false )
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_demand-fefo_as_of_date IS NOT INITIAL
+          AND zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_demand-fefo_as_of_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      DATA(lv_required_date_for_demand) = iv_required_date.
+      IF it_wbs_required_dates IS NOT INITIAL.
+        READ TABLE it_wbs_required_dates
+          INTO DATA(ls_wbs_date_for_demand)
+          WITH KEY wbs_element = ls_demand-wbs_element.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_reservation.
+        ENDIF.
+        lv_required_date_for_demand =
+          ls_wbs_date_for_demand-required_date.
+      ENDIF.
+
+      DATA(lv_fefo_as_of_date) = ls_demand-fefo_as_of_date.
+      IF lv_required_date_for_demand > lv_fefo_as_of_date.
+        lv_fefo_as_of_date = lv_required_date_for_demand.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        batch                   = ls_demand-batch
+        requested_quantity      = ls_demand-requested_quantity
+        unit                    = ls_demand-unit
+        fefo_as_of_date         = lv_fefo_as_of_date
+        minimum_shelf_life_days =
+          ls_demand-minimum_shelf_life_days )
+        TO lt_priority_demands.
+      APPEND VALUE #(
+        request_id         = ls_demand-request_id
+        wbs_element        = ls_demand-wbs_element
+        material           = ls_demand-material
+        plant              = ls_demand-plant
+        storage_location   = ls_demand-storage_location
+        batch              = ls_demand-batch
+        requested_quantity = ls_demand-requested_quantity
+        unit               = ls_demand-unit )
+        TO lt_validation_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        priority            = ls_demand-priority )
+        TO lt_contexts.
+    ENDLOOP.
+
+    validate_wbs_date_inputs(
+      it_demands            = lt_validation_demands
+      iv_required_date      = iv_required_date
+      it_wbs_required_dates = it_wbs_required_dates ).
+
+    lv_include_undated_batches = iv_include_undated_batches.
+    IF iv_minimum_shelf_life_days > 0.
+      lv_include_undated_batches = abap_false.
+    ENDIF.
+
+    DATA(ls_first_preview) = mo_project_stock_service->preview_fefo_priority(
+      it_demands                   = lt_priority_demands
+      it_storage_location_priority = it_storage_location_priority
+      it_allowed_storage_locations = it_allowed_storage_locations
+      iv_as_of_date                = iv_as_of_date
+      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+      iv_include_undated_batches   = lv_include_undated_batches
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_first_preview-allocations
+          INTO DATA(ls_first_allocation)
+        WITH KEY allocation-allocation-request_id =
+          ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      APPEND ls_first_allocation-allocation TO lt_allocations.
+      ls_first_allocation-allocation-allocation-request_id =
+        ls_context-request_id.
+      APPEND VALUE #(
+        allocation = ls_first_allocation-allocation
+        priority   = ls_context-priority ) TO rs_result-preview-allocations.
+      APPEND VALUE #(
+        request_id  = ls_context-request_id
+        wbs_element = ls_context-wbs_element
+        priority    = ls_context-priority )
+        TO rs_result-preview-wbs_assignments.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_assignments.
+
+      LOOP AT ls_first_preview-batch_allocations
+          INTO DATA(ls_first_split)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND VALUE #(
+          request_id              =
+            ls_first_split-split-batch_allocation-request_id
+          material                =
+            ls_first_split-split-batch_allocation-material
+          plant                   =
+            ls_first_split-split-batch_allocation-plant
+          storage_location        =
+            ls_first_split-split-batch_allocation-storage_location
+          batch                   =
+            ls_first_split-split-batch_allocation-batch
+          expiration_date         =
+            ls_first_split-split-batch_allocation-expiration_date
+          minimum_shelf_life_days =
+            ls_first_split-split-batch_allocation-minimum_shelf_life_days
+          quantity                =
+            ls_first_split-split-batch_allocation-allocated_quantity
+          base_unit               = ls_first_split-split-base_unit )
+          TO lt_splits.
+        ls_first_split-split-batch_allocation-request_id =
+          ls_context-request_id.
+        APPEND ls_first_split TO rs_result-preview-batch_allocations.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF iv_require_full_quantity = abap_true.
+      LOOP AT rs_result-preview-allocations
+          INTO DATA(ls_preview_allocation).
+        IF ls_preview_allocation-allocation-allocation-shortfall_quantity > 0.
+          ADD 1 TO rs_result-reservation-failed_count.
+        ENDIF.
+      ENDLOOP.
+      IF rs_result-reservation-failed_count > 0.
+        rs_result-reservation-is_test_run = iv_test_run.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Priority FEFO preview has a shortfall; no reservation was created' )
+          TO rs_result-reservation-messages.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    DATA(ls_rechecked_preview) =
+      mo_project_stock_service->preview_fefo_priority(
+        it_demands                   = lt_priority_demands
+        it_storage_location_priority = it_storage_location_priority
+        it_allowed_storage_locations = it_allowed_storage_locations
+        iv_as_of_date                = iv_as_of_date
+        iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
+        iv_include_undated_batches   = lv_include_undated_batches
+        iv_require_full_quantity     = iv_require_full_quantity
+        iv_reservation_through_date  = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_preview-batch_allocations
+        INTO DATA(ls_rechecked_split).
+      APPEND VALUE #(
+        request_id              =
+          ls_rechecked_split-split-batch_allocation-request_id
+        material                =
+          ls_rechecked_split-split-batch_allocation-material
+        plant                   =
+          ls_rechecked_split-split-batch_allocation-plant
+        storage_location        =
+          ls_rechecked_split-split-batch_allocation-storage_location
+        batch                   =
+          ls_rechecked_split-split-batch_allocation-batch
+        expiration_date         =
+          ls_rechecked_split-split-batch_allocation-expiration_date
+        minimum_shelf_life_days =
+          ls_rechecked_split-split-batch_allocation-minimum_shelf_life_days
+        quantity                =
+          ls_rechecked_split-split-batch_allocation-allocated_quantity
+        base_unit               = ls_rechecked_split-split-base_unit )
+        TO lt_rechecked_splits.
+    ENDLOOP.
+
+    IF same_allocation_splits(
+        it_expected = lt_splits
+        it_actual   = lt_rechecked_splits ) <> abap_true.
+      rs_result-reservation-is_successful = abap_false.
+      rs_result-reservation-is_test_run = iv_test_run.
+      rs_result-reservation-failed_count = 1.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Priority FEFO allocation changed after preview; no reservation was created' )
+        TO rs_result-reservation-messages.
+      RETURN.
+    ENDIF.
+
+    rs_result-reservation = reserve_allocation(
+      it_allocations             = lt_allocations
+      it_wbs_assignments         = lt_assignments
+      it_splits                  = lt_splits
+      iv_required_date           = iv_required_date
+      it_wbs_required_dates      = it_wbs_required_dates
+      iv_minimum_shelf_life_days = iv_minimum_shelf_life_days
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity
+      iv_require_batch           = abap_true
+      iv_atomic                  = iv_atomic ).
+  ENDMETHOD.
+
   METHOD reserve_wbs_fefo_by_date.
+    TYPES:
+      BEGIN OF ty_dated_reservation_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zif_project_stock_repository=>ty_wbs_element,
+        required_date       TYPE d,
+        priority            TYPE i,
+      END OF ty_dated_reservation_context,
+      ty_dated_reservation_contexts TYPE STANDARD TABLE OF
+        ty_dated_reservation_context WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_dated_reservation_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_dated_fefo_demands.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
     DATA lt_request_required_dates TYPE ty_request_required_dates.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
@@ -3788,21 +4098,47 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
     LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       IF ls_demand-wbs_element IS INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
       validate_required_date( iv_required_date = ls_demand-required_date ).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        required_date           = ls_demand-required_date
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        batch                   = ls_demand-batch
+        requested_quantity      = ls_demand-requested_quantity
+        unit                    = ls_demand-unit
+        fefo_as_of_date         = ls_demand-fefo_as_of_date
+        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days )
+        TO lt_internal_demands.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
+        request_id    = lv_internal_request_id
         required_date = ls_demand-required_date )
         INTO TABLE lt_request_required_dates.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        required_date       = ls_demand-required_date
+        priority            = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
-    rs_result-preview = mo_project_stock_service->preview_fefo_by_date(
-      it_demands                   = it_demands
+    DATA(ls_first_preview) = mo_project_stock_service->preview_fefo_by_date(
+      it_demands                   = lt_internal_demands
       it_storage_location_priority = it_storage_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
       iv_as_of_date                = iv_as_of_date
@@ -3810,6 +4146,60 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_include_undated_batches   = iv_include_undated_batches
       iv_require_full_quantity     = iv_require_full_quantity
       iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_first_preview-allocations
+          INTO DATA(ls_first_allocation)
+        WITH KEY allocation-allocation-request_id =
+          ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      APPEND ls_first_allocation-allocation TO lt_allocations.
+      ls_first_allocation-allocation-allocation-request_id =
+        ls_context-request_id.
+      APPEND VALUE #(
+        allocation    = ls_first_allocation-allocation
+        required_date = ls_context-required_date
+        priority      = ls_context-priority ) TO rs_result-preview-allocations.
+      APPEND VALUE #(
+        request_id    = ls_context-request_id
+        wbs_element   = ls_context-wbs_element
+        required_date = ls_context-required_date
+        priority      = ls_context-priority )
+        TO rs_result-preview-wbs_assignments.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_assignments.
+
+      LOOP AT ls_first_preview-batch_allocations
+          INTO DATA(ls_first_split)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND VALUE #(
+          request_id              =
+            ls_first_split-split-batch_allocation-request_id
+          material                =
+            ls_first_split-split-batch_allocation-material
+          plant                   =
+            ls_first_split-split-batch_allocation-plant
+          storage_location        =
+            ls_first_split-split-batch_allocation-storage_location
+          batch                   =
+            ls_first_split-split-batch_allocation-batch
+          expiration_date         =
+            ls_first_split-split-batch_allocation-expiration_date
+          minimum_shelf_life_days =
+            ls_first_split-split-batch_allocation-minimum_shelf_life_days
+          quantity                =
+            ls_first_split-split-batch_allocation-allocated_quantity
+          base_unit               = ls_first_split-split-base_unit )
+          TO lt_splits.
+        ls_first_split-split-batch_allocation-request_id =
+          ls_context-request_id.
+        APPEND ls_first_split TO rs_result-preview-batch_allocations.
+      ENDLOOP.
+    ENDLOOP.
 
     IF iv_require_full_quantity = abap_true.
       LOOP AT rs_result-preview-allocations INTO DATA(ls_preview_allocation).
@@ -3827,38 +4217,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
-    LOOP AT rs_result-preview-allocations INTO ls_preview_allocation.
-      APPEND ls_preview_allocation-allocation TO lt_allocations.
-    ENDLOOP.
-    LOOP AT rs_result-preview-wbs_assignments INTO DATA(ls_wbs_assignment).
-      APPEND VALUE #(
-        request_id  = ls_wbs_assignment-request_id
-        wbs_element = ls_wbs_assignment-wbs_element ) TO lt_assignments.
-    ENDLOOP.
-    LOOP AT rs_result-preview-batch_allocations INTO DATA(ls_selected_batch).
-      APPEND VALUE #(
-        request_id              =
-          ls_selected_batch-split-batch_allocation-request_id
-        material                =
-          ls_selected_batch-split-batch_allocation-material
-        plant                   =
-          ls_selected_batch-split-batch_allocation-plant
-        storage_location        =
-          ls_selected_batch-split-batch_allocation-storage_location
-        batch                   =
-          ls_selected_batch-split-batch_allocation-batch
-        expiration_date         =
-          ls_selected_batch-split-batch_allocation-expiration_date
-        minimum_shelf_life_days =
-          ls_selected_batch-split-batch_allocation-minimum_shelf_life_days
-        quantity                =
-          ls_selected_batch-split-batch_allocation-allocated_quantity
-        base_unit               = ls_selected_batch-split-base_unit )
-        TO lt_splits.
-    ENDLOOP.
-
     DATA(ls_rechecked_fefo) = mo_project_stock_service->preview_fefo_by_date(
-      it_demands                   = it_demands
+      it_demands                   = lt_internal_demands
       it_storage_location_priority = it_storage_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
       iv_as_of_date                = iv_as_of_date
@@ -3913,11 +4273,26 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_atomic                  = iv_atomic ).
   ENDMETHOD.
   METHOD reserve_wbs_by_location_date.
+    TYPES:
+      BEGIN OF ty_dated_reservation_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zif_project_stock_repository=>ty_wbs_element,
+        required_date       TYPE d,
+        priority            TYPE i,
+      END OF ty_dated_reservation_context,
+      ty_dated_reservation_contexts TYPE STANDARD TABLE OF
+        ty_dated_reservation_context WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_dated_reservation_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_dated_location_demands.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
     DATA lt_request_required_dates TYPE ty_request_required_dates.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
@@ -3926,25 +4301,97 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
     LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       IF ls_demand-wbs_element IS INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
       validate_required_date( iv_required_date = ls_demand-required_date ).
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id         = lv_internal_request_id
+        required_date      = ls_demand-required_date
+        priority           = ls_demand-priority
+        wbs_element        = ls_demand-wbs_element
+        material           = ls_demand-material
+        plant              = ls_demand-plant
+        storage_location   = ls_demand-storage_location
+        requested_quantity = ls_demand-requested_quantity
+        unit               = ls_demand-unit )
+        TO lt_internal_demands.
       INSERT VALUE #(
-        request_id    = ls_demand-request_id
+        request_id    = lv_internal_request_id
         required_date = ls_demand-required_date )
         INTO TABLE lt_request_required_dates.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        required_date       = ls_demand-required_date
+        priority            = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
-    rs_result-preview = mo_project_stock_service->preview_by_location_date(
-      it_demands                   = it_demands
+    DATA(ls_first_preview) =
+      mo_project_stock_service->preview_by_location_date(
+      it_demands                   = lt_internal_demands
       it_storage_location_priority = it_storage_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
       iv_require_full_quantity     = iv_require_full_quantity
       iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_first_preview-allocations
+          INTO DATA(ls_first_allocation)
+        WITH KEY allocation-allocation-request_id =
+          ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      APPEND ls_first_allocation-allocation TO lt_allocations.
+      ls_first_allocation-allocation-allocation-request_id =
+        ls_context-request_id.
+      APPEND VALUE #(
+        allocation    = ls_first_allocation-allocation
+        required_date = ls_context-required_date
+        priority      = ls_context-priority ) TO rs_result-preview-allocations.
+      APPEND VALUE #(
+        request_id    = ls_context-request_id
+        wbs_element   = ls_context-wbs_element
+        required_date = ls_context-required_date
+        priority      = ls_context-priority )
+        TO rs_result-preview-wbs_assignments.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_assignments.
+
+      LOOP AT ls_first_preview-storage_allocations
+          INTO DATA(ls_first_split)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_first_split-split-storage_allocation-request_id
+          material         =
+            ls_first_split-split-storage_allocation-material
+          plant            =
+            ls_first_split-split-storage_allocation-plant
+          storage_location =
+            ls_first_split-split-storage_allocation-storage_location
+          quantity         =
+            ls_first_split-split-storage_allocation-allocated_quantity
+          base_unit        = ls_first_split-split-base_unit )
+          TO lt_splits.
+        ls_first_split-split-storage_allocation-request_id =
+          ls_context-request_id.
+        APPEND ls_first_split TO rs_result-preview-storage_allocations.
+      ENDLOOP.
+    ENDLOOP.
 
     IF iv_require_full_quantity = abap_true.
       LOOP AT rs_result-preview-allocations INTO DATA(ls_preview_allocation).
@@ -3962,34 +4409,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       ENDIF.
     ENDIF.
 
-    LOOP AT rs_result-preview-allocations INTO ls_preview_allocation.
-      APPEND ls_preview_allocation-allocation TO lt_allocations.
-    ENDLOOP.
-    LOOP AT rs_result-preview-wbs_assignments INTO DATA(ls_wbs_assignment).
-      APPEND VALUE #(
-        request_id  = ls_wbs_assignment-request_id
-        wbs_element = ls_wbs_assignment-wbs_element ) TO lt_assignments.
-    ENDLOOP.
-    LOOP AT rs_result-preview-storage_allocations
-        INTO DATA(ls_selected_location).
-      APPEND VALUE #(
-        request_id       =
-          ls_selected_location-split-storage_allocation-request_id
-        material         =
-          ls_selected_location-split-storage_allocation-material
-        plant            =
-          ls_selected_location-split-storage_allocation-plant
-        storage_location =
-          ls_selected_location-split-storage_allocation-storage_location
-        quantity         =
-          ls_selected_location-split-storage_allocation-allocated_quantity
-        base_unit        = ls_selected_location-split-base_unit )
-        TO lt_splits.
-    ENDLOOP.
-
     DATA(ls_rechecked_location) =
       mo_project_stock_service->preview_by_location_date(
-        it_demands                   = it_demands
+        it_demands                   = lt_internal_demands
         it_storage_location_priority = it_storage_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
         iv_require_full_quantity     = iv_require_full_quantity
@@ -4131,6 +4553,192 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       it_allocations             =
         rs_result-preview-allocation-allocations
       it_wbs_assignments         = rs_result-preview-wbs_assignments
+      it_splits                  = lt_splits
+      iv_required_date           = iv_required_date
+      it_wbs_required_dates      = it_wbs_required_dates
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity
+      iv_require_batch           = abap_false
+      iv_atomic                  = iv_atomic ).
+  ENDMETHOD.
+
+  METHOD reserve_wbs_location_priority.
+    TYPES:
+      BEGIN OF ty_reservation_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zif_project_stock_repository=>ty_wbs_element,
+        priority            TYPE i,
+      END OF ty_reservation_context,
+      ty_reservation_contexts TYPE STANDARD TABLE OF
+        ty_reservation_context WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_reservation_contexts.
+    DATA lt_priority_demands TYPE
+      zcl_project_stock_service=>ty_priority_location_demands.
+    DATA lt_validation_demands TYPE zcl_project_stock_service=>ty_demands.
+    DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
+    DATA lt_splits TYPE ty_allocation_splits.
+    DATA lt_rechecked_splits TYPE ty_allocation_splits.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false )
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = lv_internal_index.
+      APPEND VALUE #(
+        request_id         = lv_internal_request_id
+        priority           = ls_demand-priority
+        wbs_element        = ls_demand-wbs_element
+        material           = ls_demand-material
+        plant              = ls_demand-plant
+        storage_location   = ls_demand-storage_location
+        requested_quantity = ls_demand-requested_quantity
+        unit               = ls_demand-unit )
+        TO lt_priority_demands.
+      APPEND VALUE #(
+        request_id         = ls_demand-request_id
+        wbs_element        = ls_demand-wbs_element
+        material           = ls_demand-material
+        plant              = ls_demand-plant
+        storage_location   = ls_demand-storage_location
+        requested_quantity = ls_demand-requested_quantity
+        unit               = ls_demand-unit )
+        TO lt_validation_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        priority            = ls_demand-priority ) TO lt_contexts.
+    ENDLOOP.
+
+    validate_wbs_date_inputs(
+      it_demands            = lt_validation_demands
+      iv_required_date      = iv_required_date
+      it_wbs_required_dates = it_wbs_required_dates ).
+
+    DATA(ls_first_preview) =
+      mo_project_stock_service->preview_by_location_priority(
+        it_demands                   = lt_priority_demands
+        it_storage_location_priority = it_storage_location_priority
+        it_allowed_storage_locations = it_allowed_storage_locations
+        iv_require_full_quantity     = iv_require_full_quantity
+        iv_reservation_through_date  = iv_reservation_through_date ).
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      READ TABLE ls_first_preview-allocations
+          INTO DATA(ls_first_allocation)
+        WITH KEY allocation-allocation-request_id =
+          ls_context-internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      APPEND ls_first_allocation-allocation TO lt_allocations.
+      ls_first_allocation-allocation-allocation-request_id =
+        ls_context-request_id.
+      APPEND VALUE #(
+        allocation = ls_first_allocation-allocation
+        priority   = ls_context-priority ) TO rs_result-preview-allocations.
+      APPEND VALUE #(
+        request_id  = ls_context-request_id
+        wbs_element = ls_context-wbs_element
+        priority    = ls_context-priority )
+        TO rs_result-preview-wbs_assignments.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_assignments.
+
+      LOOP AT ls_first_preview-storage_allocations
+          INTO DATA(ls_first_split)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_first_split-split-storage_allocation-request_id
+          material         =
+            ls_first_split-split-storage_allocation-material
+          plant            =
+            ls_first_split-split-storage_allocation-plant
+          storage_location =
+            ls_first_split-split-storage_allocation-storage_location
+          quantity         =
+            ls_first_split-split-storage_allocation-allocated_quantity
+          base_unit        = ls_first_split-split-base_unit )
+          TO lt_splits.
+        ls_first_split-split-storage_allocation-request_id =
+          ls_context-request_id.
+        APPEND ls_first_split TO rs_result-preview-storage_allocations.
+      ENDLOOP.
+    ENDLOOP.
+
+    IF iv_require_full_quantity = abap_true.
+      LOOP AT rs_result-preview-allocations
+          INTO DATA(ls_preview_allocation).
+        IF ls_preview_allocation-allocation-allocation-shortfall_quantity > 0.
+          ADD 1 TO rs_result-reservation-failed_count.
+        ENDIF.
+      ENDLOOP.
+      IF rs_result-reservation-failed_count > 0.
+        rs_result-reservation-is_test_run = iv_test_run.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Priority location preview has a shortfall; no reservation was created' )
+          TO rs_result-reservation-messages.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    DATA(ls_rechecked_preview) =
+      mo_project_stock_service->preview_by_location_priority(
+        it_demands                   = lt_priority_demands
+        it_storage_location_priority = it_storage_location_priority
+        it_allowed_storage_locations = it_allowed_storage_locations
+        iv_require_full_quantity     = iv_require_full_quantity
+        iv_reservation_through_date  = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_preview-storage_allocations
+        INTO DATA(ls_rechecked_split).
+      APPEND VALUE #(
+        request_id       =
+          ls_rechecked_split-split-storage_allocation-request_id
+        material         =
+          ls_rechecked_split-split-storage_allocation-material
+        plant            =
+          ls_rechecked_split-split-storage_allocation-plant
+        storage_location =
+          ls_rechecked_split-split-storage_allocation-storage_location
+        quantity         =
+          ls_rechecked_split-split-storage_allocation-allocated_quantity
+        base_unit        = ls_rechecked_split-split-base_unit )
+        TO lt_rechecked_splits.
+    ENDLOOP.
+
+    IF same_allocation_splits(
+        it_expected = lt_splits
+        it_actual   = lt_rechecked_splits ) <> abap_true.
+      rs_result-reservation-is_successful = abap_false.
+      rs_result-reservation-is_test_run = iv_test_run.
+      rs_result-reservation-failed_count = 1.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Priority location allocation changed after preview; no reservation was created' )
+        TO rs_result-reservation-messages.
+      RETURN.
+    ENDIF.
+
+    rs_result-reservation = reserve_allocation(
+      it_allocations             = lt_allocations
+      it_wbs_assignments         = lt_assignments
       it_splits                  = lt_splits
       iv_required_date           = iv_required_date
       it_wbs_required_dates      = it_wbs_required_dates

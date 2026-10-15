@@ -1320,6 +1320,48 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
+**Batch 9 (returns, repairs and reverse logistics) is in progress: orders
+554-563 are delivered; batch 8 and everything before it remain complete.**
+
+554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
+     (`add( )`), sums their quantity (`total_quantity( )`), counts them
+     (`line_count( )`) and hands the list back unchanged (`line_list( )`).
+555. **Return authorisation check** - `zcl_alloc_rma_check` validates one line
+     (`is_valid( )`) and, when it fails, reports every fault rather than only the
+     first (`reasons( )`: material missing, quantity not positive, reason
+     missing); `reject( )` filters a whole list down to the faulty lines.
+556. **Return reason classification** - `zcl_alloc_return_reason=>classify( )` maps
+     a reason code to one of three families (QUALITY, LOGISTICS, COMMERCIAL),
+     `is_reason( )` says whether a code is known, and `code_of( )` returns the
+     representative code of a family.
+557. **Return reason grouping** - `zcl_alloc_return_reason_grp=>group( )` groups
+     items by reason into a sorted table carrying the summed quantity and the line
+     count, so the output is ordered by reason and no input row is re-scanned.
+558. **Return receipt lines** - `zcl_alloc_return_receipt=>build( )` pairs the
+     authorised lines with the received quantity per material. The received list is
+     indexed once through `zcl_alloc_key_map`, so each authorised line is one hash
+     lookup; `total( )` sums the received quantity and `short_lines( )` counts the
+     lines that came back short.
+559. **Return receipt reconciliation** - `zcl_alloc_return_recon` reports the net
+     difference (`difference( )`), completeness (`is_complete( )`) and the number of
+     mismatched pairs (`mismatch_count( )`). A net of zero can still hide two wrong
+     lines, which is exactly why the mismatch count is reported alongside.
+560. **Return quantity tolerance** - `zcl_alloc_return_tolerance` checks a receipt
+     against an asymmetric under/over band (`within_tolerance( )`), states the
+     signed deviation (`deviation_percent( )`, rounded towards zero) and caps the
+     credited quantity at the authorised amount (`credit_quantity( )`), so an
+     over-return is never over-credited.
+561. **Return window check** - `zcl_alloc_return_window` computes the last valid
+     return day from the receipt day and a window in days (`expiry_day( )`, with
+     month, year and leap-day rollover), and tests a return against the inclusive
+     window (`is_open( )`) and counts the days remaining (`days_left( )`).
+562. **Return label text** - `zcl_alloc_return_label=>build( )` renders the label
+     lines (RMA, material, quantity, reason) with string templates, omitting a line
+     whose value is blank.
+563. **RMA number generator** - `zcl_alloc_rma_id` issues numbered references with a
+     zero-padded sequence (`next( )`), restarts the sequence (`reset( )`) and
+     validates the shape of a reference (`is_valid( )`).
+
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**
 

@@ -908,6 +908,170 @@ looks up by key.
 built one per iteration in the local test→commit rhythm.
 
 
+## Batch 9 - returns, repairs and reverse logistics (554-653)
+
+Batch 8 moves goods forward through the distribution centre. This batch models the
+return flow: authorising a return, inspecting what comes back, deciding its
+disposition (restock, repair, scrap or vendor return), settling the refund or
+credit, and measuring the result. Every feature keeps the repository's shape - a
+pure calculation, formatting, validation or in-memory service over plain tables -
+so `npm test` verifies it, and `zcl_alloc_key_map` (order 453) is reused wherever
+a feature groups or looks up by key.
+
+### Return intake and authorisation (554-563)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 554 | Return authorisation line | `zcl_alloc_rma` (`add`, `total_quantity`, `line_count`) |
+| 555 | Return authorisation check | `zcl_alloc_rma_check` (`is_valid`, `reasons`, `reject`) |
+| 556 | Return reason classification | `zcl_alloc_return_reason` (`classify`, `is_reason`, `code_of`) |
+| 557 | Return reason grouping | `zcl_alloc_return_reason_grp` (`group`, `total`) |
+| 558 | Return receipt lines | `zcl_alloc_return_receipt` (`build`, `total`, `short_lines`) |
+| 559 | Return receipt reconciliation | `zcl_alloc_return_recon` (`compare`, `is_complete`, `difference`) |
+| 560 | Return quantity tolerance | `zcl_alloc_return_tolerance` (`within`, `deviation_percent`) |
+| 561 | Return window check | `zcl_alloc_return_window` (`is_open`, `days_left`, `expiry_day`) |
+| 562 | Return label text | `zcl_alloc_return_label` (`build`) |
+| 563 | RMA number generator | `zcl_alloc_rma_id` (`next`, `reset`, `is_valid`) |
+
+### Inspection and disposition (564-575)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 564 | Return inspection result | `zcl_alloc_return_inspect` (`record`, `result_of`, `is_complete`) |
+| 565 | Return condition grading | `zcl_alloc_return_grade` (`grade`, `score`, `is_sellable`) |
+| 566 | Disposition routing | `zcl_alloc_disposition` (`route`, `target_of`, `count_for`) |
+| 567 | Restock decision | `zcl_alloc_restock_decision` (`decide`, `is_restock`, `reason`) |
+| 568 | Restock quantity split | `zcl_alloc_restock_split` (`split`, `sellable`, `blocked`) |
+| 569 | Scrap proposal | `zcl_alloc_scrap_proposal` (`propose`, `total_quantity`, `reason`) |
+| 570 | Scrap value | `zcl_alloc_scrap_value` (`value`, `value_of`, `total`) |
+| 571 | Rework proposal | `zcl_alloc_rework_proposal` (`propose`, `steps`, `total_hours`) |
+| 572 | Repair order lines | `zcl_alloc_repair_order` (`build`, `total`, `line_count`) |
+| 573 | Repair queue sequencing | `zcl_alloc_repair_queue` (`sequence`, `position_of`, `priority_order`) |
+| 574 | Repair cycle time | `zcl_alloc_repair_time` (`elapsed`, `average`, `is_on_target`) |
+| 575 | Repair cost estimate | `zcl_alloc_repair_cost` (`estimate`, `parts_cost`, `labour_cost`) |
+
+### Warranty, cores and exchange (576-585)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 576 | Warranty check | `zcl_alloc_warranty_check` (`is_covered`, `reason`, `remaining_days`) |
+| 577 | Warranty expiry | `zcl_alloc_warranty_expiry` (`expiry_day`, `has_expired`, `days_left`) |
+| 578 | Warranty coverage | `zcl_alloc_warranty_cover` (`cover`, `covered_quantity`, `share_percent`) |
+| 579 | Core return tracking | `zcl_alloc_core_return` (`add`, `outstanding`, `is_returned`) |
+| 580 | Core credit value | `zcl_alloc_core_credit` (`credit`, `credit_of`, `total`) |
+| 581 | Core return overdue | `zcl_alloc_core_overdue` (`overdue`, `overdue_days`, `is_overdue`) |
+| 582 | Exchange proposal | `zcl_alloc_exchange` (`propose`, `paired`, `quantity`) |
+| 583 | Replacement priority | `zcl_alloc_replace_priority` (`score`, `rank`, `is_urgent`) |
+| 584 | Return freight estimate | `zcl_alloc_return_freight` (`estimate`, `per_unit`, `total`) |
+| 585 | Return carrier selection | `zcl_alloc_return_carrier` (`select`, `cheapest`, `fits`) |
+
+### Refunds and credits (586-595)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 586 | Refund value | `zcl_alloc_refund` (`value`, `for_line`, `total`) |
+| 587 | Refund line builder | `zcl_alloc_refund_line` (`build`, `line_count`, `total`) |
+| 588 | Credit memo lines | `zcl_alloc_credit_memo` (`build`, `total`, `tax`) |
+| 589 | Credit memo validation | `zcl_alloc_credit_check` (`is_valid`, `reason`, `difference`) |
+| 590 | Restocking fee | `zcl_alloc_restock_fee` (`fee`, `fee_percent`, `applies`) |
+| 591 | Net refund after fee | `zcl_alloc_refund_net` (`net`, `fee_of`, `total`) |
+| 592 | Return shipping charge | `zcl_alloc_return_charge` (`charge`, `is_waived`, `total`) |
+| 593 | Return value at cost | `zcl_alloc_return_cost` (`value`, `total`, `per_unit`) |
+| 594 | Return margin impact | `zcl_alloc_return_margin` (`impact`, `margin_percent`, `total`) |
+| 595 | Return settlement summary | `zcl_alloc_return_settle` (`build`, `net_settlement`, `line_count`) |
+
+### Return analytics (596-607)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 596 | Return rate by material | `zcl_alloc_return_rate` (`rate`, `rate_percent`, `above_target`) |
+| 597 | Return rate by customer | `zcl_alloc_return_rate_cust` (`rate`, `highest`, `rank`) |
+| 598 | Return reason distribution | `zcl_alloc_return_reason_dist` (`share`, `share_percent`, `top_reason`) |
+| 599 | Return KPI summary | `zcl_alloc_return_kpi` (`build`, `rate_percent`, `value`) |
+| 600 | Return trend | `zcl_alloc_return_trend` (`direction`, `slope_sign`, `is_rising`) |
+| 601 | Top returned materials | `zcl_alloc_return_top` (`top`, `quantity_of`, `count`) |
+| 602 | Return aging buckets | `zcl_alloc_return_aging` (`bucket`, `bucket_of`, `count_in`) |
+| 603 | Cost of poor quality | `zcl_alloc_return_coq` (`total`, `scrap_share`, `rework_share`) |
+| 604 | Return recovery rate | `zcl_alloc_return_recovery` (`rate`, `recovered_value`, `is_good`) |
+| 605 | Return by plant | `zcl_alloc_return_plant` (`group`, `total`, `top_plant`) |
+| 606 | Return by day | `zcl_alloc_return_daily` (`group`, `total`, `busiest_day`) |
+| 607 | Return Pareto | `zcl_alloc_return_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+
+### Reverse logistics execution (608-619)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 608 | Return pickup route | `zcl_alloc_return_route` (`build`, `stop_count`, `total_quantity`) |
+| 609 | Return pickup sequencing | `zcl_alloc_return_seq` (`sequence`, `position_of`, `distance`) |
+| 610 | Return load plan | `zcl_alloc_return_load` (`plan`, `total_volume`, `is_feasible`) |
+| 611 | Return consolidation | `zcl_alloc_return_consolidate` (`merge`, `groups`, `largest_group`) |
+| 612 | Return-to-vendor shipment | `zcl_alloc_rtv_ship` (`build`, `total`, `line_count`) |
+| 613 | Vendor return claim | `zcl_alloc_rtv_claim` (`claim`, `value`, `is_valid`) |
+| 614 | Vendor claim aging | `zcl_alloc_rtv_aging` (`bucket`, `oldest_days`, `overdue`) |
+| 615 | RTV credit reconciliation | `zcl_alloc_rtv_recon` (`reconcile`, `difference`, `is_settled`) |
+| 616 | Recall return scope | `zcl_alloc_recall_return` (`scope`, `affected_quantity`, `is_affected`) |
+| 617 | Recall return status | `zcl_alloc_recall_status` (`status`, `recovered_percent`, `is_complete`) |
+| 618 | Recall return notification | `zcl_alloc_recall_notice` (`build`, `recipients`, `message`) |
+| 619 | Recall effectiveness | `zcl_alloc_recall_effect` (`rate`, `is_effective`, `outstanding`) |
+
+### Disposal and recycling (620-629)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 620 | Disposal proposal | `zcl_alloc_disposal` (`propose`, `total`, `line_count`) |
+| 621 | Disposal cost | `zcl_alloc_disposal_cost` (`cost`, `cost_of`, `total`) |
+| 622 | Recycling split | `zcl_alloc_recycle_split` (`split`, `recycled`, `recovery_percent`) |
+| 623 | Disposal hazard class | `zcl_alloc_disposal_hazard` (`class_of`, `is_hazardous`, `needs_approval`) |
+| 624 | Environmental fee | `zcl_alloc_env_fee` (`fee`, `total`, `is_exempt`) |
+| 625 | Destruction certificate | `zcl_alloc_destruction_cert` (`build`, `is_complete`, `quantity_total`) |
+| 626 | Disposal lot | `zcl_alloc_disposal_lot` (`add`, `total`, `lot_count`) |
+| 627 | Disposal lead time | `zcl_alloc_disposal_time` (`lead_days`, `is_urgent`, `planned_day`) |
+| 628 | Disposal authorisation check | `zcl_alloc_disposal_auth` (`is_authorised`, `reason`, `needs_second`) |
+| 629 | Scrap rate | `zcl_alloc_scrap_rate` (`rate`, `rate_percent`, `above_target`) |
+
+### Returned goods putaway (630-639)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 630 | Return putaway proposal | `zcl_alloc_return_putaway` (`propose`, `bin_of`, `line_count`) |
+| 631 | Return bin selection | `zcl_alloc_return_bin` (`select`, `fits`, `best_bin`) |
+| 632 | Return stock segregation | `zcl_alloc_return_segregate` (`separate`, `blocked`, `sellable`) |
+| 633 | Return stock release | `zcl_alloc_return_release` (`release`, `is_released`, `remaining`) |
+| 634 | Return hold management | `zcl_alloc_return_hold` (`place`, `is_on_hold`, `hold_count`) |
+| 635 | Hold release check | `zcl_alloc_hold_release` (`can_release`, `reason`, `blocking_holds`) |
+| 636 | Return stock ageing | `zcl_alloc_return_stock_age` (`age_days`, `bucket`, `oldest`) |
+| 637 | Return write-down | `zcl_alloc_return_writedown` (`write_down`, `new_value`, `loss`) |
+| 638 | Return inventory value | `zcl_alloc_return_value` (`value`, `total`, `per_unit`) |
+| 639 | Return stock KPI | `zcl_alloc_return_stock_kpi` (`build`, `value`, `age_days`) |
+
+### Documents, status and controls (640-649)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 640 | Return confirmation text | `zcl_alloc_return_confirm` (`build`, `line_count`) |
+| 641 | Return advice message | `zcl_alloc_return_advice` (`build`, `field_count`) |
+| 642 | Return status pipeline | `zcl_alloc_return_status` (`stage`, `next_stage`, `is_final`) |
+| 643 | Return note text | `zcl_alloc_return_note` (`build`, `line_count`, `has_text`) |
+| 644 | Return document list | `zcl_alloc_return_docs` (`list`, `count`, `by_type`) |
+| 645 | Return approval workflow | `zcl_alloc_return_approval` (`approve`, `is_approved`, `pending_count`) |
+| 646 | Return approval limit check | `zcl_alloc_return_limit` (`within_limit`, `needs_manager`, `limit_of`) |
+| 647 | Return escalation | `zcl_alloc_return_escalate` (`escalate`, `level_of`, `is_escalated`) |
+| 648 | Return SLA check | `zcl_alloc_return_sla` (`is_met`, `elapsed_hours`, `breach_count`) |
+| 649 | Return audit trail | `zcl_alloc_return_audit` (`record`, `entries`, `last_action`) |
+
+### Policy and dashboard (650-653)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 650 | Return policy presets | `zcl_alloc_return_policy` (`preset`, `window_days`, `fee_percent`) |
+| 651 | Return policy resolution | `zcl_alloc_return_policy_res` (`resolve`, `window_of`, `fee_of`) |
+| 652 | Return summary card | `zcl_alloc_return_card` (`build`, `total`, `on_target`) |
+| 653 | Return dashboard lines | `zcl_alloc_return_dash` (`build`, `line_count`, `join`) |
+
+**Batch 9 is in progress.** The first orders (554-563) are delivered; the rest are
+built one per iteration in the local test→commit rhythm.
+
+
 ## Roadmap
 
 The next 100 features, in build order. Items 44-141 are pure calculation,

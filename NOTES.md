@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-466 are delivered; batch 7 and everything before it remain complete.**
+454-472 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1381,6 +1381,32 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      level (`total_units( )`) and for the units up to any level (`units_up_to( )`).
      A level with a non-positive factor is skipped rather than zeroing the
      product.
+467. **Carton numbering** - `zcl_alloc_carton_seq=>pack( )` fills whole cartons in
+     item order, carrying an item that does not fit the open carton over into the
+     next one, and returns one row per (carton, material) with the pieces in it.
+     `carton_count( )` reads the highest carton number (the fills are appended in
+     carton order). A non-positive capacity returns nothing.
+468. **Mixed pallet builder** - `zcl_alloc_mixed_pallet=>build( )` is first-fit bin
+     packing: each volume goes on the first pallet that still has room, otherwise
+     a new pallet is opened. A volume larger than a whole pallet gets a pallet of
+     its own with `used` over the limit, so an oversize is visible rather than
+     dropped. The test caught its own expectation error here - 60, 30, 40 into a
+     100 pallet leaves the first pallet at 90, not 100 - which is exactly what a
+     test is for.
+469. **Returnable container count** - `zcl_alloc_container_count` rounds a piece
+     count up to whole containers (`needed( )`) and reports containers still out
+     (`outstanding( )`), which is zero when everything issued has come back.
+470. **Storage bin model** - `zcl_alloc_bin_model` works on one bin: `free_space( )`
+     (floored at zero), `is_full( )`, `can_hold( )` and `add_stock( )` (clamped at
+     the capacity, no-op for a non-positive quantity). It is the single-bin
+     counterpart of the capacity arithmetic below.
+471. **Bin capacity check** - `zcl_alloc_bin_capacity` is the pure arithmetic:
+     `overloaded( )`, the `overflow( )` amount and the `utilisation( )` percent.
+     A zero capacity means "unbounded", so it is never overloaded and utilisation
+     is zero rather than a division by zero.
+472. **Bin occupancy** - `zcl_alloc_bin_occupancy=>analyse( )` turns a list of bins
+     into occupied/empty counts, total used, total capacity and the average
+     utilisation.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

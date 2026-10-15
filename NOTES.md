@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-783 are delivered; batch 10 and everything before it are complete.**
+orders 754-793 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1399,6 +1399,30 @@ orders 754-783 are delivered; batch 10 and everything before it are complete.**
      rate, `is_reduced( )` tests the rate and `reduction_percent( )` reads the implied rate back.
 783. **Valuation of scrap** - `zcl_alloc_val_scrap=>value( )` keeps a share of the original value,
      `scrap_percent( )` reads that share back and `is_scrapped( )` tests it.
+784. **Landed cost total** - `zcl_alloc_landed_total=>total( )` adds the landing cost to the base
+     cost, `markup_percent( )` relates the mark-up to the base and `is_custom( )` flags a landed
+     cost built from more than one component.
+785. **Freight apportionment** - `zcl_alloc_landed_freight=>apportion( )` spreads freight over the
+     lines by quantity, `share_of( )` reads one line's share and `per_unit( )` gives the freight
+     per unit.
+786. **Duty apportionment** - `zcl_alloc_landed_duty=>apportion( )` charges duty on each line's
+     customs value, `total_duty( )` sums it and `rate_percent( )` reads the implied rate back.
+787. **Insurance apportionment** - `zcl_alloc_landed_ins=>apportion( )` spreads insurance over the
+     lines by value, `share_of( )` reads one line's share and `per_unit( )` gives the insurance
+     per unit.
+788. **Landed cost build** - `zcl_alloc_landed_build=>build( )` counts the components and totals
+     the landed cost, `component_count( )` counts them and `total( )` sums them.
+789. **Landed cost per unit** - `zcl_alloc_landed_unit=>per_unit( )` spreads the landed cost over
+     the quantity, `is_high( )` tests it against the standard unit cost and `vs_standard( )` gives
+     the gap.
+790. **Landed cost variance** - `zcl_alloc_landed_var=>variance( )` gives the gap to the plan,
+     `is_over( )` tests its direction and `percent( )` relates it to the planned cost.
+791. **Landed cost split by weight** - `zcl_alloc_landed_weight=>apportion( )` spreads a cost by
+     weight, `weight_share( )` reads one line's share and `total( )` sums the shares.
+792. **Landed cost split by value** - `zcl_alloc_landed_value=>apportion( )` spreads a cost by
+     value, `value_share( )` reads one line's share and `total( )` sums the shares.
+793. **Landed cost summary** - `zcl_alloc_landed_summary=>build( )` counts the lines and totals
+     their landed cost, `total( )` sums the cost and `line_count( )` counts the lines.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3106,7 +3130,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-783 are delivered.
+tranches of ten. Orders 754-793 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

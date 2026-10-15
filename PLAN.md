@@ -1406,7 +1406,7 @@ local test class, pure in-memory calculation, and verified by `npm run lint` /
 | 852 | Valuation reconciliation | `zcl_alloc_val_recon` (`reconcile`, `is_balanced`, `difference`) |
 | 853 | Valuation status | `zcl_alloc_val_status` (`status`, `is_done`, `pending_count`) |
 
-**Batch 11 is in progress.** Orders 754-783 are delivered; the rest are built one
+**Batch 11 is in progress.** Orders 754-793 are delivered; the rest are built one
 per iteration in the local test→commit rhythm.
 
 

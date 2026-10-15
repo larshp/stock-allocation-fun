@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-663 are delivered; batch 9 and everything before it remain complete.**
+orders 654-673 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1354,6 +1354,35 @@ orders 654-663 are delivered; batch 9 and everything before it remain complete.*
 663. **Demand outlier filter** - `zcl_alloc_demand_outlier` drops the demands above a
      limit (`filter`), tests one value (`is_outlier`) and counts the drops
      (`removed_count`).
+664. **Reorder point calculation** - `zcl_alloc_reorder_calc=>point( )` covers the demand
+     over the lead time, `is_below( )` tests a stock against the point and `gap( )`
+     measures the uncovered part.
+665. **Replenishment need** - `zcl_alloc_replenish_need` gives the uncovered demand
+     (`need`), tests whether replenishment is due (`is_needed`) and includes the safety
+     stock in the shortfall (`shortfall`).
+666. **Min/max replenishment** - `zcl_alloc_minmax=>is_below_min( )` triggers below the
+     minimum, `order_quantity( )` fills back up to the maximum and `target( )` returns
+     the stock after replenishment.
+667. **Stock cover days** - `zcl_alloc_cover_days=>days( )` spreads the stock over the
+     daily demand, `is_covered( )` tests it against a target and `gap_days( )` gives the
+     short cover.
+668. **Stock projection** - `zcl_alloc_stock_projection=>project( )` reduces the stock
+     period by period, `first_zero( )` marks the run-out period and `runs_out( )` says
+     whether the stock ever empties.
+669. **Replenishment urgency** - `zcl_alloc_replenish_urgency=>urgency( )` folds the cover
+     into four levels, `is_urgent( )` marks the top two and `priority_of( )` names them.
+670. **Replenishment priority list** - `zcl_alloc_replenish_priority=>rank( )` sorts the
+     items by urgency with a stable original order, `top( )` keeps the highest entries
+     up to a limit and `count( )` counts the items.
+671. **Replenishment exclusion** - `zcl_alloc_replenish_exclude=>should_exclude( )` drops
+     blocked or discontinued materials, `reason( )` names why and `excluded_count( )`
+     counts the drops.
+672. **Replenishment batch split** - `zcl_alloc_replenish_split=>split( )` breaks an order
+     into full batches with the remainder last, `batch_count( )` rounds up to whole
+     batches and `covers_total( )` says whether nothing remains over.
+673. **Replenishment trigger summary** - `zcl_alloc_replenish_trigger=>build( )` returns
+     the trigger count and total quantity of the positive needs, `trigger_count( )` and
+     `total_quantity( )` give them separately.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

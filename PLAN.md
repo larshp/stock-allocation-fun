@@ -1196,49 +1196,49 @@ walks the calendar.
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 724 | Inventory turns | `zcl_alloc_inventory_turns` (`turns`, `is_healthy`, `days_of_stock`) |
-| 725 | Days inventory outstanding | `zcl_alloc_dio` (`days`, `is_healthy`, `target_gap`) |
-| 726 | Inventory ageing buckets | `zcl_alloc_inv_ageing` (`bucket`, `bucket_of`, `oldest`) |
-| 727 | Excess stock | `zcl_alloc_excess_stock` (`excess`, `is_excess`, `total_excess`) |
-| 728 | Obsolete stock | `zcl_alloc_obsolete_stock` (`is_obsolete`, `value`, `total_value`) |
-| 729 | Inventory accuracy | `zcl_alloc_inv_accuracy` (`rate_percent`, `is_met`, `total_variance`) |
-| 730 | Stock adjustment | `zcl_alloc_stock_adjust` (`adjust`, `difference`, `is_material`) |
-| 731 | Cycle count selection | `zcl_alloc_cycle_count` (`select`, `count`, `is_due`) |
-| 732 | Inventory KPI card | `zcl_alloc_inv_kpi` (`build`, `turns`, `accuracy`) |
-| 733 | Inventory health score | `zcl_alloc_inv_health` (`score`, `grade`, `is_healthy`) |
+| 724 | Inventory ageing buckets | `zcl_alloc_inv_age` (`bucket_of`, `buckets`, `is_aged`) |
+| 725 | Stock age | `zcl_alloc_stock_age` (`age_days`, `is_old`, `count_old`) |
+| 726 | Inventory turnover | `zcl_alloc_turnover` (`turns`, `days_of_supply`, `is_healthy`) |
+| 727 | Obsolete stock risk | `zcl_alloc_obsolete` (`is_obsolete`, `risk`, `count_obsolete`) |
+| 728 | Excess stock | `zcl_alloc_excess_stock` (`is_excess`, `excess_qty`, `excess_value`) |
+| 729 | Stock health score | `zcl_alloc_stock_health` (`health`, `grade`, `is_healthy`) |
+| 730 | Inventory risk score | `zcl_alloc_inventory_risk` (`risk`, `is_high`, `count_high`) |
+| 731 | Stock ageing report | `zcl_alloc_aging_report` (`build`, `count_in_bucket`, `total_value`) |
+| 732 | Reorder review schedule | `zcl_alloc_reorder_review` (`days_until`, `is_due`, `review`) |
+| 733 | Inventory management score | `zcl_alloc_inventory_score` (`score`, `is_good`, `gap`) |
 
 ### Replenishment execution (734-743)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 734 | Replenishment order build | `zcl_alloc_replen_order` (`build`, `total_quantity`, `line_count`) |
-| 735 | Replenishment release | `zcl_alloc_replen_release` (`release`, `is_released`, `remaining`) |
-| 736 | Replenishment confirmation | `zcl_alloc_replen_confirm` (`confirm`, `is_complete`, `open_count`) |
-| 737 | Replenishment split by plant | `zcl_alloc_replen_plant` (`split`, `quantity_of`, `plant_count`) |
-| 738 | Replenishment merge | `zcl_alloc_replen_merge` (`merge`, `group_count`, `largest`) |
-| 739 | Replenishment sequence | `zcl_alloc_replen_seq` (`sequence`, `position_of`, `count`) |
-| 740 | Replenishment capacity check | `zcl_alloc_replen_capacity` (`is_feasible`, `free_capacity`, `overflow`) |
-| 741 | Replenishment cost estimate | `zcl_alloc_replen_estimate` (`estimate`, `total`, `is_worthwhile`) |
-| 742 | Replenishment status | `zcl_alloc_replen_status` (`status`, `next_status`, `is_final`) |
-| 743 | Replenishment exception | `zcl_alloc_replen_exception` (`is_exception`, `reason`, `count_of`) |
+| 734 | Replenishment run | `zcl_alloc_replenish_run` (`build`, `line_count`, `total_quantity`) |
+| 735 | Replenishment confirmation | `zcl_alloc_replenish_confirm` (`confirm`, `is_confirmed`, `convert_to_order`) |
+| 736 | Purchase order creation | `zcl_alloc_po_create` (`build`, `line_count`, `total_value`) |
+| 737 | Stock transport order creation | `zcl_alloc_sto_create` (`build`, `is_cross_plant`, `total_quantity`) |
+| 738 | Replenishment release | `zcl_alloc_replenish_release` (`release`, `is_released`, `blocked_count`) |
+| 739 | Replenishment approval | `zcl_alloc_replenish_approve` (`approve`, `is_approved`, `pending_count`) |
+| 740 | Replenishment schedule | `zcl_alloc_replenish_schedule` (`schedule`, `next_date`, `is_overdue`) |
+| 741 | Replenishment prioritization | `zcl_alloc_replenish_prioritize` (`ordered`, `line_count`, `first_material`) |
+| 742 | Replenishment confirmation message | `zcl_alloc_replenish_msg` (`message`, `is_success`, `error_count`) |
+| 743 | Replenishment status | `zcl_alloc_replenish_status` (`status`, `is_done`, `pending_count`) |
 
 ### Replenishment monitoring and dashboard (744-753)
 
 | Order | Feature | Class |
 | --- | --- | --- |
-| 744 | Replenishment fill rate | `zcl_alloc_replen_fill` (`rate`, `rate_percent`, `is_met`) |
-| 745 | Replenishment lead time actual | `zcl_alloc_replen_lead` (`actual`, `average`, `is_late`) |
-| 746 | Replenishment KPI card | `zcl_alloc_replen_kpi` (`build`, `fill_rate`, `on_time_percent`) |
-| 747 | Replenishment trend | `zcl_alloc_replen_trend` (`direction`, `slope_sign`, `is_rising`) |
-| 748 | Replenishment Pareto | `zcl_alloc_replen_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
-| 749 | Replenishment summary text | `zcl_alloc_replen_text` (`build`, `line_count`) |
-| 750 | Replenishment alert | `zcl_alloc_replen_alert` (`build`, `is_alert`, `alert_count`) |
-| 751 | Replenishment dashboard lines | `zcl_alloc_replen_dash` (`build`, `line_count`, `join`) |
-| 752 | Replenishment policy presets | `zcl_alloc_replen_policy` (`preset`, `target_days`, `service_level`) |
-| 753 | Replenishment plan card | `zcl_alloc_replen_card` (`build`, `total_quantity`, `on_target`) |
+| 744 | Replenishment fill rate | `zcl_alloc_replenish_fill` (`rate`, `is_met`, `shortfall`) |
+| 745 | Replenishment lead time actual | `zcl_alloc_replenish_lead` (`actual`, `average`, `is_late`) |
+| 746 | Replenishment KPI card | `zcl_alloc_replenish_kpi` (`build`, `fill_rate`, `on_time_percent`) |
+| 747 | Replenishment trend | `zcl_alloc_replenish_trend` (`direction`, `slope_sign`, `is_rising`) |
+| 748 | Replenishment Pareto | `zcl_alloc_replenish_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+| 749 | Replenishment summary text | `zcl_alloc_replenish_text` (`build`, `line_count`) |
+| 750 | Replenishment alert | `zcl_alloc_replenish_alert` (`build`, `is_alert`, `alert_count`) |
+| 751 | Replenishment dashboard lines | `zcl_alloc_replenish_dash` (`build`, `line_count`, `join`) |
+| 752 | Replenishment policy presets | `zcl_alloc_replenish_policy` (`preset`, `target_days`, `service_level`) |
+| 753 | Replenishment plan card | `zcl_alloc_replenish_card` (`build`, `total_quantity`, `on_target`) |
 
-**Batch 10 is in progress.** Orders 654-743 are delivered; the rest are built one
-per iteration in the local test→commit rhythm.
+**Batch 10 is complete.** Orders 654-753 are delivered, one per iteration in the
+local test→commit rhythm.
 
 
 ## Roadmap

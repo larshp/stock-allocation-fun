@@ -1320,8 +1320,8 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
-**Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-743 are delivered; batch 9 and everything before it remain complete.**
+**Batch 10 (replenishment planning and inventory optimization) is complete:
+orders 654-753 are delivered.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1584,6 +1584,34 @@ orders 654-743 are delivered; batch 9 and everything before it remain complete.*
 743. **Replenishment status** - `zcl_alloc_replenish_status=>status( )` reads EMPTY, OPEN,
      PARTIAL or DONE from the confirmed and total line counts, `is_done( )` tests the run and
      `pending_count( )` gives the lines still open.
+744. **Replenishment fill rate** - `zcl_alloc_replenish_fill=>rate( )` gives the delivered part of
+     the request in percent, `is_met( )` tests it against a target and `shortfall( )` gives the
+     part not delivered.
+745. **Replenishment actual lead time** - `zcl_alloc_replenish_lead=>actual( )` spans an order
+     from its day to its receipt, `average( )` spreads a list of lead times and `is_late( )`
+     tests the actual against the plan.
+746. **Replenishment KPI card** - `zcl_alloc_replenish_kpi=>build( )` carries the fill rate and
+     the on-time share, `fill_rate( )` computes the first and `on_time_percent( )` the second.
+747. **Replenishment trend** - `zcl_alloc_replenish_trend=>direction( )` reads RISING, FALLING or
+     FLAT from the first and last points, `slope_sign( )` gives one, minus one or zero and
+     `is_rising( )` tests the direction.
+748. **Replenishment Pareto** - `zcl_alloc_replenish_pareto=>cumulative_percent( )` gives the
+     running share per rank from the largest down, `vital_few( )` counts up to a threshold and
+     `pareto( )` applies the classic eighty percent cut.
+749. **Replenishment summary text** - `zcl_alloc_replenish_text=>build( )` spells out the run
+     count and the unit total, and `line_count( )` counts the runs.
+750. **Replenishment alert** - `zcl_alloc_replenish_alert=>is_alert( )` flags a rate below the
+     target, `alert_count( )` counts the flagged items and `build( )` turns them into low-level
+     alerts.
+751. **Replenishment dashboard lines** - `zcl_alloc_replenish_dash=>build( )` renders one
+     labelled line per row, `line_count( )` counts the rows and `join( )` joins the lines with a
+     semicolon.
+752. **Replenishment policy presets** - `zcl_alloc_replenish_policy=>target_days( )` and
+     `service_level( )` read the settings of a preset (LEAN, BALANCED, SAFE) and `preset( )`
+     names the preset back from its two settings.
+753. **Replenishment plan card** - `zcl_alloc_replenish_card=>build( )` counts the plan lines and
+     sums their quantity, `total_quantity( )` sums a line list and `on_target( )` tests the
+     quantity against a target.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

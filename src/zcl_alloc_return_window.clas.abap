@@ -27,7 +27,6 @@ CLASS zcl_alloc_return_window DEFINITION
       RETURNING
         VALUE(rv_days) TYPE i.
 
-  PRIVATE SECTION.
     METHODS add_days
       IMPORTING
         iv_date        TYPE d
@@ -35,6 +34,7 @@ CLASS zcl_alloc_return_window DEFINITION
       RETURNING
         VALUE(rv_date) TYPE d.
 
+  PRIVATE SECTION.
     METHODS next_day
       IMPORTING
         iv_date        TYPE d

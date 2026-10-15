@@ -503,5 +503,19 @@ Each entry notes the symptom, the cause and the workaround used.
 * Workaround: run `npm run build` (not just `npm run lint`) before trusting a
   change, and drop the stray semicolon (`ENDIF` takes no `;`).
 
+## A34 - An empty string literal passed for a date parameter is not an initial date
+
+* Symptom: a test called a method with `iv_return = ''` for a parameter of type
+  `d`, and the method's `IF ... return_day IS NOT INITIAL` branch behaved as if the
+  date were filled, so the method returned early. `assert_equals` reported
+  `Expected 'X', got ''`.
+* Cause: `''` transpiles to a one-character `Character` literal, and assigning it
+  to a `Date` does not yield the initial date. `abap.compare.initial( ... )` on the
+  resulting object is then false, unlike in ABAP where an empty literal becomes
+  `00000000` and `IS INITIAL` is true.
+* Workaround: pass the typed initial value `'00000000'` (or a real date) whenever a
+  `d` parameter must be empty, and avoid bare `''` for date and other typed
+  parameters.
+
 
 

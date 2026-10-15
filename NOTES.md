@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-573 are delivered; batch 8 and everything before it remain complete.**
+554-583 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1397,6 +1397,41 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      priority, then by arrival and then by input order (a stable sort via a sequence
      number); `position_of( )` reports a job's place in the queue and
      `priority_order( )` bands a priority as HIGH, MEDIUM or LOW.
+574. **Repair cycle time** - `zcl_alloc_repair_time` measures a job's duration
+     (`elapsed( )`, floored at zero for a reversed span), averages several jobs
+     (`average( )`) and checks a duration against a target (`is_on_target( )`).
+575. **Repair cost estimate** - `zcl_alloc_repair_cost` prices labour from minutes and
+     an hourly rate (`labour_cost( )`), sums the parts (`parts_cost( )`, ignoring a
+     negative cost) and combines them (`estimate( )`).
+576. **Warranty check** - `zcl_alloc_warranty_check` works in whole days from the
+     cover start: whether a day is inside the inclusive period (`is_covered( )`),
+     the days remaining (`remaining_days( )`) and a reason
+     (`reason( )`: COVERED, NOT_STARTED, EXPIRED, NO_WARRANTY).
+577. **Warranty expiry** - `zcl_alloc_warranty_expiry=>expiry_day( )` turns a start day
+     and a duration into the last covered day by reusing the calendar walk in
+     `zcl_alloc_return_window` (whose `add_days` was made public for exactly this
+     reuse); `has_expired( )` and `days_left( )` report against a day.
+578. **Warranty coverage** - `zcl_alloc_warranty_cover` counts the covered items in a
+     list (`cover( )`), sums their quantities (`covered_quantity( )`) and states the
+     covered share (`share_percent( )`), delegating the per-item test to
+     `zcl_alloc_warranty_check`.
+579. **Core return tracking** - `zcl_alloc_core_return` records the expected and
+     returned quantity per core (`add( )`), sums what is still outstanding per
+     material (`outstanding( )`, never netting an over-return against a shortfall)
+     and reports completion (`is_returned( )`).
+580. **Core credit value** - `zcl_alloc_core_credit` multiplies a returned quantity by
+     a credit rate (`credit( )`), values one core (`credit_of( )`) and totals a list
+     (`total( )`), ignoring a negative operand.
+581. **Core return overdue** - `zcl_alloc_core_overdue` flags a core whose due day has
+     passed while it is still open (`overdue( )`), counts the days late
+     (`overdue_days( )`) and checks a whole list (`is_overdue( )`).
+582. **Exchange proposal** - `zcl_alloc_exchange=>propose( )` pairs each returned item
+     with the first replacement of the same material, capped at the smaller of the
+     two quantities; `paired( )` and `quantity( )` summarise the pairs.
+583. **Replacement priority** - `zcl_alloc_replace_priority=>score( )` scores a
+     replacement from customer tier, waiting days and value (negative inputs count
+     as zero), `rank( )` orders the items by score with a stable tiebreak and
+     `is_urgent( )` marks a score at or above the urgency threshold.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

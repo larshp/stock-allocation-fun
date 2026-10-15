@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-619 are delivered; batch 8 and everything before it remain complete.**
+554-629 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1550,6 +1550,38 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 619. **Recall effectiveness** - `zcl_alloc_recall_effect=>rate( )` states the recovered
      share, `is_effective( )` compares it with a target and `outstanding( )` gives the
      quantity still to recover (never below zero).
+620. **Disposal proposal** - `zcl_alloc_disposal=>propose( )` lists the materials with
+     a real quantity for disposal, `total( )` sums the proposed quantity and
+     `line_count( )` counts the lines.
+621. **Disposal cost** - `zcl_alloc_disposal_cost` prices a disposal (`cost( )`, a unit
+     rate per item), values one line (`cost_of( )`) and sums a list (`total( )`).
+622. **Recycling split** - `zcl_alloc_recycle_split=>split( )` divides a quantity into a
+     recyclable and a waste part at a percentage (held between 0 and 100),
+     `recycled( )` sums the recyclable part and `recovery_percent( )` states the
+     recovered share.
+623. **Disposal hazard class** - `zcl_alloc_disposal_hazard=>class_of( )` maps a hazard
+     code to a class (an empty code is NONE, an unknown one miscellaneous),
+     `is_hazardous( )` tests the class and `needs_approval( )` marks the toxic and
+     corrosive classes.
+624. **Environmental fee** - `zcl_alloc_env_fee` charges a per-unit fee (`fee( )`),
+     sums a list (`total( )`) and exempts reusable and recycled goods (`is_exempt( )`).
+625. **Destruction certificate** - `zcl_alloc_destruction_cert=>build( )` assembles a
+     certificate (reference, destroyed quantity, line count), `is_complete( )` checks
+     it has a reference and a quantity and `quantity_total( )` sums the items.
+626. **Disposal lot** - `zcl_alloc_disposal_lot=>add( )` returns the lot set with a
+     named lot of real quantity appended, `total( )` sums the set and `lot_count( )`
+     counts it.
+627. **Disposal lead time** - `zcl_alloc_disposal_time=>lead_days( )` computes a lead
+     time from a fixed and a per-unit part, `is_urgent( )` tests it against a window
+     and `planned_day( )` adds the lead time to a start day (reusing
+     `zcl_alloc_return_window->add_days`).
+628. **Disposal authorisation check** - `zcl_alloc_disposal_auth` lets a manager
+     authorise any disposal and a clerk only a non-hazardous one (`is_authorised( )`),
+     explains the outcome (`reason( )`: OK, NO_ROLE, NOT_AUTHORISED) and marks the
+     classes that need a second signature (`needs_second( )`).
+629. **Scrap rate** - `zcl_alloc_scrap_rate` states a scrap rate per thousand produced
+     units (`rate( )`) and as a whole-number percentage (`rate_percent( )`), and says
+     whether a rate is over a target (`above_target( )`).
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 10 (replenishment planning and inventory optimization) is in progress:
-orders 654-703 are delivered; batch 9 and everything before it remain complete.**
+orders 654-713 are delivered; batch 9 and everything before it remain complete.**
 
 654. **Demand period total** - `zcl_alloc_demand` sums the demand of the periods that
      carry it (`total`), counts those periods (`period_count`) and spreads the total
@@ -1469,6 +1469,32 @@ orders 654-703 are delivered; batch 9 and everything before it remain complete.*
 703. **MRP run status** - `zcl_alloc_mrp_status=>status( )` folds the steps into
      `EMPTY`/`OPEN`/`RUNNING`/`COMPLETE`, `is_complete( )` tests the full run and
      `pending_count( )` counts the unfinished steps.
+704. **Lead time average** - `zcl_alloc_lead_avg=>average( )` spreads the lead times,
+     `min_days( )` and `max_days( )` give the shortest and the longest.
+705. **Lead time variance** - `zcl_alloc_lead_variance=>variance( )` averages the squared
+     distance from the mean, `std_dev( )` takes the integer root and `is_reliable( )` tests
+     the spread against a threshold.
+706. **Supplier score** - `zcl_alloc_supplier_score=>score( )` weights delivery, quality and
+     price, `grade( )` letters the score and `is_preferred( )` marks an A grade.
+707. **Supplier on-time delivery rate** - `zcl_alloc_supplier_otd=>rate( )` gives the on-time
+     share in per mille, `rate_percent( )` in percent and `is_met( )` tests it against a
+     target.
+708. **Supplier comparison** - `zcl_alloc_supplier_compare=>best( )` names the highest score,
+     `score_of( )` reads one supplier's score and `count( )` counts the list.
+709. **Source of supply** - `zcl_alloc_source=>select( )` keeps a fixed source or else the
+     highest quota, `is_quota( )` says whether a quota arrangement is in play and
+     `quota_of( )` reads one supplier's quota.
+710. **Quota arrangement** - `zcl_alloc_quota=>split( )` shares a quantity out in proportion
+     to the quotas, `share_of( )` gives one supplier's percentage and `total_quota( )` sums
+     the quotas.
+711. **Purchase order proposal** - `zcl_alloc_po_proposal=>build( )` returns the line count and
+     the total value, `total_value( )` prices every line and `line_count( )` counts them.
+712. **Delivery schedule** - `zcl_alloc_schedule=>build( )` steps a series of dates from a
+     start date in fixed intervals, `dates( )` gives the count and `is_on_time( )` tests a
+     delivery against a planned date.
+713. **Vendor lead time buffer** - `zcl_alloc_lead_buffer=>planned_lead( )` adds a buffer
+     percentage to the supplier lead time, `buffer( )` gives the added days and `is_safe( )`
+     tests an actual lead time against the plan.
 
 **Batch 9 (returns, repairs and reverse logistics) is complete: orders 554-653
 are delivered; batch 8 and everything before it remain complete.**

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 8 (warehouse execution, packaging and quality) is in progress: orders
-454-495 are delivered; batch 7 and everything before it remain complete.**
+454-505 are delivered; batch 7 and everything before it remain complete.**
 
 454. **Handling unit contents** - `zcl_alloc_hu` collects the items that sit in
      one handling unit, sums their quantity (`total( )`), counts them
@@ -1491,6 +1491,44 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 495. **Space utilisation** - `zcl_alloc_space_util` reports how full a space is:
      `percent( )` (zero for an empty or unmeasured space), `above_threshold( )` and
      `classify( )`, which buckets the fill into EMPTY / LOW / OK / HIGH / FULL.
+496. **Load plan** - `zcl_alloc_load_plan=>plan( )` sorts the items by stop
+     descending and then numbers them as load positions, so a trailer is loaded
+     last-stop-first and the first delivery sits at the door. The material is a
+     secondary sort key, which keeps the plan deterministic inside one stop.
+497. **Load sequence** - `zcl_alloc_load_seq=>order( )` splits units into
+     non-fragile and fragile, sorts the heavy first and the fragile light first,
+     and returns the heavy block before the fragile one, so nothing heavy is
+     stacked on top of a fragile unit.
+498. **Truck fill check** - `zcl_alloc_truck_fill=>check( )` sums weight and volume,
+     computes both percentages and reports `fits` plus the `limiting` dimension
+     (WEIGHT, VOLUME or NONE). A capacity of zero means that dimension is not
+     constrained, which keeps a "no limit given" truck from rejecting every load.
+499. **Truck type selection** - `zcl_alloc_truck_select=>select( )` returns the
+     *smallest* truck that still fits, comparing by capacity weight and then
+     capacity volume, so a larger truck never displaces a smaller fitting one. A
+     truck with a zero limit is ignored, and the empty string means nothing fits.
+500. **Trailer and pallet count** - `zcl_alloc_trailer_count` answers the three
+     questions of trailer planning in integer arithmetic: `trailers( )` rounds up,
+     `full_trailers( )` rounds down and `last_trailer( )` gives the pallets on the
+     final trailer (a full trailer when the load divides exactly).
+501. **Dock appointment slot** - `zcl_alloc_dock_slot` maps a within-day arrival
+     time to a zero-based slot (`slot_of( )`) and back (`slot_start( )`,
+     `slot_end( )`). An arrival exactly on a boundary belongs to the slot that
+     starts there.
+502. **Dock door assignment** - `zcl_alloc_dock_door=>assign( )` gives each load to
+     the least busy door, keeping the first door on a tie, so loads spread evenly
+     and the result is deterministic. The door counts live in `zcl_alloc_key_map`,
+     so the choice is one lookup per door per load.
+503. **Loading time estimate** - `zcl_alloc_load_time` prices a load as a fixed
+     setup plus a per-item rate (`estimate( )`) and reads the result back as whole
+     `hours( )` and the remaining `minutes( )`.
+504. **Unloading time estimate** - `zcl_alloc_unload_time=>estimate( )` adds the
+     two unload rates (per handling unit off the trailer, per item unpacked) to a
+     fixed time, and `hours( )` rounds the total down to whole hours.
+505. **Shipment consolidation** - `zcl_alloc_ship_consolidate=>consolidate( )`
+     groups delivery lines into one shipment per destination, counting the lines
+     and summing the quantity. A hashed working table makes it one lookup per line
+     and the shipments keep first-seen destination order.
 
 **Batch 7 (applying the scale-safe aggregation) is complete: orders 452 and 453
 are delivered and twelve of the fifteen quadratic classes are converted; batch 6

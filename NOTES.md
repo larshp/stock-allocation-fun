@@ -1320,6 +1320,30 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      improvement steps, and reports the highest scored entry (`best`), the initial
      one (`first`) and the difference between them (`gain`).
 
+**Batch 12 (activity-based costing and cost allocation) is in progress:
+orders 854-863 are delivered; batch 11 and everything before it are complete.**
+
+854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
+     `count( )` counts them and `is_empty( )` tests for none.
+855. **Driver rate** - `zcl_alloc_drv_rate=>rate( )` spreads a cost over a quantity, `applied( )`
+     puts the rate back on a quantity and `is_zero( )` tests a nil rate.
+856. **Driver share** - `zcl_alloc_drv_share=>percent( )` relates one driver to the whole,
+     `share( )` reads the share at a position and `largest( )` gives the biggest.
+857. **Driver selection** - `zcl_alloc_drv_select=>choose( )` picks the driver with the larger
+     quantity, `is_volume( )` tests for a volume driver and `reason( )` gives the reason.
+858. **Driver weighting** - `zcl_alloc_drv_weight=>weight_of( )` takes a driver at its weight,
+     `weighted( )` totals the weighted drivers and `total_weight( )` sums the weights.
+859. **Driver capacity** - `zcl_alloc_drv_capacity=>capacity( )` relates the load to what is
+     available, `is_over( )` tests the overload and `spare( )` gives the spare capacity.
+860. **Driver normalisation** - `zcl_alloc_drv_normalize=>factor( )` scales a total to a target,
+     `normalize( )` scales one driver and `is_normal( )` tests a total already on target.
+861. **Driver trend** - `zcl_alloc_drv_trend=>direction( )` reads UP, DOWN or FLAT, `is_rising( )`
+     tests the move and `delta( )` gives it.
+862. **Driver ranking** - `zcl_alloc_drv_rank=>rank( )` orders the drivers by quantity, `top( )`
+     gives the largest and `bottom( )` the smallest.
+863. **Driver summary** - `zcl_alloc_drv_summary=>build( )` counts the drivers and totals them,
+     `total( )` sums them and `driver_count( )` counts them.
+
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
 
@@ -3255,7 +3279,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten.
+tranches of ten. Orders 854-863 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

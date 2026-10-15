@@ -581,3 +581,13 @@ Each entry notes the symptom, the cause and the workaround used.
   `zcl_alloc_replenish_prioritize`). The `local_testclass_consistency` rule does not tie
   the test class name to the global name, so an abbreviated test class name is accepted.
   Renamed `zcl_alloc_replenish_confirm_msg` -> `zcl_alloc_replenish_msg`.
+
+## A39 - A method named `select` (an ABAP keyword) must be renamed
+
+* Symptom: a class with a method named `select` is risky to parse; `mo_cut->select( ... )`
+  sits next to the `SELECT` keyword and can confuse the parser and readers.
+* Cause: `SELECT` is a reserved ABAP keyword, and although a method may be reached with
+  `->select( )`, using a keyword as a method name is fragile across tooling.
+* Workaround: name the method `choose` instead and keep the class name `zcl_alloc_drv_select`.
+  Rule of thumb: avoid method names that are ABAP keywords (`select`, `sort`, `read`,
+  `insert`, `append`, `call`, ...).

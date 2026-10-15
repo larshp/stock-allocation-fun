@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-629 are delivered; batch 8 and everything before it remain complete.**
+554-639 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1582,6 +1582,35 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
 629. **Scrap rate** - `zcl_alloc_scrap_rate` states a scrap rate per thousand produced
      units (`rate( )`) and as a whole-number percentage (`rate_percent( )`), and says
      whether a rate is over a target (`above_target( )`).
+630. **Return putaway proposal** - `zcl_alloc_return_putaway=>propose( )` gives every
+     returned material with a real quantity a putaway line into its bin, `bin_of( )`
+     finds a material's target bin and `line_count( )` counts the lines.
+631. **Return bin selection** - `zcl_alloc_return_bin=>fits( )` checks a bin's free
+     space against a quantity, `select( )` returns the first bin that fits and
+     `best_bin( )` the tightest fit (the first bin breaking a tie).
+632. **Return stock segregation** - `zcl_alloc_return_segregate=>separate( )` splits the
+     stock into the sellable and the blocked part by the flag, `sellable( )` sums the
+     sellable quantity and `blocked( )` the blocked one.
+633. **Return stock release** - `zcl_alloc_return_release=>release( )` adds to the
+     released quantity (never past the stock on hand), `is_released( )` tests whether
+     the whole line is released and `remaining( )` gives what is left.
+634. **Return hold management** - `zcl_alloc_return_hold=>place( )` returns the hold set
+     with a named hold added, `is_on_hold( )` tests a material and `hold_count( )`
+     counts the holds.
+635. **Hold release check** - `zcl_alloc_hold_release=>blocking_holds( )` lists the
+     blocking holds, `can_release( )` says whether none are left and `reason( )` names
+     the blocking hold (or OK).
+636. **Return stock ageing** - `zcl_alloc_return_stock_age=>age_days( )` computes the
+     days between receipt and a check day, `bucket( )` bands an age and `oldest( )`
+     finds the oldest age in a list.
+637. **Return write-down** - `zcl_alloc_return_writedown=>write_down( )` takes a share
+     off a value (the share held between 0 and 100), `new_value( )` gives the written
+     down value and `loss( )` the amount lost.
+638. **Return inventory value** - `zcl_alloc_return_value` values returned stock
+     (`value( )`), sums a list (`total( )`) and derives a unit value (`per_unit( )`).
+639. **Return stock KPI** - `zcl_alloc_return_stock_kpi=>build( )` assembles a card
+     (value, age, aged flag past 90 days); `value( )` and `age_days( )` expose the two
+     measures.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 11 (inventory valuation and allocation costing) is in progress:
-orders 754-803 are delivered; batch 10 and everything before it are complete.**
+orders 754-813 are delivered; batch 10 and everything before it are complete.**
 
 754. **Moving average price recalculation** - `zcl_alloc_ma_recalc=>recalc( )` spreads the old
      and new stock value over the whole quantity, `is_rise( )` tests the new price against
@@ -1443,6 +1443,27 @@ orders 754-803 are delivered; batch 10 and everything before it are complete.**
      `is_increase( )` tests its direction and `delta( )` gives its size.
 803. **Provision coverage** - `zcl_alloc_prov_cover=>coverage_percent( )` relates the provision to the
      requirement, `is_covered( )` tests it and `shortfall( )` gives what is missing.
+804. **Price variance** - `zcl_alloc_var_price=>variance( )` values the price move over the
+     quantity, `is_favourable( )` tests its direction and `percent( )` relates it to the standard.
+805. **Quantity variance** - `zcl_alloc_var_qty=>variance( )` values the usage move at the standard
+     price, `is_favourable( )` tests its direction and `percent( )` relates it to the standard.
+806. **Total variance** - `zcl_alloc_var_total=>variance( )` gives actual less standard,
+     `is_adverse( )` tests its direction and `split( )` leaves the quantity part after the price.
+807. **Variance classification** - `zcl_alloc_var_favourable=>classify( )` reads FAVOURABLE, ADVERSE or
+     ZERO from a variance, `is_favourable( )` and `is_adverse( )` test the two directions.
+808. **Variance sign convention** - `zcl_alloc_var_sign=>apply_sign( )` signs an amount by its
+     direction, `to_standard( )` rebuilds the actual from the standard and `magnitude( )` gives the
+     size.
+809. **Variance summary** - `zcl_alloc_var_summary=>build( )` counts the variances and nets them,
+     `total( )` nets them and `line_count( )` counts them.
+810. **Variance trend** - `zcl_alloc_var_trend=>direction( )` reads IMPROVING, WORSENING or FLAT,
+     `is_improving( )` tests the move and `delta( )` gives it.
+811. **Variance ranking** - `zcl_alloc_var_rank=>rank( )` orders the lines by variance with the worst
+     first, `worst( )` gives the largest and `best( )` the smallest.
+812. **Variance cause** - `zcl_alloc_var_cause=>cause( )` names the dominant component,
+     `is_price( )` tests for it and `share( )` relates a part to the whole.
+813. **Variance alert** - `zcl_alloc_var_alert=>is_over_threshold( )` tests the size against a
+     threshold, `alert( )` gives the overshoot and `level( )` grades it.
 
 **Batch 10 (replenishment planning and inventory optimization) is complete:
 orders 654-753 are delivered.**
@@ -3150,7 +3171,7 @@ exercise).
 Batch 11 (**inventory valuation and allocation costing**) is planned in `PLAN.md`
 for orders 754-853 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 754-803 are delivered.
+tranches of ten. Orders 754-813 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-913 are delivered; batch 11 and everything before it are complete.**
+orders 854-923 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1443,6 +1443,26 @@ orders 854-913 are delivered; batch 11 and everything before it are complete.**
      to the pool, `is_covered( )` tests it and `shortfall( )` gives what is missing.
 913. **Cost pool summary** - `zcl_alloc_cpool_summary=>build( )` counts the pools and totals their
      cost, `pool_count( )` counts them and `total( )` sums them.
+914. **Allocation cycle step** - `zcl_alloc_cycle_step=>step( )` finds the step a position falls into,
+     `next_step( )` gives the step after the current one and `is_last( )` tests the last step.
+915. **Cycle advance** - `zcl_alloc_cycle_advance=>advance( )` moves the cycle on a step,
+     `is_complete( )` tests the end and `remaining( )` gives the steps left.
+916. **Cycle repeat** - `zcl_alloc_cycle_repeat=>repeat( )` runs the cycle once more, `is_repeated( )`
+     tests whether it has run before and `max_reached( )` the repeat ceiling.
+917. **Cycle count** - `zcl_alloc_cycle_count=>count( )` gives the cycles needed, `after( )` the
+     amount they cover and `is_zero( )` tests a nil count.
+918. **Cycle loop detection** - `zcl_alloc_cycle_detect=>loop_detected( )` tests a step already seen,
+     `is_loop( )` tests a repeated step and `reason( )` reads the outcome.
+919. **Cycle build** - `zcl_alloc_cycle_build=>build( )` lays the steps out in order, `step_count( )`
+     counts them and `first_step( )` gives the first.
+920. **Cycle progress** - `zcl_alloc_cycle_progress=>progress_percent( )` relates the steps done to
+     the whole, `is_done( )` tests the end and `remaining( )` gives the steps left.
+921. **Cycle run** - `zcl_alloc_cycle_run=>run( )` runs a batch of steps, `is_finished( )` tests the
+     end and `steps_done( )` gives the batches needed.
+922. **Cycle state** - `zcl_alloc_cycle_state=>state( )` reads NEW, RUNNING or DONE, `is_terminal( )`
+     tests a finished state and `is_active( )` a running one.
+923. **Cycle summary** - `zcl_alloc_cycle_summary=>build( )` counts the steps and totals them,
+     `step_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3379,7 +3399,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-913 are delivered.
+tranches of ten. Orders 854-923 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

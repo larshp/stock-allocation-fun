@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 9 (returns, repairs and reverse logistics) is in progress: orders
-554-583 are delivered; batch 8 and everything before it remain complete.**
+554-595 are delivered; batch 8 and everything before it remain complete.**
 
 554. **Return authorisation line** - `zcl_alloc_rma` collects the lines of an RMA
      (`add( )`), sums their quantity (`total_quantity( )`), counts them
@@ -1432,6 +1432,47 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      replacement from customer tier, waiting days and value (negative inputs count
      as zero), `rank( )` orders the items by score with a stable tiebreak and
      `is_urgent( )` marks a score at or above the urgency threshold.
+584. **Return freight estimate** - `zcl_alloc_return_freight=>estimate( )` charges a
+     fixed collection fee plus a per-unit rate, `per_unit( )` divides a total back
+     to a rate and `total( )` sums a list of line costs.
+585. **Return carrier selection** - `zcl_alloc_return_carrier` checks whether a
+     carrier can take a shipment (`fits( )`), picks the cheapest carrier that fits
+     (`select( )`) and the cheapest overall (`cheapest( )`).
+586. **Refund value** - `zcl_alloc_refund` multiplies a refund quantity by a unit
+     price (`value( )`, never negative), values one line (`for_line( )`) and totals
+     a list (`total( )`).
+587. **Refund line builder** - `zcl_alloc_refund_line=>build( )` numbers the refund
+     lines and carries a running refund on each line (accumulated in a local, not by
+     re-reading the table); `line_count( )` counts them and `total( )` returns the
+     running total of the last line.
+588. **Credit memo lines** - `zcl_alloc_credit_memo=>build( )` adds tax at a rate to
+     each net line and derives the gross; `total( )` sums the gross and `tax( )` the
+     tax. A negative rate means no tax.
+589. **Credit memo validation** - `zcl_alloc_credit_check` compares a credit with the
+     expected amount (`difference( )`), accepts it within a tolerance
+     (`is_valid( )`, using an absolute value built without the `ABS` built-in) and
+     explains the result (`reason( )`: OK, OVER_CREDIT, UNDER_CREDIT,
+     BAD_TOLERANCE).
+590. **Restocking fee** - `zcl_alloc_restock_fee` takes a fee from a value and a rate
+     (`fee( )`), states the rate behind a fee (`fee_percent( )`) and says whether a
+     return carries a fee at all (`applies( )`, only a COMMERCIAL reason).
+591. **Net refund after fee** - `zcl_alloc_refund_net` subtracts a fee and a shipping
+     charge from a value (`net( )`, floored at zero), computes a fee from a rate
+     (`fee_of( )`) and totals a list of lines (`total( )`).
+592. **Return shipping charge** - `zcl_alloc_return_charge` prices a return shipment
+     (`charge( )`, a fixed part plus a per-unit part), waives it when the return is
+     the seller's fault or the value is high enough (`is_waived( )`) and sums a list
+     (`total( )`).
+593. **Return value at cost** - `zcl_alloc_return_cost` values returned goods at cost
+     (`value( )`), totals a list (`total( )`) and derives a unit cost
+     (`per_unit( )`).
+594. **Return margin impact** - `zcl_alloc_return_margin=>impact( )` states the
+     margin given away by a refund (refund minus cost, signed), `margin_percent( )`
+     expresses it against the refund and `total( )` sums a list.
+595. **Return settlement summary** - `zcl_alloc_return_settle=>build( )` turns refund
+     lines into settlement entries net of fee and shipping (floored at zero, a
+     positive line always listed); `net_settlement( )` sums them and `line_count( )`
+     counts them.
 
 **Batch 8 (warehouse execution, packaging and quality) is complete: orders
 454-553 are delivered; batch 7 and everything before it remain complete.**

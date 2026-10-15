@@ -1321,7 +1321,7 @@ unbuilt item and stays that way because the transpiler cannot exercise it.
      one (`first`) and the difference between them (`gain`).
 
 **Batch 12 (activity-based costing and cost allocation) is in progress:
-orders 854-863 are delivered; batch 11 and everything before it are complete.**
+orders 854-873 are delivered; batch 11 and everything before it are complete.**
 
 854. **Cost driver total** - `zcl_alloc_drv_total=>total( )` adds the driver quantities,
      `count( )` counts them and `is_empty( )` tests for none.
@@ -1343,6 +1343,26 @@ orders 854-863 are delivered; batch 11 and everything before it are complete.**
      gives the largest and `bottom( )` the smallest.
 863. **Driver summary** - `zcl_alloc_drv_summary=>build( )` counts the drivers and totals them,
      `total( )` sums them and `driver_count( )` counts them.
+864. **Activity rate** - `zcl_alloc_act_rate=>rate( )` spreads the pool cost over the driver
+     quantity, `from_cost( )` puts the rate back on a quantity and `is_zero( )` tests a nil rate.
+865. **Activity cost** - `zcl_alloc_act_cost=>cost( )` prices an activity at its rate, `per_unit( )`
+     spreads it back over the quantity and `total( )` sums a list of costs.
+866. **Apply activity rate** - `zcl_alloc_act_apply=>apply( )` prices a whole activity list at a
+     rate, `cost_of( )` prices one line and `is_applied( )` tests that a cost was carried.
+867. **Activity efficiency** - `zcl_alloc_act_efficiency=>efficiency_percent( )` relates the standard
+     to the actual quantity, `is_efficient( )` tests it and `variance( )` gives the quantity saved.
+868. **Activity utilisation** - `zcl_alloc_act_util=>utilisation_percent( )` relates the load to the
+     capacity, `is_idle( )` tests for spare capacity and `spare( )` gives it.
+869. **Activity capacity** - `zcl_alloc_act_capacity=>available( )` and `used( )` total the capacity
+     and the load over the activities and `is_full( )` tests the load against the capacity.
+870. **Activity rate blend** - `zcl_alloc_act_blend=>blend( )` gives the weighted average rate,
+     `weight_of( )` a quantity's share and `blended( )` the total cost.
+871. **Activity step cost** - `zcl_alloc_act_step=>step( )` rounds a cost up to whole steps,
+     `is_stepped( )` tests for a part step and `step_count( )` totals the steps.
+872. **Activity rate curve** - `zcl_alloc_act_curve=>is_improving( )` tests a falling rate, `change( )`
+     gives the move from first to last and `count( )` counts the rates.
+873. **Activity summary** - `zcl_alloc_act_summary=>build( )` counts the activities and totals their
+     cost, `total( )` sums them and `activity_count( )` counts them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3279,7 +3299,7 @@ exercise).
 Batch 12 (**activity-based costing and cost allocation**) is planned in `PLAN.md`
 for orders 854-953 (the next 100 features), in the same style: one feature per
 iteration, `npm test` green, documented here and in `ANOMALIES.md`, and built in
-tranches of ten. Orders 854-863 are delivered.
+tranches of ten. Orders 854-873 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

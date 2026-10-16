@@ -1663,6 +1663,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
       `largest( )` gives the biggest and `count( )` counts them.
 1023. **Co-product summary** - `zcl_alloc_copro_summary=>build( )` counts the products and totals
       their value, `product_count( )` counts them and `total( )` sums them.
+1024. **Standard cost base** - `zcl_alloc_stdcost_base=>standard_cost( )` costs the quantity,
+      `is_zero( )` tests a nil cost and `per_unit( )` spreads it over the quantity.
+1025. **Standard cost revaluation** - `zcl_alloc_stdcost_reval=>revalue( )` costs the quantity at a
+      new rate, `is_increased( )` tests a rise and `delta( )` gives the change.
+1026. **Standard cost variance** - `zcl_alloc_stdcost_var=>variance( )` gives actual less standard,
+      `is_over( )` tests the standard and `percent( )` gives the share of it.
+1027. **Standard cost update** - `zcl_alloc_stdcost_update=>refresh( )` takes the new value,
+      `is_changed( )` tests a change and `delta_percent( )` gives it against the current cost.
+1028. **Standard cost revision** - `zcl_alloc_stdcost_revise=>revise( )` moves the cost by a
+      percentage, `is_revised( )` tests a change and `revision_count( )` counts the history.
+1029. **Standard cost version** - `zcl_alloc_stdcost_version=>version( )` bumps the version,
+      `is_newer( )` tests the ordering and `delta( )` gives the gap.
+1030. **Standard cost approval** - `zcl_alloc_stdcost_approve=>approve( )` marks every version,
+      `is_approved( )` tests one and `pending_count( )` counts the rest.
+1031. **Standard cost compare** - `zcl_alloc_stdcost_compare=>compare( )` reads lower, higher or
+      equal, `higher( )` gives the larger and `delta( )` the difference.
+1032. **Standard cost trend** - `zcl_alloc_stdcost_trend=>direction( )` reads up, down or flat,
+      `is_rising( )` tests a rise and `delta( )` gives the change.
+1033. **Standard cost summary** - `zcl_alloc_stdcost_summary=>build( )` counts the items and totals
+      their standard cost, `item_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3598,7 +3618,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1023 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1033 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

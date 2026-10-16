@@ -1623,6 +1623,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      `issue_count( )` counts the orders below it and `score( )` gives the share meeting it.
 1003. **Yield summary** - `zcl_alloc_yield_summary=>build( )` counts the orders and averages their
      yield, `order_count( )` counts them and `average( )` averages them.
+1004. **Variance total** - `zcl_alloc_pvar_total=>total( )` sums the signed amounts, `is_zero( )`
+      tests a zero net and `count( )` counts the items.
+1005. **Variance split** - `zcl_alloc_pvar_split=>split( )` shares a total over weighted groups,
+      `share_of( )` gives one part as a percentage and `per_unit( )` spreads an amount.
+1006. **Variance usage** - `zcl_alloc_pvar_usage=>usage_variance( )` prices the quantity difference,
+      `is_adverse( )` tests the sign and `sign_of( )` reads adverse, favourable or none.
+1007. **Variance price** - `zcl_alloc_pvar_price=>price_variance( )` prices the rate difference,
+      `is_adverse( )` tests the sign and `sign_of( )` reads adverse, favourable or none.
+1008. **Variance volume** - `zcl_alloc_pvar_volume=>volume_variance( )` prices the output
+      difference, `is_adverse( )` tests the sign and `sign_of( )` reads the sign.
+1009. **Variance mix** - `zcl_alloc_pvar_mix=>mix_variance( )` takes volume off the total,
+      `is_adverse( )` tests the sign and `delta( )` gives the difference.
+1010. **Variance yield** - `zcl_alloc_pvar_yield=>yield_variance( )` prices the output shortfall,
+      `is_adverse( )` tests the sign and `percent( )` gives it against the standard cost.
+1011. **Variance favourable** - `zcl_alloc_pvar_fav=>is_favourable( )` tests a line, `amount( )`
+      totals the favourable lines and `count( )` counts them.
+1012. **Variance ranking** - `zcl_alloc_pvar_rank=>rank( )` orders the items by variance, `worst( )`
+      gives the most adverse and `best( )` the most favourable.
+1013. **Variance summary** - `zcl_alloc_pvar_summary=>build( )` counts the items and totals their
+      variance, `item_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3558,7 +3578,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1003 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1013 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

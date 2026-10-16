@@ -1683,6 +1683,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
       `is_rising( )` tests a rise and `delta( )` gives the change.
 1033. **Standard cost summary** - `zcl_alloc_stdcost_summary=>build( )` counts the items and totals
       their standard cost, `item_count( )` counts them and `total( )` sums them.
+1034. **Settlement amount** - `zcl_alloc_settle_amount=>amount( )` costs the quantity,
+      `is_zero( )` tests a nil amount and `per_unit( )` spreads it over the quantity.
+1035. **Settlement rule** - `zcl_alloc_settle_rule=>rule_of( )` reads full, partial or none,
+      `is_full( )` tests a full rule and `reason( )` explains it.
+1036. **Settlement split** - `zcl_alloc_settle_split=>split( )` shares a total over weighted
+      receivers, `share_of( )` gives one part as a percentage and `per_unit( )` spreads an amount.
+1037. **Settlement balance** - `zcl_alloc_settle_balance=>balance( )` nets the debit and credit,
+      `is_balanced( )` tests a nil balance and `residual( )` gives the size of the gap.
+1038. **Settlement difference** - `zcl_alloc_settle_diff=>difference( )` takes the actual off the
+      target, `is_balanced( )` tests a nil gap and `magnitude( )` gives its size.
+1039. **Settlement tolerance** - `zcl_alloc_settle_tolerance=>within_tolerance( )` tests a
+      difference against the limit, `tolerance( )` gives a percentage and `is_tight( )` tests it.
+1040. **Settlement close** - `zcl_alloc_settle_close=>close_out( )` closes every order,
+      `is_closed( )` tests one and `open_count( )` counts the rest.
+1041. **Settlement carry-forward** - `zcl_alloc_settle_carry=>carry( )` gives what is left of the
+      closing balance, `is_carried( )` tests it and `amount( )` totals the lines.
+1042. **Settlement ranking** - `zcl_alloc_settle_rank=>rank( )` orders the items by amount, `worst( )`
+      gives the largest difference and `best( )` the smallest.
+1043. **Settlement summary** - `zcl_alloc_settle_summary=>build( )` counts the items and totals their
+      amount, `item_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3618,7 +3638,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1033 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1043 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

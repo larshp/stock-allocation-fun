@@ -1,0 +1,127 @@
+CLASS ltcl_alloc_lot_luc DEFINITION
+  FOR TESTING
+  DURATION SHORT
+  RISK LEVEL HARMLESS
+  FINAL.
+
+  PRIVATE SECTION.
+    DATA mo_cut TYPE REF TO zcl_alloc_lot_luc.
+    DATA mt_dem TYPE zcl_alloc_lot_luc=>ty_series_tt.
+
+    METHODS setup.
+
+    METHODS add
+      IMPORTING
+        iv_value TYPE menge_d.
+
+    METHODS make_cost
+      IMPORTING
+        iv_setup       TYPE menge_d
+        iv_unit        TYPE menge_d
+        iv_holding     TYPE i
+      RETURNING
+        VALUE(rs_cost) TYPE zcl_alloc_lot_luc=>ty_cost.
+
+    METHODS empty_series     FOR TESTING.
+    METHODS cheap_holding    FOR TESTING.
+    METHODS dear_holding     FOR TESTING.
+    METHODS single_period    FOR TESTING.
+    METHODS zero_holding_merges FOR TESTING.
+    METHODS covers_all_but_last FOR TESTING.
+
+ENDCLASS.
+
+
+CLASS ltcl_alloc_lot_luc IMPLEMENTATION.
+
+  METHOD setup.
+    mo_cut = NEW zcl_alloc_lot_luc( ).
+  ENDMETHOD.
+
+  METHOD add.
+    APPEND iv_value TO mt_dem.
+  ENDMETHOD.
+
+  METHOD make_cost.
+    rs_cost-setup_cost = iv_setup.
+    rs_cost-unit_cost = iv_unit.
+    rs_cost-holding_pct = iv_holding.
+  ENDMETHOD.
+
+  METHOD empty_series.
+    DATA(ls_cost) = make_cost( iv_setup = 100 iv_unit = 1 iv_holding = 0 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 0 ).
+  ENDMETHOD.
+
+  METHOD cheap_holding.
+    add( iv_value = 10 ).
+    add( iv_value = 20 ).
+
+    DATA(ls_cost) = make_cost( iv_setup = 100 iv_unit = 1 iv_holding = 0 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_from exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_to exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-quantity exp = 30 ).
+  ENDMETHOD.
+
+  METHOD dear_holding.
+    add( iv_value = 10 ).
+    add( iv_value = 10 ).
+
+    DATA(ls_cost) = make_cost( iv_setup = 100 iv_unit = 1 iv_holding = 1000 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 2 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_to exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-quantity exp = 10 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 2 ]-period_from exp = 2 ).
+  ENDMETHOD.
+
+  METHOD single_period.
+    add( iv_value = 5 ).
+
+    DATA(ls_cost) = make_cost( iv_setup = 100 iv_unit = 1 iv_holding = 50 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_from exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-quantity exp = 5 ).
+  ENDMETHOD.
+
+  METHOD zero_holding_merges.
+    add( iv_value = 10 ).
+    add( iv_value = 20 ).
+    add( iv_value = 30 ).
+
+    DATA(ls_cost) = make_cost( iv_setup = 100 iv_unit = 0 iv_holding = 0 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_to exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-quantity exp = 60 ).
+  ENDMETHOD.
+
+  METHOD covers_all_but_last.
+    add( iv_value = 10 ).
+    add( iv_value = 10 ).
+    add( iv_value = 10 ).
+
+    DATA(ls_cost) = make_cost( iv_setup = 20 iv_unit = 1 iv_holding = 1000 ).
+    DATA(lt_lots) = mo_cut->size( it_demand = mt_dem
+                                  is_cost   = ls_cost ).
+
+    cl_abap_unit_assert=>assert_equals( act = lines( lt_lots ) exp = 3 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 1 ]-period_to exp = 1 ).
+    cl_abap_unit_assert=>assert_equals( act = lt_lots[ 3 ]-period_from exp = 3 ).
+  ENDMETHOD.
+
+ENDCLASS.

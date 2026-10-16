@@ -1,0 +1,625 @@
+# ANOMALIES
+
+Bugs and issues encountered while linting/transpiling/testing the ABAP code.
+Each entry notes the symptom, the cause and the workaround used.
+
+## A1 - Transpiler rejects method names longer than 30 characters
+
+* Symptom: `check_syntax, Method name "..." is too long, maximum length is 30
+  characters`, raised by `abap_transpile` only.
+* Cause: abaplint's `open-abap` syntax version accepts names up to 61 characters,
+  while the transpiler validates against the classic 30 character limit.
+* Workaround: keep method names <= 30 characters. Renamed
+  `read_stock_returns_all_locations` -> `returns_all_locations`.
+
+## A2 - `TYPES BEGIN OF ... . TYPES comp TYPE t.` is not parsed by the transpiler
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "matnr", ...` for every structure component.
+* Cause: the "new" structure declaration style is not part of the ABAP version the
+  transpiler parses.
+* Workaround: use the classic chained form
+  `TYPES: BEGIN OF x, a TYPE t, END OF x.`
+
+## A3 - `libs.folder` in `abap_transpile.json` does not select a subfolder of a clone
+
+* Symptom: `0 files added from lib` and every open-abap-core type reported as
+  `unknown_types`, even though the clone succeeded.
+* Cause: `folder` is interpreted as a *local folder relative to the current working
+  directory*. `/src/` accidentally matched the repository's own `src` folder, and
+  the default glob `/src/**` was then applied inside it, so nothing was found.
+* Workaround: for a git dependency only specify `url`; the transpiler defaults to
+  the `/src/**` glob inside the clone.
+
+## A4 - Duplicate DDIC filenames with open-abap-core
+
+* Symptom: `Error: Duplicate filename:
+  stubs/ddic/dtel/menge_d.dtel.xml already exists as
+  <tmp>/src/ddic/dtel/menge_d.dtel.xml`.
+* Cause: `errorOnDuplicateFilenames` is enabled and open-abap-core already ships
+  `MATNR`, `MEINS`, `MENGE_D` and `MANDT`.
+* Workaround: only stub data elements/tables that open-abap-core does not provide.
+  Removed the duplicated `matnr`, `meins` and `menge_d` stubs.
+
+## A5 - `modify_only_own_db_tables` blocks `INSERT` in test classes
+
+* Symptom: `Modify only own DB tables (modify_only_own_db_tables) [E]` for
+  `INSERT mard FROM @ls_mard` inside a test class.
+* Cause: the rule intentionally only allows writes to tables owned by the custom
+  namespace, and it also applies to test code.
+* Workaround: use `mo_environment->insert_test_data( ... )` from
+  `cl_osql_test_environment` instead of a direct `INSERT`.
+
+## A6 - Interface method not reachable through a class reference
+
+* Symptom: `check_syntax, Method "read_stock" not found, methodCallChain` (raised
+  by the transpiler) while abaplint reported no issue.
+* Cause: the method is declared in `zif_stock_reader`; a variable typed
+  `REF TO zcl_stock_reader_mard` cannot call it without the interface prefix.
+* Workaround: type the variable as `REF TO zif_stock_reader`.
+
+## A7 - `TYPE c LENGTH n` in a method parameter list breaks the transpiler parser
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "METHODS", <file>:<line>` where `<line>` is the first line
+  of the `METHODS ...` statement. The whole method definition is dropped, which
+  cascades into `Method definition "<name>" not found` and `"<param>" not found,
+  findTop` errors; every call site then reports `Method "<name>" not found`.
+* Cause: the length specification (`TYPE c LENGTH 20`) is only accepted by the
+  transpiler parser in `DATA`/`TYPES` statements, not in method parameter
+  definitions. abaplint accepts it, so lint passes while the build fails.
+* Workaround: reference a named component/type instead, e.g.
+  `iv_id TYPE zcl_stock_allocator=>ty_requirement-id`, or declare a `TYPES`
+  alias for the length and use that.
+* Debug tip: the reported line is the start of the failing statement, so look at
+  everything between that line and the terminating `.`.
+
+## A8 - Table type used directly as a parameter type
+
+* Symptom: same shape as A7 - `parser_error ... "METHODS"` at the first line of
+  the method definition, then `Method definition "read_log" not found` and
+  `"rt_log" not found, Target` at the call site / inside the body.
+* Cause: `RETURNING VALUE(rt_log) TYPE STANDARD TABLE OF zstockalloc
+  WITH DEFAULT KEY.` is not valid parameter syntax; a table type must be a named
+  type. abaplint did not report this, the transpiler did.
+* Workaround: declare `TYPES ty_log_tt TYPE STANDARD TABLE OF zstockalloc WITH
+  DEFAULT KEY.` in the class and use `TYPE ty_log_tt` in the signature.
+
+## A9 - `modify_only_own_db_tables` has no file-level exclusion
+
+* Symptom: `Modify only own DB tables (modify_only_own_db_tables) [E]` for
+  `MODIFY mard FROM ls_mard` in the standard stub
+  `stubs/fugr/bapi_goodsmvt.fugr.bapi_goodsmvt_create.abap`, although the stub
+  *emulates* SAP standard behaviour (the real BAPI updates `MARD`).
+* Cause: the rule is driven by a single global regex (`ownTables`, default
+  `^[yz]`) and abaplint's config has no per-rule `exclude`, so a stub cannot be
+  exempted separately. Because the stub declares `MARD` itself, the table
+  resolves as a local reference and is reported.
+* Workaround: configure the rule in `abaplint.jsonc` and extend `ownTables` with
+  the stubbed standard tables that own code legitimately posts through:
+  `"ownTables": "^(?:[yz]|mard)"`. Keep the regex anchored at the start (do not
+  add `$`) so `Z*`/`Y*` tables still match.
+
+## A10 - `READ TABLE <ddic-table>` is not valid, the transpiler catches it
+
+* Symptom: `check_syntax, "mard" not found, findTop,
+  bapi_goodsmvt.fugr.bapi_goodsmvt_create.abap:38` at the line
+  `READ TABLE mard INTO ls_mard WITH KEY ...`.
+* Cause: `MARD` is a transparent DDIC table, not an internal table. `READ TABLE`
+  requires an internal table; abaplint happened to not flag it, but the
+  transpiler's syntax check rejects it.
+* Workaround: read single rows with `SELECT SINGLE * FROM mard INTO @ls_mard
+  WHERE ...` (host variables escaped with `@`). Direct `MODIFY mard FROM ls_mard`
+  is valid and stays as is.
+
+## A11 - Method parameter typed with a data element vs. an inferred SELECT field
+
+* Symptom: `check_syntax, Method parameter type not compatible, IV_MATNR,
+  zcl_stock_reader_mchb.clas.abap:57` at the call
+  `read_expiry( iv_matnr = ls_mchb-matnr ... )`, where `ls_mchb` comes from
+  `SELECT matnr, ... FROM mchb INTO TABLE @DATA(lt_mchb)` and the parameter was
+  declared `iv_matnr TYPE matnr`.
+* Cause: the transpiler types the inferred SELECT structure component as a plain
+  character type, and its call compatibility check does not treat that as
+  identical to the data element `MATNR`. A component reference to the very table
+  being read is accepted.
+* Workaround: declare the parameter with the component reference of the source
+  table, e.g. `iv_matnr TYPE mchb-matnr`.
+
+## A12 - Functional method calls: `CHANGING` in a call and `APPEND <call> TO`
+
+* Symptom:
+  `parser_error, Statement does not exist in the configured ABAP version (or a
+  parser error), "add_result", <file>:<line>` at every *call site* of a local
+  helper that was invoked as a standalone statement with a `CHANGING` parameter,
+  i.e. `add_result( iv_id = 'X' CHANGING ct_result = lt_result ).`. The helper's
+  definition and implementation parsed fine, only the calls failed. A variant of
+  the same error appeared for `APPEND result( ... ) TO lt_result.`.
+* Cause: the transpiler's parser does not accept (a) an explicit `CHANGING`
+  parameter in the functional call form without the preceding `EXPORTING`
+  keyword, nor (b) a functional method call used directly as the source of
+  `APPEND ... TO`.
+* Workaround: prefer a helper that returns the table via `RETURNING` and use it
+  in an assignment, which is parsed cleanly:
+
+  ```abap
+  lt_result = add_line( it_result = lt_result
+                        iv_id     = 'REQ-1' ).
+  ```
+
+  and inside the helper build a work area first, then
+  `APPEND ls_line TO rt_result.`.
+
+## A13 - Typo in a component reference passes abaplint but fails the transpiler
+
+* Symptom: `unknown_types, Contains unknown, Field "EXPIRY" not found in
+  structure, <file>:<line>` for a parameter typed
+  `zif_stock_reader=>ty_stock-expiry-date`, while abaplint reported no issue.
+* Cause: the structure component is `expiry_date`; the type reference was
+  written with a hyphen instead of the underscore (`...-expiry-date`). abaplint's
+  lint rules did not catch the wrong component, the transpiler's type check did.
+  The error names only the first unknown segment (`EXPIRY`), which makes the
+  actual field easy to overlook.
+* Workaround: use the exact component name, or avoid the chain altogether and
+  type the parameter directly (e.g. `iv_vfdat TYPE d`).
+
+## A14 - A new default DB dependency breaks test doubles that do not declare it
+
+* Symptom: after `zcl_stock_allocation_service` started defaulting to a safety
+  stock reader that selects from the new `ZSAFETYSTK` table, an *unrelated* test
+  (`ltcl_stock_alloc_run->runs_two_materials`) failed with
+  `cx_sy_dynamic_osql_semantics` and `no such table: double.zsafetystk`.
+* Cause: `cl_osql_test_environment=>create( i_dependency_list = ... )` only
+  creates the tables that are listed. The run test declared `MARD` and `RESB`,
+  built the default service internally, and therefore reached the new table
+  through a default dependency it had never declared.
+* Workaround: when a class gains a default dependency that reads a new table,
+  every test double that exercises that class *indirectly* must add the table to
+  its `i_dependency_list`. Adding a single default DB read can break tests that
+  have nothing to do with the feature, so when a new table is involved, check
+  unrelated failing tests for a missing dependency before suspecting the change
+  itself.
+
+## A15 - `find( )` is 0-based in the transpiler and does not set `sy-subrc`
+
+* Symptom: a test that checked catalog field names against a CSV header with
+  `IF find( val = lv_header sub = ls_field-fieldname ) > 0.` never matched and
+  counted 0 hits, although the header visibly contained every field name.
+* Cause: two things stack up.
+  1. The transpiled `find( )` returns a **0-based index** (and `-1` when the
+     substring is missing). In real ABAP `find( )` returns the 1-based position
+     and sets `sy-subrc`; here neither the base nor the `sy-subrc` contract
+     holds, so the portable idiom is `>= 0` / `= -1`, not `> 0` plus `sy-subrc`.
+  2. A `TYPE c LENGTH n` component is space-padded, so the search string
+     `'RUN_ID'` was actually `'RUN_ID' + 24 blanks` and never matched the trimmed
+     text in the header.
+* Workaround: compare against `-1` (or `>= 0`) instead of using `sy-subrc`, and
+  build the expected string with a string template (`|{ ls_field-fieldname }|`)
+  so trailing blanks are trimmed on both sides before comparing. Avoid searching
+  a padded value inside a trimmed string.
+
+## A16 - A `DATA` declaration inside a control block is not parsed
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "DATA", <file>:<line>` for a statement like
+  `DATA lv_multiples TYPE i.` placed inside an `IF ... ENDIF.` block, followed by
+  `"lv_multiples" not found` at its first use.
+* Cause: the transpiler only accepts the explicit `DATA <name> TYPE <type>.` form
+  at the start of a method (or globally); declaring it inside a control block is
+  parsed as invalid. abaplint accepted the code.
+* Workaround: move the declaration to the top of the method. Inline declarations
+  with `DATA(lv_x) = ...` are accepted, so the issue is specific to the explicit
+  form inside a block.
+
+## A17 - A character field cannot be passed to a `TYPE string` parameter
+
+* Symptom: `check_syntax, Method parameter type not compatible, <class>:<line>`
+  at a call such as `escape( ls_overview-run_id )` where the parameter is declared
+  `iv_value TYPE string` and `run_id` is a character field. abaplint accepted the
+  code.
+* Cause: the transpiler's call compatibility check requires the same type, and it
+  does not consider the implicit `c -> string` conversion. Only a generic
+  parameter (`TYPE c`, `TYPE any`) or an exact match is accepted. This is the same
+  family as A11 (data element vs. inferred component) and A7.
+* Workaround: avoid the helper and inline the value, or pass a value that is
+  already a `string` (e.g. assign it to a `string` variable first, or use a string
+  template `|{ ... }|`). A `TYPE c` parameter without a length was not tried; the
+  simplest fix is to drop the conversion helper.
+
+## A18 - A literal with trailing blanks loses them in the transpiled test run
+
+* Symptom: a test asserting a padded value failed with
+  `Expected 'AB', got 'AB   '` although the expected literal was written
+  `'AB   '` (three trailing blanks) and the code under test clearly produced the
+  blanks. The literal side was compared as `'AB'`.
+* Cause: the transpiler trims trailing blanks from a text literal, so
+  `'AB   '` becomes the string `'AB'`. Values produced at runtime by
+  concatenating `` ` ` `` keep their blanks, only literals are affected.
+* Workaround: do not rely on trailing blanks in a literal. Build the expected
+  value at runtime, e.g. concatenate single-space literals in a helper, and
+  compare that variable. Internal blanks inside a literal (`'AB  CD'`) survive.
+
+## A19 - Positional parameters in a functional method call are not parsed
+
+* Symptom: `parser_error, Statement does not exist in the configured ABAP version
+  (or a parser error), "lt_qty", <file>:<line>` for a call written with two
+  positional parameters, `add( lt_qty '7' )`.
+* Cause: the transpiler's parser does not accept a functional method call whose
+  arguments are given positionally without a separator it recognises. abaplint
+  accepted the code.
+* Workaround: use named parameters in the call
+  (`add( it_qty = lt_qty iv_quantity = '7' )`), which parses cleanly. This is the
+  same family as A12 (functional call forms the parser rejects).
+
+## A20 - Date arithmetic on a `d` field did not give the expected day counts
+
+* Symptom: `zcl_alloc_calendar` computed a weekday as
+  `lv_days = iv_date - '19000101'` and then `lv_days MOD 7`. The unit test
+  expected `20260912` (a Saturday) to be a weekend day but `is_weekend` returned
+  false, i.e. the day count was not the number of days since the reference date.
+  Incrementing a date with `lv_date = lv_date + 1` is in the same family.
+* Cause: the transpiler does not reproduce ABAP's date arithmetic on a `d` field
+  faithfully (the reference literal is not treated as a date difference).
+* Workaround: do not rely on `d`/`d` subtraction or on adding an integer to a `d`
+  field. `zcl_alloc_calendar` extracts year/month/day with offset access
+  (`iv_date+0(4)`), uses Zeller's congruence for the weekday and increments the
+  day/month/year explicitly with a leap-year rule.
+
+## A21 - Adding abapGit metadata XML switched on repo-wide XML linting
+
+* Symptom: after adding the missing `.clas.xml` / `.intf.xml` files, `npm run
+  lint` went from 530 to 786 analysed files and reported 38 `xml_consistency`
+  errors - none of them in the new files. The existing DDIC metadata was
+  incomplete: 26 `QUAN` fields had no `REFTABLE`/`REFFIELD` and three data
+  elements declared `REPTEXT`/`SCRTEXT_*` without `HEADLEN`/`SCRLEN1-3`.
+* Cause: `abaplint` only analyses object metadata XML once the repository looks
+  like an abapGit repository (metadata files present); that same switch enables
+  the `xml_consistency` rule for every XML file, including the pre-existing ones.
+* Workaround: treat the XML as compiled DDIC. Every `QUAN` field needs
+  `REFTABLE` and `REFFIELD`, and every data element with label texts needs the
+  matching label lengths. `checkRequiredField` only requires a non-empty value,
+  so a sensible reference (for example `MARA`/`MEINS` for material quantities)
+  is enough.
+
+## A22 - A `!` inside a heredoc is mangled by the shell
+
+* Symptom: `node` rejected a generated helper script with `SyntaxError: Invalid
+  or unexpected token` at `desc.has(name) === false`: the heredoc had turned the
+  `!` into `\!` (history expansion), even though the heredoc delimiter was
+  quoted.
+* Cause: the interactive shell in this environment expands `!` while the command
+  line is read, before the heredoc content is passed on.
+* Workaround: avoid `!` in generated scripts - write `x === false` or
+  `x === null` instead of `!x` - or create the file with an editor rather than a
+  heredoc.
+
+## A23 - Every serialized object XML needs a UTF-8 byte order mark
+
+* Symptom: after refreshing the dependencies, `npm run lint` reported 275
+  `xml_bom` errors ("XML file must start with a UTF-8 byte order mark") for every
+  XML file, including files that had passed a few minutes earlier.
+* Cause: `xml_bom` is enabled in `abaplint.jsonc`, but it only applies to files
+  that abaplint accepts as abapGit objects. The refreshed dependency tree started
+  applying it to all XML files, and none of the 277 repository XML files carried
+  a BOM.
+* Workaround: prefix every serialized object XML with the UTF-8 BOM
+  (`EF BB BF`), which is what abapGit writes anyway. The transpiler reads the
+  DDIC definitions from the BOM files unchanged.
+
+## A24 - The first transpile after refreshing dependencies can miss a core class
+
+* Symptom: directly after `npm install` (which reinstalled the toolchain), one
+  `npm test` run failed at runtime with
+  `ERR_MODULE_NOT_FOUND: Cannot find module output/cx_root.clas.mjs`, after 1021
+  of the usual 1052 tests. The very next run reported all 1052 tests and no
+  errors, and the file was present in `output/` afterwards.
+* Cause: the transpiler obtains the `open-abap-core` sources from a cached clone
+  and re-creates that cache after the dependency tree changes; when the
+  sandboxed terminal has no network access, the first run after a refresh can
+  come up short on core classes.
+* Workaround: re-run `npm test`. The second run uses the refreshed cache and is
+  complete. Treat a single `ERR_MODULE_NOT_FOUND` for a core class right after a
+  dependency change as transient, but a repeat of it as a real problem.
+
+## A25 - `VBAP` has no `EDATU` column, only the stub did
+
+* Symptom: the abapGit syntax check in a real SAP system reported
+  `Unknown column name "EDATU"` at the `SELECT` in
+  `zcl_requirement_reader_vbap=>zif_requirement_reader~read_requirements`, and
+  the unknown column then cascaded into `Field "LT_VBAP" is unknown` (the inline
+  `@DATA(lt_vbap)` was never typed) and `LS_VBAP~KWMENG is unknown` /
+  `LS_VBAP~... is unknown` on every later use. `abaplint` and the transpiler
+  were green because the local `VBAP` stub invented an `EDATU` field.
+* Cause: the sales order item table `VBAP` carries no requested-delivery-date
+  field. The requested delivery date is `VBAK-VDATU` (header); `VBEP-EDATU` is
+  the schedule line date and lives one level deeper (one row per schedule line).
+  Only `VBAK`, `VBEP` and `VBAP` share the system's view - the stub had the
+  realistic-looking but wrong field.
+* Workaround: join `VBAK` in the reader
+  (`FROM vbap AS item INNER JOIN vbak AS head ON head~vbeln = item~vbeln`) and
+  map `head~vdatu` to `requested_date`. Removed `EDATU` from the `VBAP` stub and
+  added a `VBAK` stub (`MANDT`, `VBELN`, `VDATU`). The transpiler accepts the
+  `INNER JOIN` in a `SELECT ... INTO TABLE @DATA(...)`, including the aliased
+  `ORDER BY head~vdatu`. An item without a `VBAK` header is skipped by the inner
+  join (covered by a test).
+
+## A26 - The SQL test double environment must be created once per test class
+
+* Symptom: running the unit tests in the real SAP system (Code Inspector,
+  variant `SWF_ABAP_UNIT`) reported two errors for every one of the 19 test
+  classes that mock the database: `Exception Error <CX_OSQL_FAILURE>` raised in
+  `cl_osql_test_environment->chk_for_multiple_env_instance` and
+  `Exception Error <CX_SY_REF_IS_INITIAL>` at the `teardown` line
+  `mo_environment->destroy( )`.
+* Cause: the test double environment was created in the per-test-method `setup`
+  (`mo_environment = cl_osql_test_environment=>create( ... )`) and destroyed in
+  `teardown`. In a real SAP system only one test environment instance may exist
+  per test class execution, so the second and every later test method raised
+  `CX_OSQL_FAILURE` when their `setup` called `create( )` again. Because that
+  `setup` aborted, `mo_environment` stayed unbound and `teardown` then failed
+  with `CX_SY_REF_IS_INITIAL` - a secondary error that hides the real one. The
+  open-abap transpiler does not enforce the "one environment" rule, so the
+  transpiled test run stayed green.
+* Workaround: use the pattern SAP documents for the SQL test double framework:
+  `CLASS-DATA mo_environment`, `CLASS-METHODS class_setup` (calls `create( )`),
+  `CLASS-METHODS class_teardown` (calls `destroy( )`), and a `setup` that only
+  calls `mo_environment->clear_doubles( )` so every test method starts with
+  empty doubles. The per-method `teardown` was removed. `class_teardown` is
+  guarded with `IF mo_environment IS BOUND.` so a failing `class_setup` cannot
+  produce a second, misleading exception. open-abap's unit runner
+  (`kernel_unit_runner`) already calls `CLASS_SETUP` / `CLASS_TEARDOWN`, so
+  `npm test` still passes.
+* Toolchain gap (open-abap): `cl_osql_test_environment=>create( )` only rejects a
+  second environment while one is still active - it throws when the global SQL
+  schema prefix is already set. It does not model SAP's "one environment per
+  test-class execution" rule, so a per-method `create` / `destroy` pair stays
+  green in the transpiler although it fails in a real system. The unit runner
+  itself matches SAP: `CLASS_SETUP` once, `SETUP` / `TEARDOWN` per test method,
+  `CLASS_TEARDOWN` once. Everything else in this entry was a bug in this
+  repository's own test classes.
+
+## A27 - A `DO <len> TIMES` loop with a manually advanced index reads past the string
+
+* Symptom: `ltcl_alloc_import_csv->unescapes_quotes` aborted with
+  `cx_sy_range_out_of_bounds`, thrown inside the runtime's `substring( )`.
+  abaplint reported nothing and the scan looked correct on inspection.
+* Cause: the character scan advanced its own index (`lv_i`) and skipped the second
+  character of an escaped quote with `lv_i = lv_i + 1`, but the loop was written
+  as `DO lv_len TIMES`. The iteration count is fixed when the loop starts and is
+  not affected by the manual increment, so every skipped character made the loop
+  body run one iteration too long; the final
+  `substring( off = lv_i - 1 len = 1 )` then pointed past the end of the string.
+  The same trap applies in a real SAP system (it dumps there instead), but only
+  the transpiled unit test surfaces it here.
+* Workaround: drive character scans with `WHILE lv_pos < lv_len.` and a 0-based
+  position that is incremented once per character, twice when a character is
+  skipped - this is what `zcl_alloc_import_csv=>parse_line` does now. Careful:
+  such a scan must not compare against a blank literal (ANOMALIES.md A18); use a
+  backtick literal (`` ` ` ``) as `zcl_alloc_import_json=>trim` does.
+
+## A28 - A semicolon after a block terminator breaks the whole class
+
+* Symptom: `abap_transpile` failed for the whole class with
+  `Error: structure, Expected ENDMETHOD, zcl_alloc_swap_opt.clas.abap:1` - the
+  reported line is the first line of the class and says nothing about the real
+  problem. abaplint reported no issue at all.
+* Cause: one branch was closed with `ENDIF;` instead of `ENDIF.`. A semicolon is
+  a statement separator *between* statements, not a terminator for a block
+  closing statement, so the parser lost the statement structure and every
+  following statement became unattributable.
+* Workaround: always terminate `ENDIF`, `ENDLOOP`, `ENDWHILE`, `ENDDO`,
+  `ENDCASE`, `ENDMETHOD` and `ENDCLASS` with a full stop. Because abaplint does
+  not flag it, a repo-wide `grep -n "END[A-Z]*;"` before a build is the cheapest
+  way to find such a typo; the transpiler's "Expected ENDMETHOD" at line 1 means
+  "look for a malformed block terminator", not "look at line 1".
+
+## A29 - A logical expression cannot be passed as the `act` argument of `assert_equals`
+
+* Symptom: `Error: parser_error, Statement does not exist in the configured ABAP
+  version (or a parser error), "cl_abap_unit_assert", <file>:<line>` for a test
+  assertion written as
+  `cl_abap_unit_assert=>assert_equals( act = lv_second = lv_first exp = abap_false ).`
+  abaplint accepted the statement.
+* Cause: the transpiler's parser does not accept a relational expression in the
+  operand position of a functional method call parameter, so the whole
+  `cl_abap_unit_assert=>...` statement is dropped. Real ABAP accepts the form.
+* Workaround: compute the predicate into an `abap_bool` variable first and assert
+  on that variable, e.g.
+
+  ```abap
+  IF lv_second = lv_first.
+    lv_same = abap_true.
+  ELSE.
+    lv_same = abap_false.
+  ENDIF.
+
+  cl_abap_unit_assert=>assert_equals( act = lv_same exp = abap_false ).
+  ```
+
+  A small helper method (`same_of( iv_left iv_right )`, or a range check
+  `in_range( iv_value iv_low iv_high )`) keeps this readable when several
+  assertions need the same predicate.
+
+## A30 - A bare decimal literal is not parsed, it must be quoted
+
+* Symptom: `Error: parser_error, Statement does not exist in the configured ABAP
+  version (or a parser error), "add", <file>:<line>` where `<line>` is a helper
+  call such as
+  `add( iv_id = 'O1' iv_qty = 10 iv_hours = 1.5 ).` The reported token is the
+  first token of the statement (`add`), not the decimal, so the message points
+  away from the cause. abaplint accepted the code.
+* Cause: the transpiler's parser does not accept a bare decimal literal, even
+  though modern ABAP does. The repository convention has always been the quoted
+  form, which is what a real system accepts in any release.
+* Workaround: write decimal values as character literals, `iv_hours = '1.5'`,
+  which is also how the existing tests pass decimals
+  (`zcl_alloc_avg_price`, `zcl_alloc_footprint`, `zcl_alloc_inventory_value`).
+  A repo-wide `grep -n "= [0-9]\+\.[0-9]\+"` finds the offending lines.
+
+## A31 - A numeric-to-string assignment does not produce comparable text
+
+* Symptom: a class that built a display string with
+  `lv_part = ls_counter-value.` (an `i` into a `string`) ran without error, but
+  every `assert_equals` that compared the resulting string with a literal failed.
+  `abap_transpile` reported nothing.
+* Cause: the transpiler turns the assignment into
+  `lv_part.set(ls_counter.value)`, which stores the *number* in the string object
+  instead of a formatted character value, so the value does not compare equal to
+  `'1'` even though a real system would format it as `1`.
+* Workaround: never rely on the implicit conversion. Map the value explicitly
+  (an `IF`/`ELSEIF` chain or a `CASE` over the digit range) so the result is a real
+  character literal, as `zcl_alloc_toc=>digit_of` does for chapter numbers. The
+  same applies to a formatted date or quantity that is meant to be compared.
+
+## A32 - `sy-tabix` is not filled while looping over a hashed table
+
+* Symptom: after refreshing the dependencies (`@abaplint/runtime` 2.13.86 ->
+  2.14.7), `ltcl_alloc_key_map->update_moves_to_end` failed with
+  `Expected 'A', got 'B'`. The test looped over a hashed table
+  (`zcl_alloc_key_map=>ty_entry_tt`) and branched on `sy-tabix = 1`. It walked
+  into the *else* branch on the first row, because `sy-tabix` still held the value
+  it had at the end of the previous test method (`first_seen_order` also looped and
+  left it at 2).
+* Cause: in ABAP `sy-tabix` is only set by `LOOP AT` over an *index* table. For a
+  hashed table (or a sorted table) it is left unchanged, so it holds whatever the
+  last index-table loop left behind. The older runtime happened to set it for all
+  loops; the current one matches the documented SAP behaviour. abaplint does not
+  flag the use, so the failure only shows up as a wrong branch at runtime.
+* Workaround: do not use `sy-tabix` over a hashed/sorted table. Count the row
+  position in a local `i` variable (increment it once per loop iteration), as
+  `first_seen_order` already did. Both test methods in the class now use the
+  counter. The class under test is unaffected - only the test's position lookup.
+
+## A33 - A stray semicolon after `ENDIF` passes abaplint but fails the transpiler
+
+* Symptom: `npm run lint`/`npx abaplint` reported `0 issue(s) found` while
+  `npm run build` failed with
+  `parser_error, Statement does not exist in the configured ABAP version ... "ENDIF;"`
+  and a follow-up `structure, Expected ENDMETHOD`.
+* Cause: a `CONTINUE;`-style typo left a semicolon on the `ENDIF` line
+  (`ENDIF;`). abaplint's `check_syntax` rule accepts it, but the transpiler's
+  parser rejects the trailing `;`. The two parsers disagree, so a clean lint is
+  not proof that the code transpiles.
+* Workaround: run `npm run build` (not just `npm run lint`) before trusting a
+  change, and drop the stray semicolon (`ENDIF` takes no `;`).
+
+## A34 - An empty string literal passed for a date parameter is not an initial date
+
+* Symptom: a test called a method with `iv_return = ''` for a parameter of type
+  `d`, and the method's `IF ... return_day IS NOT INITIAL` branch behaved as if the
+  date were filled, so the method returned early. `assert_equals` reported
+  `Expected 'X', got ''`.
+* Cause: `''` transpiles to a one-character `Character` literal, and assigning it
+  to a `Date` does not yield the initial date. `abap.compare.initial( ... )` on the
+  resulting object is then false, unlike in ABAP where an empty literal becomes
+  `00000000` and `IS INITIAL` is true.
+* Workaround: pass the typed initial value `'00000000'` (or a real date) whenever a
+  `d` parameter must be empty, and avoid bare `''` for date and other typed
+  parameters.
+
+
+
+
+## A35 - A stray `;` can mask `align_type_expressions` findings in the same method
+
+* Symptom: after writing a class, `npx abaplint --fix` reported
+  `0 issue(s) found`, but the very next `npx abaplint` reported several
+  `align_type_expressions` errors inside the same methods. Fixing the stray
+  `;` (A33) and running `--fix` again cleared them.
+* Cause: a statement the parser cannot place (the trailing `;` from A33)
+  stops abaplint from fully analysing the rest of the method, so the alignment
+  rule never runs on those lines. Fixing the parse error re-enables the rule and
+  it then reports the real misalignments.
+* Workaround: after fixing any stray `;`, run `npx abaplint --fix` again (do not
+  trust the earlier clean result), and re-run `npm run lint` to confirm.
+
+## A36 - A trailing blank in a character literal is dropped when formatted in a template
+
+* Symptom: a method built a separator with `lv_sep = ' | '.` (`lv_sep` typed
+  `string`) and joined lines with `rv_text = |{ rv_text }{ lv_sep }{ lv_line }|`.
+  The test expected `'A | B'` but got `'A |B'`: the trailing blank of the
+  separator was lost.
+* Cause: the transpiler compiled the literal as a fixed three-character value
+  (`abap.CharacterFactory.get(3, ' | ')`) even though the target was `string`,
+  and `abap.templateFormatting` of that value trims trailing blanks. In ABAP the
+  `string` keeps the trailing blank and the template renders it, so the two
+  runtimes disagree.
+* Workaround: do not put a needed trailing blank at the end of a quoted literal
+  that will be formatted into a template. Put the separator text directly in the
+  template (for example `|{ rv_text }; |`, whose literal `; ` is preserved), or
+  use a separator without a trailing blank.
+
+
+## A37 - A standalone inline `DATA(lv_x) TYPE i.` inside a loop is rejected
+
+* Symptom: a method declared `DATA(lv_diff) TYPE i.` as its own statement inside a
+  `LOOP`, then assigned to it on the next line. abaplint reported
+  `parser_error, Statement does not exist in the configured ABAP version ... "DATA"`
+  and `check_syntax, "lv_diff" not found`, the transpiler then failed and
+  `npm run unit` exited 1. `npx abaplint --fix` could not repair it.
+* Cause: a bare inline declaration (`DATA(name) TYPE ...`) as a standalone statement
+  is not accepted in the configured ABAP version; only the inline declaration that
+  carries a value (`DATA(name) = ...`) is.
+* Workaround: declare the variable with its value in one step inside the loop
+  (`DATA(lv_diff) = lv_value - lv_mean.`), or declare a plain `DATA lv_diff TYPE i.`
+  at the top of the method. The value-carrying inline form (`DATA(lv_x) = ...`) is
+  fine inside a loop, as used in order 659.
+
+## A38 - Class names longer than 30 characters are rejected
+
+* Symptom: `check_syntax, Class name "zcl_alloc_replenish_confirm_msg" is too long,
+  maximum length is 30 characters`, the same message for the local test class
+  `ltcl_alloc_replenish_confirm_msg`, and `allowed_object_naming, Name exceeds max
+  length, allowed is 30` on `zcl_alloc_replenish_confirm_msg.clas.xml`. `npm run lint`
+  reported 4 issues and `npm run build` / `npm run unit` failed.
+* Cause: ABAP limits class names (global and local) to 30 characters, and the
+  `allowed_object_naming` rule enforces the same limit on the name inside the
+  `.clas.xml`. A test class named `ltcl_` + the global name is five characters longer,
+  so any global name over 25 characters pushes its natural test class over the limit.
+* Workaround: keep global class names <= 25 characters when an `ltcl_<name>` test class
+  is wanted, or shorten the test class name (`ltcl_alloc_replen_prioritize` for
+  `zcl_alloc_replenish_prioritize`). The `local_testclass_consistency` rule does not tie
+  the test class name to the global name, so an abbreviated test class name is accepted.
+  Renamed `zcl_alloc_replenish_confirm_msg` -> `zcl_alloc_replenish_msg`.
+
+## A39 - A method named `select` (an ABAP keyword) must be renamed
+
+* Symptom: a class with a method named `select` is risky to parse; `mo_cut->select( ... )`
+  sits next to the `SELECT` keyword and can confuse the parser and readers.
+* Cause: `SELECT` is a reserved ABAP keyword, and although a method may be reached with
+  `->select( )`, using a keyword as a method name is fragile across tooling.
+* Workaround: name the method `choose` instead and keep the class name `zcl_alloc_drv_select`.
+  Rule of thumb: avoid method names that are ABAP keywords (`select`, `sort`, `read`,
+  `insert`, `append`, `call`, ...).
+
+## A40 - `align_parameters` fix loops forever on a wrapped test assertion
+
+* Symptom: `npx abaplint --fix` never finishes (iteration counter climbing past
+  2800, `1 fixes applied, rule align_parameters` on every pass, then another `Parse`),
+  while a plain `npx abaplint` (no `--fix`) reports the same file in under a second.
+  Removing the file made `--fix` complete, so the loop is per-file.
+* Cause: in a test class an assertion wrapped a multi-parameter functional call across
+  two lines with `exp = ...` placed after a call argument, e.g.
+  `act = mo_cut->is_healthy( it_lines = mt_line` / `iv_tolerance = 50 ) exp = abap_true ).`
+  `align_parameters` then tries to align `iv_tolerance` and `exp` on the same physical
+  line and toggles one space back and forth forever.
+* Workaround: keep the whole call on one line and put `exp = ...` on its own line, the
+  house style used everywhere else:
+  `act = mo_cut->is_healthy( it_lines = mt_line iv_tolerance = 50 )` then
+  `exp = abap_true ).`. Applied to order 992 (`zcl_alloc_prod_health`).
+* Tip: when `--fix` appears to hang, run `--fix` on a config scoped to one object to
+  find the file; a plain (no `--fix`) lint of the same file is fast.
+
+## A41 - The remote dependency is cloned on every run and `--config` is ignored
+
+* Symptom: `npx abaplint` / `--fix` sometimes stalls for many minutes before printing
+  anything; the log shows `Clone: https://github.com/open-abap/open-abap-core`, and a
+  command that passed a `--config <file>` still reported `Using config: ...abaplint.jsonc`.
+* Cause: `abaplint.jsonc` declares the `open-abap-core` dependency by `url`, so the CLI
+  clones it from GitHub each invocation; a slow or flaky network stalls the run. Also,
+  the CLI takes the configuration file as a *positional* argument, not via `--config`,
+  so `--config` was silently ignored.
+* Workaround: run abaplint with the config as the first positional argument
+  (`abaplint <config> --fix`) when a scoped run is wanted. For an offline check, point
+  the dependency at the local clone with `"folder": "./deps/open-abap-core"` in a
+  temporary config (never committed). `deps/` stays untracked.

@@ -9,3 +9,2006 @@ keep your notes and progrss in NOTES.md
 these abaplint rules also be enabled: modify_only_own_db_tables + align_type_expressions + easy_to_find_messages + max_one_method_parameter_per_line + align_parameters + local_testclass_consistency + allowed_object_naming + line_length
 
 use https://github.com/open-abap/open-abap-core as a dependency in abaplint and the transpiler configurations
+
+---
+
+# Feature roadmap
+
+The requirements above are the original task and stay unchanged. This section is
+maintained as features are planned and delivered; the detailed per-feature log,
+conventions and toolchain findings live in `NOTES.md` and `ANOMALIES.md`.
+
+## Delivered
+
+| #  | Feature                            | Main artefacts                                        |
+| -- | ---------------------------------- | ----------------------------------------------------- |
+| 1  | Read stock from MARD               | `zif_stock_reader`, `zcl_stock_reader_mard`            |
+| 2  | Allocation engine                  | `zcl_stock_allocator`                                  |
+| 3  | Reservation requirement source     | `zcl_requirement_reader_resb`                          |
+| 4  | Facade service                     | `zcl_stock_allocation_service`                         |
+| 5  | Allocation log                     | `zcl_allocation_writer_db` (`ZSTOCKALLOC`)             |
+| 6  | Goods movement posting             | `zcl_allocation_poster_bapi`, `run_with_posting`       |
+| 7  | Sales order requirement source     | `zcl_requirement_reader_vbap` (`VBAP`)                 |
+| 8  | Batch stock and FEFO               | `zcl_stock_reader_mchb` (`MCHB`/`MCHA`), `use_fefo`    |
+| 9  | Unit of measure conversion         | `zcl_uom_converter` (`MARM`)                           |
+| 10 | Multi-material run                 | `zcl_stock_alloc_run`                                  |
+| 11 | Allocation log reporting           | `zcl_alloc_log_reader`                                 |
+| 12 | Whole sales units                  | policy `whole_sales_units`                             |
+| 13 | Partial delivery control           | policy `max_picks`                                     |
+| 14 | Coverage / shortage report         | `zcl_alloc_shortage_report`                            |
+| 15 | Material substitution rules        | `zcl_stock_substitution` (`ZSUBSTITUTE`)               |
+| 16 | Run tracking                       | `zcl_alloc_run_header` (`ZSTOCKRUN`)                   |
+| 17 | Allocating across substitutes      | `allocate_materials`, `allocate_with_substitution`     |
+| 18 | Under-delivery tolerance           | policy `under_tolerance`                               |
+| 19 | Tolerance-aware coverage report    | `covered`, `covered_lines`                             |
+| 20 | Delivery-date horizon              | policy `horizon_date`                                  |
+| 21 | Safety stock (run-wide)            | policy `safety_stock`                                  |
+| 22 | Run overview report                | `zcl_alloc_run_report`                                 |
+| 23 | Stock commitments                  | `zcl_stock_commitment`, `zcl_stock_reader_reserved`    |
+| 24 | Commit in the run flow             | `commit_allocations`, `run_with_commitment`            |
+| 25 | Post and commit                    | `run_post_and_commit`                                  |
+| 26 | Overview text output               | `to_lines`                                             |
+| 27 | Safety stock per storage location   | `zcl_safety_stock` (`ZSAFETYSTK`)                      |
+| 28 | Commitment expiry and cleanup       | `purge_before`, `purge_older_than`, `read_expired`      |
+| 29 | Package-wise processing             | `run_in_packages`                                      |
+| 30 | ALV-style field catalog             | `field_catalog`                                        |
+| 31 | Safety stock in substitution report | `io_safety_stock` on `zcl_stock_substitution`            |
+| 32 | Cleanup service with simulation     | `zcl_alloc_cleanup` (`run`, `run_before`)               |
+| 33 | Request validation in the run       | `ty_stats-skipped`, `is_valid_request`                  |
+| 34 | Material overview across runs       | `zcl_alloc_material_report` (`ZSTOCKALLOC`+`ZSTOCKRUN`) |
+| 35 | Minimum remaining shelf life        | policy `min_remaining_days`, `reference_date`           |
+| 36 | Storage location allow / exclude    | policy `allowed_lgorts`, `excluded_lgorts`              |
+| 37 | Replenishment proposals             | `zcl_alloc_replenishment` (rounding, min order)         |
+| 38 | Run reversal / audit trail          | `reverse_run`, status `X`, `read_active`, reports skip  |
+| 39 | Plant-to-plant transfer proposal    | `zcl_stock_transfer` (`propose`, `available`)           |
+| 40 | Allocation result diff              | `zcl_alloc_diff` (added / removed / changed lines)      |
+| 41 | Allocation overview JSON export     | `zcl_alloc_export` (`run_overview_json`, material)       |
+| 42 | Batch availability inquiry          | `zcl_batch_inquiry` (FEFO order, total, earliest expiry) |
+| 43 | Reservation document service        | `zcl_reservation_doc` (create, items, summarize, release)|| 44    | CSV quoting and line builder        | `zcl_alloc_csv` (`quote`, `build_line`)                  |
+| 45    | Fixed-width text table renderer     | `zcl_alloc_fixed_width` (`pad`, `build_line`)            |
+| 46    | Markdown table for the run overview | `zcl_alloc_markdown` (`run_overview`)                    |
+| 47    | HTML table for the run overview     | `zcl_alloc_html` (`run_overview`, `escape`)              |
+| 48    | XML document for the run overview   | `zcl_alloc_xml` (`run_overview`, `escape`)               |
+| 49    | JSON for the shortage report        | `zcl_alloc_shortage_json` (`build`)                      |
+| 50    | JSON for the replenishment proposals| `zcl_alloc_replen_json` (`build`)                        |
+| 51    | JSON for the allocation diff        | `zcl_alloc_diff_json` (`build`)                          |
+| 52    | CSV for the shortage report         | `zcl_alloc_shortage_csv` (`build`)                       |
+| 53    | CSV for the replenishment proposals | `zcl_alloc_replen_csv` (`build`)                         |
+| 54    | Number and quantity formatting      | `zcl_alloc_number_format` (`format_qty`, `trim_zeros`)   |
+| 55    | Percentage formatting and parsing   | `zcl_alloc_percent` (`ratio`, `apply`, `format`)         |
+| 56    | Duration (seconds) formatting       | `zcl_alloc_duration` (`to_text`, `to_seconds`)           |
+| 57    | Text alignment and padding          | `zcl_alloc_align` (`left_value`, `right_value`, `center_value`) |
+| 58    | Allocation KPI summary              | `zcl_alloc_kpi` (`summarize`)                            |
+| 59    | ABC classification of materials     | `zcl_alloc_abc` (`classify`)                             |
+| 60    | Top-N materials by allocated quantity| `zcl_alloc_top_n` (`top`)                                |
+| 61    | Quantity histogram / buckets         | `zcl_alloc_histogram` (`build`)                          |
+| 62    | Demand variance across runs          | `zcl_alloc_demand_variance` (`analyze`)                  |
+| 63    | Moving average of allocated quantity | `zcl_alloc_moving_average` (`calculate`)                 |
+| 64    | Trend detection (up / down / flat)   | `zcl_alloc_trend` (`analyze`)                            |
+| 65    | Simple forecast of the next quantity | `zcl_alloc_forecast` (`next_quantity`)                   |
+| 66    | Service level (fill rate) per material| `zcl_alloc_service_level` (`summarize`)                  |
+| 67    | Running totals over a result list     | `zcl_alloc_running_total` (`calculate`)                  |
+| 68    | Confidence score for an allocation    | `zcl_alloc_confidence` (`assess`)                        |
+| 69    | Risk score for a shortage list        | `zcl_alloc_risk` (`assess`)                              |
+| 70    | Request validator (material, plant, qty)| `zcl_alloc_request_validator` (`validate`)              |
+| 71    | Policy validator                       | `zcl_alloc_policy_validator` (`validate`)                |
+| 72    | Allocation consistency check           | `zcl_alloc_consistency` (`check`)                        |
+| 73    | Duplicate requirement detection        | `zcl_alloc_duplicate_check` (`find`)                     |
+| 74    | Stock row data quality check           | `zcl_alloc_stock_check` (`check`)                        |
+| 75    | Negative quantity detector             | `zcl_alloc_negative_check` (`find`)                      |
+| 76    | Over-allocation detector               | `zcl_alloc_over_check` (`find`)                          |
+| 77    | Missing master data check              | `zcl_alloc_master_check` (`check`)                       |
+| 78    | Priority scoring from weighted rules   | `zcl_alloc_priority` (`score`)                           |
+| 79    | Stock sequencing (FIFO / LIFO)         | `zcl_alloc_sequence` (`order`)                           |
+| 80    | Round-robin fair share                 | `zcl_alloc_round_robin` (`distribute`)                   |
+| 81    | Proportional (pro-rata) allocation     | `zcl_alloc_proportional` (`distribute`)                  |
+| 82    | Max-min fair allocation                | `zcl_alloc_maxmin` (`allocate`)                          |
+| 83    | Capacity-constrained allocation        | `zcl_alloc_capacity` (`allocate`)                        |
+| 84    | Load balancing across plants           | `zcl_alloc_load_balance` (`balance`)                     |
+| 85    | Requirement merge (same key)           | `zcl_alloc_req_merge` (`merge`)                          |
+| 86    | Requirement split by size              | `zcl_alloc_req_split` (`split`)                          |
+| 87    | Requirement grouping by material       | `zcl_alloc_req_group` (`group`)                          |
+| 88    | Requirement netting against stock      | `zcl_alloc_req_net` (`net`)                              |
+| 89    | Reorder point calculation              | `zcl_alloc_reorder_point` (`calculate`)                  |
+| 90    | Economic order quantity (EOQ)          | `zcl_alloc_eoq` (`calculate`)                            |
+| 91    | Days of supply / stock cover           | `zcl_alloc_days_supply` (`calculate`)                    |
+| 92    | Stock turn rate                        | `zcl_alloc_turn_rate` (`calculate`)                      |
+| 93    | Inventory value at a price             | `zcl_alloc_inventory_value` (`calculate`)                |
+| 94    | Weighted average price                 | `zcl_alloc_avg_price` (`calculate`)                      |
+| 95    | Quantity rounding utilities            | `zcl_alloc_rounding` (`round_to`, `round_up_to`, `round_down_to`) |
+| 96    | Storage location ranking by quantity   | `zcl_alloc_location_rank` (`rank`)                       |
+| 97    | Consolidation (bin emptying) proposal  | `zcl_alloc_consolidation` (`propose`)                    |
+| 98    | Pick sequence within a plant           | `zcl_alloc_pick_sequence` (`sequence`)                   |
+| 99    | Bin replenishment trigger              | `zcl_alloc_bin_replenish` (`propose`)                    |
+| 100   | Picking list from an allocation        | `zcl_alloc_pick_list` (`build`)                          |
+| 101   | Picking list confirmation              | `zcl_alloc_pick_confirm` (`confirm`)                     |
+| 102   | Location scoring for selection         | `zcl_alloc_location_score` (`score`)                     |
+| 103   | Working-day calendar                   | `zcl_alloc_calendar` (`add_working_days`, `is_weekend`)  |
+| 104   | Date range splitting                   | `zcl_alloc_date_range` (`split`)                         |
+| 105   | Age of stock in days                   | `zcl_alloc_stock_age` (`calculate`)                      |
+| 106   | Backlog aging buckets                  | `zcl_alloc_aging` (`bucket`)                             |
+| 107   | Time slot assignment                   | `zcl_alloc_slot` (`assign`)                              |
+| 108   | Wave planning                          | `zcl_alloc_wave` (`plan`)                                |
+| 109   | Material batching for picking          | `zcl_alloc_batching` (`build`)                           |
+| 110   | Per-plant report across runs           | `zcl_alloc_plant_report` (`summarize`)                   |
+| 111   | Per-day report across runs             | `zcl_alloc_daily_report` (`summarize`)                   |
+| 112   | Material x plant pivot                 | `zcl_alloc_pivot` (`build`)                              |
+| 113   | Material x run matrix                  | `zcl_alloc_matrix` (`build`)                             |
+| 114   | Shipment grouping                      | `zcl_alloc_shipment` (`build`)                           |
+| 115   | Delivery split proposal                | `zcl_alloc_delivery_split` (`split`)                     |
+| 116   | SLA compliance report                  | `zcl_alloc_sla` (`assess`)                               |
+| 117   | Event timeline                         | `zcl_alloc_timeline` (`to_lines`)                        |
+| 118   | Search / text filter over overviews    | `zcl_alloc_search` (`filter`)                            |
+| 119   | Pagination helper                      | `zcl_alloc_paging` (`page`)                              |
+| 120   | Generic sort helper for overviews      | `zcl_alloc_sort` (`sort`)                                |
+| 121   | Policy presets                         | `zcl_alloc_policy_preset` (`preset`)                     |
+| 122   | Policy merge                           | `zcl_alloc_policy_merge` (`merge`)                       |
+| 123   | Policy diff                            | `zcl_alloc_policy_diff` (`compare`)                      |
+| 124   | Run comparison summary                 | `zcl_alloc_run_compare` (`compare`)                      |
+| 125   | Three-way allocation diff              | `zcl_alloc_diff3` (`compare`)                            |
+| 126   | Allocation snapshot and compare        | `zcl_alloc_snapshot` (`take`, `compare`)                 |
+| 127   | Checksum of an allocation result       | `zcl_alloc_checksum` (`of_result`)                       |
+| 128   | Run / requirement id generator         | `zcl_alloc_id_gen` (`generate`)                          |
+| 129   | Run tagging (in-memory)                | `zcl_alloc_tag` (`add`, `of_run`)                        |
+| 130   | Annotation store (in-memory)           | `zcl_alloc_annotation` (`add`, `read`)                   |
+| 131   | Substitution chain resolver            | `zcl_alloc_subst_chain` (`resolve`)                      |
+| 132   | Multi-plant availability aggregation   | `zcl_alloc_multi_plant` (`summarize`)                    |
+| 133   | Transport cost comparison              | `zcl_alloc_transport_cost` (`rank`)                      |
+| 134   | Cost-based source selection            | `zcl_alloc_cost` (`select`)                              |
+| 135   | Footprint estimate for a transfer      | `zcl_alloc_footprint` (`estimate`)                       |
+| 136   | Weighted source scoring                | `zcl_alloc_weight` (`score`)                             |
+| 137   | Material list from run headers         | `zcl_alloc_material_list` (`build`)                      |
+| 138   | Plant list from run headers            | `zcl_alloc_plant_list` (`build`)                         |
+| 139   | Storage location list from a result    | `zcl_alloc_lgort_list` (`build`)                         |
+| 140   | Quantity bucket helper                 | `zcl_alloc_bucket` (`bucket`)                            |
+| 141   | Batch split proposal                   | `zcl_alloc_batch_split` (`split`)                        |
+| 142   | Allocation quality grade (A-F)         | `zcl_alloc_grade` (`grade`)                              |
+| 144   | CSV of the per-run allocations         | `zcl_alloc_export_alloc` (`build`)                       |
+| 145   | CSV of the per-material allocations    | `zcl_alloc_export_alloc_mat` (`build`)                   |
+| 146   | JSON of the per-run allocations        | `zcl_alloc_export_alloc_json` (`build`)                  |
+| 147   | JSON of the per-material allocations   | `zcl_alloc_export_alloc_mjson` (`build`)                 |
+| 148   | XML of the allocations                 | `zcl_alloc_export_alloc_xml` (`build`)                   |
+| 149   | Markdown of the allocations            | `zcl_alloc_export_alloc_md` (`build`)                    |
+| 150   | HTML of the allocations                | `zcl_alloc_export_alloc_html` (`build`)                  |
+| 151   | Fixed-width of the allocations         | `zcl_alloc_export_alloc_fw` (`build`)                    |
+| 152   | CSV of the allocation diff             | `zcl_alloc_diff_csv` (`build`)                           |
+| 153   | CSV of the run comparison              | `zcl_alloc_run_cmp_csv` (`build`)                        |
+| 154   | JSON of the run comparison             | `zcl_alloc_run_cmp_json` (`build`)                       |
+| 155   | CSV of the SLA report                  | `zcl_alloc_sla_csv` (`build`)                            |
+| 156   | JSON of the SLA report                 | `zcl_alloc_sla_json` (`build`)                           |
+| 157   | CSV of the aging report                | `zcl_alloc_aging_csv` (`build`)                          |
+| 158   | JSON of the aging report               | `zcl_alloc_aging_json` (`build`)                         |
+| 159   | CSV of the plant report                | `zcl_alloc_plant_csv` (`build`)                          |
+| 160   | CSV of the daily report                | `zcl_alloc_daily_csv` (`build`)                          |
+| 161   | JSON of the plant report               | `zcl_alloc_plant_json` (`build`)                         |
+| 162   | JSON of the daily report               | `zcl_alloc_daily_json` (`build`)                         |
+| 163   | CSV of the KPI summary                 | `zcl_alloc_kpi_csv` (`build`)                            |
+| 164   | JSON of the KPI summary                | `zcl_alloc_kpi_json` (`build`)                           |
+| 165   | CSV of the ABC classification          | `zcl_alloc_abc_csv` (`build`)                            |
+| 166   | JSON of the ABC classification         | `zcl_alloc_abc_json` (`build`)                           |
+| 167   | CSV of the histogram                   | `zcl_alloc_hist_csv` (`build`)                           |
+| 168   | JSON of the histogram                  | `zcl_alloc_hist_json` (`build`)                          |
+| 169   | CSV of the top-N list                  | `zcl_alloc_topn_csv` (`build`)                           |
+| 170   | JSON of the top-N list                 | `zcl_alloc_topn_json` (`build`)                          |
+| 171   | CSV of the moving average              | `zcl_alloc_mavg_csv` (`build`)                           |
+| 172   | JSON of the moving average             | `zcl_alloc_mavg_json` (`build`)                          |
+| 173   | CSV of the trend analysis              | `zcl_alloc_trend_csv` (`build`)                          |
+| 174   | JSON of the trend analysis             | `zcl_alloc_trend_json` (`build`)                         |
+| 175   | CSV of the forecast                    | `zcl_alloc_forecast_csv` (`build`)                       |
+| 176   | JSON of the forecast                   | `zcl_alloc_forecast_json` (`build`)                      |
+| 177   | CSV of the service level               | `zcl_alloc_service_csv` (`build`)                        |
+| 178   | JSON of the service level              | `zcl_alloc_service_json` (`build`)                       |
+| 179   | CSV of the confidence score            | `zcl_alloc_conf_csv` (`build`)                           |
+| 180   | JSON of the confidence score           | `zcl_alloc_conf_json` (`build`)                          |
+| 181   | CSV of the risk score                  | `zcl_alloc_risk_csv` (`build`)                           |
+| 182   | JSON of the risk score                 | `zcl_alloc_risk_json` (`build`)                          |
+| 183   | CSV of the request validation          | `zcl_alloc_reqval_csv` (`build`)                         |
+| 184   | JSON of the request validation         | `zcl_alloc_reqval_json` (`build`)                        |
+| 185   | CSV of the policy validation           | `zcl_alloc_polval_csv` (`build`)                         |
+| 186   | JSON of the policy validation          | `zcl_alloc_polval_json` (`build`)                        |
+| 187   | CSV of the consistency check           | `zcl_alloc_consist_csv` (`build`)                        |
+| 188   | JSON of the consistency check          | `zcl_alloc_consist_json` (`build`)                       |
+| 189   | CSV of the duplicate check             | `zcl_alloc_dupc_csv` (`build`)                           |
+| 190   | JSON of the duplicate check            | `zcl_alloc_dupc_json` (`build`)                          |
+| 191   | CSV of the stock check                 | `zcl_alloc_stockchk_csv` (`build`)                       |
+| 192   | JSON of the stock check                | `zcl_alloc_stockchk_json` (`build`)                      |
+| 193   | CSV of the negative check              | `zcl_alloc_negchk_csv` (`build`)                         |
+| 194   | JSON of the negative check             | `zcl_alloc_negchk_json` (`build`)                        |
+| 195   | CSV of the over-allocation check       | `zcl_alloc_overchk_csv` (`build`)                        |
+| 196   | JSON of the over-allocation check      | `zcl_alloc_overchk_json` (`build`)                       |
+| 197   | CSV of the master data check           | `zcl_alloc_mastchk_csv` (`build`)                        |
+| 198   | JSON of the master data check          | `zcl_alloc_mastchk_json` (`build`)                       |
+| 199   | CSV of the priority list               | `zcl_alloc_prio_csv` (`build`)                           |
+| 200   | JSON of the priority list              | `zcl_alloc_prio_json` (`build`)                          |
+| 201   | CSV of the pick list                   | `zcl_alloc_pickl_csv` (`build`)                          |
+| 202   | JSON of the pick list                  | `zcl_alloc_pickl_json` (`build`)                         |
+| 203   | CSV of the pick confirmation           | `zcl_alloc_pickc_csv` (`build`)                          |
+| 204   | JSON of the pick confirmation          | `zcl_alloc_pickc_json` (`build`)                         |
+| 205   | CSV of the pick sequence               | `zcl_alloc_picks_csv` (`build`)                          |
+| 206   | JSON of the pick sequence              | `zcl_alloc_picks_json` (`build`)                         |
+| 207   | CSV of the location ranking            | `zcl_alloc_lrank_csv` (`build`)                          |
+| 208   | JSON of the location ranking           | `zcl_alloc_lrank_json` (`build`)                         |
+| 209   | CSV of the location score              | `zcl_alloc_lscore_csv` (`build`)                         |
+| 210   | JSON of the location score             | `zcl_alloc_lscore_json` (`build`)                        |
+| 211   | CSV of the shipments                   | `zcl_alloc_ship_csv` (`build`)                           |
+| 212   | JSON of the shipments                  | `zcl_alloc_ship_json` (`build`)                          |
+| 213   | CSV of the waves                       | `zcl_alloc_wave_csv` (`build`)                           |
+| 214   | JSON of the waves                      | `zcl_alloc_wave_json` (`build`)                          |
+| 215   | CSV of the batches                     | `zcl_alloc_batch_csv` (`build`)                          |
+| 216   | JSON of the batches                    | `zcl_alloc_batch_json` (`build`)                         |
+| 217   | CSV of the tags                        | `zcl_alloc_tag_csv` (`build`)                            |
+| 218   | JSON of the tags                       | `zcl_alloc_tag_json` (`build`)                           |
+| 219   | CSV of the annotations                 | `zcl_alloc_note_csv` (`build`)                           |
+| 220   | JSON of the annotations                | `zcl_alloc_note_json` (`build`)                          |
+| 221   | CSV of the timeline                    | `zcl_alloc_timeline_csv` (`build`)                       |
+| 222   | JSON of the timeline                   | `zcl_alloc_timeline_json` (`build`)                      |
+| 223   | CSV of the snapshot diff               | `zcl_alloc_snap_csv` (`build`)                           |
+| 224   | JSON of the snapshot diff              | `zcl_alloc_snap_json` (`build`)                          |
+| 225   | CSV of the three-way diff              | `zcl_alloc_diff3_csv` (`build`)                          |
+| 226   | JSON of the three-way diff             | `zcl_alloc_diff3_json` (`build`)                         |
+| 227   | CSV of the cost selection              | `zcl_alloc_cost_csv` (`build`)                           |
+| 228   | JSON of the cost selection             | `zcl_alloc_cost_json` (`build`)                          |
+| 229   | CSV of the transport costs             | `zcl_alloc_tcost_csv` (`build`)                          |
+| 230   | JSON of the transport costs            | `zcl_alloc_tcost_json` (`build`)                         |
+| 231   | CSV of the substitution chain          | `zcl_alloc_subst_csv` (`build`)                          |
+| 232   | JSON of the substitution chain         | `zcl_alloc_subst_json` (`build`)                         |
+| 233   | CSV of the multi-plant summary         | `zcl_alloc_mplant_csv` (`build`)                         |
+| 234   | JSON of the multi-plant summary        | `zcl_alloc_mplant_json` (`build`)                        |
+| 235   | CSV of the grade distribution          | `zcl_alloc_grade_csv` (`build`)                          |
+| 236   | JSON of the grade distribution         | `zcl_alloc_grade_json` (`build`)                         |
+| 237   | CSV of the bucket report               | `zcl_alloc_bucket_csv` (`build`)                         |
+| 238   | JSON of the bucket report              | `zcl_alloc_bucket_json` (`build`)                        |
+| 239   | Unified export facade                  | `zcl_alloc_export_facade` (`as_csv`, `as_json`)          |
+| 240   | Export format registry                 | `zcl_alloc_format_registry` (`add`)                      |
+| 241   | Default export format per consumer     | `zcl_alloc_format_default` (`default_for`)               |
+| 242   | Export registry lookup by name         | `zcl_alloc_format_lookup` (`lookup`)                     |
+| 243   | Export registry listing                | `zcl_alloc_format_list` (`names`, `count`)               |
+
+**Roadmap batch 2 is complete: orders 144-243 (100 features) are all delivered
+and verified.** The only unbuilt item across both batches remains 143 (ALV grid
+binding + selection screen), which the transpiler cannot exercise.
+
+## Roadmap batch 3 (orders 244-343)
+
+Planned when batch 2 completed, per the standing instruction. The theme is
+**SAP integration and operations**: locking, number ranges, change documents,
+application log, message and exception handling, BAPI/RFC/IDoc and batch-input
+stubs, commit/rollback and retry policies, timers and statistics, execution
+context, feature flags and configuration, masking, authorization stubs, caching,
+streaming, idempotency and reconciliation. Each item is a new `zcl_alloc_*` class
+with a local test class, verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 244 | Lock manager abstraction | `zcl_alloc_lock` |
+| 245 | Enqueue wrapper | `zcl_alloc_enqueue` |
+| 246 | Dequeue wrapper | `zcl_alloc_dequeue` |
+| 247 | Number range interval reader | `zcl_alloc_number_range` |
+| 248 | Number range writer (in-memory) | `zcl_alloc_number_range_w` |
+| 249 | Change document writer (in-memory) | `zcl_alloc_change_doc` |
+| 250 | Change document reader | `zcl_alloc_change_read` |
+| 251 | Application log writer | `zcl_alloc_app_log` |
+| 252 | Application log reader | `zcl_alloc_app_log_read` |
+| 253 | Message collector | `zcl_alloc_messages` |
+| 254 | Message formatter | `zcl_alloc_msg_format` |
+| 255 | Error handler | `zcl_alloc_error` |
+| 256 | Exception mapper | `zcl_alloc_exception_map` |
+| 257 | BAPI goods movement wrapper | `zcl_alloc_bapi_gm` |
+| 258 | BAPI availability wrapper | `zcl_alloc_bapi_atp` |
+| 259 | BAPI material read wrapper | `zcl_alloc_bapi_mat` |
+| 260 | BAPI plant read wrapper | `zcl_alloc_bapi_plant` |
+| 261 | BAPI caller facade | `zcl_alloc_bapi_facade` |
+| 262 | RFC destination stub | `zcl_alloc_rfc` |
+| 263 | IDoc writer | `zcl_alloc_idoc_writer` |
+| 264 | IDoc reader | `zcl_alloc_idoc_reader` |
+| 265 | Batch input session builder | `zcl_alloc_bdc_build` |
+| 266 | Batch input session runner (stub) | `zcl_alloc_bdc_run` |
+| 267 | Update task stub | `zcl_alloc_update_task` |
+| 268 | Commit / rollback wrapper | `zcl_alloc_commit` |
+| 269 | Timeout guard | `zcl_alloc_timeout` |
+| 270 | Retry policy | `zcl_alloc_retry` |
+| 271 | Circuit breaker | `zcl_alloc_breaker` |
+| 272 | Rate limiter (in-memory) | `zcl_alloc_rate_limit` |
+| 273 | Audit trail | `zcl_alloc_audit` |
+| 274 | Operation log | `zcl_alloc_op_log` |
+| 275 | Performance timer | `zcl_alloc_timer` |
+| 276 | Stopwatch | `zcl_alloc_stopwatch` |
+| 277 | Run statistics collector | `zcl_alloc_stats` |
+| 278 | Session context | `zcl_alloc_session` |
+| 279 | User context | `zcl_alloc_user` |
+| 280 | Client context | `zcl_alloc_client` |
+| 281 | Environment info | `zcl_alloc_environment` |
+| 282 | Feature flag registry | `zcl_alloc_flags` |
+| 283 | Configuration reader | `zcl_alloc_config` |
+| 284 | Configuration writer (in-memory) | `zcl_alloc_config_w` |
+| 285 | Configuration validation | `zcl_alloc_config_val` |
+| 286 | Secret masking | `zcl_alloc_secret_mask` |
+| 287 | Data masking | `zcl_alloc_mask` |
+| 288 | Pseudonymization helper | `zcl_alloc_pseudo` |
+| 289 | Archive metadata | `zcl_alloc_archive_meta` |
+| 290 | Archive index | `zcl_alloc_archive_idx` |
+| 291 | Retention policy | `zcl_alloc_retention` |
+| 292 | Deletion policy | `zcl_alloc_deletion` |
+| 293 | Tenant isolation helper | `zcl_alloc_tenant` |
+| 294 | Multi-client guard | `zcl_alloc_mandt_guard` |
+| 295 | Authorization check stub | `zcl_alloc_auth` |
+| 296 | Role mapping | `zcl_alloc_role_map` |
+| 297 | Permission matrix | `zcl_alloc_permission` |
+| 298 | Field-level authorization | `zcl_alloc_field_auth` |
+| 299 | Data access log | `zcl_alloc_access_log` |
+| 300 | Export audit log | `zcl_alloc_export_audit` |
+| 301 | CSV import reader | `zcl_alloc_import_csv` |
+| 302 | JSON import reader | `zcl_alloc_import_json` |
+| 303 | Import validator | `zcl_alloc_import_val` |
+| 304 | Import mapper | `zcl_alloc_import_map` |
+| 305 | Bulk loader | `zcl_alloc_bulk_load` |
+| 306 | Bulk validity check | `zcl_alloc_bulk_check` |
+| 307 | Delta loader | `zcl_alloc_delta_load` |
+| 308 | Upsert helper (in-memory) | `zcl_alloc_upsert` |
+| 309 | Dedupe key builder | `zcl_alloc_dedupe_key` |
+| 310 | Natural key builder | `zcl_alloc_natural_key` |
+| 311 | Surrogate key map | `zcl_alloc_surrogate` |
+| 312 | Reference data cache | `zcl_alloc_ref_cache` |
+| 313 | Cache invalidation policy | `zcl_alloc_cache_policy` |
+| 314 | Cache statistics | `zcl_alloc_cache_stats` |
+| 315 | Cache warm-up helper | `zcl_alloc_cache_warm` |
+| 316 | Lazy loader | `zcl_alloc_lazy` |
+| 317 | Pagination cursor | `zcl_alloc_cursor` |
+| 318 | Chunked reader | `zcl_alloc_chunk_read` |
+| 319 | Chunked writer | `zcl_alloc_chunk_write` |
+| 320 | Backpressure helper | `zcl_alloc_backpressure` |
+| 321 | Batch size tuner | `zcl_alloc_batch_tune` |
+| 322 | Concurrency guard | `zcl_alloc_concurrency` |
+| 323 | Idempotency key | `zcl_alloc_idem_key` |
+| 324 | Exactly-once guard | `zcl_alloc_once` |
+| 325 | Dedupe window | `zcl_alloc_dedupe_win` |
+| 326 | Sequential numbering | `zcl_alloc_seq_num` |
+| 327 | Gap detection | `zcl_alloc_gap_check` |
+| 328 | Sequence validation | `zcl_alloc_seq_check` |
+| 329 | Checksum registry | `zcl_alloc_checksum_reg` |
+| 330 | Integrity check | `zcl_alloc_integrity` |
+| 331 | Reconciliation report | `zcl_alloc_reconcile` |
+| 332 | Drift detection | `zcl_alloc_drift` |
+| 333 | Heavy snapshot comparison | `zcl_alloc_snap_heavy` |
+| 334 | Restore helper | `zcl_alloc_restore` |
+| 335 | Migration mapper | `zcl_alloc_migration_map` |
+| 336 | Migration validator | `zcl_alloc_migration_val` |
+| 337 | Cutover checklist | `zcl_alloc_cutover` |
+| 338 | Parallel run comparison | `zcl_alloc_parallel_run` |
+| 339 | Data volume estimator | `zcl_alloc_volume` |
+| 340 | Load test helper | `zcl_alloc_load_test` |
+| 341 | Smoke test runner | `zcl_alloc_smoke` |
+| 342 | Health check | `zcl_alloc_health` |
+| 343 | Readiness probe | `zcl_alloc_readiness` |
+
+### Batch 3 delivered so far
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 244 | Lock manager abstraction | `zcl_alloc_lock` (`acquire`, `release`, `is_locked`) |
+| 245 | Enqueue wrapper | `zcl_alloc_enqueue` (`enqueue`) |
+| 246 | Dequeue wrapper | `zcl_alloc_dequeue` (`dequeue`, `distinct_count`) |
+| 247 | Number range interval reader | `zcl_alloc_number_range` (`next`, `in_range`, `remaining`) |
+| 248 | Number range writer (in-memory) | `zcl_alloc_number_range_w` (`reserve`, `exhausted`) |
+| 249 | Change document writer (in-memory) | `zcl_alloc_change_doc` (`add`) |
+| 250 | Change document reader | `zcl_alloc_change_read` (`of_object`, `field_count`) |
+| 251 | Application log writer | `zcl_alloc_app_log` (`write`, `count_of_level`) |
+| 252 | Application log reader | `zcl_alloc_app_log_read` (`messages`, `has_errors`) |
+| 253 | Message collector | `zcl_alloc_messages` (`collect`, `count`) |
+| 254 | Message formatter | `zcl_alloc_msg_format` (`format`, `short`) |
+| 255 | Error handler | `zcl_alloc_error` (`raise`, `has_any`) |
+| 256 | Exception mapper | `zcl_alloc_exception_map` (`map`) |
+| 257 | BAPI goods movement wrapper | `zcl_alloc_bapi_gm` (`post`) |
+| 258 | BAPI availability wrapper | `zcl_alloc_bapi_atp` (`check`) |
+| 259 | BAPI material read wrapper | `zcl_alloc_bapi_mat` (`read`) |
+| 260 | BAPI plant read wrapper | `zcl_alloc_bapi_plant` (`read`) |
+| 261 | BAPI caller facade | `zcl_alloc_bapi_facade` (`call`) |
+| 262 | RFC destination stub | `zcl_alloc_rfc` (`ping`, `describe`) |
+| 263 | IDoc writer | `zcl_alloc_idoc_writer` (`create`) |
+| 264 | IDoc reader | `zcl_alloc_idoc_reader` (`read`) |
+| 265 | Batch input session builder | `zcl_alloc_bdc_build` (`add`) |
+| 266 | Batch input session runner (stub) | `zcl_alloc_bdc_run` (`run`) |
+| 267 | Update task stub | `zcl_alloc_update_task` (`queue`, `flush`) |
+| 268 | Commit / rollback wrapper | `zcl_alloc_commit` (`commit`, `rollback`) |
+| 269 | Timeout guard | `zcl_alloc_timeout` (`check`, `is_expired`, `remaining`) |
+| 270 | Retry policy | `zcl_alloc_retry` (`plan`, `should_retry`, `backoff`) |
+| 271 | Circuit breaker | `zcl_alloc_breaker` (`record_failure`, `probe_half_open`) |
+| 272 | Rate limiter (in-memory) | `zcl_alloc_rate_limit` (`consume`, `remaining`, `reset`) |
+| 273 | Audit trail | `zcl_alloc_audit` (`add`, `of_run`, `entries`) |
+| 274 | Operation log | `zcl_alloc_op_log` (`add`, `errors`, `total_ms`, `slowest`) |
+| 275 | Performance timer | `zcl_alloc_timer` (`start`, `stop`, `add_ms`, `summary`) |
+| 276 | Stopwatch | `zcl_alloc_stopwatch` (`lap`, `total`, `fastest`, `slowest`) |
+| 277 | Run statistics collector | `zcl_alloc_stats` (`note`, `get`, `runs`) |
+| 278 | Session context | `zcl_alloc_session` (`open`, `close`, `context`) |
+| 279 | User context | `zcl_alloc_user` (`get_user`, `is_system`, `describe`) |
+| 280 | Client context | `zcl_alloc_client` (`get_client`, `is_productive`, `label`) |
+| 281 | Environment info | `zcl_alloc_environment` (`build`, `is_production`, `describe`) |
+| 282 | Feature flag registry | `zcl_alloc_flags` (`set`, `is_enabled`, `enabled_flags`) |
+| 283 | Configuration reader | `zcl_alloc_config` (`get`, `has`, `keys`) |
+| 284 | Configuration writer (in-memory) | `zcl_alloc_config_w` (`put`, `remove`, `entries`) |
+| 285 | Configuration validation | `zcl_alloc_config_val` (`validate`, `is_valid`) |
+| 286 | Secret masking | `zcl_alloc_secret_mask` (`mask`, `is_masked`, `mask_all`) |
+| 287 | Data masking | `zcl_alloc_mask` (`mask_text`, `mask_email`, `mask_last_digits`) |
+| 288 | Pseudonymization helper | `zcl_alloc_pseudo` (`pseudonymize`, `resolve`, `is_pseudonym`) |
+| 289 | Archive metadata | `zcl_alloc_archive_meta` (`build`, `is_complete`, `describe`) |
+| 290 | Archive index | `zcl_alloc_archive_idx` (`add`, `contains`, `entries`) |
+| 291 | Retention policy | `zcl_alloc_retention` (`is_expired`, `days_left`) |
+| 292 | Deletion policy | `zcl_alloc_deletion` (`propose`) |
+| 293 | Tenant isolation helper | `zcl_alloc_tenant` (`belongs_to`, `is_default`, `qualify`) |
+| 294 | Multi-client guard | `zcl_alloc_mandt_guard` (`is_current_allowed`, `check`) |
+| 295 | Authorization check stub | `zcl_alloc_auth` (`is_authorized`) |
+| 296 | Role mapping | `zcl_alloc_role_map` (`grant`, `has_role`, `roles_of`) |
+| 297 | Permission matrix | `zcl_alloc_permission` (`set`, `allows`, `allowed_count`) |
+| 298 | Field-level authorization | `zcl_alloc_field_auth` (`is_visible`, `hide`, `visible_count`) |
+| 299 | Data access log | `zcl_alloc_access_log` (`log`, `count_of_user`) |
+| 300 | Export audit log | `zcl_alloc_export_audit` (`log`, `total_rows`, `format_count`) |
+| 301 | CSV import reader | `zcl_alloc_import_csv` (`parse_line`, `count_of`) |
+| 302 | JSON import reader | `zcl_alloc_import_json` (`parse`, `count_of`) |
+| 303 | Import validator | `zcl_alloc_import_val` (`validate`, `is_valid`) |
+| 304 | Import mapper | `zcl_alloc_import_map` (`map`) |
+| 305 | Bulk loader | `zcl_alloc_bulk_load` (`stage`, `commit`) |
+| 306 | Bulk validity check | `zcl_alloc_bulk_check` (`check`, `is_loadable`) |
+| 307 | Delta loader | `zcl_alloc_delta_load` (`compare`) |
+| 308 | Upsert helper (in-memory) | `zcl_alloc_upsert` (`upsert`, `entries`) |
+| 309 | Dedupe key builder | `zcl_alloc_dedupe_key` (`build`, `parts_of`, `count_of`) |
+| 310 | Natural key builder | `zcl_alloc_natural_key` (`compose`, `field_at`, `field_count`) |
+| 311 | Surrogate key map | `zcl_alloc_surrogate` (`get_or_create`, `lookup`) |
+| 312 | Reference data cache | `zcl_alloc_ref_cache` (`put`, `get`, `reset`) |
+| 313 | Cache invalidation policy | `zcl_alloc_cache_policy` (`is_stale`, `is_full`, `describe`) |
+| 314 | Cache statistics | `zcl_alloc_cache_stats` (`note_hit`, `hit_rate`, `reset`) |
+| 315 | Cache warm-up helper | `zcl_alloc_cache_warm` (`missing`, `cached_count`) |
+| 316 | Lazy loader | `zcl_alloc_lazy` (`load`, `get`, `reset`) |
+| 317 | Pagination cursor | `zcl_alloc_cursor` (`open`, `next`, `is_last`, `remaining`) |
+| 318 | Chunked read over a result | `zcl_alloc_chunk_read` (`read`) |
+| 319 | Chunked write into batches | `zcl_alloc_chunk_write` (`write`) |
+| 320 | Backpressure decision | `zcl_alloc_backpressure` (`assess`) |
+| 321 | Batch size tuner | `zcl_alloc_batch_tune` (`tune`) |
+| 322 | Concurrency guard | `zcl_alloc_concurrency` (`acquire`, `release`, `active_count`) |
+| 323 | Idempotency key | `zcl_alloc_idem_key` (`build`, `is_valid`, `scope_of`) |
+| 324 | Exactly-once guard | `zcl_alloc_once` (`run`, `has_run`, `count`) |
+| 325 | Dedupe window | `zcl_alloc_dedupe_win` (`is_duplicate`, `purge_before`) |
+| 326 | Sequential numbering | `zcl_alloc_seq_num` (`next`, `current`, `reset`) |
+| 327 | Gap detection | `zcl_alloc_gap_check` (`find`) |
+| 328 | Sequence validation | `zcl_alloc_seq_check` (`check`) |
+| 329 | Checksum registry | `zcl_alloc_checksum_reg` (`register`, `verify`, `checksum_of`) |
+| 330 | Integrity check | `zcl_alloc_integrity` (`check`) |
+| 331 | Reconciliation report | `zcl_alloc_reconcile` (`compare`, `is_balanced`) |
+| 332 | Drift detection | `zcl_alloc_drift` (`detect`) |
+| 333 | Heavy snapshot comparison | `zcl_alloc_snap_heavy` (`take`, `compare`) |
+| 334 | Restore helper | `zcl_alloc_restore` (`plan`) |
+| 335 | Migration mapper | `zcl_alloc_migration_map` (`map`, `is_mapped`) |
+| 336 | Migration validator | `zcl_alloc_migration_val` (`validate`, `is_valid`) |
+| 337 | Cutover checklist | `zcl_alloc_cutover` (`build`, `open_steps`) |
+| 338 | Parallel run comparison | `zcl_alloc_parallel_run` (`compare`, `mismatch_count`) |
+| 339 | Data volume estimator | `zcl_alloc_volume` (`estimate`) |
+| 340 | Load test helper | `zcl_alloc_load_test` (`plan`) |
+| 341 | Smoke test runner | `zcl_alloc_smoke` (`add`, `run`, `failed`, `reset`) |
+| 342 | Health check | `zcl_alloc_health` (`check`, `unhealthy_names`) |
+| 343 | Readiness probe | `zcl_alloc_readiness` (`probe`) |
+
+**Batch 3 is complete: orders 244-343 (100 features) are all delivered and
+verified.** The only unbuilt item across every batch remains 143 (ALV grid
+binding + selection screen), which the transpiler cannot exercise.
+
+## Roadmap batch 4 (orders 344-443)
+
+Planned when batch 3 completed, per the standing instruction. The theme is
+**optimisation, simulation and planning intelligence**: solvers (objective,
+greedy, knapsack, assignment, transport), local search, seeded simulation and
+scenario analysis, forecasting and demand classification, MRP and lot sizing,
+finite scheduling and capacity, distribution network and routing, KPI /
+statistics, report presentation helpers and roll-out governance. Each item is a
+new `zcl_alloc_*` class with a local test class, verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 344 | Objective function evaluation | `zcl_alloc_objective` |
+| 345 | Greedy allocation solver | `zcl_alloc_greedy` |
+| 346 | Cheapest source solver | `zcl_alloc_cheapest` |
+| 347 | Knapsack allocation | `zcl_alloc_knapsack` |
+| 348 | Bin packing for pallets | `zcl_alloc_bin_pack` |
+| 349 | Transportation problem | `zcl_alloc_transport` |
+| 350 | Assignment problem | `zcl_alloc_assignment` |
+| 351 | Constraint set evaluation | `zcl_alloc_constraint` |
+| 352 | Penalty calculator | `zcl_alloc_penalty` |
+| 353 | Feasibility check | `zcl_alloc_feasible` |
+| 354 | Local search improvement | `zcl_alloc_local_search` |
+| 355 | Swap optimisation | `zcl_alloc_swap_opt` |
+| 356 | Hill climbing | `zcl_alloc_hill_climb` |
+| 357 | Simulated annealing (deterministic) | `zcl_alloc_annealing` |
+| 358 | Improvement tracker | `zcl_alloc_improve_log` |
+| 359 | Monte Carlo demand sampler | `zcl_alloc_monte_carlo` |
+| 360 | Seeded random generator | `zcl_alloc_random` |
+| 361 | Scenario definition | `zcl_alloc_scenario` |
+| 362 | Scenario comparison | `zcl_alloc_scenario_cmp` |
+| 363 | What-if stock shock | `zcl_alloc_shock` |
+| 364 | Demand uplift scenario | `zcl_alloc_uplift` |
+| 365 | Capacity reduction scenario | `zcl_alloc_capacity_cut` |
+| 366 | Stress test ladder | `zcl_alloc_stress` |
+| 367 | Sensitivity analysis | `zcl_alloc_sensitivity` |
+| 368 | Break-even analysis | `zcl_alloc_breakeven` |
+| 369 | Exponential smoothing | `zcl_alloc_exp_smooth` |
+| 370 | Holt linear trend | `zcl_alloc_holt` |
+| 371 | Seasonal index | `zcl_alloc_seasonal` |
+| 372 | Seasonally adjusted forecast | `zcl_alloc_season_forecast` |
+| 373 | Mean absolute deviation | `zcl_alloc_mad` |
+| 374 | Forecast accuracy (MAPE) | `zcl_alloc_mape` |
+| 375 | Forecast bias | `zcl_alloc_bias` |
+| 376 | Forecast exception list | `zcl_alloc_forecast_exc` |
+| 377 | Demand classification | `zcl_alloc_demand_class` |
+| 378 | Intermittent demand (Croston) | `zcl_alloc_croston` |
+| 379 | Material requirements planning run | `zcl_alloc_mrp` |
+| 380 | MRP net requirements | `zcl_alloc_mrp_net` |
+| 381 | Lot sizing: fixed lot | `zcl_alloc_lot_fixed` |
+| 382 | Lot sizing: period lot | `zcl_alloc_lot_period` |
+| 383 | Lot sizing: least unit cost | `zcl_alloc_lot_luc` |
+| 384 | Lot sizing: part period balancing | `zcl_alloc_lot_ppb` |
+| 385 | Scheduling: earliest due date | `zcl_alloc_sched_edd` |
+| 386 | Scheduling: shortest processing time | `zcl_alloc_sched_spt` |
+| 387 | Scheduling: critical ratio | `zcl_alloc_sched_cr` |
+| 388 | Capacity levelling | `zcl_alloc_levelling` |
+| 389 | Capacity requirement planning | `zcl_alloc_crp` |
+| 390 | Work centre load | `zcl_alloc_workload` |
+| 391 | Queue estimation | `zcl_alloc_queue` |
+| 392 | Rough-cut capacity check | `zcl_alloc_rough_cut` |
+| 393 | Distribution network model | `zcl_alloc_network` |
+| 394 | Sourcing rule evaluation | `zcl_alloc_sourcing` |
+| 395 | Lane cost matrix | `zcl_alloc_lane` |
+| 396 | Shortest path over lanes | `zcl_alloc_path` |
+| 397 | Multi-stop route builder | `zcl_alloc_route` |
+| 398 | Route cost estimate | `zcl_alloc_route_cost` |
+| 399 | Milk-run grouping | `zcl_alloc_milk_run` |
+| 400 | Cross-dock proposal | `zcl_alloc_crossdock` |
+| 401 | Safety stock by service level | `zcl_alloc_safety_level` |
+| 402 | Reorder point with variability | `zcl_alloc_rop_var` |
+| 403 | Fill rate simulation | `zcl_alloc_fill_sim` |
+| 404 | Inventory policy comparison | `zcl_alloc_policy_cmp` |
+| 405 | KPI trend over runs | `zcl_alloc_kpi_trend` |
+| 406 | Pareto analysis | `zcl_alloc_pareto` |
+| 407 | Concentration index (HHI) | `zcl_alloc_hhi` |
+| 408 | Gini coefficient | `zcl_alloc_gini` |
+| 409 | Lorenz curve points | `zcl_alloc_lorenz` |
+| 410 | Correlation of two series | `zcl_alloc_correlation` |
+| 411 | Linear regression | `zcl_alloc_regression` |
+| 412 | Outlier detection (z-score) | `zcl_alloc_outlier` |
+| 413 | Percentile calculation | `zcl_alloc_percentile` |
+| 414 | Median and quartiles | `zcl_alloc_quartile` |
+| 415 | Standard deviation | `zcl_alloc_stddev` |
+| 416 | Coefficient of variation | `zcl_alloc_cv` |
+| 417 | Moving range control chart | `zcl_alloc_control_chart` |
+| 418 | Benchmark comparison | `zcl_alloc_benchmark` |
+| 419 | Scorecard builder | `zcl_alloc_scorecard` |
+| 420 | Weighted score model | `zcl_alloc_weighted_score` |
+| 421 | Row numbering for reports | `zcl_alloc_row_number` |
+| 422 | Column definition builder | `zcl_alloc_columns` |
+| 423 | Table of contents for a report | `zcl_alloc_toc` |
+| 424 | Report header block | `zcl_alloc_header` |
+| 425 | Report footer with totals | `zcl_alloc_footer` |
+| 426 | Conditional highlighting rules | `zcl_alloc_highlight` |
+| 427 | Traffic-light status | `zcl_alloc_trafficlight` |
+| 428 | Unit-aware display | `zcl_alloc_unit_display` |
+| 429 | Text wrapping | `zcl_alloc_wrap` |
+| 430 | Truncation helper | `zcl_alloc_truncate` |
+| 431 | Pluralisation helper | `zcl_alloc_plural` |
+| 432 | Digit grouping | `zcl_alloc_grouping` |
+| 433 | Column width fitting | `zcl_alloc_colwidth` |
+| 434 | Excel-friendly CSV | `zcl_alloc_csv_excel` |
+| 435 | Tab-separated export | `zcl_alloc_tsv` |
+| 436 | SQL literal escaping | `zcl_alloc_sql_escape` |
+| 437 | URL query builder | `zcl_alloc_query` |
+| 438 | Deep-link builder | `zcl_alloc_deeplink` |
+| 439 | Report signature block | `zcl_alloc_signature` |
+| 440 | Print pagination | `zcl_alloc_print_page` |
+| 441 | Release note builder | `zcl_alloc_release_notes` |
+| 442 | Change request tracker | `zcl_alloc_change_request` |
+| 443 | Roll-out wave planner | `zcl_alloc_rollout` |
+
+### Batch 4 delivered so far
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 344 | Objective function evaluation | `zcl_alloc_objective` (`score`) |
+| 345 | Greedy allocation solver | `zcl_alloc_greedy` (`solve`, `total_shortage`) |
+| 346 | Cheapest source solver | `zcl_alloc_cheapest` (`solve`) |
+| 347 | Knapsack allocation | `zcl_alloc_knapsack` (`solve`) |
+| 348 | Bin packing for pallets | `zcl_alloc_bin_pack` (`pack`, `oversized`) |
+| 349 | Transportation problem | `zcl_alloc_transport` (`solve`) |
+| 350 | Assignment problem | `zcl_alloc_assignment` (`solve`) |
+| 351 | Constraint set evaluation | `zcl_alloc_constraint` (`evaluate`, `violated_ids`) |
+| 352 | Penalty calculator | `zcl_alloc_penalty` (`calculate`) |
+| 353 | Feasibility check | `zcl_alloc_feasible` (`check`) |
+| 354 | Local search improvement | `zcl_alloc_local_search` (`improve`) |
+| 355 | Swap optimisation | `zcl_alloc_swap_opt` (`improve`) |
+| 356 | Hill climbing | `zcl_alloc_hill_climb` (`climb`) |
+| 357 | Simulated annealing (deterministic) | `zcl_alloc_annealing` (`anneal`) |
+| 358 | Improvement tracker | `zcl_alloc_improve_log` (`add`, `best`, `first`, `gain`) |
+| 359 | Monte Carlo demand sampler | `zcl_alloc_monte_carlo` (`simulate`) |
+| 360 | Seeded random generator | `zcl_alloc_random` (`next`, `between`, `reset`, `state`) |
+| 361 | Scenario definition | `zcl_alloc_scenario` (`define`, `apply`) |
+| 362 | Scenario comparison | `zcl_alloc_scenario_cmp` (`compare`) |
+| 363 | What-if stock shock | `zcl_alloc_shock` (`apply`, `available_of`) |
+| 364 | Demand uplift scenario | `zcl_alloc_uplift` (`apply`, `total_of`) |
+| 365 | Capacity reduction scenario | `zcl_alloc_capacity_cut` (`apply`, `total_of`) |
+| 366 | Stress test ladder | `zcl_alloc_stress` (`ladder`, `assess`) |
+| 367 | Sensitivity analysis | `zcl_alloc_sensitivity` (`analyze`) |
+| 368 | Break-even analysis | `zcl_alloc_breakeven` (`solve`) |
+| 369 | Exponential smoothing | `zcl_alloc_exp_smooth` (`forecast`) |
+| 370 | Holt linear trend | `zcl_alloc_holt` (`forecast`) |
+| 371 | Seasonal index | `zcl_alloc_seasonal` (`index`) |
+| 372 | Seasonally adjusted forecast | `zcl_alloc_season_forecast` (`forecast`, `baseline_of`) |
+| 373 | Mean absolute deviation | `zcl_alloc_mad` (`calculate`, `deviation_of`) |
+| 374 | Forecast accuracy (MAPE) | `zcl_alloc_mape` (`calculate`, `percentage_of`) |
+| 375 | Forecast bias | `zcl_alloc_bias` (`calculate`, `errors_of`, `direction`) |
+| 376 | Forecast exception list | `zcl_alloc_forecast_exc` (`find`) |
+| 377 | Demand classification | `zcl_alloc_demand_class` (`classify`) |
+| 378 | Intermittent demand (Croston) | `zcl_alloc_croston` (`forecast`) |
+| 379 | Material requirements planning run | `zcl_alloc_mrp` (`run`) |
+| 380 | MRP net requirements | `zcl_alloc_mrp_net` (`calculate`) |
+| 381 | Lot sizing: fixed lot | `zcl_alloc_lot_fixed` (`size`, `lots_of`) |
+| 382 | Lot sizing: period lot | `zcl_alloc_lot_period` (`size`) |
+| 383 | Lot sizing: least unit cost | `zcl_alloc_lot_luc` (`size`) |
+| 384 | Lot sizing: part period balancing | `zcl_alloc_lot_ppb` (`size`) |
+| 385 | Scheduling: earliest due date | `zcl_alloc_sched_edd` (`schedule`, `late_count`) |
+| 386 | Scheduling: shortest processing time | `zcl_alloc_sched_spt` (`schedule`, `avg_finish`) |
+| 387 | Scheduling: critical ratio | `zcl_alloc_sched_cr` (`schedule`, `late_count`) |
+| 388 | Capacity levelling | `zcl_alloc_levelling` (`level`) |
+| 389 | Capacity requirement planning | `zcl_alloc_crp` (`calculate`, `total_hours`) |
+| 390 | Work centre load | `zcl_alloc_workload` (`build`, `overload_count`) |
+| 391 | Queue estimation | `zcl_alloc_queue` (`estimate`) |
+| 392 | Rough-cut capacity check | `zcl_alloc_rough_cut` (`check`, `is_feasible`, `gap_total`) |
+| 393 | Distribution network model | `zcl_alloc_network` (`build`, `connected_count`) |
+| 394 | Sourcing rule evaluation | `zcl_alloc_sourcing` (`evaluate`) |
+| 395 | Lane cost matrix | `zcl_alloc_lane` (`build`, `cost_of`, `cheapest_lane`) |
+| 396 | Shortest path over lanes | `zcl_alloc_path` (`shortest`) |
+| 397 | Multi-stop route builder | `zcl_alloc_route` (`build`, `distance_between`) |
+| 398 | Route cost estimate | `zcl_alloc_route_cost` (`estimate`) |
+| 399 | Milk-run grouping | `zcl_alloc_milk_run` (`group`, `unassigned`) |
+| 400 | Cross-dock proposal | `zcl_alloc_crossdock` (`propose`, `shortfall_of`) |
+| 401 | Safety stock by service level | `zcl_alloc_safety_level` (`calculate`, `sqrt_of`) |
+| 402 | Reorder point with variability | `zcl_alloc_rop_var` (`calculate`) |
+| 403 | Fill rate simulation | `zcl_alloc_fill_sim` (`simulate`) |
+| 404 | Inventory policy comparison | `zcl_alloc_policy_cmp` (`compare`) |
+| 405 | KPI trend over runs | `zcl_alloc_kpi_trend` (`analyze`) |
+| 406 | Pareto analysis | `zcl_alloc_pareto` (`build`, `vital_count`, `total_of`) |
+| 407 | Concentration index (HHI) | `zcl_alloc_hhi` (`calculate`, `band_of`) |
+| 408 | Gini coefficient | `zcl_alloc_gini` (`calculate`) |
+| 409 | Lorenz curve points | `zcl_alloc_lorenz` (`build`, `gap_of`) |
+| 410 | Correlation of two series | `zcl_alloc_correlation` (`calculate`) |
+| 411 | Linear regression | `zcl_alloc_regression` (`fit`) |
+| 412 | Outlier detection (z-score) | `zcl_alloc_outlier` (`find`, `mean_of`, `sd_of`) |
+| 413 | Percentile calculation | `zcl_alloc_percentile` (`value`, `rank_of`) |
+| 414 | Median and quartiles | `zcl_alloc_quartile` (`calculate`) |
+| 415 | Standard deviation | `zcl_alloc_stddev` (`calculate`, `mean_of`) |
+| 416 | Coefficient of variation | `zcl_alloc_cv` (`calculate`, `band_of`) |
+| 417 | Moving range control chart | `zcl_alloc_control_chart` (`build`, `out_of_control`) |
+| 418 | Benchmark comparison | `zcl_alloc_benchmark` (`compare`) |
+| 419 | Scorecard builder | `zcl_alloc_scorecard` (`build`, `met_count`) |
+| 420 | Weighted score model | `zcl_alloc_weighted_score` (`score`, `grade_of`) |
+| 421 | Row numbering for reports | `zcl_alloc_row_number` (`apply`, `count_of`) |
+| 422 | Column definition builder | `zcl_alloc_columns` (`build`, `total_width`) |
+| 423 | Table of contents for a report | `zcl_alloc_toc` (`build`) |
+| 424 | Report header block | `zcl_alloc_header` (`build`) |
+| 425 | Report footer with totals | `zcl_alloc_footer` (`build`) |
+| 426 | Conditional highlighting rules | `zcl_alloc_highlight` (`apply`, `worst_severity`) |
+| 427 | Traffic-light status | `zcl_alloc_trafficlight` (`of_value`, `text_of`) |
+| 428 | Unit-aware display | `zcl_alloc_unit_display` (`format`) |
+| 429 | Text wrapping | `zcl_alloc_text_wrap` (`wrap`) |
+| 430 | Text truncation with ellipsis | `zcl_alloc_text_trunc` (`truncate`, `fits`) |
+| 431 | CSV export | `zcl_alloc_csv_export` (`render`, `escape`) |
+| 432 | TSV export | `zcl_alloc_tsv_export` (`render`, `clean`, `separator`) |
+| 433 | Column width fitting | `zcl_alloc_colwidth` (`fit`) |
+| 434 | Excel-friendly CSV | `zcl_alloc_csv_excel` (`render`, `separator`, `hint`) |
+| 435 | Tab-separated codec | `zcl_alloc_tsv` (`join`, `split`, `cell_count`) |
+| 436 | SQL literal escaping | `zcl_alloc_sql_escape` (`escape`, `literal`, `needs_escape`) |
+| 437 | URL query builder | `zcl_alloc_query` (`build`, `encode`) |
+| 438 | Deep-link builder | `zcl_alloc_deeplink` (`build`, `is_absolute`) |
+| 439 | Report signature block | `zcl_alloc_signature` (`build`) |
+| 440 | Print pagination | `zcl_alloc_print_page` (`paginate`, `capacity_of`) |
+| 441 | Release note builder | `zcl_alloc_release_notes` (`build`, `count_of`, `titles_of`) |
+| 442 | Change request tracker | `zcl_alloc_change_request` (`build`, `is_open_status`, `open_count`) |
+| 443 | Roll-out wave planner | `zcl_alloc_rollout` (`plan`, `wave_count`) |
+
+**All 443 orders of the roadmap are delivered and verified** (batches 1-4). Every
+class has a local test class, abapGit metadata and an entry in `NOTES.md`, and
+`npm test` (abaplint + transpile + unit run) is green.
+
+## Batch 5 - verification and hardening (444-449)
+
+The allocation logic, the reporting helpers and the operational tooling are built
+and unit tested per class. What is left is the cross-cutting risk: a result that
+looks plausible but breaks an invariant the business depends on (over-allocation,
+a negative quantity, a stock movement driving a storage location below zero, or a
+run that silently changed behaviour). Batch 5 adds the checkers that make those
+failures visible, each as a small, separately testable class.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 444 | Allocation invariant check | `zcl_alloc_invariant_check` (`check`, `is_clean`) |
+| 445 | Run audit summary | `zcl_alloc_run_audit` (`audit`) |
+| 446 | Stock movement guard | `zcl_alloc_stock_guard` (`check`, `first_negative`, `closing_of`) |
+| 447 | Regression baseline | `zcl_alloc_regression_baseline` (`capture`, `compare`) |
+| 448 | Scenario matrix | `zcl_alloc_scenario_matrix` (`build`) |
+| 449 | End-to-end scenario runner | `zcl_alloc_e2e_scenario` (`run`) |
+
+**Batch 5 is complete: orders 444-449 are delivered and verified.**
+
+## Batch 6 - scale safety (450-451)
+
+Batch 5 made failures visible; batch 6 addresses the one class of failure that the
+unit tests cannot see at all, because every test uses a handful of rows: an
+algorithm whose cost grows with the square of the input. About fifteen classes
+aggregate with "read the row, change it, delete it, append it", which scans the
+whole table once per input row, so the cost is quadratic in the number of rows.
+
+There is no microsecond clock available here (`sy-uzeit` counts seconds), so the
+verification counts **work elements** instead of wall-clock time. That is
+deterministic, reproducible, and it is the property that actually matters.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 450 | Scale-safe keyed aggregation | `zcl_alloc_key_agg` (`add`, `sums`, `find`, `visits`) |
+| 451 | Growth classifier | `zcl_alloc_scale_guard` (`classify`, `ratio_x100`) |
+
+**Batch 6 is complete: orders 450-451 are delivered and verified.**
+
+## Batch 7 - applying the scale-safe aggregation (452)
+
+Batch 6 found the quadratic read/delete/append aggregation in about fifteen classes
+and built the tools; this batch applies them. The enabler is a string-keyed variant
+of the aggregator, because the affected keys are material numbers, work centres and
+node ids, and it has to preserve the first-appearance order that the existing
+classes produce, so that converting a class is a purely internal change.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 452 | Scale-safe string keyed aggregation | `zcl_alloc_key_agg_str` (`add`, `sums`, `visits`) |
+| 453 | Scale-safe ordered keyed map | `zcl_alloc_key_map` (`put`, `add`, `get`, `has`, `remove`) |
+
+Order 452 is the pure aggregator (`sum` per key); order 453 is the map the
+older classes need, because they read a running total back while they build it
+(`transport`, `mrp`) or keep one row per key with a hash lookup (`sourcing`) or
+simply store values by key (`checksum_reg`, `concurrency`, `config_w`,
+`dedupe_win`). The map is a hashed table with a unique key, so `put`, `add`,
+`get`, `has` and `remove` are constant time; `add( )` deletes and re-inserts on
+update, which reproduces the move-to-the-end order of the read/delete/append
+code it replaces, so every conversion is a purely internal change.
+
+Then the quadratic classes are converted one per iteration, using their existing
+tests as the regression check: `mrp`, `network`, `crp`, `workload`, `crossdock`,
+`sourcing`, `transport`, `local_search`, `toc`, `rollout`, `checksum_reg`,
+`concurrency`, `config_w`, `dedupe_win`, `path`.
+
+**Batch 7 is complete.** Twelve of the fifteen classes are converted and each is
+verified by its own existing tests, which pin the quantities and the
+first-appearance order and therefore catch any behaviour drift: `network`,
+`crp`, `workload`, `mrp`, `crossdock`, `sourcing`, `transport`, `rollout`,
+`checksum_reg`, `concurrency`, `config_w` and `dedupe_win`. The remaining three
+are deliberately left as they are, with the reason recorded in `NOTES.md`:
+`toc` counts at most one row per level and the level count is a constant (three),
+so it is already linear; `path` and `local_search` are quadratic in their
+*algorithm* (Dijkstra's linear minimum scan, and the pairwise swap
+neighbourhood), not in the read/delete/append table pattern, so a storage
+change would not make them scale.
+
+
+## Batch 8 - warehouse execution, packaging and quality (454-553)
+
+The earlier batches stop at the door of the distribution centre: they plan the
+allocation, but they do not model what happens to the goods once the plan says
+"move 40 pieces from bin A to bin B". This batch adds that layer. Every feature
+is the same shape as the rest of the repository - a pure calculation, formatting,
+validation or in-memory service over plain tables - so `npm test` can verify it,
+and the new scale-safe map (order 453) is reused wherever a feature groups or
+looks up by key.
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 454 | Handling unit contents | `zcl_alloc_hu` (`add`, `total`, `material_count`) |
+| 455 | Pack into units of a capacity | `zcl_alloc_hu_pack` (`pack`) |
+| 456 | Handling unit nesting | `zcl_alloc_hu_nest` (`root_of`, `depth_of`, `children_of`) |
+| 457 | Handling unit label text | `zcl_alloc_hu_label` (`build`) |
+| 458 | Packing list from result lines | `zcl_alloc_packing_list` (`build`) |
+| 459 | Carton pattern (pieces per carton) | `zcl_alloc_pack_pattern` (`cartons`, `full_cartons`, `remainder`) |
+| 460 | Carton fill estimate | `zcl_alloc_carton_fill` |
+| 461 | Pallet pattern (layers x per layer) | `zcl_alloc_pallet_pattern` |
+| 462 | Pallet load check | `zcl_alloc_pallet_check` |
+| 463 | Volume calculation | `zcl_alloc_volume_calc` |
+| 464 | Weight roll-up | `zcl_alloc_weight_total` |
+| 465 | Dimensional weight | `zcl_alloc_dim_weight` |
+| 466 | Packaging hierarchy levels | `zcl_alloc_pack_hier` |
+| 467 | Carton numbering | `zcl_alloc_carton_seq` |
+| 468 | Mixed pallet builder | `zcl_alloc_mixed_pallet` |
+| 469 | Returnable container count | `zcl_alloc_container_count` |
+| 470 | Storage bin model | `zcl_alloc_bin_model` |
+| 471 | Bin capacity check | `zcl_alloc_bin_capacity` |
+| 472 | Bin occupancy | `zcl_alloc_bin_occupancy` |
+| 473 | Putaway: fixed bin | `zcl_alloc_putaway_fixed` |
+| 474 | Putaway: next empty bin | `zcl_alloc_putaway_empty` |
+| 475 | Putaway: nearest pick bin | `zcl_alloc_putaway_near` |
+| 476 | Putaway: open storage | `zcl_alloc_putaway_open` |
+| 477 | Putaway: bulk storage | `zcl_alloc_putaway_bulk` |
+| 478 | Removal: closest bin | `zcl_alloc_remove_closest` |
+| 479 | Removal: largest bin | `zcl_alloc_remove_largest` |
+| 480 | Removal: smallest sufficient bin | `zcl_alloc_remove_smallest` |
+| 481 | Bin sequence within an aisle | `zcl_alloc_aisle_seq` |
+| 482 | Bin coordinate model | `zcl_alloc_bin_coord` |
+| 483 | Distance between two bins | `zcl_alloc_bin_distance` |
+| 484 | Pick path length | `zcl_alloc_pick_path` |
+| 485 | S-shape pick tour | `zcl_alloc_sshp_tour` |
+| 486 | Return pick tour | `zcl_alloc_return_tour` |
+| 487 | Aisle utilisation | `zcl_alloc_aisle_util` |
+| 488 | Warehouse area model | `zcl_alloc_area_model` |
+| 489 | Area capacity check | `zcl_alloc_area_capacity` |
+| 490 | Storage type assignment | `zcl_alloc_storage_type` |
+| 491 | Bin decomposition (block/aisle/level) | `zcl_alloc_bin_decompose` |
+| 492 | Bin id formatting | `zcl_alloc_bin_id` |
+| 493 | Bin id parsing | `zcl_alloc_bin_id_parse` |
+| 494 | Capacity unit conversion | `zcl_alloc_cap_convert` |
+| 495 | Space utilisation | `zcl_alloc_space_util` |
+| 496 | Load plan | `zcl_alloc_load_plan` |
+| 497 | Load sequence | `zcl_alloc_load_seq` |
+| 498 | Truck fill check | `zcl_alloc_truck_fill` |
+| 499 | Truck type selection | `zcl_alloc_truck_select` |
+| 500 | Trailer and pallet count | `zcl_alloc_trailer_count` |
+| 501 | Dock appointment slot | `zcl_alloc_dock_slot` |
+| 502 | Dock door assignment | `zcl_alloc_dock_door` |
+| 503 | Loading time estimate | `zcl_alloc_load_time` |
+| 504 | Unloading time estimate | `zcl_alloc_unload_time` |
+| 505 | Shipment consolidation | `zcl_alloc_ship_consolidate` |
+| 506 | Transport unit builder | `zcl_alloc_tu_build` |
+| 507 | Route stop sequence | `zcl_alloc_stop_seq` |
+| 508 | Delivery window check | `zcl_alloc_delivery_win` |
+| 509 | Freight cost per unit | `zcl_alloc_freight_rate` |
+| 510 | Freight cost comparison | `zcl_alloc_freight_cmp` |
+| 511 | Inspection lot model | `zcl_alloc_inspect_lot` |
+| 512 | Sample size | `zcl_alloc_sample_size` |
+| 513 | Accept / reject decision | `zcl_alloc_accept_decision` |
+| 514 | Usage decision | `zcl_alloc_usage_decision` |
+| 515 | Quality score | `zcl_alloc_quality_score` |
+| 516 | Defect rate | `zcl_alloc_defect_rate` |
+| 517 | Defect classification | `zcl_alloc_defect_class` |
+| 518 | Batch status check | `zcl_alloc_batch_status` |
+| 519 | Shelf-life check | `zcl_alloc_shelf_life` |
+| 520 | Remaining shelf-life ratio | `zcl_alloc_shelf_ratio` |
+| 521 | Batch recall scope | `zcl_alloc_recall_scope` |
+| 522 | Traceability chain | `zcl_alloc_trace_chain` |
+| 523 | Certificate checklist | `zcl_alloc_cert_check` |
+| 524 | Certificate expiry | `zcl_alloc_cert_expiry` |
+| 525 | Hazardous material check | `zcl_alloc_hazard_check` |
+| 526 | Serial number generator | `zcl_alloc_serial_gen` |
+| 527 | Serial number range check | `zcl_alloc_serial_check` |
+| 528 | Serial selection for a quantity | `zcl_alloc_serial_select` |
+| 529 | Serial number history | `zcl_alloc_serial_history` |
+| 530 | Serial trace | `zcl_alloc_serial_trace` |
+| 531 | Cycle count plan | `zcl_alloc_cycle_plan` |
+| 532 | Count frequency by ABC class | `zcl_alloc_count_freq` |
+| 533 | Count variance | `zcl_alloc_count_variance` |
+| 534 | Count adjustment proposal | `zcl_alloc_count_adjust` |
+| 535 | Book-to-physical check | `zcl_alloc_book_phys` |
+| 536 | Stock transfer order proposal | `zcl_alloc_sto_proposal` |
+| 537 | Goods receipt check | `zcl_alloc_gr_check` |
+| 538 | Over / under delivery tolerance | `zcl_alloc_tolerance_check` |
+| 539 | Delivery note builder | `zcl_alloc_delivery_note` |
+| 540 | Packing slip lines | `zcl_alloc_pack_slip` |
+| 541 | EAN / GTIN check digit | `zcl_alloc_ean_check` |
+| 542 | GTIN builder | `zcl_alloc_gtin_build` |
+| 543 | Code 128 checksum | `zcl_alloc_code128_check` |
+| 544 | Label field mapping | `zcl_alloc_label_map` |
+| 545 | Label text lines | `zcl_alloc_label_text` |
+| 546 | SSCC builder | `zcl_alloc_sscc` |
+| 547 | SSCC check | `zcl_alloc_sscc_check` |
+| 548 | QR payload builder | `zcl_alloc_qr_payload` |
+| 549 | Dock-to-stock time | `zcl_alloc_dock_to_stock` |
+| 550 | Putaway cycle time | `zcl_alloc_putaway_time` |
+| 551 | Pick rate | `zcl_alloc_pick_rate` |
+| 552 | Lines per hour | `zcl_alloc_lph` |
+| 553 | Warehouse KPI card | `zcl_alloc_wh_kpi` |
+
+**Batch 8 is complete.** Orders 454-553 (100 features) are all delivered; they were
+built one per iteration in the local test→commit rhythm.
+
+
+## Batch 9 - returns, repairs and reverse logistics (554-653)
+
+Batch 8 moves goods forward through the distribution centre. This batch models the
+return flow: authorising a return, inspecting what comes back, deciding its
+disposition (restock, repair, scrap or vendor return), settling the refund or
+credit, and measuring the result. Every feature keeps the repository's shape - a
+pure calculation, formatting, validation or in-memory service over plain tables -
+so `npm test` verifies it, and `zcl_alloc_key_map` (order 453) is reused wherever
+a feature groups or looks up by key.
+
+### Return intake and authorisation (554-563)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 554 | Return authorisation line | `zcl_alloc_rma` (`add`, `total_quantity`, `line_count`) |
+| 555 | Return authorisation check | `zcl_alloc_rma_check` (`is_valid`, `reasons`, `reject`) |
+| 556 | Return reason classification | `zcl_alloc_return_reason` (`classify`, `is_reason`, `code_of`) |
+| 557 | Return reason grouping | `zcl_alloc_return_reason_grp` (`group`, `total`) |
+| 558 | Return receipt lines | `zcl_alloc_return_receipt` (`build`, `total`, `short_lines`) |
+| 559 | Return receipt reconciliation | `zcl_alloc_return_recon` (`compare`, `is_complete`, `difference`) |
+| 560 | Return quantity tolerance | `zcl_alloc_return_tolerance` (`within`, `deviation_percent`) |
+| 561 | Return window check | `zcl_alloc_return_window` (`is_open`, `days_left`, `expiry_day`) |
+| 562 | Return label text | `zcl_alloc_return_label` (`build`) |
+| 563 | RMA number generator | `zcl_alloc_rma_id` (`next`, `reset`, `is_valid`) |
+
+### Inspection and disposition (564-575)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 564 | Return inspection result | `zcl_alloc_return_inspect` (`record`, `result_of`, `is_complete`) |
+| 565 | Return condition grading | `zcl_alloc_return_grade` (`grade`, `score`, `is_sellable`) |
+| 566 | Disposition routing | `zcl_alloc_disposition` (`route`, `target_of`, `count_for`) |
+| 567 | Restock decision | `zcl_alloc_restock_decision` (`decide`, `is_restock`, `reason`) |
+| 568 | Restock quantity split | `zcl_alloc_restock_split` (`split`, `sellable`, `blocked`) |
+| 569 | Scrap proposal | `zcl_alloc_scrap_proposal` (`propose`, `total_quantity`, `reason`) |
+| 570 | Scrap value | `zcl_alloc_scrap_value` (`value`, `value_of`, `total`) |
+| 571 | Rework proposal | `zcl_alloc_rework_proposal` (`propose`, `steps`, `total_hours`) |
+| 572 | Repair order lines | `zcl_alloc_repair_order` (`build`, `total`, `line_count`) |
+| 573 | Repair queue sequencing | `zcl_alloc_repair_queue` (`sequence`, `position_of`, `priority_order`) |
+| 574 | Repair cycle time | `zcl_alloc_repair_time` (`elapsed`, `average`, `is_on_target`) |
+| 575 | Repair cost estimate | `zcl_alloc_repair_cost` (`estimate`, `parts_cost`, `labour_cost`) |
+
+### Warranty, cores and exchange (576-585)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 576 | Warranty check | `zcl_alloc_warranty_check` (`is_covered`, `reason`, `remaining_days`) |
+| 577 | Warranty expiry | `zcl_alloc_warranty_expiry` (`expiry_day`, `has_expired`, `days_left`) |
+| 578 | Warranty coverage | `zcl_alloc_warranty_cover` (`cover`, `covered_quantity`, `share_percent`) |
+| 579 | Core return tracking | `zcl_alloc_core_return` (`add`, `outstanding`, `is_returned`) |
+| 580 | Core credit value | `zcl_alloc_core_credit` (`credit`, `credit_of`, `total`) |
+| 581 | Core return overdue | `zcl_alloc_core_overdue` (`overdue`, `overdue_days`, `is_overdue`) |
+| 582 | Exchange proposal | `zcl_alloc_exchange` (`propose`, `paired`, `quantity`) |
+| 583 | Replacement priority | `zcl_alloc_replace_priority` (`score`, `rank`, `is_urgent`) |
+| 584 | Return freight estimate | `zcl_alloc_return_freight` (`estimate`, `per_unit`, `total`) |
+| 585 | Return carrier selection | `zcl_alloc_return_carrier` (`select`, `cheapest`, `fits`) |
+
+### Refunds and credits (586-595)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 586 | Refund value | `zcl_alloc_refund` (`value`, `for_line`, `total`) |
+| 587 | Refund line builder | `zcl_alloc_refund_line` (`build`, `line_count`, `total`) |
+| 588 | Credit memo lines | `zcl_alloc_credit_memo` (`build`, `total`, `tax`) |
+| 589 | Credit memo validation | `zcl_alloc_credit_check` (`is_valid`, `reason`, `difference`) |
+| 590 | Restocking fee | `zcl_alloc_restock_fee` (`fee`, `fee_percent`, `applies`) |
+| 591 | Net refund after fee | `zcl_alloc_refund_net` (`net`, `fee_of`, `total`) |
+| 592 | Return shipping charge | `zcl_alloc_return_charge` (`charge`, `is_waived`, `total`) |
+| 593 | Return value at cost | `zcl_alloc_return_cost` (`value`, `total`, `per_unit`) |
+| 594 | Return margin impact | `zcl_alloc_return_margin` (`impact`, `margin_percent`, `total`) |
+| 595 | Return settlement summary | `zcl_alloc_return_settle` (`build`, `net_settlement`, `line_count`) |
+
+### Return analytics (596-607)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 596 | Return rate by material | `zcl_alloc_return_rate` (`rate`, `rate_percent`, `above_target`) |
+| 597 | Return rate by customer | `zcl_alloc_return_rate_cust` (`rate`, `highest`, `rank`) |
+| 598 | Return reason distribution | `zcl_alloc_return_reason_dist` (`share`, `share_percent`, `top_reason`) |
+| 599 | Return KPI summary | `zcl_alloc_return_kpi` (`build`, `rate_percent`, `value`) |
+| 600 | Return trend | `zcl_alloc_return_trend` (`direction`, `slope_sign`, `is_rising`) |
+| 601 | Top returned materials | `zcl_alloc_return_top` (`top`, `quantity_of`, `count`) |
+| 602 | Return aging buckets | `zcl_alloc_return_aging` (`bucket`, `bucket_of`, `count_in`) |
+| 603 | Cost of poor quality | `zcl_alloc_return_coq` (`total`, `scrap_share`, `rework_share`) |
+| 604 | Return recovery rate | `zcl_alloc_return_recovery` (`rate`, `recovered_value`, `is_good`) |
+| 605 | Return by plant | `zcl_alloc_return_plant` (`group`, `total`, `top_plant`) |
+| 606 | Return by day | `zcl_alloc_return_daily` (`group`, `total`, `busiest_day`) |
+| 607 | Return Pareto | `zcl_alloc_return_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+
+### Reverse logistics execution (608-619)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 608 | Return pickup route | `zcl_alloc_return_route` (`build`, `stop_count`, `total_quantity`) |
+| 609 | Return pickup sequencing | `zcl_alloc_return_seq` (`sequence`, `position_of`, `distance`) |
+| 610 | Return load plan | `zcl_alloc_return_load` (`plan`, `total_volume`, `is_feasible`) |
+| 611 | Return consolidation | `zcl_alloc_return_consolidate` (`merge`, `groups`, `largest_group`) |
+| 612 | Return-to-vendor shipment | `zcl_alloc_rtv_ship` (`build`, `total`, `line_count`) |
+| 613 | Vendor return claim | `zcl_alloc_rtv_claim` (`claim`, `value`, `is_valid`) |
+| 614 | Vendor claim aging | `zcl_alloc_rtv_aging` (`bucket`, `oldest_days`, `overdue`) |
+| 615 | RTV credit reconciliation | `zcl_alloc_rtv_recon` (`reconcile`, `difference`, `is_settled`) |
+| 616 | Recall return scope | `zcl_alloc_recall_return` (`scope`, `affected_quantity`, `is_affected`) |
+| 617 | Recall return status | `zcl_alloc_recall_status` (`status`, `recovered_percent`, `is_complete`) |
+| 618 | Recall return notification | `zcl_alloc_recall_notice` (`build`, `recipients`, `message`) |
+| 619 | Recall effectiveness | `zcl_alloc_recall_effect` (`rate`, `is_effective`, `outstanding`) |
+
+### Disposal and recycling (620-629)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 620 | Disposal proposal | `zcl_alloc_disposal` (`propose`, `total`, `line_count`) |
+| 621 | Disposal cost | `zcl_alloc_disposal_cost` (`cost`, `cost_of`, `total`) |
+| 622 | Recycling split | `zcl_alloc_recycle_split` (`split`, `recycled`, `recovery_percent`) |
+| 623 | Disposal hazard class | `zcl_alloc_disposal_hazard` (`class_of`, `is_hazardous`, `needs_approval`) |
+| 624 | Environmental fee | `zcl_alloc_env_fee` (`fee`, `total`, `is_exempt`) |
+| 625 | Destruction certificate | `zcl_alloc_destruction_cert` (`build`, `is_complete`, `quantity_total`) |
+| 626 | Disposal lot | `zcl_alloc_disposal_lot` (`add`, `total`, `lot_count`) |
+| 627 | Disposal lead time | `zcl_alloc_disposal_time` (`lead_days`, `is_urgent`, `planned_day`) |
+| 628 | Disposal authorisation check | `zcl_alloc_disposal_auth` (`is_authorised`, `reason`, `needs_second`) |
+| 629 | Scrap rate | `zcl_alloc_scrap_rate` (`rate`, `rate_percent`, `above_target`) |
+
+### Returned goods putaway (630-639)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 630 | Return putaway proposal | `zcl_alloc_return_putaway` (`propose`, `bin_of`, `line_count`) |
+| 631 | Return bin selection | `zcl_alloc_return_bin` (`select`, `fits`, `best_bin`) |
+| 632 | Return stock segregation | `zcl_alloc_return_segregate` (`separate`, `blocked`, `sellable`) |
+| 633 | Return stock release | `zcl_alloc_return_release` (`release`, `is_released`, `remaining`) |
+| 634 | Return hold management | `zcl_alloc_return_hold` (`place`, `is_on_hold`, `hold_count`) |
+| 635 | Hold release check | `zcl_alloc_hold_release` (`can_release`, `reason`, `blocking_holds`) |
+| 636 | Return stock ageing | `zcl_alloc_return_stock_age` (`age_days`, `bucket`, `oldest`) |
+| 637 | Return write-down | `zcl_alloc_return_writedown` (`write_down`, `new_value`, `loss`) |
+| 638 | Return inventory value | `zcl_alloc_return_value` (`value`, `total`, `per_unit`) |
+| 639 | Return stock KPI | `zcl_alloc_return_stock_kpi` (`build`, `value`, `age_days`) |
+
+### Documents, status and controls (640-649)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 640 | Return confirmation text | `zcl_alloc_return_confirm` (`build`, `line_count`) |
+| 641 | Return advice message | `zcl_alloc_return_advice` (`build`, `field_count`) |
+| 642 | Return status pipeline | `zcl_alloc_return_status` (`stage`, `next_stage`, `is_final`) |
+| 643 | Return note text | `zcl_alloc_return_note` (`build`, `line_count`, `has_text`) |
+| 644 | Return document list | `zcl_alloc_return_docs` (`list`, `count`, `by_type`) |
+| 645 | Return approval workflow | `zcl_alloc_return_approval` (`approve`, `is_approved`, `pending_count`) |
+| 646 | Return approval limit check | `zcl_alloc_return_limit` (`within_limit`, `needs_manager`, `limit_of`) |
+| 647 | Return escalation | `zcl_alloc_return_escalate` (`escalate`, `level_of`, `is_escalated`) |
+| 648 | Return SLA check | `zcl_alloc_return_sla` (`is_met`, `elapsed_hours`, `breach_count`) |
+| 649 | Return audit trail | `zcl_alloc_return_audit` (`record`, `entries`, `last_action`) |
+
+### Policy and dashboard (650-653)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 650 | Return policy presets | `zcl_alloc_return_policy` (`preset`, `window_days`, `fee_percent`) |
+| 651 | Return policy resolution | `zcl_alloc_return_policy_res` (`resolve`, `window_of`, `fee_of`) |
+| 652 | Return summary card | `zcl_alloc_return_card` (`build`, `total`, `on_target`) |
+| 653 | Return dashboard lines | `zcl_alloc_return_dash` (`build`, `line_count`, `join`) |
+
+**Batch 9 is complete.** Orders 554-653 are delivered in the local test→commit
+rhythm; the batch moved from intake and inspection through refunds, analytics,
+reverse-logistics execution, disposal and putaway to documents, controls and
+policy.
+
+
+## Batch 10 - replenishment planning and inventory optimization (654-753)
+
+Batch 9 closes the return loop. This batch turns to the other half of stock
+allocation: deciding how much to hold and when to order more. It covers demand
+and forecasting, replenishment triggers, order quantity and cost, safety stock
+and service level, MRP net requirements, supplier and lead time, inventory
+classification, inventory health, and the execution and monitoring of the
+replenishment orders themselves. Each feature keeps the repository's shape - a
+pure calculation, formatting, validation or in-memory service over plain tables -
+so `npm test` verifies it, and `zcl_alloc_key_map` (order 453) and
+`zcl_alloc_return_window->add_days` are reused where a feature groups by key or
+walks the calendar.
+
+### Demand and forecast (654-663)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 654 | Demand period total | `zcl_alloc_demand` (`total`, `average`, `period_count`) |
+| 655 | Weighted moving average forecast | `zcl_alloc_forecast_wma` (`forecast`, `weight_sum`, `periods`) |
+| 656 | Simple exponential smoothing | `zcl_alloc_forecast_ses` (`smooth`, `next_value`, `history_count`) |
+| 657 | Trend projection | `zcl_alloc_forecast_trend` (`slope_sign`, `project`, `is_rising`) |
+| 658 | Forecast accuracy | `zcl_alloc_forecast_error` (`error`, `error_percent`, `within_tolerance`) |
+| 659 | Mean absolute deviation | `zcl_alloc_forecast_mad` (`deviation`, `per_period`, `count`) |
+| 660 | Forecast bias | `zcl_alloc_forecast_bias` (`bias`, `is_over`, `magnitude`) |
+| 661 | Seasonal index | `zcl_alloc_season_index` (`index_of`, `is_peak`, `peak_period`) |
+| 662 | Demand history bucket | `zcl_alloc_demand_bucket` (`bucket_of`, `total_in`, `count_in`) |
+| 663 | Demand outlier filter | `zcl_alloc_demand_outlier` (`filter`, `is_outlier`, `removed_count`) |
+
+### Replenishment triggers (664-673)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 664 | Reorder point | `zcl_alloc_reorder_calc` (`point`, `is_below`, `gap`) |
+| 665 | Replenishment need | `zcl_alloc_replenish_need` (`need`, `is_needed`, `shortfall`) |
+| 666 | Min/max replenishment | `zcl_alloc_minmax` (`target`, `order_quantity`, `is_below_min`) |
+| 667 | Cover days | `zcl_alloc_cover_days` (`days`, `is_covered`, `gap_days`) |
+| 668 | Stock projection | `zcl_alloc_stock_projection` (`project`, `first_zero`, `runs_out`) |
+| 669 | Replenishment urgency | `zcl_alloc_replenish_urgency` (`urgency`, `is_urgent`, `priority_of`) |
+| 670 | Replenishment priority list | `zcl_alloc_replenish_priority` (`rank`, `top`, `count`) |
+| 671 | Replenishment exclusion | `zcl_alloc_replenish_exclude` (`should_exclude`, `reason`, `excluded_count`) |
+| 672 | Replenishment batch split | `zcl_alloc_replenish_split` (`split`, `batch_count`, `covers_total`) |
+| 673 | Replenishment trigger summary | `zcl_alloc_replenish_trigger` (`build`, `trigger_count`, `total_quantity`) |
+
+### Order quantity and cost (674-683)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 674 | Economic order quantity | `zcl_alloc_eoq_calc` (`eoq`, `order_count`, `is_valid`) |
+| 675 | Ordering cost per year | `zcl_alloc_order_cost` (`annual_cost`, `per_order`, `order_count`) |
+| 676 | Holding cost per year | `zcl_alloc_holding_cost` (`annual_cost`, `per_unit`, `average_stock`) |
+| 677 | Total replenishment cost | `zcl_alloc_replenish_cost` (`total`, `ordering_share`, `holding_share`) |
+| 678 | Quantity discount choice | `zcl_alloc_qty_discount` (`best_tier`, `cost_at`, `is_cheaper`) |
+| 679 | Order rounding | `zcl_alloc_order_round` (`round_up`, `round_down`, `is_exact`) |
+| 680 | Order multiple alignment | `zcl_alloc_order_multiple` (`align`, `remainder`, `is_aligned`) |
+| 681 | Pallet rounding | `zcl_alloc_pallet_round` (`pallets`, `remainder`, `is_full`) |
+| 682 | Transportation lot size | `zcl_alloc_truck_lot` (`lots`, `fill_percent`, `is_efficient`) |
+| 683 | Order cost comparison | `zcl_alloc_cost_compare` (`cheaper`, `difference`, `best_option`) |
+
+### Safety stock and service level (684-693)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 684 | Safety stock | `zcl_alloc_safety_stock` (`stock`, `is_valid`, `recommended`) |
+| 685 | Service level factor | `zcl_alloc_service_factor` (`factor`, `level_of`, `is_high`) |
+| 686 | Demand variability | `zcl_alloc_demand_variability` (`std_dev`, `variance`, `is_stable`) |
+| 687 | Lead time variability | `zcl_alloc_lead_variability` (`std_dev`, `average`, `is_stable`) |
+| 688 | Reorder point with safety | `zcl_alloc_reorder_safety` (`point`, `safety_part`, `demand_part`) |
+| 689 | Fill rate | `zcl_alloc_fill_rate` (`rate`, `rate_percent`, `is_met`) |
+| 690 | Stockout probability | `zcl_alloc_stockout_prob` (`probability`, `is_likely`, `bucket`) |
+| 691 | Service level target | `zcl_alloc_service_target` (`target_of`, `is_met`, `gap`) |
+| 692 | Cycle service level | `zcl_alloc_cycle_service` (`level`, `is_met`, `breach_count`) |
+| 693 | ABC service policy | `zcl_alloc_service_policy` (`level_of`, `is_strict`, `target_of`) |
+
+### MRP net requirements (694-703)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 694 | Gross requirement | `zcl_alloc_gross_req` (`total`, `period`, `line_count`) |
+| 695 | Net requirement | `zcl_alloc_net_req` (`net`, `shortfall`, `is_covered`) |
+| 696 | Available to promise | `zcl_alloc_atp` (`atp`, `is_positive`, `first_period`) |
+| 697 | Receipts netting | `zcl_alloc_receipt_net` (`net`, `receipt_total`, `demand_total`) |
+| 698 | Planned order proposal | `zcl_alloc_planned_order` (`proposal`, `is_needed`, `quantity`) |
+| 699 | MRP exception | `zcl_alloc_mrp_exception` (`is_exception`, `code`, `count_of`) |
+| 700 | MRP list summary | `zcl_alloc_mrp_summary` (`build`, `exception_count`, `total_shortage`) |
+| 701 | Pegged requirement | `zcl_alloc_peg` (`peg`, `is_pegged`, `peg_count`) |
+| 702 | Requirement date | `zcl_alloc_req_date` (`date_of`, `offset_date`, `is_late`) |
+| 703 | MRP run status | `zcl_alloc_mrp_status` (`status`, `is_complete`, `pending_count`) |
+
+### Supplier and lead time (704-713)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 704 | Lead time average | `zcl_alloc_lead_avg` (`average`, `min_days`, `max_days`) |
+| 705 | Lead time variance | `zcl_alloc_lead_variance` (`variance`, `std_dev`, `is_reliable`) |
+| 706 | Supplier score | `zcl_alloc_supplier_score` (`score`, `grade`, `is_preferred`) |
+| 707 | Supplier on-time rate | `zcl_alloc_supplier_otd` (`rate`, `rate_percent`, `is_met`) |
+| 708 | Supplier comparison | `zcl_alloc_supplier_compare` (`best`, `score_of`, `count`) |
+| 709 | Source of supply | `zcl_alloc_source` (`select`, `is_quota`, `quota_of`) |
+| 710 | Quota arrangement | `zcl_alloc_quota` (`split`, `share_of`, `total_quota`) |
+| 711 | Purchase order proposal | `zcl_alloc_po_proposal` (`build`, `total_value`, `line_count`) |
+| 712 | Delivery schedule | `zcl_alloc_schedule` (`build`, `dates`, `is_on_time`) |
+| 713 | Vendor lead-time buffer | `zcl_alloc_lead_buffer` (`buffer`, `planned_lead`, `is_safe`) |
+
+### Inventory classification (714-723)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 714 | ABC classification | `zcl_alloc_abc_class` (`classify`, `class_of`, `count_in`) |
+| 715 | ABC by value | `zcl_alloc_abc_value` (`classify`, `value_share`, `class_at`) |
+| 716 | XYZ classification | `zcl_alloc_xyz` (`classify`, `class_of`, `is_stable`) |
+| 717 | ABC-XYZ matrix | `zcl_alloc_abc_xyz` (`matrix`, `cell_of`, `count_in_cell`) |
+| 718 | Classification summary | `zcl_alloc_class_summary` (`build`, `count_in`, `top_class`) |
+| 719 | Pareto threshold | `zcl_alloc_pareto_threshold` (`threshold`, `is_vital`, `count_vital`) |
+| 720 | Slow mover flag | `zcl_alloc_slow_mover` (`is_slow`, `movement_class`, `count_slow`) |
+| 721 | Fast mover flag | `zcl_alloc_fast_mover` (`is_fast`, `turns`, `count_fast`) |
+| 722 | Dead stock flag | `zcl_alloc_dead_stock` (`is_dead`, `days_since`, `count_dead`) |
+| 723 | Class-based policy | `zcl_alloc_class_policy` (`policy_of`, `is_strict`, `service_of`) |
+
+### Inventory health and ageing (724-733)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 724 | Inventory ageing buckets | `zcl_alloc_inv_age` (`bucket_of`, `buckets`, `is_aged`) |
+| 725 | Stock age | `zcl_alloc_stock_age` (`age_days`, `is_old`, `count_old`) |
+| 726 | Inventory turnover | `zcl_alloc_turnover` (`turns`, `days_of_supply`, `is_healthy`) |
+| 727 | Obsolete stock risk | `zcl_alloc_obsolete` (`is_obsolete`, `risk`, `count_obsolete`) |
+| 728 | Excess stock | `zcl_alloc_excess_stock` (`is_excess`, `excess_qty`, `excess_value`) |
+| 729 | Stock health score | `zcl_alloc_stock_health` (`health`, `grade`, `is_healthy`) |
+| 730 | Inventory risk score | `zcl_alloc_inventory_risk` (`risk`, `is_high`, `count_high`) |
+| 731 | Stock ageing report | `zcl_alloc_aging_report` (`build`, `count_in_bucket`, `total_value`) |
+| 732 | Reorder review schedule | `zcl_alloc_reorder_review` (`days_until`, `is_due`, `review`) |
+| 733 | Inventory management score | `zcl_alloc_inventory_score` (`score`, `is_good`, `gap`) |
+
+### Replenishment execution (734-743)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 734 | Replenishment run | `zcl_alloc_replenish_run` (`build`, `line_count`, `total_quantity`) |
+| 735 | Replenishment confirmation | `zcl_alloc_replenish_confirm` (`confirm`, `is_confirmed`, `convert_to_order`) |
+| 736 | Purchase order creation | `zcl_alloc_po_create` (`build`, `line_count`, `total_value`) |
+| 737 | Stock transport order creation | `zcl_alloc_sto_create` (`build`, `is_cross_plant`, `total_quantity`) |
+| 738 | Replenishment release | `zcl_alloc_replenish_release` (`release`, `is_released`, `blocked_count`) |
+| 739 | Replenishment approval | `zcl_alloc_replenish_approve` (`approve`, `is_approved`, `pending_count`) |
+| 740 | Replenishment schedule | `zcl_alloc_replenish_schedule` (`schedule`, `next_date`, `is_overdue`) |
+| 741 | Replenishment prioritization | `zcl_alloc_replenish_prioritize` (`ordered`, `line_count`, `first_material`) |
+| 742 | Replenishment confirmation message | `zcl_alloc_replenish_msg` (`message`, `is_success`, `error_count`) |
+| 743 | Replenishment status | `zcl_alloc_replenish_status` (`status`, `is_done`, `pending_count`) |
+
+### Replenishment monitoring and dashboard (744-753)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 744 | Replenishment fill rate | `zcl_alloc_replenish_fill` (`rate`, `is_met`, `shortfall`) |
+| 745 | Replenishment lead time actual | `zcl_alloc_replenish_lead` (`actual`, `average`, `is_late`) |
+| 746 | Replenishment KPI card | `zcl_alloc_replenish_kpi` (`build`, `fill_rate`, `on_time_percent`) |
+| 747 | Replenishment trend | `zcl_alloc_replenish_trend` (`direction`, `slope_sign`, `is_rising`) |
+| 748 | Replenishment Pareto | `zcl_alloc_replenish_pareto` (`pareto`, `vital_few`, `cumulative_percent`) |
+| 749 | Replenishment summary text | `zcl_alloc_replenish_text` (`build`, `line_count`) |
+| 750 | Replenishment alert | `zcl_alloc_replenish_alert` (`build`, `is_alert`, `alert_count`) |
+| 751 | Replenishment dashboard lines | `zcl_alloc_replenish_dash` (`build`, `line_count`, `join`) |
+| 752 | Replenishment policy presets | `zcl_alloc_replenish_policy` (`preset`, `target_days`, `service_level`) |
+| 753 | Replenishment plan card | `zcl_alloc_replenish_card` (`build`, `total_quantity`, `on_target`) |
+
+**Batch 10 is complete.** Orders 654-753 are delivered in the local test→commit
+rhythm; the batch moved from demand and forecasting through replenishment triggers,
+order quantity and cost, safety stock and service level, MRP net requirements,
+supplier lead time, inventory classification, health and ageing, to replenishment
+execution and monitoring.
+
+
+## Batch 11 - inventory valuation and allocation costing (754-853)
+
+Batch 10 decides how much stock to hold. This batch decides what that stock is
+worth and what the allocation costs, so the plan can be judged in money rather than
+quantity. It covers the price and cost basis, cost layers and their consumption,
+the valuation methods (weighted average, standard, lowest value), landed cost and
+its apportionment, provisions and write-downs, cost variance analysis, cost of
+goods sold and margin, transfer price and intercompany valuation, valuation
+reports, and valuation monitoring. Every item is a new `zcl_alloc_*` class with a
+local test class, pure in-memory calculation, and verified by `npm run lint` /
+`npm run build` / `npm run unit` in tranches of ten.
+
+### Price and cost basis (754-763)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 754 | Moving average price recalculation | `zcl_alloc_ma_recalc` (`recalc`, `is_rise`, `delta`) |
+| 755 | Standard cost variance | `zcl_alloc_std_variance` (`variance`, `is_favourable`, `percent`) |
+| 756 | Price unit scaling | `zcl_alloc_price_unit` (`scale`, `units_per`, `is_bulk`) |
+| 757 | Cost rounding rule | `zcl_alloc_cost_round` (`round`, `is_rounded`, `difference`) |
+| 758 | Cost component split | `zcl_alloc_cost_split` (`split`, `share_of`, `component_count`) |
+| 759 | Cost component total | `zcl_alloc_cost_total` (`total`, `is_complete`, `share`) |
+| 760 | Unit cost basis | `zcl_alloc_unit_cost` (`basis`, `total_of`, `is_zero`) |
+| 761 | Cost trend | `zcl_alloc_cost_trend` (`direction`, `delta`, `is_rising`) |
+| 762 | Cost index rebasing | `zcl_alloc_cost_index` (`index`, `rebase`, `change_percent`) |
+| 763 | Cost basis comparison | `zcl_alloc_cost_basis_cmp` (`compare`, `cheaper`, `delta`) |
+
+### Cost layers and consumption (764-773)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 764 | Cost layer build | `zcl_alloc_layer_build` (`build`, `layer_count`, `total_qty`) |
+| 765 | FIFO consumption | `zcl_alloc_layer_fifo` (`consume`, `remaining`, `layers_used`) |
+| 766 | LIFO consumption | `zcl_alloc_layer_lifo` (`consume`, `remaining`, `layers_used`) |
+| 767 | Layer value | `zcl_alloc_layer_value` (`value`, `layer_value`, `total_value`) |
+| 768 | Layer ageing | `zcl_alloc_layer_age` (`age_days`, `is_old`, `oldest`) |
+| 769 | Layer depletion status | `zcl_alloc_layer_status` (`status`, `is_empty`, `pending_qty`) |
+| 770 | Layer merge | `zcl_alloc_layer_merge` (`merge`, `group_count`, `largest`) |
+| 771 | Layer split | `zcl_alloc_layer_split` (`split`, `parts`, `total_qty`) |
+| 772 | Layer revaluation | `zcl_alloc_layer_reval` (`revalue`, `delta_value`, `is_up`) |
+| 773 | Layer summary | `zcl_alloc_layer_summary` (`build`, `total_qty`, `total_value`) |
+
+### Valuation methods (774-783)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 774 | Weighted average valuation | `zcl_alloc_val_wavg` (`value`, `unit_cost`, `is_zero`) |
+| 775 | Standard cost valuation | `zcl_alloc_val_std` (`value`, `unit_cost`, `variance`) |
+| 776 | Lowest value principle | `zcl_alloc_val_lowest` (`value`, `method`, `is_written_down`) |
+| 777 | Valuation comparison | `zcl_alloc_val_compare` (`compare`, `best_method`, `delta`) |
+| 778 | Valuation method selection | `zcl_alloc_val_select` (`select`, `is_standard`, `reason`) |
+| 779 | Valuation run | `zcl_alloc_val_run` (`build`, `line_count`, `total_value`) |
+| 780 | Valuation difference | `zcl_alloc_val_diff` (`difference`, `is_up`, `percent`) |
+| 781 | Valuation rounding | `zcl_alloc_val_round` (`round`, `nearest`, `difference`) |
+| 782 | Valuation of returns | `zcl_alloc_val_return` (`value`, `is_reduced`, `reduction_percent`) |
+| 783 | Valuation of scrap | `zcl_alloc_val_scrap` (`value`, `scrap_percent`, `is_scrapped`) |
+
+### Landed cost and add-ons (784-793)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 784 | Landed cost total | `zcl_alloc_landed_total` (`total`, `markup_percent`, `is_custom`) |
+| 785 | Freight apportionment | `zcl_alloc_landed_freight` (`apportion`, `share_of`, `per_unit`) |
+| 786 | Duty apportionment | `zcl_alloc_landed_duty` (`apportion`, `share_of`, `rate_percent`) |
+| 787 | Insurance apportionment | `zcl_alloc_landed_ins` (`apportion`, `share_of`, `per_unit`) |
+| 788 | Landed cost build | `zcl_alloc_landed_build` (`build`, `component_count`, `total`) |
+| 789 | Landed cost per unit | `zcl_alloc_landed_unit` (`per_unit`, `is_high`, `vs_standard`) |
+| 790 | Landed cost variance | `zcl_alloc_landed_var` (`variance`, `is_over`, `percent`) |
+| 791 | Landed cost split by weight | `zcl_alloc_landed_weight` (`apportion`, `weight_share`, `total`) |
+| 792 | Landed cost split by value | `zcl_alloc_landed_value` (`apportion`, `value_share`, `total`) |
+| 793 | Landed cost summary | `zcl_alloc_landed_summary` (`build`, `total`, `line_count`) |
+
+### Provisions and write-downs (794-803)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 794 | Obsolescence provision | `zcl_alloc_prov_obsolete` (`provision`, `percent`, `is_provisioned`) |
+| 795 | Ageing provision | `zcl_alloc_prov_age` (`provision`, `bucket_percent`, `total`) |
+| 796 | Net realisable value | `zcl_alloc_nrv` (`nrv`, `is_impaired`, `write_down`) |
+| 797 | Write-down proposal | `zcl_alloc_writedown` (`proposal`, `amount`, `is_needed`) |
+| 798 | Provision rate by class | `zcl_alloc_prov_rate` (`rate`, `provision`, `is_high`) |
+| 799 | Provision reversal | `zcl_alloc_prov_reverse` (`reverse`, `amount`, `is_full`) |
+| 800 | Provision summary | `zcl_alloc_prov_summary` (`build`, `total`, `line_count`) |
+| 801 | Impairment test | `zcl_alloc_impair_test` (`is_impaired`, `gap`, `severity`) |
+| 802 | Provision movement | `zcl_alloc_prov_move` (`movement`, `is_increase`, `delta`) |
+| 803 | Provision coverage | `zcl_alloc_prov_cover` (`coverage_percent`, `is_covered`, `shortfall`) |
+
+### Cost variance analysis (804-813)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 804 | Price variance | `zcl_alloc_var_price` (`variance`, `is_favourable`, `percent`) |
+| 805 | Quantity variance | `zcl_alloc_var_qty` (`variance`, `is_favourable`, `percent`) |
+| 806 | Total variance | `zcl_alloc_var_total` (`variance`, `is_adverse`, `split`) |
+| 807 | Variance classification | `zcl_alloc_var_favourable` (`classify`, `is_favourable`, `is_adverse`) |
+| 808 | Variance sign convention | `zcl_alloc_var_sign` (`apply_sign`, `to_standard`, `magnitude`) |
+| 809 | Variance summary | `zcl_alloc_var_summary` (`build`, `total`, `line_count`) |
+| 810 | Variance trend | `zcl_alloc_var_trend` (`direction`, `is_improving`, `delta`) |
+| 811 | Variance ranking | `zcl_alloc_var_rank` (`rank`, `worst`, `best`) |
+| 812 | Variance cause | `zcl_alloc_var_cause` (`cause`, `is_price`, `share`) |
+| 813 | Variance alert | `zcl_alloc_var_alert` (`is_over_threshold`, `alert`, `level`) |
+
+### Cost of goods sold and margin (814-823)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 814 | Cost of goods sold | `zcl_alloc_cogs` (`cogs`, `unit_cost`, `is_zero`) |
+| 815 | Gross margin | `zcl_alloc_gross_margin` (`margin`, `margin_percent`, `is_positive`) |
+| 816 | Mark-up on cost | `zcl_alloc_markup` (`markup`, `price_from_cost`, `percent`) |
+| 817 | Margin rate | `zcl_alloc_margin_rate` (`rate`, `price`, `is_healthy`) |
+| 818 | Contribution margin | `zcl_alloc_contrib_margin` (`contribution`, `ratio`, `covers_fixed`) |
+| 819 | Margin percentage | `zcl_alloc_margin_pct` (`of_revenue`, `apply`, `is_improved`) |
+| 820 | Margin change | `zcl_alloc_margin_delta` (`delta`, `is_up`, `percent`) |
+| 821 | Margin target check | `zcl_alloc_margin_target` (`meets`, `shortfall`, `price_for_target`) |
+| 822 | Margin limit | `zcl_alloc_margin_limit` (`is_below`, `gap`, `clamp`) |
+| 823 | Margin summary | `zcl_alloc_margin_summary` (`build`, `total_margin`, `line_count`) |
+
+### Transfer price and intercompany (824-833)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 824 | Transfer price | `zcl_alloc_transfer_price` (`price`, `from_cost`, `is_at_cost`) |
+| 825 | Intercompany margin | `zcl_alloc_interco_margin` (`margin`, `is_eliminated`, `percent`) |
+| 826 | Intercompany elimination | `zcl_alloc_interco_elim` (`eliminate`, `residual`, `is_cleared`) |
+| 827 | Transfer price variance | `zcl_alloc_transfer_var` (`variance`, `is_over`, `percent`) |
+| 828 | Intercompany rate | `zcl_alloc_interco_rate` (`rate`, `applied`, `is_reasonable`) |
+| 829 | Arm's length test | `zcl_alloc_interco_arms` (`is_arms_length`, `gap`, `direction`) |
+| 830 | Intercompany profit split | `zcl_alloc_interco_split` (`split`, `seller_share`, `buyer_share`) |
+| 831 | Intercompany price build | `zcl_alloc_interco_price` (`build`, `total`, `is_positive`) |
+| 832 | Transfer price audit | `zcl_alloc_transfer_audit` (`audit`, `violation_count`, `worst`) |
+| 833 | Intercompany summary | `zcl_alloc_interco_summary` (`build`, `total`, `entity_count`) |
+
+### Valuation reports (834-843)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 834 | Valuation report | `zcl_alloc_val_report` (`build`, `row_count`, `total_value`) |
+| 835 | Valuation rollup | `zcl_alloc_val_rollup` (`rollup`, `group_count`, `largest_group`) |
+| 836 | Valuation detail | `zcl_alloc_val_detail` (`detail`, `for_material`, `line_count`) |
+| 837 | Valuation by group | `zcl_alloc_val_group` (`group_totals`, `is_empty`, `group_count`) |
+| 838 | Valuation browse | `zcl_alloc_val_browse` (`browse`, `page_count`, `has_more`) |
+| 839 | Valuation export | `zcl_alloc_val_export` (`to_rows`, `to_text`, `row_count`) |
+| 840 | Valuation dashboard | `zcl_alloc_val_dashboard` (`build`, `is_healthy`, `highlight`) |
+| 841 | Valuation comparison report | `zcl_alloc_val_compare_rep` (`compare`, `changed_count`, `is_same`) |
+| 842 | Valuation report line | `zcl_alloc_val_report_line` (`format`, `is_valuable`, `is_zero`) |
+| 843 | Valuation sign-off | `zcl_alloc_val_signoff` (`is_signed`, `status`, `require`) |
+
+### Valuation monitoring (844-853)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 844 | Valuation threshold | `zcl_alloc_valm_threshold` (`is_over`, `breach`, `level`) |
+| 845 | Valuation watchlist | `zcl_alloc_valm_watch` (`watch`, `watch_count`, `is_watched`) |
+| 846 | Valuation change rate | `zcl_alloc_valm_rate` (`rate`, `is_spike`, `direction`) |
+| 847 | Valuation monitoring trend | `zcl_alloc_valm_trend` (`direction`, `is_rising`, `streak`) |
+| 848 | Valuation band | `zcl_alloc_valm_band` (`is_in_band`, `position`, `band_gap`) |
+| 849 | Valuation drift | `zcl_alloc_valm_drift` (`drift`, `is_drifting`, `direction`) |
+| 850 | Valuation alert | `zcl_alloc_valm_alert` (`alerts`, `alert_count`, `is_alerting`) |
+| 851 | Valuation health | `zcl_alloc_valm_health` (`is_healthy`, `issue_count`, `score`) |
+| 852 | Valuation monitoring report | `zcl_alloc_valm_report` (`build`, `breach_count`, `total`) |
+| 853 | Valuation monitoring summary | `zcl_alloc_valm_summary` (`build`, `evaluate`, `status`) |
+
+**Batch 11 is complete.** Orders 754-853 are delivered and verified by
+`npm test` in the local test→commit rhythm.
+
+
+## Batch 12 - activity-based costing and cost allocation (854-953)
+
+The standing instruction applies again: batch 11 is done, so another 100 items are
+planned here in the same style. Batch 12 covers activity-based costing and cost
+allocation in ten tranches of ten: cost drivers (854-863), activity rates (864-873),
+allocation bases (874-883), ABC reporting (884-893), overhead absorption (894-903),
+cost pools (904-913), allocation cycles (914-923), allocation reconciliation
+(924-933), cost object analysis (934-943) and allocation governance (944-953). All
+names were checked free in `src/`.
+
+### Cost drivers (854-863)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 854 | Cost driver total | `zcl_alloc_drv_total` (`total`, `count`, `is_empty`) |
+| 855 | Driver rate | `zcl_alloc_drv_rate` (`rate`, `applied`, `is_zero`) |
+| 856 | Driver share | `zcl_alloc_drv_share` (`share`, `percent`, `largest`) |
+| 857 | Driver selection | `zcl_alloc_drv_select` (`choose`, `is_volume`, `reason`) |
+| 858 | Driver weighting | `zcl_alloc_drv_weight` (`weighted`, `weight_of`, `total_weight`) |
+| 859 | Driver capacity | `zcl_alloc_drv_capacity` (`capacity`, `is_over`, `spare`) |
+| 860 | Driver normalisation | `zcl_alloc_drv_normalize` (`normalize`, `factor`, `is_normal`) |
+| 861 | Driver trend | `zcl_alloc_drv_trend` (`direction`, `is_rising`, `delta`) |
+| 862 | Driver ranking | `zcl_alloc_drv_rank` (`rank`, `top`, `bottom`) |
+| 863 | Driver summary | `zcl_alloc_drv_summary` (`build`, `total`, `driver_count`) |
+
+### Activity rates (864-873)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 864 | Activity rate | `zcl_alloc_act_rate` (`rate`, `from_cost`, `is_zero`) |
+| 865 | Activity cost | `zcl_alloc_act_cost` (`cost`, `per_unit`, `total`) |
+| 866 | Apply activity rate | `zcl_alloc_act_apply` (`apply`, `cost_of`, `is_applied`) |
+| 867 | Activity efficiency | `zcl_alloc_act_efficiency` (`efficiency_percent`, `is_efficient`, `variance`) |
+| 868 | Activity utilisation | `zcl_alloc_act_util` (`utilisation_percent`, `is_idle`, `spare`) |
+| 869 | Activity capacity | `zcl_alloc_act_capacity` (`available`, `used`, `is_full`) |
+| 870 | Activity rate blend | `zcl_alloc_act_blend` (`blend`, `weight_of`, `blended`) |
+| 871 | Activity step cost | `zcl_alloc_act_step` (`step`, `is_stepped`, `step_count`) |
+| 872 | Activity rate curve | `zcl_alloc_act_curve` (`is_improving`, `change`, `count`) |
+| 873 | Activity summary | `zcl_alloc_act_summary` (`build`, `total`, `activity_count`) |
+
+### Allocation bases (874-883)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 874 | Allocation base selection | `zcl_alloc_base_select` (`choose`, `is_direct`, `reason`) |
+| 875 | Base weighting | `zcl_alloc_base_weight` (`weight_of`, `total`, `is_zero`) |
+| 876 | Base units | `zcl_alloc_base_units` (`units`, `per_unit`, `total`) |
+| 877 | Base value | `zcl_alloc_base_value` (`value`, `total`, `is_zero`) |
+| 878 | Base headcount | `zcl_alloc_base_heads` (`heads`, `per_head`, `total`) |
+| 879 | Base area | `zcl_alloc_base_area` (`area`, `share`, `total`) |
+| 880 | Base machine hours | `zcl_alloc_base_machine` (`hours`, `per_hour`, `total`) |
+| 881 | Base mix | `zcl_alloc_base_mix` (`mix`, `is_mixed`, `largest`) |
+| 882 | Base comparison | `zcl_alloc_base_compare` (`compare`, `closer`, `delta`) |
+| 883 | Base summary | `zcl_alloc_base_summary` (`build`, `total`, `base_count`) |
+
+### ABC reporting (884-893)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 884 | ABC report | `zcl_alloc_abc_report` (`build`, `total_cost`, `line_count`) |
+| 885 | ABC row | `zcl_alloc_abc_row` (`format`, `is_costly`, `is_zero`) |
+| 886 | ABC rollup | `zcl_alloc_abc_rollup` (`rollup`, `group_count`, `largest`) |
+| 887 | ABC totals | `zcl_alloc_abc_total` (`total`, `average`, `is_zero`) |
+| 888 | ABC trend | `zcl_alloc_abc_trend` (`direction`, `delta`, `is_rising`) |
+| 889 | ABC ranking | `zcl_alloc_abc_rank` (`rank`, `worst`, `best`) |
+| 890 | ABC filter | `zcl_alloc_abc_filter` (`filter`, `is_over`, `count`) |
+| 891 | ABC bucketing | `zcl_alloc_abc_bucket` (`bucket_of`, `count_in`, `is_par`) |
+| 892 | ABC exceptions | `zcl_alloc_abc_exception` (`is_exception`, `reason`, `count_of`) |
+| 893 | ABC summary | `zcl_alloc_abc_summary` (`build`, `total_cost`, `line_count`) |
+
+### Overhead absorption (894-903)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 894 | Absorption rate | `zcl_alloc_absorb_rate` (`rate`, `overhead`, `is_zero`) |
+| 895 | Absorbed overhead | `zcl_alloc_absorb_amount` (`absorbed`, `variance`, `is_over`) |
+| 896 | Under-absorption | `zcl_alloc_absorb_under` (`is_under`, `gap`, `percent`) |
+| 897 | Over-absorption | `zcl_alloc_absorb_over` (`is_over`, `gap`, `percent`) |
+| 898 | Absorption settlement | `zcl_alloc_absorb_settle` (`settle`, `residual`, `is_settled`) |
+| 899 | Absorption proration | `zcl_alloc_absorb_prorate` (`prorate`, `share`, `total`) |
+| 900 | Absorption pool | `zcl_alloc_absorb_pool` (`pool_total`, `absorbed`, `unabsorbed`) |
+| 901 | Absorption comparison | `zcl_alloc_absorb_compare` (`compare`, `closer`, `delta`) |
+| 902 | Absorption health | `zcl_alloc_absorb_health` (`is_healthy`, `issue_count`, `score`) |
+| 903 | Absorption summary | `zcl_alloc_absorb_summary` (`build`, `total`, `line_count`) |
+
+### Cost pools (904-913)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 904 | Cost pool build | `zcl_alloc_cpool_build` (`build`, `pool_count`, `total`) |
+| 905 | Cost pool split | `zcl_alloc_cpool_split` (`split`, `share_of`, `per_unit`) |
+| 906 | Cost pool merge | `zcl_alloc_cpool_merge` (`merge`, `group_count`, `largest`) |
+| 907 | Cost pool rate | `zcl_alloc_cpool_rate` (`rate`, `applied`, `is_zero`) |
+| 908 | Cost pool assignment | `zcl_alloc_cpool_assign` (`assign`, `is_assigned`, `count`) |
+| 909 | Cost pool residual | `zcl_alloc_cpool_residual` (`residual`, `is_cleared`, `count`) |
+| 910 | Cost pool ranking | `zcl_alloc_cpool_rank` (`rank`, `largest`, `smallest`) |
+| 911 | Cost pool variance | `zcl_alloc_cpool_var` (`variance`, `is_over`, `percent`) |
+| 912 | Cost pool coverage | `zcl_alloc_cpool_cover` (`coverage_percent`, `is_covered`, `shortfall`) |
+| 913 | Cost pool summary | `zcl_alloc_cpool_summary` (`build`, `pool_count`, `total`) |
+
+### Allocation cycles (914-923)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 914 | Allocation cycle step | `zcl_alloc_cycle_step` (`step`, `next_step`, `is_last`) |
+| 915 | Cycle advance | `zcl_alloc_cycle_advance` (`advance`, `is_complete`, `remaining`) |
+| 916 | Cycle repeat | `zcl_alloc_cycle_repeat` (`repeat`, `is_repeated`, `max_reached`) |
+| 917 | Cycle count | `zcl_alloc_cycle_count` (`count`, `after`, `is_zero`) |
+| 918 | Cycle loop detection | `zcl_alloc_cycle_detect` (`loop_detected`, `is_loop`, `reason`) |
+| 919 | Cycle build | `zcl_alloc_cycle_build` (`build`, `step_count`, `first_step`) |
+| 920 | Cycle progress | `zcl_alloc_cycle_progress` (`progress_percent`, `is_done`, `remaining`) |
+| 921 | Cycle run | `zcl_alloc_cycle_run` (`run`, `is_finished`, `steps_done`) |
+| 922 | Cycle state | `zcl_alloc_cycle_state` (`state`, `is_terminal`, `is_active`) |
+| 923 | Cycle summary | `zcl_alloc_cycle_summary` (`build`, `step_count`, `total`) |
+
+### Allocation reconciliation (924-933)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 924 | Reconciliation difference | `zcl_alloc_recon_diff` (`difference`, `is_balanced`, `magnitude`) |
+| 925 | Reconciliation tolerance | `zcl_alloc_recon_tolerance` (`within_tolerance`, `tolerance`, `is_tight`) |
+| 926 | Reconciliation match | `zcl_alloc_recon_match` (`matches`, `is_matched`, `key_of`) |
+| 927 | Reconciliation breaks | `zcl_alloc_recon_break` (`break_count`, `is_broken`, `worst`) |
+| 928 | Reconciliation balance | `zcl_alloc_recon_balance` (`balance`, `is_balanced`, `residual`) |
+| 929 | Reconciliation resolve | `zcl_alloc_recon_resolve` (`resolve`, `is_resolved`, `open_count`) |
+| 930 | Reconciliation rate | `zcl_alloc_recon_rate` (`rate`, `matched_percent`, `is_clean`) |
+| 931 | Reconciliation ranking | `zcl_alloc_recon_rank` (`rank`, `worst`, `best`) |
+| 932 | Reconciliation report | `zcl_alloc_recon_report` (`build`, `diff_count`, `total_diff`) |
+| 933 | Reconciliation summary | `zcl_alloc_recon_summary` (`build`, `item_count`, `matched_count`) |
+
+### Cost object analysis (934-943)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 934 | Cost object build | `zcl_alloc_cobj_build` (`build`, `object_count`, `total`) |
+| 935 | Cost object cost | `zcl_alloc_cobj_cost` (`cost`, `per_unit`, `is_zero`) |
+| 936 | Cost object margin | `zcl_alloc_cobj_margin` (`margin`, `margin_percent`, `is_positive`) |
+| 937 | Cost object ranking | `zcl_alloc_cobj_rank` (`rank`, `best`, `worst`) |
+| 938 | Cost object comparison | `zcl_alloc_cobj_compare` (`compare`, `cheaper`, `delta`) |
+| 939 | Cost object share | `zcl_alloc_cobj_share` (`share_percent`, `largest`, `is_zero`) |
+| 940 | Cost object trend | `zcl_alloc_cobj_trend` (`direction`, `is_rising`, `delta`) |
+| 941 | Cost object threshold | `zcl_alloc_cobj_threshold` (`is_over`, `breach`, `level`) |
+| 942 | Cost object health | `zcl_alloc_cobj_health` (`is_healthy`, `issue_count`, `score`) |
+| 943 | Cost object summary | `zcl_alloc_cobj_summary` (`build`, `object_count`, `total`) |
+
+### Allocation governance (944-953)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 944 | Allocation policy | `zcl_alloc_gov_policy` (`policy_of`, `is_strict`, `reason`) |
+| 945 | Allocation approval | `zcl_alloc_gov_approve` (`approve`, `is_approved`, `pending_count`) |
+| 946 | Allocation audit trail | `zcl_alloc_gov_audit` (`entry`, `entry_count`, `is_complete`) |
+| 947 | Allocation sign-off | `zcl_alloc_gov_signoff` (`is_signed`, `status`, `require`) |
+| 948 | Allocation lock | `zcl_alloc_gov_lock` (`lock`, `is_locked`, `lock_count`) |
+| 949 | Allocation release | `zcl_alloc_gov_release` (`release`, `is_released`, `remaining`) |
+| 950 | Allocation version | `zcl_alloc_gov_version` (`version`, `is_newer`, `delta`) |
+| 951 | Allocation review | `zcl_alloc_gov_review` (`is_due`, `days_until`, `priority`) |
+| 952 | Governance report | `zcl_alloc_gov_report` (`build`, `item_count`, `open_count`) |
+| 953 | Governance summary | `zcl_alloc_gov_summary` (`build`, `item_count`, `approved_count`) |
+
+**Batch 12 is complete.** Orders 854-953 are delivered; the batch-11 entries above
+stay as a record.
+
+
+## Batch 13 - production costing and work in progress (954-1053)
+
+The standing instruction applies again: batch 12 is done, so another 100 items are
+planned here in the same style. Batch 13 covers production costing and work in
+progress in ten tranches of ten: bill of materials (954-963), routing and
+operations (964-973), work in progress (974-983), production order cost
+(984-993), scrap and yield (994-1003), production variance (1004-1013),
+co-products and by-products (1014-1023), standard cost and revaluation
+(1024-1033), period-end settlement (1034-1043) and production reporting
+(1044-1053). All names were checked free in `src/`.
+
+### Bill of materials (954-963)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 954 | BOM build | `zcl_alloc_bom_build` (`build`, `component_count`, `total_qty`) |
+| 955 | BOM explode | `zcl_alloc_bom_explode` (`explode`, `level_of`, `is_multi_level`) |
+| 956 | BOM component | `zcl_alloc_bom_component` (`qty_of`, `is_used`, `count`) |
+| 957 | BOM level | `zcl_alloc_bom_level` (`level_of`, `is_top`, `depth`) |
+| 958 | BOM scrap | `zcl_alloc_bom_scrap` (`scrap_qty`, `is_scrapped`, `gross_qty`) |
+| 959 | BOM where-used | `zcl_alloc_bom_where` (`used_in`, `is_used`, `count`) |
+| 960 | BOM weight | `zcl_alloc_bom_weight` (`weight_of`, `total_weight`, `is_heavy`) |
+| 961 | BOM rollup | `zcl_alloc_bom_rollup` (`rollup`, `group_count`, `largest`) |
+| 962 | BOM compare | `zcl_alloc_bom_compare` (`compare`, `added`, `removed`) |
+| 963 | BOM summary | `zcl_alloc_bom_summary` (`build`, `component_count`, `total_qty`) |
+
+### Routing and operations (964-973)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 964 | Operation time | `zcl_alloc_rout_time` (`total_time`, `is_zero`, `unit_time`) |
+| 965 | Operation rate | `zcl_alloc_rout_rate` (`rate`, `from_cost`, `is_zero`) |
+| 966 | Operation cost | `zcl_alloc_rout_cost` (`cost`, `per_unit`, `total`) |
+| 967 | Operation sequence | `zcl_alloc_rout_seq` (`sequence`, `next_op`, `is_last`) |
+| 968 | Operation capacity | `zcl_alloc_rout_capacity` (`capacity`, `is_over`, `spare`) |
+| 969 | Operation utilisation | `zcl_alloc_rout_util` (`utilisation_percent`, `is_idle`, `spare`) |
+| 970 | Operation efficiency | `zcl_alloc_rout_eff` (`efficiency_percent`, `is_efficient`, `variance`) |
+| 971 | Operation queue | `zcl_alloc_rout_queue` (`queue_time`, `is_waiting`, `wait_count`) |
+| 972 | Operation ranking | `zcl_alloc_rout_rank` (`rank`, `longest`, `shortest`) |
+| 973 | Routing summary | `zcl_alloc_rout_summary` (`build`, `operation_count`, `total_time`) |
+
+### Work in progress (974-983)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 974 | WIP value | `zcl_alloc_wip_value` (`value_of`, `is_zero`, `per_unit`) |
+| 975 | WIP material | `zcl_alloc_wip_material` (`material_cost`, `is_issued`, `balance`) |
+| 976 | WIP labour | `zcl_alloc_wip_labour` (`labour_cost`, `applied`, `balance`) |
+| 977 | WIP overhead | `zcl_alloc_wip_overhead` (`overhead`, `absorbed`, `balance`) |
+| 978 | WIP progress | `zcl_alloc_wip_progress` (`progress_percent`, `is_complete`, `remaining`) |
+| 979 | WIP valuation | `zcl_alloc_wip_valuation` (`valued_at`, `completion`, `is_partial`) |
+| 980 | WIP movement | `zcl_alloc_wip_move` (`shift`, `is_increased`, `delta`) |
+| 981 | WIP ageing | `zcl_alloc_wip_age` (`days_old`, `is_stale`, `bucket`) |
+| 982 | WIP ranking | `zcl_alloc_wip_rank` (`rank`, `largest`, `count`) |
+| 983 | WIP summary | `zcl_alloc_wip_summary` (`build`, `order_count`, `total`) |
+
+### Production order cost (984-993)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 984 | Order cost | `zcl_alloc_prod_cost` (`cost`, `per_unit`, `is_zero`) |
+| 985 | Order planned cost | `zcl_alloc_prod_plan` (`planned`, `is_within`, `variance`) |
+| 986 | Order actual cost | `zcl_alloc_prod_actual` (`actual`, `is_over`, `variance_percent`) |
+| 987 | Order cost split | `zcl_alloc_prod_split` (`split`, `share_of`, `per_unit`) |
+| 988 | Order cost rollup | `zcl_alloc_prod_rollup` (`rollup`, `group_count`, `largest`) |
+| 989 | Order cost rate | `zcl_alloc_prod_rate` (`rate`, `applied`, `is_zero`) |
+| 990 | Order cost compare | `zcl_alloc_prod_compare` (`compare`, `cheaper`, `delta`) |
+| 991 | Order cost trend | `zcl_alloc_prod_trend` (`direction`, `is_rising`, `delta`) |
+| 992 | Order cost health | `zcl_alloc_prod_health` (`is_healthy`, `issue_count`, `score`) |
+| 993 | Order cost summary | `zcl_alloc_prod_summary` (`build`, `order_count`, `total`) |
+
+### Scrap and yield (994-1003)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 994 | Yield percent | `zcl_alloc_yield_percent` (`yield_percent`, `is_full`, `loss`) |
+| 995 | Yield loss | `zcl_alloc_yield_loss` (`loss`, `is_lossy`, `loss_percent`) |
+| 996 | Yield scrap | `zcl_alloc_yield_scrap` (`scrap_qty`, `is_scrapped`, `gross_qty`) |
+| 997 | Yield rework | `zcl_alloc_yield_rework` (`rework`, `is_reworked`, `rework_percent`) |
+| 998 | Yield scrap cost | `zcl_alloc_yield_scost` (`scrap_cost`, `is_costly`, `per_unit`) |
+| 999 | Yield target | `zcl_alloc_yield_target` (`target`, `is_met`, `gap`) |
+| 1000 | Yield trend | `zcl_alloc_yield_trend` (`direction`, `is_improving`, `delta`) |
+| 1001 | Yield ranking | `zcl_alloc_yield_rank` (`rank`, `best`, `worst`) |
+| 1002 | Yield health | `zcl_alloc_yield_health` (`is_healthy`, `issue_count`, `score`) |
+| 1003 | Yield summary | `zcl_alloc_yield_summary` (`build`, `order_count`, `average`) |
+
+### Production variance (1004-1013)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1004 | Variance total | `zcl_alloc_pvar_total` (`total`, `is_zero`, `count`) |
+| 1005 | Variance split | `zcl_alloc_pvar_split` (`split`, `share_of`, `per_unit`) |
+| 1006 | Variance usage | `zcl_alloc_pvar_usage` (`usage_variance`, `is_adverse`, `sign_of`) |
+| 1007 | Variance price | `zcl_alloc_pvar_price` (`price_variance`, `is_adverse`, `sign_of`) |
+| 1008 | Variance volume | `zcl_alloc_pvar_volume` (`volume_variance`, `is_adverse`, `sign_of`) |
+| 1009 | Variance mix | `zcl_alloc_pvar_mix` (`mix_variance`, `is_adverse`, `delta`) |
+| 1010 | Variance yield | `zcl_alloc_pvar_yield` (`yield_variance`, `is_adverse`, `percent`) |
+| 1011 | Variance favourable | `zcl_alloc_pvar_fav` (`is_favourable`, `amount`, `count`) |
+| 1012 | Variance ranking | `zcl_alloc_pvar_rank` (`rank`, `worst`, `best`) |
+| 1013 | Variance summary | `zcl_alloc_pvar_summary` (`build`, `item_count`, `total`) |
+
+### Co-products and by-products (1014-1023)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1014 | Co-product share | `zcl_alloc_copro_share` (`share_percent`, `largest`, `is_zero`) |
+| 1015 | Co-product split | `zcl_alloc_copro_split` (`split`, `share_of`, `per_unit`) |
+| 1016 | Co-product cost | `zcl_alloc_copro_cost` (`cost`, `per_unit`, `is_zero`) |
+| 1017 | Co-product credit | `zcl_alloc_copro_credit` (`credit`, `is_credited`, `net_cost`) |
+| 1018 | By-product value | `zcl_alloc_copro_value` (`value_of`, `is_zero`, `per_unit`) |
+| 1019 | Co-product weighting | `zcl_alloc_copro_weight` (`weighted`, `weight_of`, `total_weight`) |
+| 1020 | Co-product allocation | `zcl_alloc_copro_alloc` (`allocate`, `joint_total`, `is_allocated`) |
+| 1021 | Co-product compare | `zcl_alloc_copro_compare` (`compare`, `cheaper`, `delta`) |
+| 1022 | Co-product ranking | `zcl_alloc_copro_rank` (`rank`, `largest`, `count`) |
+| 1023 | Co-product summary | `zcl_alloc_copro_summary` (`build`, `product_count`, `total`) |
+
+### Standard cost and revaluation (1024-1033)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1024 | Standard cost | `zcl_alloc_stdcost_base` (`standard_cost`, `is_zero`, `per_unit`) |
+| 1025 | Cost revaluation | `zcl_alloc_stdcost_reval` (`revalue`, `is_increased`, `delta`) |
+| 1026 | Standard variance | `zcl_alloc_stdcost_var` (`variance`, `is_over`, `percent`) |
+| 1027 | Standard update | `zcl_alloc_stdcost_update` (`refresh`, `is_changed`, `delta_percent`) |
+| 1028 | Standard revision | `zcl_alloc_stdcost_revise` (`revise`, `is_revised`, `revision_count`) |
+| 1029 | Standard version | `zcl_alloc_stdcost_version` (`version`, `is_newer`, `delta`) |
+| 1030 | Standard approve | `zcl_alloc_stdcost_approve` (`approve`, `is_approved`, `pending_count`) |
+| 1031 | Standard compare | `zcl_alloc_stdcost_compare` (`compare`, `higher`, `delta`) |
+| 1032 | Standard trend | `zcl_alloc_stdcost_trend` (`direction`, `is_rising`, `delta`) |
+| 1033 | Standard summary | `zcl_alloc_stdcost_summary` (`build`, `item_count`, `total`) |
+
+### Period-end settlement (1034-1043)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1034 | Settlement amount | `zcl_alloc_settle_amount` (`amount`, `is_zero`, `per_unit`) |
+| 1035 | Settlement rule | `zcl_alloc_settle_rule` (`rule_of`, `is_full`, `reason`) |
+| 1036 | Settlement split | `zcl_alloc_settle_split` (`split`, `share_of`, `per_unit`) |
+| 1037 | Settlement balance | `zcl_alloc_settle_balance` (`balance`, `is_balanced`, `residual`) |
+| 1038 | Settlement difference | `zcl_alloc_settle_diff` (`difference`, `is_balanced`, `magnitude`) |
+| 1039 | Settlement tolerance | `zcl_alloc_settle_tolerance` (`within_tolerance`, `tolerance`, `is_tight`) |
+| 1040 | Settlement close | `zcl_alloc_settle_close` (`close_out`, `is_closed`, `open_count`) |
+| 1041 | Settlement carry-forward | `zcl_alloc_settle_carry` (`carry`, `is_carried`, `amount`) |
+| 1042 | Settlement ranking | `zcl_alloc_settle_rank` (`rank`, `worst`, `best`) |
+| 1043 | Settlement summary | `zcl_alloc_settle_summary` (`build`, `item_count`, `total`) |
+
+### Production reporting (1044-1053)
+
+| Order | Feature | Class |
+| --- | --- | --- |
+| 1044 | Production report | `zcl_alloc_prep_report` (`build`, `order_count`, `total`) |
+| 1045 | Production row | `zcl_alloc_prep_row` (`format`, `is_costly`, `is_zero`) |
+| 1046 | Production KPI | `zcl_alloc_prep_kpi` (`value_of`, `is_on_target`, `gap`) |
+| 1047 | Production dashboard | `zcl_alloc_prep_dash` (`build`, `tile_count`, `total`) |
+| 1048 | Production filter | `zcl_alloc_prep_filter` (`filter`, `is_over`, `count`) |
+| 1049 | Production bucket | `zcl_alloc_prep_bucket` (`bucket_of`, `count_in`, `is_par`) |
+| 1050 | Production exception | `zcl_alloc_prep_except` (`is_exception`, `reason`, `count_of`) |
+| 1051 | Production export | `zcl_alloc_prep_export` (`export_rows`, `row_count`, `is_empty`) |
+| 1052 | Production ranking | `zcl_alloc_prep_rank` (`rank`, `worst`, `best`) |
+| 1053 | Production summary | `zcl_alloc_prep_summary` (`build`, `order_count`, `total`) |
+
+**Batch 13 is in progress.** Orders 954-1043 are delivered; the rest are built one
+per iteration in the local test→commit rhythm.
+
+
+## Roadmap (batch 1, orders 44-141) - delivered
+
+Historical: the first roadmap, all delivered and verified. Items 44-141 are pure
+calculation, formatting, validation, scheduling or in-memory services, so `npm test`
+verified every one of them. The last item needs a GUI and was deliberately kept
+last because the transpiler cannot exercise a selection screen.
+
+### Text and export
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 44    | CSV field quoting and line builder     | `zcl_alloc_csv`                        |
+| 45    | Fixed-width text table renderer        | `zcl_alloc_fixed_width`                |
+| 46    | Markdown table for the run overview    | `zcl_alloc_markdown`                   |
+| 47    | HTML table for the run overview        | `zcl_alloc_html`                       |
+| 48    | XML document for the run overview      | `zcl_alloc_xml`                        |
+| 49    | JSON for the shortage report           | `zcl_alloc_shortage_json`              |
+| 50    | JSON for the replenishment proposals   | `zcl_alloc_replen_json`                |
+| 51    | JSON for the allocation diff           | `zcl_alloc_diff_json`                  |
+| 52    | CSV for the shortage report            | `zcl_alloc_shortage_csv`               |
+| 53    | CSV for the replenishment proposals    | `zcl_alloc_replen_csv`                 |
+| 54    | Number and quantity formatting         | `zcl_alloc_number_format`              |
+| 55    | Percentage formatting and parsing      | `zcl_alloc_percent`                    |
+| 56    | Duration (seconds) formatting          | `zcl_alloc_duration`                   |
+| 57    | Text alignment and padding             | `zcl_alloc_align`                      |
+
+### Analysis and statistics
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 58    | Allocation KPI summary                 | `zcl_alloc_kpi`                        |
+| 59    | ABC classification of materials        | `zcl_alloc_abc`                        |
+| 60    | Top-N materials by allocated quantity  | `zcl_alloc_top_n`                      |
+| 61    | Quantity histogram / buckets           | `zcl_alloc_histogram`                  |
+| 62    | Demand variance across runs            | `zcl_alloc_demand_variance`            |
+| 63    | Moving average of allocated quantity   | `zcl_alloc_moving_average`             |
+| 64    | Trend detection (up / down / flat)     | `zcl_alloc_trend`                      |
+| 65    | Simple forecast of the next quantity   | `zcl_alloc_forecast`                   |
+| 66    | Service level (fill rate) per material | `zcl_alloc_service_level`              |
+| 67    | Running totals over a result list      | `zcl_alloc_running_total`              |
+| 68    | Confidence score for an allocation     | `zcl_alloc_confidence`                 |
+| 69    | Risk score for a shortage list         | `zcl_alloc_risk`                       |
+
+### Validation and checks
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 70    | Request validator (material, plant, qty)| `zcl_alloc_request_validator`          |
+| 71    | Policy validator                       | `zcl_alloc_policy_validator`           |
+| 72    | Allocation consistency check           | `zcl_alloc_consistency`                |
+| 73    | Duplicate requirement detection        | `zcl_alloc_duplicate_check`            |
+| 74    | Stock row data quality check           | `zcl_alloc_stock_check`                |
+| 75    | Negative quantity detector             | `zcl_alloc_negative_check`             |
+| 76    | Over-allocation detector               | `zcl_alloc_over_check`                 |
+| 77    | Missing master data check              | `zcl_alloc_master_check`               |
+
+### Allocation strategies
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 78    | Priority scoring from weighted rules   | `zcl_alloc_priority`                   |
+| 79    | Stock sequencing (FIFO / LIFO)         | `zcl_alloc_sequence`                   |
+| 80    | Round-robin fair share                 | `zcl_alloc_round_robin`                |
+| 81    | Proportional (pro-rata) allocation     | `zcl_alloc_proportional`               |
+| 82    | Max-min fair allocation                | `zcl_alloc_maxmin`                     |
+| 83    | Capacity-constrained allocation        | `zcl_alloc_capacity`                   |
+| 84    | Load balancing across plants           | `zcl_alloc_load_balance`               |
+| 85    | Requirement merge (same key)           | `zcl_alloc_req_merge`                  |
+| 86    | Requirement split by size              | `zcl_alloc_req_split`                  |
+| 87    | Requirement grouping by material       | `zcl_alloc_req_group`                  |
+| 88    | Requirement netting against stock      | `zcl_alloc_req_net`                    |
+
+### Inventory arithmetic
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 89    | Reorder point calculation              | `zcl_alloc_reorder_point`              |
+| 90    | Economic order quantity (EOQ)          | `zcl_alloc_eoq`                        |
+| 91    | Days of supply / stock cover           | `zcl_alloc_days_supply`                |
+| 92    | Stock turn rate                        | `zcl_alloc_turn_rate`                  |
+| 93    | Inventory value at a price             | `zcl_alloc_inventory_value`            |
+| 94    | Weighted average price                 | `zcl_alloc_avg_price`                  |
+| 95    | Quantity rounding utilities            | `zcl_alloc_rounding`                   |
+
+### Storage locations and picking
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 96    | Storage location ranking by quantity   | `zcl_alloc_location_rank`              |
+| 97    | Consolidation (bin emptying) proposal  | `zcl_alloc_consolidation`              |
+| 98    | Pick sequence within a plant           | `zcl_alloc_pick_sequence`              |
+| 99    | Bin replenishment trigger              | `zcl_alloc_bin_replenish`              |
+| 100   | Picking list from an allocation        | `zcl_alloc_pick_list`                  |
+| 101   | Picking list confirmation              | `zcl_alloc_pick_confirm`               |
+| 102   | Location scoring for selection         | `zcl_alloc_location_score`             |
+
+### Dates, scheduling and aging
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 103   | Working-day calendar                   | `zcl_alloc_calendar`                   |
+| 104   | Date range splitting                   | `zcl_alloc_date_range`                 |
+| 105   | Age of stock in days                   | `zcl_alloc_stock_age`                  |
+| 106   | Backlog aging buckets                  | `zcl_alloc_aging`                      |
+| 107   | Time slot assignment                   | `zcl_alloc_slot`                       |
+| 108   | Wave planning                          | `zcl_alloc_wave`                       |
+| 109   | Material batching for picking          | `zcl_alloc_batching`                   |
+
+### Aggregation and reporting
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 110   | Per-plant report across runs           | `zcl_alloc_plant_report`               |
+| 111   | Per-day report across runs             | `zcl_alloc_daily_report`               |
+| 112   | Material x plant pivot                 | `zcl_alloc_pivot`                      |
+| 113   | Material x run matrix                  | `zcl_alloc_matrix`                     |
+| 114   | Shipment grouping                      | `zcl_alloc_shipment`                   |
+| 115   | Delivery split proposal                | `zcl_alloc_delivery_split`             |
+| 116   | SLA compliance report                  | `zcl_alloc_sla`                        |
+| 117   | Event timeline                         | `zcl_alloc_timeline`                   |
+| 118   | Search / text filter over overviews    | `zcl_alloc_search`                     |
+| 119   | Pagination helper                      | `zcl_alloc_paging`                     |
+| 120   | Generic sort helper for overviews      | `zcl_alloc_sort`                       |
+
+### Policy and run management
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 121   | Policy presets                         | `zcl_alloc_policy_preset`              |
+| 122   | Policy merge                           | `zcl_alloc_policy_merge`               |
+| 123   | Policy diff                            | `zcl_alloc_policy_diff`                |
+| 124   | Run comparison summary                 | `zcl_alloc_run_compare`                |
+| 125   | Three-way allocation diff              | `zcl_alloc_diff3`                      |
+| 126   | Allocation snapshot and compare        | `zcl_alloc_snapshot`                   |
+| 127   | Checksum of an allocation result       | `zcl_alloc_checksum`                   |
+| 128   | Run / requirement id generator         | `zcl_alloc_id_gen`                     |
+| 129   | Run tagging (in-memory)                | `zcl_alloc_tag`                        |
+| 130   | Annotation store (in-memory)           | `zcl_alloc_annotation`                 |
+
+### Substitution, substitution chains and transfer
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 131   | Substitution chain resolver            | `zcl_alloc_subst_chain`                |
+| 132   | Multi-plant availability aggregation   | `zcl_alloc_multi_plant`                |
+| 133   | Transport cost comparison              | `zcl_alloc_transport_cost`             |
+| 134   | Cost-based source selection            | `zcl_alloc_cost`                       |
+| 135   | Footprint estimate for a transfer      | `zcl_alloc_footprint`                  |
+| 136   | Weighted source scoring                | `zcl_alloc_weight`                     |
+
+### Lists and small helpers
+
+| Order | Feature                                | Main artefact                          |
+| ----- | -------------------------------------- | -------------------------------------- |
+| 137   | Material list from run headers         | `zcl_alloc_material_list`              |
+| 138   | Plant list from run headers            | `zcl_alloc_plant_list`                 |
+| 139   | Storage location list from a result    | `zcl_alloc_lgort_list`                 |
+| 140   | Quantity bucket helper                 | `zcl_alloc_bucket`                     |
+| 141   | Batch split proposal                   | `zcl_alloc_batch_split`                |
+| 142   | Allocation quality grade (A-F)         | `zcl_alloc_grade`                      |
+| 143   | ALV grid binding + selection screen    | GUI layer - NOT transpiler-verifiable   |
+
+## Roadmap batch 2 (orders 144-243)
+
+Planned when the first batch completed, per the standing instruction. The theme is
+the complete export surface: every report already built gets its CSV, JSON, XML,
+Markdown, HTML and fixed-width rendering, followed by a unified export facade and
+a format registry. Each item is a new `zcl_alloc_*` class with a local test class,
+verified by `npm test`.
+
+| Order | Feature | Owner |
+| --- | --- | --- |
+| 144 | CSV of the per-run allocations | `zcl_alloc_export_alloc` |
+| 145 | CSV of the per-material allocations | `zcl_alloc_export_alloc_mat` |
+| 146 | JSON of the per-run allocations | `zcl_alloc_export_alloc_json` |
+| 147 | JSON of the per-material allocations | `zcl_alloc_export_alloc_mjson` |
+| 148 | XML of the allocations | `zcl_alloc_export_alloc_xml` |
+| 149 | Markdown of the allocations | `zcl_alloc_export_alloc_md` |
+| 150 | HTML of the allocations | `zcl_alloc_export_alloc_html` |
+| 151 | Fixed-width of the allocations | `zcl_alloc_export_alloc_fw` |
+| 152 | CSV of the allocation diff | `zcl_alloc_diff_csv` |
+| 153 | CSV of the run comparison | `zcl_alloc_run_cmp_csv` |
+| 154 | JSON of the run comparison | `zcl_alloc_run_cmp_json` |
+| 155 | CSV of the SLA report | `zcl_alloc_sla_csv` |
+| 156 | JSON of the SLA report | `zcl_alloc_sla_json` |
+| 157 | CSV of the aging report | `zcl_alloc_aging_csv` |
+| 158 | JSON of the aging report | `zcl_alloc_aging_json` |
+| 159 | CSV of the plant report | `zcl_alloc_plant_csv` |
+| 160 | CSV of the daily report | `zcl_alloc_daily_csv` |
+| 161 | JSON of the plant report | `zcl_alloc_plant_json` |
+| 162 | JSON of the daily report | `zcl_alloc_daily_json` |
+| 163 | CSV of the KPI summary | `zcl_alloc_kpi_csv` |
+| 164 | JSON of the KPI summary | `zcl_alloc_kpi_json` |
+| 165 | CSV of the ABC classification | `zcl_alloc_abc_csv` |
+| 166 | JSON of the ABC classification | `zcl_alloc_abc_json` |
+| 167 | CSV of the histogram | `zcl_alloc_hist_csv` |
+| 168 | JSON of the histogram | `zcl_alloc_hist_json` |
+| 169 | CSV of the top-N list | `zcl_alloc_topn_csv` |
+| 170 | JSON of the top-N list | `zcl_alloc_topn_json` |
+| 171 | CSV of the moving average | `zcl_alloc_mavg_csv` |
+| 172 | JSON of the moving average | `zcl_alloc_mavg_json` |
+| 173 | CSV of the trend analysis | `zcl_alloc_trend_csv` |
+| 174 | JSON of the trend analysis | `zcl_alloc_trend_json` |
+| 175 | CSV of the forecast | `zcl_alloc_forecast_csv` |
+| 176 | JSON of the forecast | `zcl_alloc_forecast_json` |
+| 177 | CSV of the service level | `zcl_alloc_service_csv` |
+| 178 | JSON of the service level | `zcl_alloc_service_json` |
+| 179 | CSV of the confidence score | `zcl_alloc_conf_csv` |
+| 180 | JSON of the confidence score | `zcl_alloc_conf_json` |
+| 181 | CSV of the risk score | `zcl_alloc_risk_csv` |
+| 182 | JSON of the risk score | `zcl_alloc_risk_json` |
+| 183 | CSV of the request validation | `zcl_alloc_reqval_csv` |
+| 184 | JSON of the request validation | `zcl_alloc_reqval_json` |
+| 185 | CSV of the policy validation | `zcl_alloc_polval_csv` |
+| 186 | JSON of the policy validation | `zcl_alloc_polval_json` |
+| 187 | CSV of the consistency check | `zcl_alloc_consist_csv` |
+| 188 | JSON of the consistency check | `zcl_alloc_consist_json` |
+| 189 | CSV of the duplicate check | `zcl_alloc_dupc_csv` |
+| 190 | JSON of the duplicate check | `zcl_alloc_dupc_json` |
+| 191 | CSV of the stock check | `zcl_alloc_stockchk_csv` |
+| 192 | JSON of the stock check | `zcl_alloc_stockchk_json` |
+| 193 | CSV of the negative check | `zcl_alloc_negchk_csv` |
+| 194 | JSON of the negative check | `zcl_alloc_negchk_json` |
+| 195 | CSV of the over-allocation check | `zcl_alloc_overchk_csv` |
+| 196 | JSON of the over-allocation check | `zcl_alloc_overchk_json` |
+| 197 | CSV of the master check | `zcl_alloc_mastchk_csv` |
+| 198 | JSON of the master check | `zcl_alloc_mastchk_json` |
+| 199 | CSV of the priority list | `zcl_alloc_prio_csv` |
+| 200 | JSON of the priority list | `zcl_alloc_prio_json` |
+| 201 | CSV of the pick list | `zcl_alloc_pickl_csv` |
+| 202 | JSON of the pick list | `zcl_alloc_pickl_json` |
+| 203 | CSV of the pick confirmation | `zcl_alloc_pickc_csv` |
+| 204 | JSON of the pick confirmation | `zcl_alloc_pickc_json` |
+| 205 | CSV of the pick sequence | `zcl_alloc_picks_csv` |
+| 206 | JSON of the pick sequence | `zcl_alloc_picks_json` |
+| 207 | CSV of the location ranking | `zcl_alloc_lrank_csv` |
+| 208 | JSON of the location ranking | `zcl_alloc_lrank_json` |
+| 209 | CSV of the location score | `zcl_alloc_lscore_csv` |
+| 210 | JSON of the location score | `zcl_alloc_lscore_json` |
+| 211 | CSV of the shipments | `zcl_alloc_ship_csv` |
+| 212 | JSON of the shipments | `zcl_alloc_ship_json` |
+| 213 | CSV of the waves | `zcl_alloc_wave_csv` |
+| 214 | JSON of the waves | `zcl_alloc_wave_json` |
+| 215 | CSV of the batches | `zcl_alloc_batch_csv` |
+| 216 | JSON of the batches | `zcl_alloc_batch_json` |
+| 217 | CSV of the tags | `zcl_alloc_tag_csv` |
+| 218 | JSON of the tags | `zcl_alloc_tag_json` |
+| 219 | CSV of the annotations | `zcl_alloc_note_csv` |
+| 220 | JSON of the annotations | `zcl_alloc_note_json` |
+| 221 | CSV of the timeline | `zcl_alloc_timeline_csv` |
+| 222 | JSON of the timeline | `zcl_alloc_timeline_json` |
+| 223 | CSV of the snapshot diff | `zcl_alloc_snap_csv` |
+| 224 | JSON of the snapshot diff | `zcl_alloc_snap_json` |
+| 225 | CSV of the three-way diff | `zcl_alloc_diff3_csv` |
+| 226 | JSON of the three-way diff | `zcl_alloc_diff3_json` |
+| 227 | CSV of the cost selection | `zcl_alloc_cost_csv` |
+| 228 | JSON of the cost selection | `zcl_alloc_cost_json` |
+| 229 | CSV of the transport costs | `zcl_alloc_tcost_csv` |
+| 230 | JSON of the transport costs | `zcl_alloc_tcost_json` |
+| 231 | CSV of the substitution chain | `zcl_alloc_subst_csv` |
+| 232 | JSON of the substitution chain | `zcl_alloc_subst_json` |
+| 233 | CSV of the multi-plant summary | `zcl_alloc_mplant_csv` |
+| 234 | JSON of the multi-plant summary | `zcl_alloc_mplant_json` |
+| 235 | CSV of the grade distribution | `zcl_alloc_grade_csv` |
+| 236 | JSON of the grade distribution | `zcl_alloc_grade_json` |
+| 237 | CSV of the bucket report | `zcl_alloc_bucket_csv` |
+| 238 | JSON of the bucket report | `zcl_alloc_bucket_json` |
+| 239 | Unified export facade | `zcl_alloc_export_facade` |
+| 240 | Export format registry | `zcl_alloc_format_registry` |
+| 241 | Default export format per consumer | `zcl_alloc_format_default` |
+| 242 | Export registry lookup by name | `zcl_alloc_format_lookup` |
+| 243 | Export registry listing | `zcl_alloc_format_list` |
+

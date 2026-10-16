@@ -1583,6 +1583,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      the biggest and `count( )` counts them.
 983. **WIP summary** - `zcl_alloc_wip_summary=>build( )` counts the orders and totals their value,
      `order_count( )` counts them and `total( )` sums them.
+984. **Order cost** - `zcl_alloc_prod_cost=>cost( )` is the quantity at its unit cost, `per_unit( )`
+     spreads it over the quantity and `is_zero( )` tests a nil cost.
+985. **Order planned cost** - `zcl_alloc_prod_plan=>planned( )` costs the quantity at the standard
+     rate, `is_within( )` tests the actual against it and `variance( )` gives the difference.
+986. **Order actual cost** - `zcl_alloc_prod_actual=>actual( )` costs the quantity at the actual
+     rate, `is_over( )` tests a plan and `variance_percent( )` gives the overrun as a share.
+987. **Order cost split** - `zcl_alloc_prod_split=>split( )` shares a total over weighted groups,
+     `share_of( )` gives one part as a percentage and `per_unit( )` spreads an amount.
+988. **Order cost rollup** - `zcl_alloc_prod_rollup=>rollup( )` groups the orders into totals,
+     `group_count( )` counts the groups and `largest( )` gives the biggest.
+989. **Order cost rate** - `zcl_alloc_prod_rate=>rate( )` spreads the cost over the quantity,
+     `applied( )` puts the rate back on a quantity and `is_zero( )` tests a nil rate.
+990. **Order cost compare** - `zcl_alloc_prod_compare=>compare( )` reads lower, higher or equal,
+     `cheaper( )` gives the smaller and `delta( )` the difference.
+991. **Order cost trend** - `zcl_alloc_prod_trend=>direction( )` reads up, down or flat,
+     `is_rising( )` tests a rise and `delta( )` gives the change.
+992. **Order cost health** - `zcl_alloc_prod_health=>is_healthy( )` tests the set against a
+     tolerance, `issue_count( )` counts the orders over it and `score( )` gives the share within.
+993. **Order cost summary** - `zcl_alloc_prod_summary=>build( )` counts the orders and totals their
+     cost, `order_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3518,7 +3538,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-983 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-993 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

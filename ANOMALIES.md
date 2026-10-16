@@ -591,3 +591,35 @@ Each entry notes the symptom, the cause and the workaround used.
 * Workaround: name the method `choose` instead and keep the class name `zcl_alloc_drv_select`.
   Rule of thumb: avoid method names that are ABAP keywords (`select`, `sort`, `read`,
   `insert`, `append`, `call`, ...).
+
+## A40 - `align_parameters` fix loops forever on a wrapped test assertion
+
+* Symptom: `npx abaplint --fix` never finishes (iteration counter climbing past
+  2800, `1 fixes applied, rule align_parameters` on every pass, then another `Parse`),
+  while a plain `npx abaplint` (no `--fix`) reports the same file in under a second.
+  Removing the file made `--fix` complete, so the loop is per-file.
+* Cause: in a test class an assertion wrapped a multi-parameter functional call across
+  two lines with `exp = ...` placed after a call argument, e.g.
+  `act = mo_cut->is_healthy( it_lines = mt_line` / `iv_tolerance = 50 ) exp = abap_true ).`
+  `align_parameters` then tries to align `iv_tolerance` and `exp` on the same physical
+  line and toggles one space back and forth forever.
+* Workaround: keep the whole call on one line and put `exp = ...` on its own line, the
+  house style used everywhere else:
+  `act = mo_cut->is_healthy( it_lines = mt_line iv_tolerance = 50 )` then
+  `exp = abap_true ).`. Applied to order 992 (`zcl_alloc_prod_health`).
+* Tip: when `--fix` appears to hang, run `--fix` on a config scoped to one object to
+  find the file; a plain (no `--fix`) lint of the same file is fast.
+
+## A41 - The remote dependency is cloned on every run and `--config` is ignored
+
+* Symptom: `npx abaplint` / `--fix` sometimes stalls for many minutes before printing
+  anything; the log shows `Clone: https://github.com/open-abap/open-abap-core`, and a
+  command that passed a `--config <file>` still reported `Using config: ...abaplint.jsonc`.
+* Cause: `abaplint.jsonc` declares the `open-abap-core` dependency by `url`, so the CLI
+  clones it from GitHub each invocation; a slow or flaky network stalls the run. Also,
+  the CLI takes the configuration file as a *positional* argument, not via `--config`,
+  so `--config` was silently ignored.
+* Workaround: run abaplint with the config as the first positional argument
+  (`abaplint <config> --fix`) when a scoped run is wanted. For an offline check, point
+  the dependency at the local clone with `"folder": "./deps/open-abap-core"` in a
+  temporary config (never committed). `deps/` stays untracked.

@@ -1643,6 +1643,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
       gives the most adverse and `best( )` the most favourable.
 1013. **Variance summary** - `zcl_alloc_pvar_summary=>build( )` counts the items and totals their
       variance, `item_count( )` counts them and `total( )` sums them.
+1014. **Co-product share** - `zcl_alloc_copro_share=>share_percent( )` relates a product to the
+      joint quantity, `largest( )` gives the biggest product and `is_zero( )` tests a nil quantity.
+1015. **Co-product split** - `zcl_alloc_copro_split=>split( )` shares a total over weighted
+      products, `share_of( )` gives one part as a percentage and `per_unit( )` spreads an amount.
+1016. **Co-product cost** - `zcl_alloc_copro_cost=>cost( )` gives a product its share of the joint
+      cost, `per_unit( )` spreads it and `is_zero( )` tests a nil cost.
+1017. **Co-product credit** - `zcl_alloc_copro_credit=>credit( )` credits the joint cost with a
+      by-product value, `is_credited( )` tests it and `net_cost( )` gives what is left.
+1018. **By-product value** - `zcl_alloc_copro_value=>value_of( )` values the quantity, `is_zero( )`
+      tests a nil value and `per_unit( )` spreads it over the quantity.
+1019. **Co-product weighting** - `zcl_alloc_copro_weight=>weighted( )` weights a value,
+      `weight_of( )` weighs a quantity and `total_weight( )` sums the joint products.
+1020. **Co-product allocation** - `zcl_alloc_copro_alloc=>allocate( )` shares the joint cost over the
+      products, `joint_total( )` re-adds the shares and `is_allocated( )` tests a total.
+1021. **Co-product compare** - `zcl_alloc_copro_compare=>compare( )` reads lower, higher or equal,
+      `cheaper( )` gives the smaller and `delta( )` the difference.
+1022. **Co-product ranking** - `zcl_alloc_copro_rank=>rank( )` orders the products by value,
+      `largest( )` gives the biggest and `count( )` counts them.
+1023. **Co-product summary** - `zcl_alloc_copro_summary=>build( )` counts the products and totals
+      their value, `product_count( )` counts them and `total( )` sums them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3578,7 +3598,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1013 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1023 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

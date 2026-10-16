@@ -1603,6 +1603,26 @@ orders 854-953 are delivered; batch 11 and everything before it are complete.**
      tolerance, `issue_count( )` counts the orders over it and `score( )` gives the share within.
 993. **Order cost summary** - `zcl_alloc_prod_summary=>build( )` counts the orders and totals their
      cost, `order_count( )` counts them and `total( )` sums them.
+994. **Yield percent** - `zcl_alloc_yield_percent=>yield_percent( )` relates good units to the
+     whole, `is_full( )` tests a complete one and `loss( )` gives what is lost.
+995. **Yield loss** - `zcl_alloc_yield_loss=>loss( )` gives the shortage, `is_lossy( )` tests one
+     and `loss_percent( )` gives it as a share of the whole.
+996. **Yield scrap** - `zcl_alloc_yield_scrap=>scrap_qty( )` gives the scrap at a percentage,
+     `is_scrapped( )` tests it and `gross_qty( )` gives the gross needed for a net.
+997. **Yield rework** - `zcl_alloc_yield_rework=>rework( )` gives the rework at a percentage,
+     `is_reworked( )` tests it and `rework_percent( )` gives it as a share of the whole.
+998. **Yield scrap cost** - `zcl_alloc_yield_scost=>scrap_cost( )` costs the scrapped quantity,
+     `is_costly( )` tests a limit and `per_unit( )` spreads the cost over the quantity.
+999. **Yield target** - `zcl_alloc_yield_target=>target( )` gives the target quantity,
+     `is_met( )` tests the good units against it and `gap( )` gives the shortfall.
+1000. **Yield trend** - `zcl_alloc_yield_trend=>direction( )` reads up, down or flat,
+     `is_improving( )` tests a rise and `delta( )` gives the change.
+1001. **Yield ranking** - `zcl_alloc_yield_rank=>rank( )` orders the orders by yield, `best( )`
+     gives the best and `worst( )` the worst.
+1002. **Yield health** - `zcl_alloc_yield_health=>is_healthy( )` tests the set against a minimum,
+     `issue_count( )` counts the orders below it and `score( )` gives the share meeting it.
+1003. **Yield summary** - `zcl_alloc_yield_summary=>build( )` counts the orders and averages their
+     yield, `order_count( )` counts them and `average( )` averages them.
 
 **Batch 11 (inventory valuation and allocation costing) is complete:
 orders 754-853 are delivered; batch 10 and everything before it are complete.**
@@ -3538,7 +3558,7 @@ exercise).
 
 Batch 13 is now planned in `PLAN.md` for orders 954-1053 (the next 100 features),
 in the same style: one feature per iteration, `npm test` green, documented here and
-in `ANOMALIES.md`, and built in tranches of ten. Orders 954-993 are delivered.
+in `ANOMALIES.md`, and built in tranches of ten. Orders 954-1003 are delivered.
 
 Standing instruction from the user: when a 100-item roadmap is done, plan another
 100 items in the same style and keep iterating (one feature per iteration,

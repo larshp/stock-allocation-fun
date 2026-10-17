@@ -1,0 +1,20 @@
+{
+  "name": "stock-allocation-fun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An ABAP stock allocation solution for SAP systems",
+  "scripts": {
+    "validate:plan": "node scripts/validate-plan.mjs",
+    "generate:abapgit": "node scripts/generate-abapgit-metadata.mjs",
+    "lint": "abaplint",
+    "transpile": "abap_transpile abap_transpile.json",
+    "unit": "npm run transpile && node scripts/run-unit.mjs",
+    "test": "npm run validate:plan && npm run lint && npm run unit"
+  },
+  "devDependencies": {
+    "@abaplint/cli": "^2.120.78",
+    "@abaplint/database-sqlite": "^2.13.83",
+    "@abaplint/runtime": "^2.14.6",
+    "@abaplint/transpiler-cli": "^2.14.6"
+  }
+}

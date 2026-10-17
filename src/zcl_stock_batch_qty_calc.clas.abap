@@ -35,8 +35,10 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
   METHOD calculate.
     DATA lt_stock TYPE ty_stocks.
     DATA lt_reservations TYPE ty_reservations.
-    DATA lv_outstanding TYPE mchb-clabs.
-    DATA lv_deduction TYPE mchb-clabs.
+    DATA lv_outstanding TYPE decfloat34.
+    DATA lv_deduction TYPE decfloat34.
+    DATA lv_negative_stock TYPE decfloat34.
+    DATA lv_available_quantity TYPE decfloat34.
 
     lt_stock = it_stock.
     SORT lt_stock BY storage_location batch.
@@ -59,8 +61,8 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
     "match all balances. Over-reserved demand then reduces remaining stock in
     "stable location/batch order to avoid presenting an inflated free total.
     LOOP AT lt_reservations INTO DATA(ls_reservation).
-      lv_outstanding = ls_reservation-required_quantity
-        - ls_reservation-withdrawn_quantity.
+      lv_outstanding = CONV decfloat34( ls_reservation-required_quantity )
+        - CONV decfloat34( ls_reservation-withdrawn_quantity ).
       IF lv_outstanding <= 0.
         CONTINUE.
       ENDIF.
@@ -109,15 +111,37 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    LOOP AT lt_stock INTO DATA(ls_negative_stock).
+      IF ls_negative_stock-quantity < 0.
+        lv_negative_stock = lv_negative_stock
+          - ls_negative_stock-quantity.
+      ENDIF.
+    ENDLOOP.
+
     LOOP AT lt_stock INTO DATA(ls_stock).
-      IF ls_stock-quantity > 0
-          AND ls_stock-storage_location IS NOT INITIAL
-          AND ls_stock-batch IS NOT INITIAL.
+      IF ls_stock-quantity <= 0
+          OR ls_stock-storage_location IS INITIAL
+          OR ls_stock-batch IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      lv_available_quantity = ls_stock-quantity.
+      IF lv_negative_stock > 0.
+        IF lv_negative_stock < lv_available_quantity.
+          lv_deduction = lv_negative_stock.
+        ELSE.
+          lv_deduction = lv_available_quantity.
+        ENDIF.
+        lv_available_quantity = lv_available_quantity - lv_deduction.
+        lv_negative_stock = lv_negative_stock - lv_deduction.
+      ENDIF.
+
+      IF lv_available_quantity > 0.
         APPEND VALUE #(
           storage_location   = ls_stock-storage_location
           batch              = ls_stock-batch
           expiration_date    = ls_stock-expiration_date
-          available_quantity = ls_stock-quantity ) TO rt_stock.
+          available_quantity = lv_available_quantity ) TO rt_stock.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.

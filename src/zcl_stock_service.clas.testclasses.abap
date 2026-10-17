@@ -104,6 +104,24 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    METHODS get_po_conf_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_projected_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_date_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_batch_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_safety_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_location_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
   PRIVATE SECTION.
     TYPES:
       BEGIN OF ty_plant_stock,
@@ -151,6 +169,7 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     DATA mv_use_bulk_status_override TYPE abap_bool.
     DATA mt_location_stock_status TYPE zif_stock_repository=>ty_stock_status_locations.
     DATA mt_batch_stock_status TYPE zif_stock_repository=>ty_batch_stock_statuses.
+    DATA mv_use_batch_status_override TYPE abap_bool.
     DATA mt_sales_order_reservations TYPE
       zif_stock_repository=>ty_sales_order_reservations.
     DATA mv_read_count TYPE i.
@@ -158,6 +177,12 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     DATA mt_batch_stock TYPE zif_stock_repository=>ty_batch_stocks.
     DATA mt_plant_stock TYPE ty_plant_stocks.
     DATA mt_plant_location_stock TYPE ty_plant_location_stocks.
+    DATA mv_po_conf_bulk_call_count TYPE i.
+    DATA mv_projected_bulk_call_count TYPE i.
+    DATA mv_date_bulk_call_count TYPE i.
+    DATA mv_batch_bulk_call_count TYPE i.
+    DATA mv_safety_bulk_call_count TYPE i.
+    DATA mv_location_bulk_call_count TYPE i.
 ENDCLASS.
 
 CLASS lcl_stock_repository_double IMPLEMENTATION.
@@ -256,10 +281,35 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
 
   METHOD set_batch_stock_status.
     mt_batch_stock_status = it_status.
+    mv_use_batch_status_override = abap_true.
   ENDMETHOD.
 
   METHOD get_read_count.
     rv_count = mv_read_count.
+  ENDMETHOD.
+
+  METHOD get_po_conf_bulk_call_count.
+    rv_count = mv_po_conf_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_projected_bulk_call_count.
+    rv_count = mv_projected_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_date_bulk_call_count.
+    rv_count = mv_date_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_batch_bulk_call_count.
+    rv_count = mv_batch_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_safety_bulk_call_count.
+    rv_count = mv_safety_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_location_bulk_call_count.
+    rv_count = mv_location_bulk_call_count.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_unrestricted_stock.
@@ -325,6 +375,35 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_date_bulk.
+    ADD 1 TO mv_date_bulk_call_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id         = ls_request-request_id
+        material           = ls_request-material
+        plant              = ls_request-plant
+        required_date      = ls_request-required_date
+        available_quantity =
+          zif_stock_repository~get_available_stock_by_date(
+            iv_material                    = ls_request-material
+            iv_plant                       = ls_request-plant
+            iv_required_date               = ls_request-required_date
+            it_excluded_reservations       = it_excluded_reservations
+            iv_include_po_receipts         = iv_include_po_receipts
+            iv_include_sto_in_transit      = iv_include_sto_in_transit
+            iv_include_unissued_sto        = iv_include_unissued_sto
+            iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+            iv_include_prod_receipts       = iv_include_prod_receipts
+            iv_include_pr_receipts         = iv_include_pr_receipts
+            iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+            iv_include_planned_receipts    = iv_include_planned_receipts
+            iv_include_fixed_planned       = iv_include_fixed_planned
+            iv_include_sched_agmt_receipts =
+              iv_include_sched_agmt_receipts ) )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_projected_receipts.
     ADD 1 TO mv_read_count.
     LOOP AT mt_projected_receipts INTO DATA(ls_receipt)
@@ -372,6 +451,95 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_projected_receipts_bulk.
+    TYPES:
+      BEGIN OF ty_receipt_cache,
+        material     TYPE mard-matnr,
+        plant        TYPE mard-werks,
+        through_date TYPE d,
+        receipts     TYPE zif_stock_repository=>ty_projected_receipts,
+      END OF ty_receipt_cache.
+    TYPES ty_receipt_caches TYPE HASHED TABLE OF ty_receipt_cache
+      WITH UNIQUE KEY material plant.
+    DATA lt_receipt_caches TYPE ty_receipt_caches.
+    DATA lt_confirmation_results TYPE
+      zif_stock_repository=>ty_projected_receipt_bulk_results.
+    DATA ls_result TYPE
+      zif_stock_repository=>ty_projected_receipt_bulk_result.
+    FIELD-SYMBOLS <ls_receipt_cache> TYPE ty_receipt_cache.
+
+    ADD 1 TO mv_projected_bulk_call_count.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      READ TABLE lt_receipt_caches ASSIGNING <ls_receipt_cache>
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc = 0.
+        IF <ls_receipt_cache>-through_date < ls_request-through_date.
+          <ls_receipt_cache>-through_date = ls_request-through_date.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          material     = ls_request-material
+          plant        = ls_request-plant
+          through_date = ls_request-through_date )
+          INTO TABLE lt_receipt_caches.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_receipt_caches ASSIGNING <ls_receipt_cache>.
+      <ls_receipt_cache>-receipts =
+        zif_stock_repository~get_projected_receipts(
+          iv_material                    = <ls_receipt_cache>-material
+          iv_plant                       = <ls_receipt_cache>-plant
+          iv_through_date                = <ls_receipt_cache>-through_date
+          iv_include_po_receipts         = iv_include_po_receipts
+          iv_include_sto_in_transit      = iv_include_sto_in_transit
+          iv_include_unissued_sto        = iv_include_unissued_sto
+          iv_include_prod_receipts       = iv_include_prod_receipts
+          iv_include_pr_receipts         = iv_include_pr_receipts
+          iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+          iv_include_planned_receipts    = iv_include_planned_receipts
+          iv_include_fixed_planned       = iv_include_fixed_planned
+          iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
+    ENDLOOP.
+
+    IF iv_include_po_confirmations = abap_true.
+      lt_confirmation_results =
+        zif_stock_repository~get_po_confirmed_receipts_bulk(
+          it_requests = it_requests ).
+    ENDIF.
+
+    LOOP AT it_requests INTO ls_request.
+      READ TABLE lt_receipt_caches INTO DATA(ls_receipt_cache)
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_result.
+      ls_result-request_id = ls_request-request_id.
+      ls_result-material = ls_request-material.
+      ls_result-plant = ls_request-plant.
+      ls_result-through_date = ls_request-through_date.
+      LOOP AT ls_receipt_cache-receipts INTO DATA(ls_receipt)
+          WHERE receipt_date <= ls_request-through_date.
+        APPEND ls_receipt TO ls_result-receipts.
+      ENDLOOP.
+      IF iv_include_po_confirmations = abap_true.
+        READ TABLE lt_confirmation_results
+          INTO DATA(ls_confirmation_result)
+          WITH KEY request_id = ls_request-request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        APPEND LINES OF ls_confirmation_result-receipts
+          TO ls_result-receipts.
+      ENDIF.
+      APPEND ls_result TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_po_confirmed_receipts.
     ADD 1 TO mv_read_count.
     LOOP AT mt_projected_receipts INTO DATA(ls_receipt)
@@ -385,9 +553,83 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_po_confirmed_receipts_bulk.
+    ADD 1 TO mv_po_conf_bulk_call_count.
+    TYPES:
+      BEGIN OF ty_receipt_cache,
+        material     TYPE mard-matnr,
+        plant        TYPE mard-werks,
+        through_date TYPE d,
+        receipts     TYPE zif_stock_repository=>ty_projected_receipts,
+      END OF ty_receipt_cache.
+    TYPES ty_receipt_caches TYPE HASHED TABLE OF ty_receipt_cache
+      WITH UNIQUE KEY material plant.
+    DATA lt_receipt_caches TYPE ty_receipt_caches.
+    DATA ls_result TYPE
+      zif_stock_repository=>ty_projected_receipt_bulk_result.
+    FIELD-SYMBOLS <ls_receipt_cache> TYPE ty_receipt_cache.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      READ TABLE lt_receipt_caches ASSIGNING <ls_receipt_cache>
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc = 0.
+        IF <ls_receipt_cache>-through_date < ls_request-through_date.
+          <ls_receipt_cache>-through_date = ls_request-through_date.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          material     = ls_request-material
+          plant        = ls_request-plant
+          through_date = ls_request-through_date )
+          INTO TABLE lt_receipt_caches.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_receipt_caches ASSIGNING <ls_receipt_cache>.
+      <ls_receipt_cache>-receipts =
+        zif_stock_repository~get_po_confirmed_receipts(
+          iv_material     = <ls_receipt_cache>-material
+          iv_plant        = <ls_receipt_cache>-plant
+          iv_through_date = <ls_receipt_cache>-through_date ).
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      READ TABLE lt_receipt_caches INTO DATA(ls_receipt_cache)
+        WITH TABLE KEY material = ls_request-material
+                       plant = ls_request-plant.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_result.
+      ls_result-request_id = ls_request-request_id.
+      ls_result-material = ls_request-material.
+      ls_result-plant = ls_request-plant.
+      ls_result-through_date = ls_request-through_date.
+      LOOP AT ls_receipt_cache-receipts INTO DATA(ls_receipt)
+          WHERE receipt_date <= ls_request-through_date.
+        APPEND ls_receipt TO ls_result-receipts.
+      ENDLOOP.
+      APPEND ls_result TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     ADD 1 TO mv_read_count.
     rv_quantity = mv_safety_stock.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_safety_stock_bulk.
+    ADD 1 TO mv_read_count.
+    ADD 1 TO mv_safety_bulk_call_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant
+        quantity   = mv_safety_stock )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
@@ -428,13 +670,39 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
 
   METHOD zif_stock_repository~get_location_stock_status_bulk.
     ADD 1 TO mv_read_count.
+    ADD 1 TO mv_location_bulk_call_count.
     LOOP AT it_requests INTO DATA(ls_request).
-      APPEND VALUE #(
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_stock_location_bulk_result(
         request_id = ls_request-request_id
         material   = ls_request-material
-        plant      = ls_request-plant
-        locations  = mt_location_stock_status )
-        TO rt_status.
+        plant      = ls_request-plant ).
+      READ TABLE mt_plant_location_stock TRANSPORTING NO FIELDS
+        WITH KEY material = ls_request-material
+                 plant = ls_request-plant.
+      IF sy-subrc = 0.
+        LOOP AT mt_plant_location_stock INTO DATA(ls_plant_location_stock)
+          WHERE material = ls_request-material
+            AND plant = ls_request-plant.
+          APPEND VALUE #(
+            storage_location           =
+              ls_plant_location_stock-storage_location
+            unrestricted_quantity      = ls_plant_location_stock-quantity
+            available_unrestricted_qty = ls_plant_location_stock-quantity )
+            TO ls_result-locations.
+        ENDLOOP.
+      ELSEIF mt_location_stock_status IS NOT INITIAL.
+        ls_result-locations = mt_location_stock_status.
+      ELSE.
+        LOOP AT mt_location_stock INTO DATA(ls_location_stock).
+          APPEND VALUE #(
+            storage_location           = ls_location_stock-storage_location
+            unrestricted_quantity      = ls_location_stock-available_quantity
+            available_unrestricted_qty = ls_location_stock-available_quantity )
+            TO ls_result-locations.
+        ENDLOOP.
+      ENDIF.
+      APPEND ls_result TO rt_status.
     ENDLOOP.
   ENDMETHOD.
 
@@ -445,12 +713,25 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
 
   METHOD zif_stock_repository~get_batch_stock_status_bulk.
     ADD 1 TO mv_read_count.
+    ADD 1 TO mv_batch_bulk_call_count.
+    DATA(lt_batch_status) = mt_batch_stock_status.
+    IF mv_use_batch_status_override <> abap_true.
+      LOOP AT mt_batch_stock INTO DATA(ls_batch_stock).
+        APPEND VALUE #(
+          storage_location      = ls_batch_stock-storage_location
+          batch                 = ls_batch_stock-batch
+          expiration_date       = ls_batch_stock-expiration_date
+          unrestricted_quantity = ls_batch_stock-available_quantity
+          available_quantity    = ls_batch_stock-available_quantity )
+          TO lt_batch_status.
+      ENDLOOP.
+    ENDIF.
     LOOP AT it_requests INTO DATA(ls_request).
       APPEND VALUE #(
         request_id = ls_request-request_id
         material   = ls_request-material
         plant      = ls_request-plant
-        batches    = mt_batch_stock_status )
+        batches    = lt_batch_status )
         TO rt_status.
     ENDLOOP.
   ENDMETHOD.
@@ -472,6 +753,21 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
   METHOD zif_stock_repository~get_stock_by_batch.
     ADD 1 TO mv_read_count.
     rt_stock = mt_batch_stock.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_reservations.
+    ADD 1 TO mv_read_count.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_res_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
@@ -602,6 +898,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
       RAISING zcx_invalid_stock_request.
     METHODS rejects_bad_proj_receipts_uom FOR TESTING.
     METHODS returns_stock_status_in_unit FOR TESTING.
+    METHODS rejects_stock_uom_overflow FOR TESTING.
+    METHODS rejects_stock_uom_round_zero FOR TESTING.
     METHODS returns_bulk_status_unit FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS rejects_bad_bulk_status_unit FOR TESTING.
@@ -633,6 +931,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
       RAISING zcx_invalid_stock_request.
     METHODS allocates_requested_quantity FOR TESTING.
     METHODS requires_full_local_quantity FOR TESTING.
+    METHODS rejects_date_receipt_overflow FOR TESTING.
     METHODS allocates_request_by_date FOR TESTING.
     METHODS requires_full_local_date FOR TESTING.
     METHODS requires_full_detailed_local FOR TESTING.
@@ -650,6 +949,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS subtracts_unissued_sto_demand FOR TESTING.
     METHODS allocates_with_prod_receipts FOR TESTING.
     METHODS allocates_demands_by_date FOR TESTING.
+    METHODS rejects_bulk_receipt_overflow FOR TESTING.
     METHODS allocates_dated_po_conf FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS allocates_po_conf_unit FOR TESTING
@@ -670,6 +970,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS compares_dated_alt_unit_atp FOR TESTING.
     METHODS limits_atp_confirmation_date FOR TESTING.
     METHODS rejects_bad_atp_split_inputs FOR TESTING.
+    METHODS rejects_atp_quantity_overflow FOR TESTING.
     METHODS rejects_incomplete_atp_request FOR TESTING.
     METHODS reports_partial_shortfall FOR TESTING.
     METHODS negative_stock_is_unavailable FOR TESTING.
@@ -677,6 +978,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_demands_in_order FOR TESTING.
     METHODS keeps_plant_stock_separate FOR TESTING.
     METHODS allocates_across_plants FOR TESTING.
+    METHODS rejects_xplant_avail_overflow FOR TESTING.
+    METHODS rejects_xplant_rcpt_overflow FOR TESTING.
     METHODS filters_cross_plant_locations FOR TESTING.
     METHODS filters_cross_plant_batches FOR TESTING.
     METHODS filters_cross_plant_fefo FOR TESTING.
@@ -686,6 +989,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS requires_full_plant_quantity FOR TESTING.
     METHODS requires_full_plant_units FOR TESTING.
     METHODS requires_full_dated_plant FOR TESTING.
+    METHODS rejects_xplant_date_overflow FOR TESTING.
+    METHODS rejects_date_conf_sum_overflow FOR TESTING.
     METHODS allocates_plants_by_date FOR TESTING.
     METHODS allocates_plants_by_date_loc FOR TESTING.
     METHODS allocates_plant_loc_receipts FOR TESTING.
@@ -714,6 +1019,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS protects_cross_plant_safety FOR TESTING.
     METHODS rejects_bad_plant_protection FOR TESTING.
     METHODS rejects_invalid_plant_sources FOR TESTING.
+    METHODS rejects_same_plant_source FOR TESTING.
     METHODS allocates_plants_in_units FOR TESTING.
     METHODS rejects_unknown_plant_uom FOR TESTING.
     METHODS allocates_plants_by_expiry FOR TESTING.
@@ -798,6 +1104,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_batch_location_order FOR TESTING.
     METHODS rejects_missing_batch FOR TESTING.
     METHODS allocates_by_expiry_date FOR TESTING.
+    METHODS reads_safety_stock_bulk FOR TESTING.
     METHODS allocates_fefo_row_full_qty FOR TESTING.
     METHODS allocates_fefo_by_priority FOR TESTING.
     METHODS allocates_single_fefo_receipts FOR TESTING.
@@ -836,6 +1143,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_uom_demand_atp_opts FOR TESTING.
     METHODS prioritizes_uom_demand_atp FOR TESTING.
     METHODS rejects_uom_rounding_to_zero FOR TESTING.
+    METHODS rejects_uom_input_overflow FOR TESTING.
     METHODS rejects_unknown_alloc_unit FOR TESTING.
     METHODS rejects_unknown_bulk_unit FOR TESTING.
     METHODS rejects_unknown_batch_unit FOR TESTING.
@@ -843,6 +1151,9 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_unknown_location_unit FOR TESTING.
     METHODS rejects_unknown_status_unit FOR TESTING.
     METHODS rejects_unknown_location_units FOR TESTING.
+    METHODS nets_large_scoped_batches FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rejects_scope_receipt_range FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_service IMPLEMENTATION.
@@ -1868,6 +2179,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_po_conf_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_projected_bulk_call_count( ) ).
 
     DATA(lt_unit_results) = lo_cut->get_proj_receipts_bulk_uom(
       it_requests                 = VALUE #(
@@ -1886,6 +2203,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_po_conf_bulk_call_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_uom_repository->get_read_count( ) ).
@@ -1946,6 +2266,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_po_conf_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_projected_bulk_call_count( ) ).
 
     DATA(lt_unit_results) = lo_cut->get_proj_receipts_opts_uom(
       it_requests = VALUE #(
@@ -1962,6 +2288,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = lt_unit_results[ 1 ]-receipts[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_po_conf_bulk_call_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_uom_repository->get_read_count( ) ).
@@ -2102,6 +2431,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_projected_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD returns_po_conf_bulk.
@@ -2306,10 +2638,31 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( material        = 'MAT-1'
           plant           = '1000'
           base_unit       = 'EA'
+          receipt_date    = '20261024'
+          quantity        = '18.000'
+          source_type     = 'SCHED_AGREEMENT'
+          source_document = '5500000001' )
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
           receipt_date    = '20261023'
           quantity        = '6.000'
           source_type     = 'PR'
           source_document = '0010001234' )
+        ( material        = 'MAT-2'
+          plant           = '2000'
+          base_unit       = 'KG'
+          receipt_date    = '20261022'
+          quantity        = '12.000'
+          source_type     = 'PO'
+          source_document = '4500000020' )
+        ( material        = 'MAT-2'
+          plant           = '2000'
+          base_unit       = 'KG'
+          receipt_date    = '20261023'
+          quantity        = '15.000'
+          source_type     = 'PRODUCTION'
+          source_document = '0000004722' )
         ( material        = 'MAT-2'
           plant           = '2000'
           base_unit       = 'KG'
@@ -2341,10 +2694,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           plant        = '2000'
           through_date = '20261024'
           options      = VALUE #(
+            include_sched_agmt_receipts = abap_true ) )
+        ( request_id   = 'SRC-MAT1-AGMT'
+          material     = 'MAT-1'
+          plant        = '1000'
+          through_date = '20261024'
+          options      = VALUE #(
+            include_sched_agmt_receipts = abap_true ) )
+        ( request_id   = 'SRC-MAT2-MIXED'
+          material     = 'MAT-2'
+          plant        = '2000'
+          through_date = '20261024'
+          options      = VALUE #(
+            include_po_receipts         = abap_true
+            include_prod_receipts       = abap_true
             include_sched_agmt_receipts = abap_true ) ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 6
       act = lines( lt_results ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'SRC-PROD'
@@ -2374,8 +2741,23 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'SCHED_AGREEMENT'
       act = lt_results[ 4 ]-receipts[ 1 ]-source_type ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 'SRC-MAT1-AGMT'
+      act = lt_results[ 5 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SCHED_AGREEMENT'
+      act = lt_results[ 5 ]-receipts[ 1 ]-source_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SRC-MAT2-MIXED'
+      act = lt_results[ 6 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_results[ 6 ]-receipts ) ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_projected_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_proj_opts_bulk.
@@ -3179,6 +3561,70 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_stock_uom_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_stock_status(
+      is_status = VALUE #(
+        unrestricted_quantity = CONV mard-labst( '9999999999.999' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 99999 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_stock_status_in_unit(
+          iv_material = 'MAT-1'
+          iv_plant    = '1000'
+          iv_unit     = 'BOX' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_stock_uom_round_zero.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_stock_status(
+      is_status = VALUE #(
+        unrestricted_quantity = '1.000' ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_stock_status_in_unit(
+          iv_material = 'MAT-1'
+          iv_plant    = '1000'
+          iv_unit     = 'BOX' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
   ENDMETHOD.
 
   METHOD returns_bulk_status_unit.
@@ -4641,6 +5087,38 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_unit_allocation-allocation-shortfall_quantity ).
   ENDMETHOD.
 
+  METHOD rejects_date_receipt_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_quantity = '9999999999.999'
+      iv_date     = '20261231' ).
+    lo_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261222'
+          quantity        = '0.001'
+          source_type     = 'PO_CONFIRMATION'
+          source_document = '4500000010' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_request_by_date(
+          iv_material                 = 'MAT-1'
+          iv_plant                    = '1000'
+          iv_required_date            = '20261231'
+          iv_requested_quantity       = '1.000'
+          iv_include_po_confirmations = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
   METHOD allocates_request_by_date.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     DATA(lo_cut) = NEW zcl_stock_service(
@@ -5835,6 +6313,48 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_date_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bulk_receipt_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      iv_quantity = '9999999999.999'
+      iv_date     = '20261231' ).
+    lo_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material        = 'MAT-1'
+          plant           = '1000'
+          base_unit       = 'EA'
+          receipt_date    = '20261222'
+          quantity        = '0.001'
+          source_type     = 'PO_CONFIRMATION'
+          source_document = '4500000010' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_demands_by_date(
+          it_demands                  = VALUE #(
+            ( request_id         = 'DATE-BULK-CONF-OVERFLOW'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_date      = '20261231'
+              requested_quantity = '1.000' ) )
+          iv_include_po_confirmations = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
   ENDMETHOD.
 
   METHOD allocates_dated_po_conf.
@@ -6794,6 +7314,46 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_all_split-confirmed_base_quantity ).
   ENDMETHOD.
 
+  METHOD rejects_atp_quantity_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_material_availability_api = lo_availability_api ).
+    DATA(lv_max_quantity) = CONV mard-labst( '9999999999.999' ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->build_unit_atp_checks(
+          it_allocations    = VALUE #(
+            ( allocation    = VALUE #(
+                request_id         = 'ATP-MAX-1'
+                material           = 'MAT-1'
+                plant              = '1000'
+                allocated_quantity = lv_max_quantity )
+              base_quantity = lv_max_quantity
+              base_unit     = 'EA' )
+            ( allocation    = VALUE #(
+                request_id         = 'ATP-MAX-2'
+                material           = 'MAT-1'
+                plant              = '1000'
+                allocated_quantity = lv_max_quantity )
+              base_quantity = lv_max_quantity
+              base_unit     = 'EA' ) )
+          iv_check_rule     = 'A'
+          iv_atp_check_date = '20261017' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
   METHOD rejects_bad_atp_split_inputs.
     DATA(lo_cut) = NEW zcl_stock_service(
       io_stock_repository = NEW lcl_stock_repository_double( ) ).
@@ -7179,7 +7739,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-2'
       act = ls_result-location_allocations[ 4 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_repository->get_read_count( ) ).
     TRY.
         DATA(ls_ignored_result) = lo_cut->allocate_across_plants(
@@ -7198,8 +7758,77 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = abap_true
       act = lv_exception_raised ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_xplant_avail_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_plant_location_stock(
+      iv_material         = 'MAT-1'
+      iv_plant            = '2000'
+      iv_storage_location = '0001'
+      iv_quantity         = '9999999999.999' ).
+    lo_repository->set_plant_location_stock(
+      iv_material         = 'MAT-1'
+      iv_plant            = '3000'
+      iv_storage_location = '0001'
+      iv_quantity         = '9999999999.999' ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_across_plants(
+          it_demands = VALUE #(
+            ( request_id         = 'XPLANT-RANGE'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'XPLANT-RANGE' source_plant = '2000' )
+            ( request_id = 'XPLANT-RANGE' source_plant = '3000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_xplant_rcpt_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_plant_location_stock(
+      iv_material         = 'MAT-1'
+      iv_plant            = '2000'
+      iv_storage_location = '0001'
+      iv_quantity         = '9999999999.999' ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_across_plants(
+          it_demands            = VALUE #(
+            ( request_id         = 'XPLANT-RCPT-RANGE'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              requested_quantity = '1.000' ) )
+          it_sources            = VALUE #(
+            ( request_id = 'XPLANT-RCPT-RANGE' source_plant = '2000' ) )
+          it_projected_receipts = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '2000'
+              storage_location = '0001'
+              receipt_date     = '20261222'
+              base_quantity    = '0.001' ) )
+          it_demand_cutoffs     = VALUE #(
+            ( request_id    = 'XPLANT-RCPT-RANGE'
+              required_date = '20261231' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
   ENDMETHOD.
 
   METHOD filters_cross_plant_locations.
@@ -7396,6 +8025,207 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_same_plant_source.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_across_plants(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-BASE'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'SAME-BASE' source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_by_date_loc(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-LOCATION-DATE'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              required_date      = '20261018'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id   = 'SAME-LOCATION-DATE'
+              source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_by_date(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-DATE'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              required_date      = '20261018'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'SAME-DATE' source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_by_expiry(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-FEFO'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'SAME-FEFO' source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_fefo_by_date(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-FEFO-DATE'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              required_date      = '20261018'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'SAME-FEFO-DATE' source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_by_batch(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-BATCH'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              batch              = 'BATCH-1'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id = 'SAME-BATCH' source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+
+    TRY.
+        lo_cut->allocate_plants_batch_by_date(
+          it_demands = VALUE #(
+            ( request_id         = 'SAME-BATCH-DATE'
+              material           = 'MAT-1'
+              target_plant       = '1000'
+              batch              = 'BATCH-1'
+              required_date      = '20261018'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id   = 'SAME-BATCH-DATE'
+              source_plant = '1000' ) ) ).
+    CATCH zcx_invalid_stock_request.
+      lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_xplant_date_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261231'
+      iv_quantity = '9999999999.999' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      iv_date     = '20261231'
+      iv_quantity = '9999999999.999' ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_plants_by_date(
+          it_demands = VALUE #(
+            ( request_id         = 'DATE-XPLANT-OVERFLOW'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              required_date      = '20261231'
+              requested_quantity = '1.000' ) )
+          it_sources = VALUE #(
+            ( request_id   = 'DATE-XPLANT-OVERFLOW'
+              source_plant = '2000' )
+            ( request_id   = 'DATE-XPLANT-OVERFLOW'
+              source_plant = '3000' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_date_conf_sum_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      iv_date     = '20261231'
+      iv_quantity = '9999999999.999' ).
+    lo_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material        = 'MAT-1'
+          plant           = '2000'
+          base_unit       = 'EA'
+          receipt_date    = '20261222'
+          quantity        = '0.001'
+          source_type     = 'PO_CONFIRMATION'
+          source_document = '4500000010' ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_plants_by_date(
+          it_demands                  = VALUE #(
+            ( request_id         = 'DATE-CONF-OVERFLOW'
+              material           = 'MAT-1'
+              target_plant       = '9000'
+              required_date      = '20261231'
+              requested_quantity = '1.000' ) )
+          it_sources                  = VALUE #(
+            ( request_id   = 'DATE-CONF-OVERFLOW'
+              source_plant = '2000' ) )
+          iv_include_po_confirmations = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
   METHOD allocates_plants_by_date.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     DATA(lo_cut) = NEW zcl_stock_service(
@@ -7491,8 +8321,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '4.000' )
       act = ls_result-plant_allocations[ 3 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 6
+      exp = 5
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_date_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_safety_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD allocates_plants_with_po_conf.
@@ -7770,7 +8606,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY-HIGH'
       act = ls_result-location_allocations[ 3 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
@@ -9476,6 +10312,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mchb-clabs( '1.000' )
       act = ls_result-batch_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
     DATA(ls_restricted_result) = lo_cut->allocate_plants_by_expiry(
       it_demands    = VALUE #(
         ( request_id              = 'REQ-STRICT'
@@ -9502,6 +10341,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD allocates_expiry_receipts.
@@ -9561,6 +10403,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-batch_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_safety_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_invalid_expiry_receipt.
@@ -9703,6 +10551,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-batch_allocations[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
     DATA(ls_restricted_result) = lo_cut->allocate_plants_fefo_by_date(
       it_demands  = VALUE #(
         ( request_id              = 'REQ-STRICT'
@@ -9726,6 +10577,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD allocates_dated_fefo_receipts.
@@ -10105,6 +10959,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocations[ 2 ]-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_safety_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_missing_fefo_date.
@@ -10950,8 +11810,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_restricted_result-batch_allocations[ 1 ]-allocation-minimum_shelf_life_days ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 3
+      exp = 2
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD prioritizes_plant_fefo.
@@ -11751,8 +12614,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-2'
       act = ls_result-location_allocations[ 4 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD prioritizes_plant_batch.
@@ -12566,8 +13432,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'B-1'
       act = ls_result-location_allocations[ 2 ]-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 1
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD rejects_batch_date.
@@ -16502,6 +17371,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD prefers_batch_location_first.
@@ -16629,6 +17501,172 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD reads_safety_stock_bulk.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          available_quantity = '5.000' ) ) ).
+    lo_repository->set_safety_stock( iv_quantity = '1.000' ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(ls_result) = lo_cut->allocate_by_batch(
+      it_demands              = VALUE #(
+        ( request_id         = 'BATCH-SAFE-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          batch              = 'B-1'
+          requested_quantity = '4.000' )
+        ( request_id         = 'BATCH-SAFE-2'
+          material           = 'MAT-2'
+          plant              = '2000'
+          batch              = 'B-1'
+          requested_quantity = '4.000' ) )
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+
+    DATA(ls_fefo_result) = lo_cut->allocate_by_expiry(
+      it_demands              = VALUE #(
+        ( request_id         = 'FEFO-SAFE-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000' )
+        ( request_id         = 'FEFO-SAFE-2'
+          material           = 'MAT-2'
+          plant              = '2000'
+          requested_quantity = '4.000' ) )
+      iv_as_of_date           = '20261001'
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_fefo_result-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_fefo_result-allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+
+    DATA(ls_plant_batch_result) = lo_cut->allocate_plants_by_batch(
+      it_demands              = VALUE #(
+        ( request_id         = 'PLANT-BATCH-SAFE-1'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          batch              = 'B-1'
+          requested_quantity = '4.000' )
+        ( request_id         = 'PLANT-BATCH-SAFE-2'
+          material           = 'MAT-2'
+          target_plant       = '9001'
+          batch              = 'B-1'
+          requested_quantity = '4.000' ) )
+      it_sources              = VALUE #(
+        ( request_id = 'PLANT-BATCH-SAFE-1' source_plant = '1000' )
+        ( request_id = 'PLANT-BATCH-SAFE-2' source_plant = '2000' ) )
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_plant_batch_result-allocations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_plant_batch_result-allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+
+    lo_cut->allocate_across_plants(
+      it_demands              = VALUE #(
+        ( request_id         = 'ACROSS-SAFE-1'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          requested_quantity = '1.000' )
+        ( request_id         = 'ACROSS-SAFE-2'
+          material           = 'MAT-2'
+          target_plant       = '9001'
+          requested_quantity = '1.000' ) )
+      it_sources              = VALUE #(
+        ( request_id = 'ACROSS-SAFE-1' source_plant = '1000' )
+        ( request_id = 'ACROSS-SAFE-2' source_plant = '2000' ) )
+      iv_protect_safety_stock = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_location_bulk_call_count( ) ).
+
+    lo_cut->allocate_by_storage_location(
+      it_demands              = VALUE #(
+        ( request_id         = 'LOCATION-SAFE-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '1.000' )
+        ( request_id         = 'LOCATION-SAFE-2'
+          material           = 'MAT-2'
+          plant              = '2000'
+          requested_quantity = '1.000' ) )
+      iv_protect_safety_stock = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_location_bulk_call_count( ) ).
+
+    lo_cut->allocate_location_by_date(
+      it_demands               = VALUE #(
+        ( request_id         = 'LOCATION-DATE-SAFE-1'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261010'
+          requested_quantity = '1.000' )
+        ( request_id         = 'LOCATION-DATE-SAFE-2'
+          material           = 'MAT-2'
+          plant              = '2000'
+          required_date      = '20261010'
+          requested_quantity = '1.000' ) )
+      it_projected_receipts    = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261001'
+          base_quantity    = '2.000' )
+        ( material         = 'MAT-2'
+          plant            = '2000'
+          storage_location = '0001'
+          receipt_date     = '20261001'
+          base_quantity    = '2.000' ) )
+      iv_protect_safety_stock  = abap_true
+      iv_require_full_quantity = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lo_repository->get_safety_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_repository->get_location_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD allocates_by_expiry_date.
@@ -18251,6 +19289,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_result-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD filters_fefo_min_days.
@@ -19130,6 +20171,41 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               required_date      = '20261020'
               requested_quantity = '0.001'
               requested_unit     = 'TNY' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_uom_input_overflow.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'PAL'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->allocate_demands_in_units(
+          it_demands = VALUE #(
+            ( request_id         = 'OVERFLOW'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '9999999999.999'
+              requested_unit     = 'PAL' ) ) ).
       CATCH zcx_invalid_stock_request.
         lv_exception_raised = abap_true.
     ENDTRY.
@@ -20837,5 +21913,120 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_availability_api->get_check_count( ) ).
+  ENDMETHOD.
+
+  METHOD nets_large_scoped_batches.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    lo_repository->set_location_stock_status(
+      it_status = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '9999999999.999'
+          available_unrestricted_qty = '9999999999.999' ) ) ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'B-1'
+          unrestricted_quantity = '9999999999.999'
+          available_quantity    = '9999999999.999' )
+        ( storage_location      = '0001'
+          batch                 = 'B-2'
+          unrestricted_quantity = '9999999999.999'
+          available_quantity    = '9999999999.999' ) ) ).
+
+    DATA(lt_result) = lo_cut->allocate_component_stock(
+      it_demands = VALUE #(
+        ( request_id         = 'SCOPE-RANGE'
+          material           = 'MAT-1'
+          plant              = '1000'
+          reservation_number = '0000001300'
+          reservation_item   = '0001'
+          required_date      = '20261020'
+          requested_quantity = '1.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_result ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9999999999.999' )
+      act = lt_result[ 1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9999999999.999' )
+      act = lt_result[ 1 ]-group_available_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_scope_receipt_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_batch_receipt_rejected TYPE abap_bool.
+    DATA lv_location_receipt_rejected TYPE abap_bool.
+    DATA(lt_demands) = VALUE zcl_stock_service=>ty_scoped_component_demands(
+      ( request_id         = 'SCOPE-RECEIPT-RANGE'
+        material           = 'MAT-1'
+        plant              = '1000'
+        reservation_number = '0000001303'
+        reservation_item   = '0001'
+        required_date      = '20261022'
+        requested_quantity = '1.000' ) ).
+    lo_repository->set_location_stock_status(
+      it_status = VALUE #(
+        ( storage_location      = '0001'
+          unrestricted_quantity = '0.000' ) ) ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001'
+          batch            = 'B-1' ) ) ).
+
+    TRY.
+        lo_cut->allocate_component_stock(
+          it_demands                  = lt_demands
+          it_projected_batch_receipts = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-1'
+              receipt_date     = '20261021'
+              base_quantity    = '9999999999.999' )
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-1'
+              receipt_date     = '20261021'
+              base_quantity    = '9999999999.999' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_batch_receipt_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_batch_receipt_rejected ).
+
+    lo_repository->set_location_stock_status(
+      it_status = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '9999999999.999'
+          available_unrestricted_qty = '9999999999.999' ) ) ).
+    TRY.
+        lo_cut->allocate_component_stock(
+          it_demands                     = lt_demands
+          it_projected_location_receipts = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              receipt_date     = '20261021'
+              base_quantity    = '9999999999.999' )
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              receipt_date     = '20261021'
+              base_quantity    = '9999999999.999' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_location_receipt_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_location_receipt_rejected ).
   ENDMETHOD.
 ENDCLASS.

@@ -169,6 +169,7 @@ CLASS ltcl_repl_source_service DEFINITION FINAL
     METHODS excludes_missing_mat_plant FOR TESTING.
     METHODS filters_each_delivery_date FOR TESTING.
     METHODS rejects_incomplete_pir_request FOR TESTING.
+    METHODS rejects_invalid_pir_date FOR TESTING.
     METHODS lists_valid_outline_sources FOR TESTING.
     METHODS filters_bad_outline_sources FOR TESTING.
     METHODS rejects_bad_agreement_request FOR TESTING.
@@ -1484,6 +1485,29 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_invalid_pir_date.
+    DATA lv_invalid_date_rejected TYPE abap_bool.
+    DATA(lo_repository) = NEW lcl_repl_source_repo_double( ).
+    DATA(lo_cut) = NEW zcl_repl_source_service(
+      io_repository = lo_repository ).
+
+    TRY.
+        lo_cut->get_valid_pir_candidates(
+          it_requests = VALUE #(
+            ( material = 'MAT-1' plant = '1000'
+              purchasing_org = '1000' delivery_date = '20260230' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_date_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
   METHOD ranks_by_quota_rating.
     DATA(lo_repository) = NEW lcl_repl_source_repo_double( ).
     lo_repository->set_records(
@@ -2017,6 +2041,65 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
     LOOP AT lt_candidates ASSIGNING FIELD-SYMBOL(<ls_split_candidate>).
       <ls_split_candidate>-quota_min_split_quantity = 400.
     ENDLOOP.
+
+    DATA(lt_conflicting_candidates) = lt_candidates.
+    DATA(ls_conflicting_candidate) = lt_conflicting_candidates[ 1 ].
+    ls_conflicting_candidate-quota_min_lot_size = 25.
+    ls_conflicting_candidate-quota_max_lot_size = 75.
+    ls_conflicting_candidate-quota_once_only = abap_true.
+    APPEND ls_conflicting_candidate TO lt_conflicting_candidates.
+    DATA lv_dup_quota_conflict_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->simulate_split_quota(
+          it_candidates             = lt_conflicting_candidates
+          iv_request_index          = 1
+          iv_requested_quantity     = '1000'
+          iv_requested_unit         = 'EA'
+          iv_minimum_split_quantity = '0' ).
+      CATCH zcx_invalid_stock_request.
+        lv_dup_quota_conflict_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_dup_quota_conflict_rejected ).
+
+    DATA(lt_exhausted_candidates) = lt_candidates.
+    DELETE lt_exhausted_candidates WHERE quota_item <> '001'.
+    lt_exhausted_candidates[ 1 ]-quota_maximum_quantity = 100.
+    lt_exhausted_candidates[ 1 ]-quota_allocated_quantity = 100.
+    DATA lv_exhausted_quota_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->simulate_split_quota(
+          it_candidates             = lt_exhausted_candidates
+          iv_request_index          = 1
+          iv_requested_quantity     = '300'
+          iv_requested_unit         = 'EA'
+          iv_minimum_split_quantity = '0' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exhausted_quota_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exhausted_quota_rejected ).
+
+    DATA(lt_capped_candidates) = lt_candidates.
+    LOOP AT lt_capped_candidates ASSIGNING <ls_split_candidate>.
+      <ls_split_candidate>-quota_maximum_quantity = 1.
+    ENDLOOP.
+    DATA lv_uncoverable_quota_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->simulate_split_quota(
+          it_candidates             = lt_capped_candidates
+          iv_request_index          = 1
+          iv_requested_quantity     = '1000'
+          iv_requested_unit         = 'EA'
+          iv_minimum_split_quantity = '0' ).
+      CATCH zcx_invalid_stock_request.
+        lv_uncoverable_quota_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_uncoverable_quota_rejected ).
 
     DATA(lt_splits) = lo_cut->simulate_split_quota(
       it_candidates         = lt_candidates
@@ -2692,7 +2775,7 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
       exp = 'R001'
       act = lt_candidates[ 1 ]-quota_rounding_profile ).
     cl_abap_unit_assert=>assert_equals(
-      exp = abap_true
+      exp = abap_false
       act = lt_candidates[ 2 ]-has_active_vendor_quota ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
@@ -2843,6 +2926,7 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
 
   METHOD rejects_bad_agreement_request.
     DATA lv_invalid_request_rejected TYPE abap_bool.
+    DATA lv_bad_date_rejected TYPE abap_bool.
     DATA lv_bad_fixed_rejected TYPE abap_bool.
     DATA lv_invalid_mrp_filter_rejected TYPE abap_bool.
     DATA(lo_repository) = NEW lcl_repl_source_repo_double( ).
@@ -2856,6 +2940,14 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
               delivery_date = '20261005' ) ) ).
       CATCH zcx_invalid_stock_request.
         lv_invalid_request_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_valid_outline_sources(
+          it_requests = VALUE #(
+            ( material = 'MAT-1' plant = '1000'
+              purchasing_org = '1000' delivery_date = '20260230' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_date_rejected = abap_true.
     ENDTRY.
     TRY.
         lo_cut->get_valid_outline_sources(
@@ -2875,6 +2967,9 @@ CLASS ltcl_repl_source_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_invalid_request_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_date_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_bad_fixed_rejected ).

@@ -1154,10 +1154,14 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      lv_item_quantity = CONV mard-labst(
-        CONV decfloat34( ls_suggestion-suggested_base_quantity )
-        * CONV decfloat34( lv_order_unit_denominator )
-        / CONV decfloat34( lv_order_unit_numerator ) ).
+      TRY.
+          lv_item_quantity = CONV mard-labst(
+            CONV decfloat34( ls_suggestion-suggested_base_quantity )
+            * CONV decfloat34( lv_order_unit_denominator )
+            / CONV decfloat34( lv_order_unit_numerator ) ).
+        CATCH cx_sy_conversion_overflow.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDTRY.
       IF lv_item_quantity <= 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.

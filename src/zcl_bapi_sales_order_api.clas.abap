@@ -33,15 +33,27 @@ CLASS zcl_bapi_sales_order_api DEFINITION
 
   PRIVATE SECTION.
     TYPES ty_bapi_items TYPE STANDARD TABLE OF bapisdit WITH DEFAULT KEY.
+    TYPES:
+      BEGIN OF ty_bapi_item_position,
+        sales_document TYPE bapisdit-doc_number,
+        row_number     TYPE i,
+      END OF ty_bapi_item_position.
+    TYPES ty_bapi_item_positions TYPE SORTED TABLE OF
+      ty_bapi_item_position WITH UNIQUE KEY sales_document row_number.
+    TYPES ty_indexed_delivery_items TYPE STANDARD TABLE OF
+      zif_sales_order_delivery_repo=>ty_order_item WITH EMPTY KEY
+      WITH NON-UNIQUE SORTED KEY by_document_item_date
+        COMPONENTS sales_document item_number requested_date schedule_line.
 
     METHODS map_order_read
       IMPORTING
-        iv_sales_document TYPE zif_sales_order_api=>ty_sales_document
-        is_header         TYPE bapisdhd
-        it_bapi_items     TYPE ty_bapi_items
-        it_delivery_items TYPE zif_sales_order_delivery_repo=>ty_order_items
+        iv_sales_document      TYPE zif_sales_order_api=>ty_sales_document
+        is_header              TYPE bapisdhd
+        it_bapi_items          TYPE ty_bapi_items
+        it_bapi_item_positions TYPE ty_bapi_item_positions
+        it_delivery_items      TYPE ty_indexed_delivery_items
       RETURNING
-        VALUE(rs_result)  TYPE zif_sales_order_api=>ty_read_result.
+        VALUE(rs_result)       TYPE zif_sales_order_api=>ty_read_result.
 
     DATA mo_unit_converter TYPE REF TO zif_material_uom_converter.
     DATA mo_delivery_repository TYPE REF TO zif_sales_order_delivery_repo.
@@ -118,14 +130,19 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_sales_order_api~read_orders.
+    TYPES ty_order_header_lookup TYPE HASHED TABLE OF bapisdhd
+      WITH UNIQUE KEY doc_number.
     DATA ls_view TYPE bapisdview.
     DATA ls_sales_document TYPE bapivbeln.
     DATA lt_sales_documents TYPE STANDARD TABLE OF bapivbeln
       WITH DEFAULT KEY.
     DATA lt_bapi_items TYPE ty_bapi_items.
-    DATA lt_delivery_items TYPE zif_sales_order_delivery_repo=>ty_order_items.
+    DATA lt_delivery_items TYPE ty_indexed_delivery_items.
     DATA lt_order_headers TYPE STANDARD TABLE OF bapisdhd
       WITH DEFAULT KEY.
+    DATA lt_order_header_lookup TYPE ty_order_header_lookup.
+    DATA lt_bapi_item_positions TYPE ty_bapi_item_positions.
+    DATA lv_bapi_item_row_number TYPE i.
 
     IF it_sales_documents IS INITIAL.
       RETURN.
@@ -146,26 +163,57 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         order_headers_out = lt_order_headers
         order_items_out   = lt_bapi_items.
 
+    LOOP AT lt_order_headers INTO DATA(ls_order_header_row).
+      INSERT ls_order_header_row INTO TABLE lt_order_header_lookup.
+    ENDLOOP.
+    IF lines( it_sales_documents ) > 1.
+      LOOP AT lt_bapi_items INTO DATA(ls_indexed_bapi_item).
+        lv_bapi_item_row_number = sy-tabix.
+        INSERT VALUE #(
+          sales_document = ls_indexed_bapi_item-doc_number
+          row_number     = lv_bapi_item_row_number )
+          INTO TABLE lt_bapi_item_positions.
+      ENDLOOP.
+    ENDIF.
+
     lt_delivery_items = mo_delivery_repository->get_orders_items(
       it_sales_documents = it_sales_documents ).
 
     LOOP AT it_sales_documents INTO DATA(lv_requested_document).
-      READ TABLE lt_order_headers INTO DATA(ls_order_header)
-        WITH KEY doc_number = lv_requested_document.
+      READ TABLE lt_order_header_lookup INTO DATA(ls_order_header)
+        WITH TABLE KEY doc_number = lv_requested_document.
       APPEND VALUE #(
         sales_document = lv_requested_document
         read_result    = map_order_read(
-          iv_sales_document = lv_requested_document
-          is_header         = ls_order_header
-          it_bapi_items     = lt_bapi_items
-          it_delivery_items = lt_delivery_items ) )
+          iv_sales_document      = lv_requested_document
+          is_header              = ls_order_header
+          it_bapi_items          = lt_bapi_items
+          it_bapi_item_positions = lt_bapi_item_positions
+          it_delivery_items      = lt_delivery_items ) )
         TO rt_results.
     ENDLOOP.
   ENDMETHOD.
 
   METHOD map_order_read.
     DATA ls_bapi_item TYPE bapisdit.
+    DATA lt_document_bapi_items TYPE ty_bapi_items.
     DATA lo_quantity_calculator TYPE REF TO zcl_sales_order_qty_calc.
+
+    IF it_bapi_item_positions IS INITIAL.
+      LOOP AT it_bapi_items INTO ls_bapi_item
+          WHERE doc_number = iv_sales_document.
+        APPEND ls_bapi_item TO lt_document_bapi_items.
+      ENDLOOP.
+    ELSE.
+      LOOP AT it_bapi_item_positions INTO DATA(ls_bapi_item_position)
+          WHERE sales_document = iv_sales_document.
+        READ TABLE it_bapi_items INTO ls_bapi_item
+          INDEX ls_bapi_item_position-row_number.
+        IF sy-subrc = 0.
+          APPEND ls_bapi_item TO lt_document_bapi_items.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
 
     lo_quantity_calculator = NEW zcl_sales_order_qty_calc( ).
     rs_result-order = map_order_header( is_header ).
@@ -178,11 +226,7 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         message = 'Cannot read sales order header' )
         TO rs_result-messages.
     ENDIF.
-    LOOP AT it_bapi_items INTO ls_bapi_item.
-      IF ls_bapi_item-doc_number <> iv_sales_document.
-        CONTINUE.
-      ENDIF.
-
+    LOOP AT lt_document_bapi_items INTO ls_bapi_item.
       IF ls_bapi_item-reason_rej IS NOT INITIAL.
         DATA(ls_rejected_mapping) = map_rejected_item(
           is_bapi_item      = ls_bapi_item
@@ -200,9 +244,10 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
       ENDIF.
 
       DATA(lv_delivery_item_count) = 0.
-      LOOP AT it_delivery_items INTO DATA(ls_delivery_item)
-        WHERE sales_document = iv_sales_document
-          AND item_number = ls_bapi_item-itm_number.
+      LOOP AT it_delivery_items USING KEY by_document_item_date
+          INTO DATA(ls_delivery_item)
+          WHERE sales_document = iv_sales_document
+            AND item_number = ls_bapi_item-itm_number.
         ADD 1 TO lv_delivery_item_count.
         IF ls_delivery_item-has_status = abap_false.
           rs_result-is_successful = abap_false.

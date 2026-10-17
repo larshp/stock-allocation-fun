@@ -31,23 +31,32 @@ CLASS zcl_stock_location_qty_calc IMPLEMENTATION.
   METHOD calculate.
     DATA lt_stock TYPE ty_stocks.
     DATA lt_positive_location_stock TYPE zif_stock_repository=>ty_location_stocks.
-    DATA lv_unassigned_reservation TYPE mard-labst.
-    DATA lv_location_reservation TYPE mard-labst.
-    DATA lv_available_quantity TYPE mard-labst.
-    DATA lv_location_balance TYPE mard-labst.
-    DATA lv_outstanding_quantity TYPE mard-labst.
-    DATA lv_deduction TYPE mard-labst.
+    DATA lv_unassigned_reservation TYPE decfloat34.
+    DATA lv_location_reservation TYPE decfloat34.
+    DATA lv_available_quantity TYPE decfloat34.
+    DATA lv_location_balance TYPE decfloat34.
+    DATA lv_outstanding_quantity TYPE decfloat34.
+    DATA lv_deduction TYPE decfloat34.
 
     lt_stock = it_stock.
     SORT lt_stock BY storage_location.
 
     LOOP AT it_reservations INTO DATA(ls_reservation).
-      lv_outstanding_quantity = ls_reservation-required_quantity
-        - ls_reservation-withdrawn_quantity.
-      IF lv_outstanding_quantity > 0
-          AND ls_reservation-storage_location IS INITIAL.
-        lv_unassigned_reservation = lv_unassigned_reservation
-          + lv_outstanding_quantity.
+      lv_outstanding_quantity = CONV decfloat34(
+        ls_reservation-required_quantity )
+        - CONV decfloat34( ls_reservation-withdrawn_quantity ).
+      IF lv_outstanding_quantity > 0.
+        IF ls_reservation-storage_location IS INITIAL.
+          lv_unassigned_reservation = lv_unassigned_reservation
+            + lv_outstanding_quantity.
+        ELSE.
+          READ TABLE lt_stock TRANSPORTING NO FIELDS
+            WITH KEY storage_location = ls_reservation-storage_location.
+          IF sy-subrc <> 0.
+            lv_unassigned_reservation = lv_unassigned_reservation
+              + lv_outstanding_quantity.
+          ENDIF.
+        ENDIF.
       ENDIF.
     ENDLOOP.
 
@@ -59,8 +68,9 @@ CLASS zcl_stock_location_qty_calc IMPLEMENTATION.
       CLEAR lv_location_reservation.
       LOOP AT it_reservations INTO ls_reservation
         WHERE storage_location = ls_stock-storage_location.
-        lv_outstanding_quantity = ls_reservation-required_quantity
-          - ls_reservation-withdrawn_quantity.
+        lv_outstanding_quantity = CONV decfloat34(
+          ls_reservation-required_quantity )
+          - CONV decfloat34( ls_reservation-withdrawn_quantity ).
         IF lv_outstanding_quantity > 0.
           lv_location_reservation = lv_location_reservation
             + lv_outstanding_quantity.

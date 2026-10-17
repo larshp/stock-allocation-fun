@@ -574,6 +574,15 @@ CLASS zcl_sales_order_alloc_service DEFINITION
     DATA mo_sales_stock_service TYPE REF TO zcl_so_stock_service.
     DATA mo_reservation_api TYPE REF TO zif_so_reservation_api.
 
+    METHODS sum_stock_quantities
+      IMPORTING
+        iv_left_quantity   TYPE mard-labst
+        iv_right_quantity  TYPE mard-labst
+      RETURNING
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS build_order_atp_checks
       IMPORTING
         iv_sales_document  TYPE zif_sales_order_api=>ty_sales_document
@@ -658,7 +667,9 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         iv_numerator       TYPE bapisdit-sales_qty1
         iv_denominator     TYPE bapisdit-sales_qty2
       RETURNING
-        VALUE(rv_quantity) TYPE mard-labst.
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
 ENDCLASS.
 
 CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
@@ -835,8 +846,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                  required_date = ls_atp_day_demand-required_date.
       IF sy-subrc = 0.
         <ls_atp_day_total>-date_quantity =
-          <ls_atp_day_total>-date_quantity
-          + ls_atp_day_demand-requested_quantity.
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_atp_day_total>-date_quantity
+            iv_right_quantity = ls_atp_day_demand-requested_quantity ).
       ELSE.
         APPEND VALUE #(
           material      = ls_atp_day_demand-material
@@ -866,8 +878,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         lv_previous_unit = <ls_atp_day_total>-unit.
         lv_first_demand = abap_false.
       ENDIF.
-      lv_cumulative_quantity = lv_cumulative_quantity
-        + <ls_atp_day_total>-date_quantity.
+      lv_cumulative_quantity = sum_stock_quantities(
+        iv_left_quantity  = lv_cumulative_quantity
+        iv_right_quantity = <ls_atp_day_total>-date_quantity ).
       <ls_atp_day_total>-cumulative_quantity = lv_cumulative_quantity.
       <ls_atp_day_total>-result = mo_stock_service->check_atp_request(
         is_request = VALUE #(
@@ -1250,9 +1263,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           OR ls_allocation-covered_base_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
           OR ls_allocation-shortfall_base_quantity < 0
-          OR ls_allocation-covered_base_quantity
-            + ls_allocation-shortfall_base_quantity
-            <> ls_allocation-requested_base_quantity
+          OR CONV decfloat34( ls_allocation-covered_base_quantity )
+            + CONV decfloat34(
+              ls_allocation-shortfall_base_quantity )
+            <> CONV decfloat34(
+              ls_allocation-requested_base_quantity )
           OR ls_allocation-covered_base_quantity
             > ls_allocation-available_base_quantity
           OR ls_allocation-available_base_quantity
@@ -2375,8 +2390,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                    required_date = ls_atp_demand-required_date.
         IF sy-subrc = 0.
           <ls_atp_day_total>-date_quantity =
-            <ls_atp_day_total>-date_quantity
-            + ls_atp_demand-requested_quantity.
+            sum_stock_quantities(
+              iv_left_quantity  = <ls_atp_day_total>-date_quantity
+              iv_right_quantity = ls_atp_demand-requested_quantity ).
         ELSE.
           APPEND VALUE #(
             material      = ls_atp_demand-material
@@ -2406,8 +2422,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           lv_previous_unit = <ls_atp_day_total>-unit.
           lv_first_demand = abap_false.
         ENDIF.
-        lv_cumulative_quantity = lv_cumulative_quantity
-          + <ls_atp_day_total>-date_quantity.
+        lv_cumulative_quantity =
+          sum_stock_quantities(
+            iv_left_quantity  = lv_cumulative_quantity
+            iv_right_quantity = <ls_atp_day_total>-date_quantity ).
         <ls_atp_day_total>-cumulative_quantity = lv_cumulative_quantity.
         <ls_atp_day_total>-result = mo_stock_service->check_atp_request(
           is_request = VALUE #(
@@ -3709,11 +3727,38 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD sum_stock_quantities.
+    DATA lv_total TYPE decfloat34.
+
+    IF iv_left_quantity < 0 OR iv_right_quantity < 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    lv_total = CONV decfloat34( iv_left_quantity )
+      + CONV decfloat34( iv_right_quantity ).
+    TRY.
+        rv_quantity = CONV mard-labst( lv_total ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD convert_base_to_sales_unit.
-    rv_quantity = CONV mard-labst(
-      CONV decfloat34( iv_base_quantity )
-      * CONV decfloat34( iv_denominator )
-      / CONV decfloat34( iv_numerator ) ).
+    IF iv_numerator <= 0 OR iv_denominator <= 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    TRY.
+        rv_quantity = CONV mard-labst(
+          CONV decfloat34( iv_base_quantity )
+          * CONV decfloat34( iv_denominator )
+          / CONV decfloat34( iv_numerator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+    IF iv_base_quantity <> 0 AND rv_quantity IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.

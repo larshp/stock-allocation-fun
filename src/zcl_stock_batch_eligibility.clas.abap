@@ -19,7 +19,9 @@ ENDCLASS.
 CLASS zcl_stock_batch_eligibility IMPLEMENTATION.
 
   METHOD is_eligible.
-    IF iv_as_of_date IS INITIAL OR iv_min_days < 0
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_as_of_date ) <> abap_true
+        OR iv_min_days < 0
         OR ( iv_include_undated_batches <> abap_true
           AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -29,6 +31,11 @@ CLASS zcl_stock_batch_eligibility IMPLEMENTATION.
       rv_is_eligible = xsdbool(
         iv_min_days = 0 AND iv_include_undated_batches = abap_true ).
       RETURN.
+    ENDIF.
+
+    IF zcl_date_validation=>is_valid_gregorian_date(
+        iv_date = iv_expiration_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
     IF iv_expiration_date < iv_as_of_date

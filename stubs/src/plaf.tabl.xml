@@ -18,8 +18,17 @@
       </DD09L>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>PLNUM</FIELDNAME>
+          <FIELDNAME>MANDT</FIELDNAME>
           <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>PLNUM</FIELDNAME>
+          <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000010</LENG>
@@ -28,7 +37,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>MATNR</FIELDNAME>
-          <POSITION>0002</POSITION>
+          <POSITION>0003</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000040</LENG>
           <INTTYPE>C</INTTYPE>
@@ -36,7 +45,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>PWWRK</FIELDNAME>
-          <POSITION>0003</POSITION>
+          <POSITION>0004</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000004</LENG>
           <INTTYPE>C</INTTYPE>
@@ -44,14 +53,6 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>PSTTR</FIELDNAME>
-          <POSITION>0004</POSITION>
-          <DATATYPE>DATS</DATATYPE>
-          <LENG>000008</LENG>
-          <INTTYPE>D</INTTYPE>
-          <INTLEN>000004</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>PEDTR</FIELDNAME>
           <POSITION>0005</POSITION>
           <DATATYPE>DATS</DATATYPE>
           <LENG>000008</LENG>
@@ -59,8 +60,16 @@
           <INTLEN>000004</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>GSMNG</FIELDNAME>
+          <FIELDNAME>PEDTR</FIELDNAME>
           <POSITION>0006</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000004</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>GSMNG</FIELDNAME>
+          <POSITION>0007</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
           <DECIMALS>000003</DECIMALS>
@@ -69,7 +78,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>MEINS</FIELDNAME>
-          <POSITION>0007</POSITION>
+          <POSITION>0008</POSITION>
           <DATATYPE>UNIT</DATATYPE>
           <LENG>000003</LENG>
           <INTTYPE>C</INTTYPE>
@@ -77,7 +86,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>AUFFX</FIELDNAME>
-          <POSITION>0008</POSITION>
+          <POSITION>0009</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
           <INTTYPE>C</INTTYPE>
@@ -85,7 +94,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>PLSCN</FIELDNAME>
-          <POSITION>0009</POSITION>
+          <POSITION>0010</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000003</LENG>
           <INTTYPE>C</INTTYPE>
@@ -93,7 +102,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>SOBKZ</FIELDNAME>
-          <POSITION>0010</POSITION>
+          <POSITION>0011</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
           <INTTYPE>C</INTTYPE>
@@ -101,11 +110,19 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>KDAUF</FIELDNAME>
-          <POSITION>0011</POSITION>
+          <POSITION>0012</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000010</LENG>
           <INTTYPE>C</INTTYPE>
           <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>LGORT</FIELDNAME>
+          <POSITION>0013</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000008</INTLEN>
         </DD03P>
       </DD03P_TABLE>
     </asx:values>

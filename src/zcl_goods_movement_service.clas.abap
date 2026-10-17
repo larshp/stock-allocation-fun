@@ -4113,9 +4113,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR is_allocation-available_quantity < 0
         OR is_allocation-allocated_quantity < 0
         OR is_allocation-shortfall_quantity < 0
-        OR is_allocation-allocated_quantity
-          + is_allocation-shortfall_quantity
-          <> is_allocation-base_requested_quantity
+        OR CONV decfloat34( is_allocation-allocated_quantity )
+          + CONV decfloat34( is_allocation-shortfall_quantity )
+          <> CONV decfloat34( is_allocation-base_requested_quantity )
         OR is_allocation-allocated_quantity
           > is_allocation-available_quantity
         OR is_material_unit-material <> is_allocation-material
@@ -4267,9 +4267,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -4449,9 +4449,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -5959,9 +5959,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-covered_base_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
           OR ls_allocation-shortfall_base_quantity < 0
-          OR ls_allocation-covered_base_quantity
-            + ls_allocation-shortfall_base_quantity
-            <> ls_allocation-requested_base_quantity
+          OR CONV decfloat34( ls_allocation-covered_base_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_base_quantity )
+            <> CONV decfloat34( ls_allocation-requested_base_quantity )
           OR ls_allocation-covered_base_quantity
             > ls_allocation-available_base_quantity
           OR ls_allocation-available_base_quantity
@@ -8592,9 +8592,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -8757,9 +8757,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -8924,9 +8924,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -9091,9 +9091,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -10498,9 +10498,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_sales_allocation-available_base_quantity < 0
           OR ls_sales_allocation-allocated_base_quantity < 0
           OR ls_sales_allocation-shortfall_base_quantity < 0
-          OR ls_sales_allocation-allocated_base_quantity
-            + ls_sales_allocation-shortfall_base_quantity
-            <> ls_sales_allocation-requested_base_quantity
+          OR CONV decfloat34( ls_sales_allocation-allocated_base_quantity )
+            + CONV decfloat34( ls_sales_allocation-shortfall_base_quantity )
+            <> CONV decfloat34( ls_sales_allocation-requested_base_quantity )
           OR ls_sales_allocation-allocated_base_quantity
             > ls_sales_allocation-available_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -15000,9 +15000,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
-          OR ls_allocation-allocated_quantity
-            + ls_allocation-shortfall_quantity
-            <> ls_allocation-requested_quantity
+          OR CONV decfloat34( ls_allocation-allocated_quantity )
+            + CONV decfloat34( ls_allocation-shortfall_quantity )
+            <> CONV decfloat34( ls_allocation-requested_quantity )
           OR ls_allocation-allocated_quantity
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -15929,8 +15929,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_demand-shortfall_quantity < 0
           OR ls_demand-allocated_quantity > ls_demand-requested_quantity
           OR ls_demand-allocated_quantity > ls_demand-available_quantity
-          OR ls_demand-allocated_quantity + ls_demand-shortfall_quantity
-            <> ls_demand-requested_quantity.
+          OR CONV decfloat34( ls_demand-allocated_quantity )
+            + CONV decfloat34( ls_demand-shortfall_quantity )
+            <> CONV decfloat34( ls_demand-requested_quantity ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
@@ -17455,8 +17456,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_demand-shortfall_quantity < 0
           OR ls_demand-allocated_quantity > ls_demand-requested_quantity
           OR ls_demand-allocated_quantity > ls_demand-available_quantity
-          OR ls_demand-allocated_quantity + ls_demand-shortfall_quantity
-            <> ls_demand-requested_quantity.
+          OR CONV decfloat34( ls_demand-allocated_quantity )
+            + CONV decfloat34( ls_demand-shortfall_quantity )
+            <> CONV decfloat34( ls_demand-requested_quantity ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 

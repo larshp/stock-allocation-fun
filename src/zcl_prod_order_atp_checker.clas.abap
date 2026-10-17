@@ -15,7 +15,9 @@ CLASS zcl_prod_order_atp_checker DEFINITION
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
         it_summaries         TYPE zcl_prod_comp_service=>ty_component_order_atp_summaries
       RETURNING
-        VALUE(rt_readiness)  TYPE zif_prod_order_atp_checker=>ty_order_readinesses.
+        VALUE(rt_readiness)  TYPE zif_prod_order_atp_checker=>ty_order_readinesses
+      RAISING
+        zcx_invalid_stock_request.
 
   PRIVATE SECTION.
     DATA mo_component_service TYPE REF TO zcl_prod_comp_service.
@@ -40,7 +42,13 @@ CLASS zcl_prod_order_atp_checker IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD map_summaries.
+    DATA lv_requested_total TYPE decfloat34.
+    DATA lv_confirmed_total TYPE decfloat34.
+    DATA lv_unconfirmed_total TYPE decfloat34.
+
     LOOP AT it_production_orders INTO DATA(lv_production_order).
+      CLEAR: lv_requested_total, lv_confirmed_total,
+        lv_unconfirmed_total.
       DATA(ls_readiness) = VALUE zif_prod_order_atp_checker=>ty_order_readiness(
         production_order   = lv_production_order
         is_fully_confirmed = abap_true ).
@@ -48,12 +56,12 @@ CLASS zcl_prod_order_atp_checker IMPLEMENTATION.
       LOOP AT it_summaries INTO DATA(ls_summary)
           WHERE production_order = lv_production_order.
         ADD ls_summary-component_count TO ls_readiness-component_count.
-        ADD ls_summary-requested_base_quantity
-          TO ls_readiness-requested_base_quantity.
-        ADD ls_summary-confirmed_base_quantity
-          TO ls_readiness-confirmed_base_quantity.
-        ADD ls_summary-unconfirmed_base_quantity
-          TO ls_readiness-unconfirmed_base_quantity.
+        lv_requested_total += CONV decfloat34(
+          ls_summary-requested_base_quantity ).
+        lv_confirmed_total += CONV decfloat34(
+          ls_summary-confirmed_base_quantity ).
+        lv_unconfirmed_total += CONV decfloat34(
+          ls_summary-unconfirmed_base_quantity ).
         ADD ls_summary-unconfirmed_count
           TO ls_readiness-not_fully_confirmed_count.
         ADD ls_summary-partially_confirmed_count
@@ -67,6 +75,16 @@ CLASS zcl_prod_order_atp_checker IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
+      TRY.
+          ls_readiness-requested_base_quantity = CONV mard-labst(
+            lv_requested_total ).
+          ls_readiness-confirmed_base_quantity = CONV mard-labst(
+            lv_confirmed_total ).
+          ls_readiness-unconfirmed_base_quantity = CONV mard-labst(
+            lv_unconfirmed_total ).
+        CATCH cx_sy_conversion_overflow.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDTRY.
       APPEND ls_readiness TO rt_readiness.
     ENDLOOP.
   ENDMETHOD.

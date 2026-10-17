@@ -277,7 +277,7 @@ CLASS zcl_repl_source_service DEFINITION
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_quota_match,
-        has_active_arrangement    TYPE abap_bool,
+        has_active_vendor_quota   TYPE abap_bool,
         is_assigned               TYPE abap_bool,
         quota_number              TYPE equk-qunum,
         quota_item                TYPE equp-qupos,
@@ -418,6 +418,8 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
           OR ls_request-plant IS INITIAL
           OR ls_request-purchasing_org IS INITIAL
           OR ls_request-delivery_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_request-delivery_date ) <> abap_true
           OR ls_request-requested_quantity < 0
           OR ( ls_request-requested_quantity IS INITIAL
             AND ls_request-requested_quantity_unit IS NOT INITIAL )
@@ -685,7 +687,7 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
           is_fixed_source             = lv_fixed_source
           is_mrp_relevant             = lv_mrp_relevant
           has_active_vendor_quota     =
-            ls_quota_match-has_active_arrangement
+            ls_quota_match-has_active_vendor_quota
           is_quota_assigned           = ls_quota_match-is_assigned
           quota_number                = ls_quota_match-quota_number
           quota_item                  = ls_quota_match-quota_item
@@ -1219,6 +1221,12 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
               ls_candidate-quota_priority
             OR <ls_split_candidate>-candidate-quota_rounding_profile <>
               ls_candidate-quota_rounding_profile
+            OR <ls_split_candidate>-candidate-quota_min_lot_size <>
+              ls_candidate-quota_min_lot_size
+            OR <ls_split_candidate>-candidate-quota_max_lot_size <>
+              ls_candidate-quota_max_lot_size
+            OR <ls_split_candidate>-candidate-quota_once_only <>
+              ls_candidate-quota_once_only
             OR <ls_split_candidate>-candidate-quota_allocated_quantity <>
               ls_candidate-quota_allocated_quantity
             OR <ls_split_candidate>-candidate-quota_maximum_quantity <>
@@ -1261,7 +1269,7 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
         + CONV decfloat34( ls_unique_candidate-quota_value ).
     ENDLOOP.
     IF lt_split_candidates IS INITIAL.
-      RETURN.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     IF lv_total_quota <= 0.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1392,6 +1400,10 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
         ENDLOOP.
       ENDIF.
 
+      IF rt_splits IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
       CLEAR lv_has_capped_source.
       LOOP AT rt_splits INTO DATA(ls_proposed_split).
         READ TABLE lt_split_candidates ASSIGNING
@@ -1434,10 +1446,7 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
       IF lv_has_capped_source = abap_true.
         DELETE lt_split_candidates WHERE is_capped = abap_true.
         IF lt_split_candidates IS INITIAL.
-          IF lt_fixed_splits IS NOT INITIAL.
-            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
-          ENDIF.
-          RETURN.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
         CONTINUE.
       ENDIF.
@@ -1732,6 +1741,8 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
           OR ls_request-plant IS INITIAL
           OR ls_request-purchasing_org IS INITIAL
           OR ls_request-delivery_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_request-delivery_date ) <> abap_true
           OR ls_request-requested_quantity < 0
           OR ( ls_request-requested_quantity IS INITIAL
             AND ls_request-requested_quantity_unit IS NOT INITIAL )
@@ -1889,11 +1900,12 @@ CLASS zcl_repl_source_service IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      rs_match-has_active_arrangement = abap_true.
       IF ls_arrangement-vendor <> iv_vendor
           OR ls_arrangement-quota <= 0.
         CONTINUE.
       ENDIF.
+
+      rs_match-has_active_vendor_quota = abap_true.
 
       DATA(lv_allocated_quantity) = CONV decfloat34(
         ls_arrangement-quota_allocated_quantity ).

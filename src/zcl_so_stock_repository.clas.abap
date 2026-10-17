@@ -14,11 +14,11 @@ CLASS zcl_so_stock_repository IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    SELECT material~matnr AS material,
-           material~meins AS base_unit
-      FROM mara AS material
+    SELECT matnr AS material,
+           meins AS base_unit
+      FROM mara
       FOR ALL ENTRIES IN @it_requests
-      WHERE material~matnr = @it_requests-material
+      WHERE matnr = @it_requests-material
       INTO CORRESPONDING FIELDS OF TABLE @rt_units.
   ENDMETHOD.
 
@@ -54,32 +54,70 @@ CLASS zcl_so_stock_repository IMPLEMENTATION.
         expiration_date TYPE mch1-vfdat,
       END OF ty_global_batch,
       ty_global_batches TYPE HASHED TABLE OF ty_global_batch
-        WITH UNIQUE KEY material batch.
+        WITH UNIQUE KEY material batch,
+      BEGIN OF ty_material_key,
+        material TYPE mara-matnr,
+      END OF ty_material_key,
+      ty_material_keys TYPE SORTED TABLE OF ty_material_key
+        WITH UNIQUE KEY material,
+      BEGIN OF ty_material_unit,
+        material  TYPE mara-matnr,
+        base_unit TYPE mara-meins,
+      END OF ty_material_unit,
+      ty_material_units TYPE HASHED TABLE OF ty_material_unit
+        WITH UNIQUE KEY material.
     DATA lt_plant_batches TYPE ty_plant_batches.
     DATA lt_global_batches TYPE ty_global_batches.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA lt_material_units TYPE ty_material_units.
+    DATA lt_valid_rows TYPE zif_so_stock_repository=>ty_stock_rows.
 
     IF it_requests IS INITIAL.
       RETURN.
     ENDIF.
 
-    SELECT stock~kdauf AS sales_document,
-           stock~kdpos AS item_number,
-           stock~matnr AS material,
-           stock~werks AS plant,
-           stock~lgort AS storage_location,
-           stock~charg AS batch,
-           material~meins AS base_unit,
-           stock~kalab AS quantity
-      FROM mska AS stock
-      INNER JOIN mara AS material
-        ON material~matnr = stock~matnr
+    SELECT kdauf AS sales_document,
+           kdpos AS item_number,
+           matnr AS material,
+           werks AS plant,
+           lgort AS storage_location,
+           charg AS batch,
+           kalab AS quantity
+      FROM mska
       FOR ALL ENTRIES IN @it_requests
-      WHERE stock~sobkz = 'E'
-        AND stock~kdauf = @it_requests-sales_document
-        AND stock~kdpos = @it_requests-item_number
-        AND stock~matnr = @it_requests-material
-        AND stock~werks = @it_requests-plant
+      WHERE sobkz = 'E'
+        AND kdauf = @it_requests-sales_document
+        AND kdpos = @it_requests-item_number
+        AND matnr = @it_requests-material
+        AND werks = @it_requests-plant
       INTO CORRESPONDING FIELDS OF TABLE @rt_rows.
+
+    IF rt_rows IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    LOOP AT rt_rows INTO DATA(ls_stock_candidate).
+      INSERT VALUE #( material = ls_stock_candidate-material )
+        INTO TABLE lt_material_keys.
+    ENDLOOP.
+
+    SELECT matnr AS material,
+           meins AS base_unit
+      FROM mara
+      FOR ALL ENTRIES IN @lt_material_keys
+      WHERE matnr = @lt_material_keys-material
+      INTO TABLE @lt_material_units.
+
+    LOOP AT rt_rows INTO DATA(ls_stock_row).
+      READ TABLE lt_material_units INTO DATA(ls_material_unit)
+        WITH TABLE KEY material = ls_stock_row-material.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      ls_stock_row-base_unit = ls_material_unit-base_unit.
+      APPEND ls_stock_row TO lt_valid_rows.
+    ENDLOOP.
+    rt_rows = lt_valid_rows.
 
     IF rt_rows IS INITIAL.
       RETURN.

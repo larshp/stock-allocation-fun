@@ -97,6 +97,14 @@
           <INTTYPE>P</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>CHARG</FIELDNAME>
+          <POSITION>0010</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

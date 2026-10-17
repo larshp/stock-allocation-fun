@@ -11,8 +11,17 @@
       </DD02V>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>VBELN</FIELDNAME>
+          <FIELDNAME>MANDT</FIELDNAME>
           <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>VBELN</FIELDNAME>
+          <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000010</LENG>
@@ -21,16 +30,16 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>POSNR</FIELDNAME>
-          <POSITION>0002</POSITION>
+          <POSITION>0003</POSITION>
           <KEYFLAG>X</KEYFLAG>
-          <DATATYPE>CHAR</DATATYPE>
+          <DATATYPE>NUMC</DATATYPE>
           <LENG>000006</LENG>
-          <INTTYPE>C</INTTYPE>
+          <INTTYPE>N</INTTYPE>
           <INTLEN>000012</INTLEN>
         </DD03P>
         <DD03P>
           <FIELDNAME>LFSTA</FIELDNAME>
-          <POSITION>0003</POSITION>
+          <POSITION>0004</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
           <INTTYPE>C</INTTYPE>

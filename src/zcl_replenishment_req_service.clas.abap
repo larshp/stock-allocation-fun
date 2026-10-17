@@ -322,7 +322,9 @@ CLASS zcl_replenishment_req_service DEFINITION
         iv_numerator       TYPE eina-umrez
         iv_denominator     TYPE eina-umren
       RETURNING
-        VALUE(rv_quantity) TYPE mard-labst.
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
 
     METHODS complete_write
       IMPORTING
@@ -1480,8 +1482,12 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
-      DATA(lv_proposal_quantity) = CONV mard-labst(
-        ls_selected_split-split-proposal_quantity ).
+      TRY.
+          DATA(lv_proposal_quantity) = CONV mard-labst(
+            ls_selected_split-split-proposal_quantity ).
+        CATCH cx_sy_conversion_overflow.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDTRY.
       IF lv_proposal_quantity <= 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1599,10 +1605,18 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     IF iv_numerator <= 0 OR iv_denominator <= 0.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
-    rv_quantity = CONV mard-labst(
-      CONV decfloat34( iv_base_quantity )
-      * CONV decfloat34( iv_denominator )
-      / CONV decfloat34( iv_numerator ) ).
+
+    TRY.
+        rv_quantity = CONV mard-labst(
+          CONV decfloat34( iv_base_quantity )
+          * CONV decfloat34( iv_denominator )
+          / CONV decfloat34( iv_numerator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+    IF iv_base_quantity <> 0 AND rv_quantity IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
   ENDMETHOD.
 
   METHOD validate_delete_requests.

@@ -51,6 +51,7 @@ CLASS zcl_po_sched_qty_calc IMPLEMENTATION.
 
   METHOD calculate_open_base_quantity.
     IF iv_scheduled_quantity <= 0
+        OR iv_received_quantity < 0
         OR iv_received_quantity >= iv_scheduled_quantity
         OR iv_order_to_base_num <= 0
         OR iv_order_to_base_denom <= 0.
@@ -70,6 +71,12 @@ CLASS zcl_po_sched_qty_calc IMPLEMENTATION.
       CONV decfloat34( iv_received_quantity ).
     DATA(lv_reduced_quantity) =
       CONV decfloat34( iv_mrp_reduced_quantity ).
+    IF lv_scheduled_quantity <= 0
+        OR lv_received_quantity < 0
+        OR lv_reduced_quantity < 0.
+      RETURN.
+    ENDIF.
+
     IF lv_received_quantity > lv_reduced_quantity.
       lv_reduced_quantity = lv_received_quantity.
     ENDIF.
@@ -87,12 +94,16 @@ CLASS zcl_po_sched_qty_calc IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD calc_open_conf_base_qty.
+    IF iv_confirmed_quantity < 0 OR iv_reduced_quantity < 0
+        OR iv_order_to_base_num <= 0
+        OR iv_order_to_base_denom <= 0.
+      RETURN.
+    ENDIF.
+
     DATA(lv_open_quantity) = CONV decfloat34( iv_confirmed_quantity )
       - CONV decfloat34( iv_reduced_quantity ).
 
-    IF lv_open_quantity <= 0
-        OR iv_order_to_base_num <= 0
-        OR iv_order_to_base_denom <= 0.
+    IF lv_open_quantity <= 0.
       RETURN.
     ENDIF.
 
@@ -111,7 +122,8 @@ CLASS zcl_po_sched_qty_calc IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD calculate_open_unissued_qty.
-    IF iv_scheduled_quantity <= iv_issued_quantity
+    IF iv_scheduled_quantity <= 0 OR iv_issued_quantity < 0
+        OR iv_scheduled_quantity <= iv_issued_quantity
         OR iv_order_to_base_num <= 0
         OR iv_order_to_base_denom <= 0.
       RETURN.

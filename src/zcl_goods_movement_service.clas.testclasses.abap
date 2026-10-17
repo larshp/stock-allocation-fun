@@ -581,6 +581,7 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS rejects_mixed_loc_unit_batch FOR TESTING.
     METHODS rejects_location_batch_unit FOR TESTING.
     METHODS rejects_short_plant_transfer FOR TESTING.
+    METHODS rejects_transfer_sum_overflow FOR TESTING.
     METHODS rejects_bad_transfer_split FOR TESTING.
     METHODS transfers_batch_allocation FOR TESTING.
     METHODS transfers_fefo_allocation FOR TESTING.
@@ -14656,6 +14657,36 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_transfer_sum_overflow.
+    DATA(ls_header) = VALUE zif_goods_movement_api=>ty_header(
+      posting_date  = '20260923'
+      document_date = '20260923' ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->transfer_plant_allocation(
+          is_header         = ls_header
+          is_allocation     = VALUE #(
+            allocations = VALUE #(
+              ( request_id         = 'REQ-1'
+                material           = 'MAT-1'
+                target_plant       = '2000'
+                requested_quantity = '9999999999.999'
+                available_quantity = '9999999999.999'
+                allocated_quantity = '9999999999.999'
+                shortfall_quantity = '9999999999.999' ) ) )
+          it_destinations   = VALUE #( )
+          it_material_units = VALUE #( ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_exception_raised ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_create_count( ) ).

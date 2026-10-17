@@ -7,6 +7,17 @@ INTERFACE zif_stock_repository PUBLIC.
     END OF ty_reservation_key.
   TYPES ty_reservation_keys TYPE STANDARD TABLE OF
     ty_reservation_key WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_stock_allocation_reservation,
+      reservation_number TYPE resb-rsnum,
+      reservation_item   TYPE resb-rspos,
+      required_date      TYPE resb-bdter,
+      storage_location   TYPE resb-lgort,
+      batch              TYPE resb-charg,
+      open_quantity      TYPE resb-bdmng,
+    END OF ty_stock_allocation_reservation.
+  TYPES ty_stock_allocation_reservations TYPE STANDARD TABLE OF
+    ty_stock_allocation_reservation WITH EMPTY KEY.
 
   TYPES:
     BEGIN OF ty_location_stock,
@@ -33,6 +44,24 @@ INTERFACE zif_stock_repository PUBLIC.
     END OF ty_stock_status_request.
   TYPES ty_stock_status_requests TYPE STANDARD TABLE OF
     ty_stock_status_request WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_stock_reservation_bulk_result,
+      request_id   TYPE c LENGTH 30,
+      material     TYPE mard-matnr,
+      plant        TYPE mard-werks,
+      reservations TYPE ty_stock_allocation_reservations,
+    END OF ty_stock_reservation_bulk_result.
+  TYPES ty_stock_reservation_bulk_results TYPE STANDARD TABLE OF
+    ty_stock_reservation_bulk_result WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_safety_stock_bulk_result,
+      request_id TYPE c LENGTH 30,
+      material   TYPE mard-matnr,
+      plant      TYPE mard-werks,
+      quantity   TYPE marc-eisbe,
+    END OF ty_safety_stock_bulk_result.
+  TYPES ty_safety_stock_bulk_results TYPE STANDARD TABLE OF
+    ty_safety_stock_bulk_result WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_stock_status_result,
       request_id   TYPE c LENGTH 30,
@@ -110,6 +139,8 @@ INTERFACE zif_stock_repository PUBLIC.
       material             TYPE mard-matnr,
       plant                TYPE mard-werks,
       base_unit            TYPE mara-meins,
+      storage_location     TYPE ekpo-lgort,
+      batch                TYPE eket-charg,
       receipt_date         TYPE d,
       quantity             TYPE mard-labst,
       source_type          TYPE c LENGTH 16,
@@ -120,13 +151,53 @@ INTERFACE zif_stock_repository PUBLIC.
     END OF ty_projected_receipt.
   TYPES ty_projected_receipts TYPE STANDARD TABLE OF
     ty_projected_receipt WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_projected_receipt_bulk_request,
+      request_id   TYPE c LENGTH 30,
+      material     TYPE mard-matnr,
+      plant        TYPE mard-werks,
+      through_date TYPE d,
+    END OF ty_projected_receipt_bulk_request.
+  TYPES ty_projected_receipt_bulk_requests TYPE STANDARD TABLE OF
+    ty_projected_receipt_bulk_request WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_projected_receipt_bulk_result,
+      request_id   TYPE c LENGTH 30,
+      material     TYPE mard-matnr,
+      plant        TYPE mard-werks,
+      through_date TYPE d,
+      receipts     TYPE ty_projected_receipts,
+    END OF ty_projected_receipt_bulk_result.
+  TYPES ty_projected_receipt_bulk_results TYPE STANDARD TABLE OF
+    ty_projected_receipt_bulk_result WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_available_stock_date_request,
+      request_id    TYPE c LENGTH 30,
+      material      TYPE mard-matnr,
+      plant         TYPE mard-werks,
+      required_date TYPE resb-bdter,
+    END OF ty_available_stock_date_request.
+  TYPES ty_available_stock_date_requests TYPE STANDARD TABLE OF
+    ty_available_stock_date_request WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_available_stock_date_result,
+      request_id         TYPE c LENGTH 30,
+      material           TYPE mard-matnr,
+      plant              TYPE mard-werks,
+      required_date      TYPE resb-bdter,
+      available_quantity TYPE mard-labst,
+    END OF ty_available_stock_date_result.
+  TYPES ty_available_stock_date_results TYPE STANDARD TABLE OF
+    ty_available_stock_date_result WITH EMPTY KEY.
 
   METHODS get_unrestricted_stock
     IMPORTING
       iv_material        TYPE mard-matnr
       iv_plant           TYPE mard-werks
     RETURNING
-      VALUE(rv_quantity) TYPE mard-labst.
+      VALUE(rv_quantity) TYPE mard-labst
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_available_stock_by_date
     IMPORTING
@@ -145,7 +216,28 @@ INTERFACE zif_stock_repository PUBLIC.
       iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
       iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
       RETURNING
-      VALUE(rv_quantity)             TYPE mard-labst.
+      VALUE(rv_quantity)             TYPE mard-labst
+    RAISING
+      zcx_invalid_stock_request.
+
+  METHODS get_available_stock_date_bulk
+    IMPORTING
+      it_requests                    TYPE ty_available_stock_date_requests
+      it_excluded_reservations       TYPE ty_reservation_keys OPTIONAL
+      iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+      iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+      iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+      iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+      iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+      iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+      iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+      iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+    RETURNING
+      VALUE(rt_results)              TYPE ty_available_stock_date_results
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_projected_receipts
     IMPORTING
@@ -166,6 +258,24 @@ INTERFACE zif_stock_repository PUBLIC.
     RAISING
       zcx_invalid_stock_request.
 
+  METHODS get_projected_receipts_bulk
+    IMPORTING
+      it_requests                    TYPE ty_projected_receipt_bulk_requests
+      iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+      iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+      iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+      iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+      iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+      iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+      iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+      iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+      iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+    RETURNING
+      VALUE(rt_results)              TYPE ty_projected_receipt_bulk_results
+    RAISING
+      zcx_invalid_stock_request.
+
   METHODS get_po_confirmed_receipts
     IMPORTING
       iv_material        TYPE mard-matnr
@@ -176,6 +286,14 @@ INTERFACE zif_stock_repository PUBLIC.
     RAISING
       zcx_invalid_stock_request.
 
+  METHODS get_po_confirmed_receipts_bulk
+    IMPORTING
+      it_requests       TYPE ty_projected_receipt_bulk_requests
+    RETURNING
+      VALUE(rt_results) TYPE ty_projected_receipt_bulk_results
+    RAISING
+      zcx_invalid_stock_request.
+
   METHODS get_safety_stock
     IMPORTING
       iv_material        TYPE mard-matnr
@@ -183,12 +301,19 @@ INTERFACE zif_stock_repository PUBLIC.
     RETURNING
       VALUE(rv_quantity) TYPE marc-eisbe.
 
+  METHODS get_safety_stock_bulk
+    IMPORTING
+      it_requests      TYPE ty_stock_status_requests
+    RETURNING
+      VALUE(rt_status) TYPE ty_safety_stock_bulk_results.
+
   METHODS get_sales_order_reservations
     IMPORTING
       iv_sales_document      TYPE resb-kdauf
     RETURNING
       VALUE(rt_reservations) TYPE ty_sales_order_reservations.
 
+  " Each positive open RESB row is returned separately.
   METHODS get_order_reservations_bulk
     IMPORTING
       it_sales_documents     TYPE ty_sales_order_documents
@@ -200,13 +325,17 @@ INTERFACE zif_stock_repository PUBLIC.
       iv_material      TYPE mard-matnr
       iv_plant         TYPE mard-werks
     RETURNING
-      VALUE(rs_status) TYPE ty_stock_status.
+      VALUE(rs_status) TYPE ty_stock_status
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_stock_status_bulk
     IMPORTING
       it_requests      TYPE ty_stock_status_requests
     RETURNING
-      VALUE(rt_status) TYPE ty_stock_status_results.
+      VALUE(rt_status) TYPE ty_stock_status_results
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_stock_status_by_location
     IMPORTING
@@ -227,6 +356,19 @@ INTERFACE zif_stock_repository PUBLIC.
       iv_plant         TYPE mard-werks
     RETURNING
       VALUE(rt_status) TYPE ty_batch_stock_statuses.
+
+  METHODS get_open_stock_reservations
+    IMPORTING
+      iv_material            TYPE mard-matnr
+      iv_plant               TYPE mard-werks
+    RETURNING
+      VALUE(rt_reservations) TYPE ty_stock_allocation_reservations.
+
+  METHODS get_open_stock_res_bulk
+    IMPORTING
+      it_requests      TYPE ty_stock_status_requests
+    RETURNING
+      VALUE(rt_status) TYPE ty_stock_reservation_bulk_results.
 
   METHODS get_batch_stock_status_bulk
     IMPORTING

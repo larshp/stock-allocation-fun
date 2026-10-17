@@ -1,5 +1,346 @@
 # Development notes
 
+## 2026-10-17
+
+- Checked packed totals in non-dated cross-plant allocation: source-location sums, same-location stock plus projected receipts, qualifying receipt totals, and per-plant availability now use the checked quantity helper. Added two maximum-value regressions and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,989 ABAP Unit methods.
+
+- Preserved individual open RESB rows in bulk sales-order reservation reads instead of summing same-date rows into packed `RESB-BDMNG`. Consumers reconcile separate rows without an overflowing intermediate. Added a two-maximum-reservation regression and updated the grouped-row contract test. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,987 ABAP Unit methods.
+
+- Hardened confirmed PO receipt totals in single-request and bulk dated allocation. Stock and each qualifying receipt now combine through the checked `decfloat34` helper before MARD-LABST conversion. Added two maximum-value regressions and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,986 ABAP Unit methods.
+
+- Checked dated cross-plant availability totals and per-plant confirmed receipt additions before narrowing to MARD-LABST. Overflow now raises `zcx_invalid_stock_request`; added maximum-value regressions and a PLAN guard. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,984 ABAP Unit methods.
+
+- Hardened sales-order ATP previews against daily and cumulative demand overflow. Both single-order and multi-order previews now add grouped quantities in `decfloat34` and reject totals outside MARD-LABST before calling SAP ATP. Added two maximum-value regressions and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,982 ABAP Unit methods.
+
+- Hardened WBS reservation coverage grouping: project stock, reservations,
+  and available stock now aggregate in `decfloat34` before checked conversion
+  to `MSPR-PRLAB`. Coverage and available-stock UOM reads now reject overflow
+  and nonzero quantities rounded to zero. Added maximum-value and rounding
+  regressions plus PLAN guards. Full `npm test` passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,980 ABAP Unit
+  methods.
+- Replaced packed arithmetic in production-order ATP release, cost-center
+  reservation validation, all plant/two-step goods movement allocation checks,
+  and sales-order FEFO reservation validation with `decfloat34` comparisons.
+  Added maximum-quantity regressions and PLAN guards; invalid totals are
+  rejected before release, reservation, or movement API calls. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,975 ABAP Unit methods.
+- Extended checked aggregation to production-component ATP daily and cumulative requests and monthly shortage groups. Added regressions for same-date and cross-date ATP overflow and monthly shortage overflow.
+- Hardened production-order ATP summaries: grouped component and order quantities now use checked high-precision totals, rejecting results outside MARD-LABST instead of overflowing. Added regressions for component and order-level summaries plus a PLAN guard.
+- Added checked high-precision accumulation to ATP allocation groups, daily demand totals, and cumulative requests. Totals beyond MARD-LABST now raise the stock-request exception before an SAP ATP call; added an overflow regression and PLAN guard.
+- Preserved individual open RESB rows in bulk location and batch status reads
+  so their high-precision calculators can net large reservation sets without
+  an overflowing `RESB-BDMNG` intermediate. Added SQLite regressions for two
+  maximum reservations at both scopes and a PLAN guard. Full npm test passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,966 ABAP Unit methods. Target SAP SQL result behavior remains to be checked.
+- Hardened scalar and bulk stock-transfer location totals. MARD rows now
+  accumulate in `decfloat34`, then convert with an explicit range check;
+  overflow raises `ZCX_INVALID_STOCK_REQUEST` through the repository
+  interface. Added two-maximum-balance coverage and a PLAN guard. Full npm
+  test passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,965 ABAP Unit methods. Target SAP conversion
+  behavior remains to be checked.
+- Checked repeated projected receipt additions to scoped component
+  location and batch balances. Out-of-range aggregates now raise the stock
+  request exception; added a two-maximum-receipt regression and a PLAN
+  guard. Full npm test passed: PLAN validation, 0 abaplint issues across
+  247 files, transpilation, and all 1,964 ABAP Unit methods.
+- Hardened scoped component allocation sums. Batch totals, demand scope
+  availability, and shared group availability now accumulate in high
+  precision before location clamping and checked result conversion. Added
+  a regression with two maximum batch balances under one location and a
+  PLAN guard. Full npm test passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,963 ABAP Unit methods.
+- Hardened sales-order stock snapshots against aggregate overflow. The
+  service now sums unrestricted stock and eligible open reservations in
+  high precision, then rejects totals outside the snapshot fields. Added
+  stock and reservation boundary coverage plus a PLAN guard. Full npm test
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,962 ABAP Unit methods.
+- Moved location reservation sums and batch negative-stock carry to
+  decfloat34 so multiple large rows can be netted without intermediate
+  quantity overflow. Added calculator regressions where the internal total
+  exceeds SAP quantity range but the final available result is zero. Added
+  PLAN guards and documented the boundary. Full npm test passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,961 ABAP Unit methods.
+- Fixed plant stock-status reads to retain LGORT in the bulk projection, so
+  equal balances from separate locations are not deduplicated. Stock category
+  and reservation totals now accumulate in high precision with checked SAP
+  quantity conversion. Scalar unrestricted availability also nets MARD and
+  open RESB quantities in high precision and checks the final result. Added
+  regressions for identical maximum balances, stock overflow, reservation
+  overflow, and the zero clamp. Full npm test passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,959 ABAP Unit
+  methods.
+- Hardened plant-date availability aggregation in the stock repository.
+  Storage stock, reservations, receipts, and outgoing transfers now net in
+  high precision before the final MARD-LABST conversion; unrepresentable
+  results raise the request exception. Added a boundary regression and updated
+  the repository contract and PLAN guard. Full npm test passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,957
+  ABAP Unit methods.
+- Hardened quota-split PR preparation against oversized candidate proposals.
+  A split that exceeds MARD-LABST now raises the request exception before
+  request submission. Added public preparation coverage and a PLAN guard. Full
+  npm test passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,956 ABAP Unit methods.
+- Hardened projected-receipt base-unit conversion in the stock repository.
+  Oversized values and nonzero amounts that round to zero now raise the stock
+  request exception across PO, scheduling agreement, STO, production, PR,
+  planned-order, and confirmed-PO receipts. Added public-read regression
+  coverage and a PLAN guard. Full npm test passed: PLAN validation, 0 abaplint
+  issues across 247 files, transpilation, and all 1,955 ABAP Unit methods.
+- Hardened production-component replenishment quantity conversion. Aggregate
+  and receipt quantities that exceed MARD-LABST now raise the request
+  exception, including lot-multiple rounding beyond the field limit. Added
+  regression coverage and a PLAN guard. Full npm test passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,954 ABAP Unit
+  methods.
+- Hardened purchase-order suggestion preparation for purchasing-unit overflow.
+  It now raises the request exception before any BAPI call; added a public
+  preparation regression and PLAN guard. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,953 ABAP Unit methods.
+- Hardened stock-transfer quantity conversion for unit-aware inquiries.
+  Overflow and nonzero base quantities that round to zero now raise the
+  request exception; added public inquiry coverage for both boundaries and a
+  PLAN guard. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,952 ABAP Unit methods.
+- Hardened replenishment PR purchasing-unit conversion. Overflow and nonzero
+  base quantities that round to zero now raise the request exception before
+  any BAPI call; added preparation regressions and a PLAN guard. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,951 ABAP Unit methods.
+- Hardened sales-order allocation result conversion. Overflowing sales-unit
+  quantities and nonzero base quantities that round to zero now raise the
+  stock-request exception. Added public preview regressions for both cases and
+  PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,950 ABAP Unit methods.
+- Added a checked base-unit converter to production component stock and ATP
+  previews. Overflow and nonzero reservation quantities that round to zero
+  now fail before stock reads; added a public preview regression and PLAN
+  guard, and documented the boundary. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,949 ABAP Unit methods.
+- Routed stock-service alternative-unit demand conversions through one checked
+  converter. It rejects overflow and nonzero source quantities that round to
+  zero at stock precision before reading stock. Added a public allocation
+  regression and PLAN guard. Full `npm test` passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,948 ABAP Unit
+  methods.
+- Netted negative unrestricted MCHB batch balances against positive batches
+  in stable location/batch order so batch availability reconciles with the
+  plant total. Added direct calculator coverage and SQLite scalar/bulk checks
+  that compare batch availability with plant-level MARD status; the negative
+  batch sorts after positive stock. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,945 ABAP Unit methods.
+- Fixed location availability when an active reservation names a storage
+  location with no MARD row. The open demand now joins the existing
+  ascending-location distribution, keeping it in the plant-level net total.
+  Added a calculator regression and SQLite repository coverage. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,944 ABAP Unit methods.
+- Reconciled location availability with plant totals when negative location
+  stock is allowed. Location deficits are carried across positive locations so
+  the location results do not exceed plant-level net stock. Added a regression
+  for -10 at one location and +100 at another; full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,943
+  ABAP Unit methods.
+- Made all shared material-unit conversion paths return an unsuccessful result
+  when the converted quantity overflows `MARD-LABST` or a nonzero source rounds
+  to zero. Added coverage for direct sales-unit ratios, MARM lookups, reverse
+  conversion, and sales-order rejected-item mapping. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,942 ABAP Unit methods. Target-SAP quantity precision remains an anomaly to
+  verify.
+- Hardened `SIMULATE_SPLIT_QUOTA` duplicate-item validation: repeated rows for
+  one quota item must agree on minimum/maximum lot sizes and its once-only flag.
+  Added a regression with conflicting duplicate values. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,939 ABAP Unit methods.
+- Fixed split-quota failure handling: when all assigned quota items are already
+  at `MAXMG`, or every proposed share would reach the maximum, the preview now
+  raises `zcx_invalid_stock_request` instead of returning an empty split list.
+  Added regressions for both exhausted stored quantities and un-coverable
+  proposed shares. Updated the quota-filter expectation for the vendor-specific
+  active-quota flag. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and ABAP Unit.
+- Fixed `has_active_vendor_quota` so a candidate is marked only when its own
+  vendor has an in-date, external-supplier quota item with a positive quota.
+  Previously, any active arrangement for the material and plant marked every
+  vendor candidate as having a quota. Updated the internal match field and
+  documented the result contract in README.
+- Fixed reservation aggregation so an over-withdrawn RESB item cannot
+  cancel another item's open demand. Added a shared
+  `max(BDMNG - ENMNG, 0)` calculator and applied it before aggregation in
+  plant, date, storage-location, batch, and sales-order stock reads.
+  Added SQLite regressions for over-withdrawn rows across scalar and bulk
+  paths, and PLAN guards for the shared clamp and aggregation readers.
+  Updated README and `ANOMALIES.md` with the behavior and target-SAP
+  query limitation. Full `npm test` passed: PLAN validation, 0 abaplint
+  issues across 247 files, transpilation, and all 1,936 ABAP Unit methods.
+- Extended the WBS project-reservation repository to use the shared
+  per-item open-quantity clamp. Added over-withdrawn RESB data to its
+  direct SQLite tests, checking that open reservation reads exclude it while
+  active-item inquiry retains the source quantities. PLAN validation now
+  guards both WBS query paths and the regression fixture. Corrected the
+  project-stock documentation to reflect direct SQL coverage. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,936 ABAP Unit methods.
+- Added a SQLite-backed integration test that runs
+  `GET_VALID_OUTLINE_SOURCES` through the real EORD/EKKO/EKPO/MARC
+  repository and service. It verifies agreement filtering, exclusion of
+  a matching blocked source, and source-list flags; PLAN validation now
+  guards the integration fixture.
+  Updated README and `ANOMALIES.md` to distinguish local SQL coverage from
+  target-SAP verification. Full `npm test` passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,937 ABAP Unit
+  methods.
+- Extended the source integration fixture with a deleted agreement header
+  and a delivery-complete item. Repository assertions verify both flags
+  survive the SQL reads, while the service still returns only the two valid
+  agreements. PLAN validation now guards both fixtures and mapped fields.
+- Added a deleted agreement item and a valid scheduling agreement to the same
+  SQLite integration fixture. Repository assertions cover item deletion and
+  K/L category mapping; the service result confirms deleted items are filtered
+  while a valid L-category agreement remains eligible. PLAN validation guards
+  the new cases. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,937 ABAP Unit methods.
+- Both PIR and outline-source selection now reject impossible Gregorian
+  delivery dates before reading source data. Added `20260230` regressions for
+  each API, PLAN validation guards, and README/`ANOMALIES.md` documentation.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,938 ABAP Unit methods.
+- Expanded the SQLite outline fixture to check exact-date inclusive validity
+  at both EORD and EKKO, plus rejection of an EORD source-list entry and an
+  agreement header that begin after the requested delivery date. PLAN guards
+  the mapped boundaries and the end-to-end candidate result. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,938 ABAP Unit methods.
+- Added an end-to-end SQLite test for `GET_VALID_PIR_CANDIDATES` using the real
+  EINA/EINE/EORD/MARC and quota repository reads. It checks general and
+  purchasing-record deletion filtering, source-list eligibility, fixed/MRP and
+  automatic-sourcing flags, vendor-specific blocked-source exclusion, the
+  auto-source filter, and exclusion after the source-list validity date. It
+  also verifies unlisted records remain visible when the source-list flag is
+  off and disappear when `iv_require_source_listed` is enabled. PLAN validation
+  guards the integration fixture and assertions. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,939
+  ABAP Unit methods.
+
+## 2026-10-16
+
+- Added `validate:plan` to check that the required abaplint rules, open-abap-core
+  dependency, SAP stub inputs, and Z-object source layout stay aligned with
+  `PLAN.md`. It also checks the MARD and RESB fields used by the current stock
+  and reservation queries. Direct Node execution passed; the WSL 1 `npm`
+  launcher is unavailable here, so lint, transpilation, and ABAP Unit were run
+  through their local binaries.
+- Added `PREVIEW_SCOPED_COMPONENTS` and its bulk variant for local production
+  component estimates that respect `RESB-LGORT` and `RESB-CHARG`. The stock
+  allocator shares location totals with batch sub-balances, allocates by
+  required date and scope, and deducts competing open reservations from raw
+  unrestricted balances by required date after excluding selected component
+  reservation keys. Competing reservations due later do not reduce earlier
+  component allocations; their balances are deducted before components due on
+  those later dates. Batchless scoped demands also skip batches that expire
+  before the component required date; competing reservations use only batches
+  eligible through their due date.
+  The default stock preview now selects this path whenever a component has an
+  assigned scope and no projected receipt option is on. Regression coverage
+  checks batch limits, location limits, shared stock, and competing open
+  reservations, and expiry filtering for batchless demands. Future receipts are
+  not included, and snapshot limitations are documented in `ANOMALIES.md`.
+  Scoped rows also carry a date-group estimate whose available quantity counts
+  shared stock once across the union of component scopes.
+- Extended the explicit scoped component previews with caller-assigned dated
+  batch receipts. Receipt events enter the shared ledger before same-date
+  reservations and cannot cover earlier reservation demand. Receipts inherit a
+  known batch expiry when omitted and replenish any remaining safety-stock
+  buffer before becoming allocatable. Regression coverage checks receipt date
+  ordering against a competing reservation, safety-stock replenishment, and
+  expiry inheritance when an earlier receipt is fully withheld.
+  ATP preview wrappers now accept the same input for their local estimate while
+  leaving the cumulative SAP ATP requests unchanged; that mode rejects the
+  SAP-derived receipt flags rather than mixing incompatible receipt balances.
+  These receipts remain caller-resolved and are not checked against SAP receipt
+  documents; automatic SAP-derived receipt options still use the plant-level
+  estimate. abaplint reported 0 issues across 138 files, transpilation passed,
+  and the 1,866-method ABAP Unit suite exited 0. Plan validation also passed.
+  Target-system limits are recorded in `ANOMALIES.md`.
+- Added `it_projected_location_receipts` to scoped, stock, and ATP component
+  previews for caller-assigned non-batch supply. Receipts enter the assigned
+  location's residual pool on their arrival date, replenish remaining protected
+  safety stock, and precede same-date reservations. Coverage checks dated
+  allocation, location scope, and forwarding through ATP while preserving the
+  SAP request. abaplint, transpilation, and all 1,867 ABAP Unit methods passed.
+  Both receipt inputs are caller-resolved; the SAP request remains plant-level.
+- Added combined batch and location receipt coverage through scoped, stock, and
+  ATP bulk previews across two production orders. The regression confirms that
+  batch supply stays restricted to its batch and location-only supply serves a
+  batchless component; ATP requests remain grouped by required date. abaplint
+  reported 0 issues across 138 files, transpilation succeeded, all 1,868 ABAP
+  Unit methods passed, and `validate:plan` passed.
+- Extended SAP-derived PO, issued/unissued STO, and scheduling-agreement
+  projections with receiving-location and schedule-line batch assignments.
+  Scoped component stock and ATP previews now feed those rows into the shared
+  location/batch ledger when every selected receipt has a storage location.
+  This first extension covered those three source families. Added `EKPO-LGORT`
+  and `EKET-CHARG` stubs and required them in plan
+  validation. Regression coverage checks exact-batch and location receipt
+  matching, ATP forwarding, and the plant-level fallback. abaplint reported
+  0 issues across 138 files, transpilation succeeded, all 1,869 ABAP Unit
+  methods passed, and `validate:plan` passed. The repository SQL still needs
+  validation against the target SAP release.
+- Extended scoped SAP-derived receipts to production orders, PR/STO PRs, and
+  planned/fixed planned orders. Production rows carry `AFPO-LGORT` and
+  `AFPO-CHARG`; requisitions carry `EBAN-LGORT`; planned orders carry
+  `PLAF-LGORT`. Scoped stock and ATP previews now use all these receipt sources
+  when every selected receipt has a location, with the existing plant-level
+  fallback for missing locations or outgoing-STO subtraction. Added table stub
+  fields and a mixed-source regression covering all receipt categories.
+  abaplint reported 0 issues across 138 files, transpilation succeeded, all
+  1,869 ABAP Unit methods passed, `validate:plan` passed, and the CRLF-aware diff
+  check was clean. Real SAP SQL behavior still needs target-system validation.
+- Added confirmation-aware PO receipts to single and bulk component stock/ATP
+  previews. Supplier confirmation rows carry `EKPO-LGORT` and `EKES-CHARG`, and
+  the schedule remainder rows retain `EKPO-LGORT` and `EKET-CHARG`; the PO
+  confirmation option remains exclusive with ordinary PO receipts. The scoped
+  regression now exercises ordinary PO and confirmation-aware PO batch supply
+  alongside the other mapped receipt sources, plus missing-location fallback
+  and mutually exclusive PO option validation. SAP field mappings and
+  target-query validation are recorded in [ANOMALIES.md](ANOMALIES.md).
+  abaplint reported 0 issues across
+  138 files, transpilation succeeded, all 1,869 ABAP Unit methods passed,
+  `validate:plan` passed, and the CRLF-aware diff check was clean.
+- Strengthened `validate:plan` to check that receipt storage-location stubs
+  are `CHAR(4)` and batch stubs are `CHAR(10)`, in addition to checking field
+  presence. The validator passes against the current SAP table stubs.
+- Limited scoped receipt reads to each material/plant's latest component date.
+  This keeps a later unlocated receipt for one plant from forcing plant-level
+  fallback for another plant whose component horizon ends sooner. The regression
+  covers separate plants with different horizons and a later unlocated PO row.
+  abaplint reported 0 issues, transpilation succeeded, all 1,869 ABAP Unit
+  methods passed, and `validate:plan` passed.
+- Added `CREATE_PROD_COMP_SERVICE()` to the production factory and reused it
+  when wiring the production-order ATP release gate. Applications can now get
+  the SAP-backed component service directly. Factory coverage checks both
+  component and production-order service construction.
+- Added factory methods for planned-order and production-order read services.
+  They wire the existing bulk read services to the PLAF and production-order
+  repositories, and the factory test checks all three production services.
+- Added `CREATE_SO_RES_READ_SERVICE()` to wire sales-order reservation detail
+  reads to the reservation BAPI adapter, and covered it in the factory test.
+- Added `CREATE_SO_RESERVATION_SERVICE()` for SAP-backed order reservation
+  release workflows, with the BAPI adapter and reservation finder wired in the
+  factory and included in factory coverage.
+- Verification passed: abaplint reported 0 issues across 138 files, the
+  transpiler completed, and all 1,861 ABAP Unit methods ran with exit code 0.
+
 ## 2026-10-15
 
 - Added priority-only ordering to cost-center FEFO previews. Higher-priority
@@ -5516,3 +5857,583 @@
   `npm run lint` reported zero issues across 138 files, and `npm run unit`
   completed transpilation and ABAP Unit with exit 0. The snapshot and SAP
   reservation visibility limits are recorded in `ANOMALIES.md`.
+- Split automatic projected-receipt previews by material/plant pair: a pair with
+  any selected receipt missing its receiving location now falls back to the
+  plant-level allocator without disabling scoped allocation for other pairs.
+  Each pair still queries only through its latest component required date.
+  Added stock and ATP regressions for a missing-location receipt beside a
+  scoped pair with a later out-of-horizon receipt. Updated README and anomaly
+  notes to match. `abaplint` reported zero issues across 138 files;
+  transpilation and `validate:plan` passed; ABAP Unit passed all 1,869 cases;
+  `git diff --check` passed with CRLF handling.
+- Expanded `validate:plan` to derive every SAP `table~field` used by the stock
+  repository and verify that the corresponding local table stub declares it.
+  This now covers the receipt-source queries alongside the explicit MARD,
+  RESB, PO, confirmation, production, requisition, and planned-order checks.
+  All referenced fields were already present in the stubs. README development
+  instructions now describe the validator.
+- Added a multi-pair repository read for confirmation-aware purchase-order
+  receipts. It fetches schedule remainders and MRP-relevant confirmations in
+  two queries across all requested pairs, filters each pair to its own maximum
+  deadline, and returns request rows in caller order. Shared-flag, per-request
+  option, and UOM bulk projections now use that path. Local tests cover horizon
+  filtering and verify that the service dispatches one repository bulk call;
+  live EKET/EKES joins remain a target-system validation item. `abaplint` found
+  zero issues across 138 files, PLAN validation passed, transpilation succeeded,
+  and all 1,869 ABAP Unit cases passed. `git diff --check` passed with CRLF
+  handling.
+- Applied the per-material/plant deadline inside both FAE statements, so a
+  longer horizon for one pair does not widen another pair's database read.
+  Extended `validate:plan` to require those EKET and EKES deadline predicates.
+  PLAN validation, abaplint, transpilation, all 1,869 ABAP Unit cases, and the
+  CRLF-aware diff check passed. SAP execution of the joins remains unverified.
+- Extended the repository bulk projection to batch purchase-order,
+  scheduling-agreement, STO, production, requisition, and planned-order reads
+  across unique material/plant scopes. Each FAE query now uses that pair's own
+  maximum deadline; results are trimmed to each request cutoff and returned in
+  caller order. The plan validator checks source-query counts, batching, date
+  bounds, and service delegation. Regression coverage verifies one bulk
+  repository dispatch alongside request ordering and cutoff filtering.
+  `validate:plan` passed, abaplint reported zero issues across 138 files,
+  transpilation passed, and all 1,869 ABAP Unit cases passed. SAP execution of
+  the receipt joins and query plans remains unverified.
+- Batched `GET_PROJ_RECEIPTS_OPTS_BULK` by matching material/plant source
+  selections, while keeping PO confirmations on their separate bulk path. Each
+  pair still queries only through its own latest request date, and each result
+  retains its per-request source and date filters. Regression coverage checks
+  that different pairs with the same combined source selection use one
+  repository bulk dispatch. `validate:plan` passed, abaplint reported zero
+  issues across 138 files, transpilation passed, all 1,869 ABAP Unit cases
+  passed, and the CRLF-aware diff check passed. SAP query execution remains
+  unverified.
+- Added `get_available_stock_date_bulk` and switched dated demand allocation to
+  fetch unique material/plant/date availability scopes together. The repository
+  batches MARD stock, cutoff-scoped RESB rows, PO/STO schedules, outgoing STOs,
+  and production receipts, and reuses the projected-receipt bulk path for PR,
+  planned-order, and scheduling-agreement sources. The service still applies
+  PO confirmations and safety stock per cutoff before sharing balances. Tests
+  verify allocation output, duplicate-scope caching, and one bulk dispatch.
+  `validate:plan` now checks batch scopes, per-request date predicates, and
+  selected row keys that prevent duplicate FAE rows from collapsing. abaplint
+  reported zero issues across 138 files, transpilation passed, all 1,869 ABAP
+  Unit cases passed, and the CRLF-aware diff check passed. Target SAP SQL checks
+  remain open.
+- Extended the same dated availability batch to `ALLOCATE_PLANTS_BY_DATE`.
+  Candidate source-plant/date scopes are deduplicated across all demands, read
+  together, then combined with cutoff-specific PO confirmations and cached
+  safety stock before source balances are allocated. Regression coverage checks
+  one repository bulk dispatch across four source-plant/date scopes. abaplint
+  reported zero issues across 138 files, transpilation passed, all 1,869 ABAP
+  Unit cases passed, and the CRLF-aware diff check passed. Target SAP SQL
+  behavior remains unverified.
+- Changed `ALLOCATE_PLANTS_FEFO_BY_DATE` to fetch batch status for all unique
+  material/source-plant pairs in one validated bulk repository call. The
+  service keeps positive-quantity filtering, safety-stock protection, source
+  location rules, projected receipts, and existing FEFO ordering. Added a
+  regression assertion for one bulk dispatch despite repeated demands sharing
+  a pair, and added a plan-validator check that prevents reintroducing the
+  per-pair read. Target SAP query-plan and reservation-subtraction behavior
+  remain to be checked.
+- Applied the same bulk batch-status read to `ALLOCATE_PLANTS_BY_EXPIRY`. It
+  retains caller-ordered source plants, date eligibility, receipt handling,
+  location rules, and safety-stock behavior while deduplicating current-stock
+  reads by material/source-plant pair. The FEFO regression now checks one bulk
+  dispatch across repeated demands. `validate:plan` checks both cross-plant
+  FEFO entry points for bulk dispatches; SAP query-plan and reservation
+  subtraction behavior remain unverified. Verification after both FEFO changes:
+  plan validation passed, abaplint reported zero issues across 138 files,
+  transpilation passed, and all 1,869 ABAP Unit cases passed.
+- Changed `ALLOCATE_PLANTS_BY_BATCH` to load all unique material/source-plant
+  batch statuses through one validated bulk call. Dated, undated, and unit-aware
+  wrappers inherit the single dispatch while preserving exact-batch matching,
+  cutoff ordering, projected receipts, and safety-stock behavior. Added bulk
+  dispatch assertions and extended `validate:plan` to catch per-pair reads.
+  `validate:plan` passed, abaplint reported zero issues across 138 files,
+  transpilation passed, and all 1,869 ABAP Unit cases passed. Target SAP query
+  plans and reservation subtraction still need review.
+- Batched current stock in the single-plant `ALLOCATE_BY_BATCH` preview after
+  validating all demands and receipt options. The allocator fetches each unique
+  material/plant batch status once, then preserves its existing batch, date,
+  location, receipt, and safety-stock calculations. Added bulk-dispatch coverage
+  for multiple requests sharing one pair and extended `validate:plan` to reject
+  the per-pair read. Updated cost-center and sales-order test doubles to return
+  configured batch stock from the bulk API. `validate:plan` passed, abaplint
+  reported zero issues across 138 files, transpilation passed, and all 1,869
+  ABAP Unit cases passed. Target SAP query plans and reservation subtraction
+  still need review.
+- Changed single-plant `ALLOCATE_BY_EXPIRY` to fetch all unique material/plant
+  batch statuses in one validated bulk call after demand and receipt validation.
+  Positive stock filtering and existing FEFO, location, shelf-life, receipt,
+  and safety-stock behavior are unchanged. Added a wrapper regression assertion
+  and extended `validate:plan` to prevent the per-pair read. Updated the
+  quality-stock test double to model unrestricted batch reads and rechecks
+  separately from quality stock. `validate:plan` passed, abaplint reported zero
+  issues across 138 files, transpilation passed, and all 1,869 ABAP Unit cases
+  passed. Target SAP query plans and reservation subtraction still need review.
+- Batched scoped component reads for location stock, batch stock, open
+  reservations, and protected safety stock. `ALLOCATE_COMPONENT_STOCK`
+  deduplicates material/plant scopes before dispatch and maps validated
+  responses into the existing per-scope balance logic. The MARD adapter reads
+  eligible RESB rows and MARC safety stock through guarded `FOR ALL ENTRIES`
+  queries; safety stock is read only when protection is enabled. The RESB query
+  retains the single-scope filters for special stock, deletion, final issue,
+  and open quantity. A two-plant regression checks four dispatches and
+  allocation results. Also batched safety-stock reads in single-plant exact
+  batch, single-plant FEFO, and dated and undated cross-plant FEFO and exact
+  batch allocation; two-scope regressions verify one safety dispatch for each
+  allocator and preserve their allocations. `validate:plan` guards service and
+  repository paths. Plan validation passed, abaplint reported zero issues across
+  138 files, transpilation passed, all 1,871 ABAP Unit cases passed, and the
+  CRLF-aware diff check passed. Target SAP query plans and reservation
+  visibility remain unverified.
+- Replaced per-scope location reads in `ALLOCATE_ACROSS_PLANTS`,
+  `ALLOCATE_BY_STORAGE_LOCATION`, and the projected-receipt path of
+  `ALLOCATE_LOCATION_BY_DATE` with one validated
+  `GET_LOCATION_STOCK_STATUS_BULK` dispatch across unique material/plant pairs.
+  The repository already applies the same reservation-adjusted location
+  quantity calculation as the former single-pair method. Safety stock is also
+  fetched once per allocator, then consumed across locations before projected
+  receipts are applied. Regressions cover two-scope dispatch counts and
+  existing allocation outputs; `validate:plan` guards both bulk paths.
+  Plan validation passed, abaplint reported zero issues across 138 files,
+  transpilation passed, all 1,871 ABAP Unit cases passed, and the CRLF-aware
+  diff check passed.
+- Added SQLite-backed Open SQL integration cases for bulk MARC safety stock,
+  eligible RESB reservations and open quantities, and reservation-adjusted MARD
+  location balances. `scripts/run-unit.mjs` configures the default SQLite
+  connection and test schemas before the generated ABAP Unit runner starts.
+  `validate:plan` passed, abaplint found 0 issues across 139 files,
+  transpilation passed, and all 1,874 ABAP Unit cases passed. Target SAP DDIC,
+  query-plan, and live reservation-visibility checks remain outstanding.
+
+- Extended SQLite-backed adapter coverage to batch stock. The new case executes
+  the MCHB, MCHA, MCH1, and RESB query paths, checking plant expiry precedence,
+  global expiry fallback, duplicate scope results, stock categories, and both
+  specific and unassigned reservation deductions. Full `npm test` passed:
+  plan validation, 0 abaplint issues across 139 files, transpilation, and all
+  1,875 ABAP Unit cases. Target SAP checks remain recorded in `ANOMALIES.md`.
+
+- Added SAP import scaffolding: `.abapgit.xml` points abapGit at `/src/`,
+  `src/package.devc.xml` defines the installable package, and all 67 classes and
+  29 interfaces now have object metadata. Added `npm run generate:abapgit` for
+  new objects and plan validation that checks metadata coverage and unit-test
+  flags. README now documents package assignment and SAP-side activation checks.
+  Metadata follows abapGit's documented XML shape; a target SAP import remains
+  unverified.
+  `npm run generate:abapgit` reports no missing files on a second run. `npm test`
+  passes with 0 abaplint issues across 236 files, successful transpilation, and
+  all 1,875 ABAP Unit cases; all 98 abapGit XML files parse and the diff check
+  is clean. Target SAP import and activation remain unverified.
+
+- Hardened the public batch-eligibility check to validate the as-of date and every dated expiry as Gregorian dates before date comparison. Invalid calendar dates now raise `zcx_invalid_stock_request`; blank expiry remains the supported undated-batch representation. Added ABAP Unit cases for an impossible as-of date and expiry. Full `npm test` passed: plan validation, 0 abaplint issues across 236 files, transpilation, and all 1,877 ABAP Unit cases.
+
+- Hardened projected-supply quantity calculators against negative receipt,
+  ordered, issue, and MRP-reduction counters. Invalid negative counters now
+  yield zero projected quantity instead of inflating open supply; valid
+  partial quantities and unit conversion are unchanged. Added regression
+  coverage for PO schedule, PO confirmation, unissued STO, PR, and
+  production-order calculations. Full `npm test` passed: plan validation,
+  0 abaplint issues across 236 files, transpilation, and 1,880 ABAP Unit
+  cases.
+
+- Added SQLite-backed Open SQL coverage for `ZCL_MATERIAL_UOM_REPOSITORY`: MARA base-unit reads, MARM alternative unit ratios keyed by material and unit, and missing-row results. Extended the runner schema and PLAN validation for required MARA/MARM fields, and added MANDT to both client-dependent table stubs. Full `npm test` passed with 0 abaplint issues across 237 files and all 1,884 ABAP Unit cases. Target SAP DDIC behavior remains to be checked.
+
+- Added SQLite-backed Open SQL tests for `ZCL_MARC_REPL_POLICY_REPO`, covering MARC policy selection, required MARA base units, optional T001W/T399D values, missing materials, and RDPR profile levels. Reworked the join into batched reads and kept RDPR fields unqualified to avoid malformed FAE SQL generated by the local transpiler. Updated the local schema, PLAN checks, README, and target-SAP caveats. Full `npm test` passed: PLAN validation, 0 abaplint issues across 238 files, transpilation, and all 1,886 ABAP Unit cases. Target SAP DDIC and SQL behavior remain to be checked.
+
+- Added SQLite-backed Open SQL coverage for `ZCL_T439I_CAL_PERIOD_REPO`. The test checks inclusive overlap at both horizon boundaries and filters out rows for other plants, calendars, and dates. Kept query fields unqualified for correct local FAE code generation. Added the T439I schema and required stub fields to PLAN validation; updated the README and target-SAP caveat. Full `npm test` passed: PLAN validation, 0 abaplint issues across 238 files, transpilation, and all 1,887 ABAP Unit cases. Target SAP T439I behavior remains unverified.
+
+- Added SQLite-backed tests for `ZCL_PLAF_ORDER_READ_REPO` covering order selection and sorting, base units, alternative-unit ratios, and left-join behavior when MARA or MARM data is missing. Replaced the alias-qualified join with batched PLAF/MARA/MARM reads to keep local FAE generation correct. Added client field `MANDT` to the PLAF stub, extended its PLAN checks and local SQLite schema, and documented the coverage. Full `npm test` passed: PLAN validation, 0 abaplint issues across 239 files, transpilation, and all 1,889 ABAP Unit cases. Target SAP DDIC and SQL behavior remain to be checked.
+
+- Added SQLite-backed tests for `ZCL_PROD_COMP_REPO` that execute the RESB bulk query and single-order wrapper, verify reservation-item ordering and component mapping, and ensure deleted/final-issue rows remain available to downstream service logic. Added its required source artifact to PLAN validation and documented the SQL coverage. Full `npm test` passed: PLAN validation, 0 abaplint issues across 240 files, transpilation, and all 1,891 ABAP Unit cases. Target SAP RESB behavior remains unverified.
+
+- Added SQLite-backed SQL coverage for `ZCL_STOCK_TRANSFER_REPOSITORY`: plant-level transfer totals, all-location and exact-location balances, nonzero location/batch detail reads, the ordered single-batch query, and empty bulk guards. Added required MARC/MARD/MCHB field checks to PLAN validation and updated the local SQL coverage notes. Full `npm test` passed: PLAN validation, 0 abaplint issues across 241 files, transpilation, and all 1,894 ABAP Unit cases. Target SAP transfer-stock behavior remains unverified.
+
+- Strengthened PLAN validation after finding that unqualified SQL field names bypassed its `table~field` scan. The validator now checks typed SAP table-field references in every custom ABAP source against the local DDIC stubs, while retaining explicit checks for query-required fields. Full `npm test` passed: PLAN validation, 0 abaplint issues across 241 files, transpilation, and all 1,894 ABAP Unit cases.
+
+- Added SQLite-backed tests for `ZCL_SO_STOCK_REPOSITORY` covering order-item resolution, base-unit reads, MSKA stock filtering and MARA-required rows, plant/global expiry precedence, RESB open-reservation filters, and empty-request guards. Reworked the stock join into batched MSKA/MARA reads while preserving its inner-join behavior. Added MANDT to the VBAP stub and query-field validation/schema, including KWMENG and VSMNG in the runner’s VBAP DDL for test-environment inserts. Full `npm test` passed: PLAN validation, 0 abaplint issues across 242 files, transpilation, and all 1,898 ABAP Unit cases. Target SAP DDIC and SQL behavior remain to be checked.
+- Added SQLite-backed Open SQL tests for `ZCL_SALES_ORDER_DELIVERY_REPO`, checking ordered schedule lines, requested and material-availability dates, ordered/confirmed/delivered quantities, status presence, multi-document selection, VBAP fallback for items without schedule lines, the single-document wrapper, and empty input. Added client/key metadata to VBUP and local VBEP/VBUP schemas, and expanded PLAN validation and integration notes. Full validation passed: PLAN validation, 0 abaplint issues across 243 files, transpilation, and all 1,900 ABAP Unit cases. Target SAP query behavior remains to be checked.
+- Added SQLite-backed Open SQL tests for `ZCL_CC_RESERVATION_READ_REPO`, covering RESB/RKPF cost-center scope, movement and status filters, remaining quantity, sort order, the single-center wrapper, item-scope lookup, and empty requests. Reworked the join into batched header and item reads to avoid malformed local transpiler join/FAE SQL while preserving inner-join behavior; moved the remaining-quantity comparison into the merge loop. Added RKPF schema and PLAN field checks, and updated the SQL coverage caveat. Full `npm test` passed: PLAN validation, 0 abaplint issues across 244 files, transpilation, and all 1,903 ABAP Unit cases. Target SAP query plans and authorization remain to be checked.
+- Added SQLite-backed Open SQL coverage for all five `ZCL_PROJECT_STOCK_REPOSITORY` methods. Tests cover MSPR positive-Q stock selection by key and WBS, PRPS mapping, plant-first/global-fallback expiry, open RESB quantity filters and calculations, and final-issue/fully withdrawn reservation-item visibility. Reworked aliased joins as batched PRPS/MSPR and PRPS/RESB reads while preserving WBS and lifecycle filters; moved the two-column open-quantity comparisons into ABAP. Added MSPR/PRPS schemas and PLAN field checks and updated target-system notes. Full `npm test` passed: PLAN validation, 0 abaplint issues across 245 files, transpilation, and all 1,908 ABAP Unit cases. Target SAP query plans and DDIC behavior remain unverified.
+- Added SQLite-backed Open SQL tests for all six `ZCL_REPL_SOURCE_REPO` methods, covering purchasing info records across exact and global plants, source-list agreement joins and source contexts, quota headers/items, rounding levels, usage rules, and empty-input guards. Corrected the local EINA MATNR stub to match the 40-character material type used by the repository, replaced broad reads with explicit field lists, keyed EINE reads by info record/org/plant, and changed source-context FAE selects to unqualified fields. Expanded SQLite schemas, PLAN field/shape checks, class test metadata, and integration notes. Full `npm test` passed: PLAN validation, 0 abaplint issues across 246 files, transpilation, and all 1,915 ABAP Unit cases. Confirm the EINA material-number length and source/quota data semantics against the target SAP release.
+- Added SQLite-backed Open SQL tests for all four `ZCL_PROD_ORDER_READ_REPO` methods, covering AFPO item mapping and sorting, active JEST status filtering with TJ02T/TJ30T text, AFRU/AFVC confirmation joins and ordering, AFKO/AFVC operation mapping, category filters, and empty input. Replaced multi-table joins with narrow batched reads and ABAP key merges after local tests returned no rows from the aliased joins; added the SQLite schemas, required PLAN stub fields, and class test metadata. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,920 ABAP Unit cases. Target SAP DDIC fields, status semantics, and operation-key behavior remain unverified.
+
+- Added SQLite-backed Open SQL coverage for bulk projected purchase-order
+  receipts. The test exercises narrow EKPO/EKKO/MARA/EKET reads and key merges,
+  including open-item filters, schedule cutoffs, partial receipt netting, and
+  PO-unit conversion. Reworked the joined PO receipt read into guarded batched
+  selects after the local transpiler returned no joined rows, and updated PLAN
+  validation to accept item-key deadlines derived from material/plant scopes.
+  Updated README and ANOMALIES coverage notes. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,921
+  ABAP Unit methods. Target SAP DDIC and schedule semantics remain unverified.
+
+- Added SQLite-backed coverage for the bulk scheduling-agreement receipt
+  path and replaced its alias-qualified EKET/EKPO/EKKO/MARA join with guarded
+  batched reads and keyed merges. The test verifies the blank supplying-plant
+  rule, category and item filters, schedule cutoffs, quantity conversion, and
+  source metadata. PLAN validation accepts the derived item-deadline keys.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,922 ABAP Unit methods. Target SAP field and schedule
+  behavior remain unverified.
+
+- Added SQLite-backed coverage for bulk STO projected receipts and replaced
+  the alias-qualified EKET/EKPO/EKKO/MARA join with guarded batch reads and
+  keyed merges. Tests exercise both issued-minus-received in-transit supply
+  and scheduled-minus-issued supply, PO-unit conversion, per-request dates,
+  document categories, supplying-plant and transport-document rules, and
+  item deletion, statistical, account-assignment, returns, GR, and inspection
+  stock filters. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,923 ABAP Unit methods. Target SAP
+  transfer-order lifecycle and DDIC behavior remain unverified.
+
+- Added SQLite-backed Open SQL coverage for the bulk confirmation-aware PO
+  receipt repository. The join-based EKET/EKPO/EKKO/MARA and
+  EKES/EKPO/EKKO/MARA reads now use guarded item, header, material, schedule,
+  and confirmation batches merged by document/item keys. Coverage checks
+  schedule and confirmation MRP reductions, KZDIS/deletion filters, eligible
+  PO/header rows, unit conversion, and per-request deadlines. Updated PLAN
+  validation, SQLite schema, README, and ANOMALIES. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,924 ABAP Unit methods. Target SAP confirmation semantics remain to be
+  checked.
+
+- Added SQLite-backed coverage for standard and stock-transfer purchase
+  requisition projections. Replaced alias-qualified EBAN/MARA/MARM joins with
+  separate guarded EBAN reads plus MARA/MARM batches merged by material and
+  requisition unit. The merge applies open-quantity and STO supplying-plant
+  comparisons, preserves the MARA-required and optional-MARM behavior, and
+  combines the two EBAN results without the local FAE `APPENDING` reset. Tests
+  cover item filters, unit conversion, missing material/unit rows, and
+  request-specific deadlines. Updated PLAN validation and integration notes.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,925 ABAP Unit methods. Verify EBAN/MARM DDIC and PR
+  planning semantics in the target release.
+
+- Added SQLite-backed coverage for bulk production-order projected receipts.
+  Replaced the alias-qualified AFPO/AFKO/AUFK/MARA join with guarded AFPO,
+  AFKO, AUFK, and MARA reads merged by order/material keys; the merge retains
+  each scope deadline and checks the ten-character AFPO-KDAUF blank value.
+  Tests cover production and process order categories, receipt/item/release
+  eligibility, base-unit quantities, storage location, batch, and per-request
+  dates. Updated PLAN validation and target-system notes. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,926 ABAP Unit methods. Confirm target release fields and order
+  status semantics in SAP.
+
+- Added SQLite-backed coverage for bulk date-availability outgoing-STO
+  deductions. Replaced the EKET/EKPO/EKKO join with guarded item, header, and
+  schedule reads merged by document/item, carrying the maximum date for each
+  material/source-plant scope and checking the receiving plant during the
+  merge. Tests verify open scheduled-minus-issued quantities, UOM conversion,
+  request cutoffs, document and item categories, special procurement, deleted
+  items, and same-plant exclusion. Updated PLAN validation, README, and
+  ANOMALIES. Full `npm test` passed: PLAN validation, 0 abaplint issues across
+  247 files, transpilation, and all 1,927 ABAP Unit methods. Verify target
+  transfer lifecycle and DDIC behavior in SAP.
+
+- Added SQLite-backed coverage for bulk planned and fixed planned-order
+  receipts. Replaced the PLAF/MARA/MARM join with guarded PLAF proposal, MARA
+  base-unit, and MARM conversion batches merged by material/order unit. The
+  merge applies fixed/unfixed, scenario, special-stock, and sales-order rules;
+  the PLAF-PLSCN and PLAF-KDAUF blank checks avoid local fixed-width SQLite
+  comparison differences. Tests cover both inclusion flags, storage location,
+  alternative-unit conversion, missing MARM, and request-specific dates.
+  Updated PLAN validation and integration notes. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,928 ABAP Unit methods. Confirm proposal eligibility and field behavior in
+  the target SAP release.
+
+- Added direct SQLite coverage for bulk date-availability standard PO,
+  incoming STO, and production-order receipts. The method now reuses
+  `GET_PROJECTED_RECEIPTS_BULK` for standard PO and incoming STO quantities;
+  its production path batches AFPO items, AFKO dates, and AUFK release data by
+  material/plant and unique order keys, then applies the maximum request date
+  and production/process-order eligibility during the merge. The scalar date
+  method now delegates to the same bulk implementation and forwards excluded
+  reservation keys. Tests verify early and late horizons, both STO quantity
+  components, UOM conversion, make-to-order exclusion, process-order inclusion,
+  and scalar/bulk parity. Updated PLAN validation, README, and ANOMALIES. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,930 ABAP Unit methods. Confirm query and release-
+  status behavior in the target SAP system.
+
+- Added SQLite-backed coverage for scalar `GET_PROJECTED_RECEIPTS` and routed
+  its single material/plant/date request through `GET_PROJECTED_RECEIPTS_BULK`.
+  The scalar method maps the keyed receipt rows back to its result and retains
+  source/date sorting, removing duplicate schedule/order joins. The test checks
+  standard PO and process-order quantities, PO batch and location metadata,
+  and make-to-order exclusion. Added a PLAN validator check to keep the scalar
+  method on the shared bulk path. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods. Verify query behavior and source filters against the target SAP
+  release.
+
+- Added direct SQLite checks for scalar `GET_PO_CONFIRMED_RECEIPTS` and routed
+  its one-request result through `GET_PO_CONFIRMED_RECEIPTS_BULK`. This removes
+  duplicate EKET/EKES joins while retaining PO schedule and confirmation rows.
+  Assertions cover result count, reduced quantities, and confirmation batch
+  metadata. PLAN validation now prevents reintroducing scalar SELECTs. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,931 ABAP Unit methods. Verify confirmation fields
+  and behavior in the target SAP release.
+
+- Changed the sales-order delivery bulk reader to keep VBUP status rows in a
+  hashed table and VBEP schedule rows in document/item/date order. The item
+  loop can now use keyed access instead of scanning all status and schedule
+  rows for every VBAP item. Existing SQLite tests verify date ordering,
+  delivered and confirmed quantities, status fallback, and empty input. Added
+  a PLAN validation guard for both table keys. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,931
+  ABAP Unit methods.
+
+- Changed stock-transfer bulk reads to fetch MARC totals directly into a
+  hashed table and aggregate MARD quantities once into hashed material/plant
+  and material/plant/location totals. Location and batch detail rows now use
+  sorted keys for their request scopes. SQLite tests cover repeated requests
+  as well as existing ordering and quantity cases. Added a PLAN validation
+  guard for these table keys. Full `npm test` passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods.
+
+- Changed replenishment outline-agreement reads to de-duplicate request scopes,
+  range over EORD rows by material/plant, and read EKKO/EKPO rows by hashed
+  document and item keys. SQLite coverage checks duplicate P001 requests and
+  separate P002 matching, while retaining plant and agreement values. Added a
+  PLAN validation guard for the keys. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods.
+
+- Changed replenishment candidate reads to keep EINA rows ordered by material
+  and EINE rows ordered by info record/purchasing org/plant, so repeated
+  candidate assembly uses keyed ranges. SQLite coverage adds a separate
+  purchasing-org case alongside repeated dates and plant-specific records.
+  Added a PLAN validation guard for both keys. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,931
+  ABAP Unit methods.
+
+- Changed quota-arrangement assembly to read matching EQUP items from a sorted
+  quota-number range rather than scanning the full item buffer for every EQUK
+  header. Existing SQLite coverage checks multiple headers and their item
+  fields. Added a PLAN validation guard for the key. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,931 ABAP Unit methods.
+
+- Changed source-context enrichment to build a hashed MARC policy lookup keyed
+  by material/plant while keeping the returned context table in its original
+  standard form. SQLite coverage now maps two policy scopes onto their source
+  list rows. Added a PLAN guard for the lookup key. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,931 ABAP Unit methods.
+
+- Changed production-order status assembly to keep active JEST rows sorted by
+  object number, so each AUFK header reads its matching status range. Existing
+  SQLite coverage checks active/inactive rows and system/user status texts.
+  Added a PLAN guard for the key. Full `npm test` passed: PLAN validation, 0
+  abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods.
+
+- Changed production-order operation assembly to keep AFKO routing rows sorted
+  by routing number, so AFVC operations use their matching routing range.
+  Existing SQLite coverage checks operation ordering and suboperations across
+  orders. Added a PLAN validation guard for the key. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  1,931 ABAP Unit methods.
+
+- Changed project-stock WBS mappings to hashed lookups by external element and
+  internal PSPNR. Key-scoped reads use the element index; stock and reservation
+  reads driven by WBS lists build the reverse index once per call. Existing
+  SQLite coverage exercises multiple WBS stock/reservation mappings. Added a
+  PLAN guard for both directions. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods.
+
+- Added secondary material/plant keys to the MARD, reservation, outgoing-STO,
+  and production-receipt buffers used by bulk date availability. Request merges
+  now iterate only each scope's indexed range while retaining request-date and
+  exclusion checks. PLAN validation guards all four keys and merge loops. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,931 ABAP Unit methods.
+
+- Changed the bulk safety-stock MARC result buffer to a hashed material/plant
+  key and used an explicit table-key read for each output row. Existing SQLite
+  coverage checks duplicate requests and a missing plant result. PLAN
+  validation now guards the hash and read key. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,931
+  ABAP Unit methods.
+
+- Added keyed reservation ranges to bulk open-stock reservation assembly and
+  to the sales-order reservation-number and item checks. These loops now read
+  the matching material/plant or reservation-number range rather than scanning
+  every fetched RESB row per request or candidate. PLAN validation guards all
+  three keys and loops. Full `npm test` passed: PLAN validation, 0 abaplint
+  issues across 247 files, transpilation, and all 1,931 ABAP Unit methods.
+
+- Added a sorted material/plant key to the bulk projected-receipt buffer.
+  Each request now reads its matching scope range, then applies its cutoff date
+  while retaining the existing row order and deterministic result sort. PLAN
+  validation guards the key, loop, and sort.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,931 ABAP Unit methods.
+
+- Added an order-preserving scope index for confirmed-PO receipt batches. The
+  sorted index stores material, plant, and each receipt's original row number;
+  matching requests visit those positions in source order. Single-request calls
+  keep the direct traversal. PLAN validation guards the index and both paths.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,931 ABAP Unit methods.
+
+- Reused the PO schedule, production-order, and available-quantity calculator
+  objects across requests in bulk date availability. The calculators are
+  stateless, so the method now creates each enabled calculator once per call.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,931 ABAP Unit methods.
+
+- Indexed multi-center cost-center reservation results by cost center and
+  original row number. Bulk validation now gathers each center's reservations
+  from its indexed positions while preserving the reader's row order; one-center
+  calls retain direct traversal. Added a PLAN shape guard. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,931 ABAP Unit methods.
+
+- Indexed BAPI sales-order delivery rows by document, item, requested date, and
+  schedule line, so each BAPI item reads only its schedule range. Documented
+  the row-order contract on the delivery repository interface and added a PLAN
+  guard for the keyed mapping loop. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,931 ABAP Unit
+  methods.
+
+- Hashed the BAPI sales-order headers by document and added a sorted
+  document/row-position index for item batches. Mapping now visits each
+  document's BAPI item rows in their original order; single-document calls use
+  the direct filter. PLAN validation guards both lookups. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 1,931 ABAP Unit methods.
+
+
+- Added direct SQLite-backed coverage for sales-order reservation aggregation
+  from `RESB`. The test verifies grouping by document, item, schedule line,
+  requirement date, material, and plant; nets withdrawals; filters fully
+  withdrawn, deleted, final-issue, wrong-movement, and special-stock rows; and
+  checks the final document/item ordering. The PLAN validator now guards the
+  query filters, grouping, open-quantity calculation, and test method. Updated
+  README integration limits and recorded the remaining target-SAP key and
+  fallback checks in `ANOMALIES.md`.
+
+
+- Added SQLite-backed tests for both `ZIF_SO_RESERVATION_FINDER` repository
+  methods. The test runs the RESB candidate and full-document reads, exercises
+  order-wide multi-item ownership versus exact-item ownership, and excludes
+  mixed sales documents, wrong movement types, special stock, fully withdrawn,
+  deleted, and final-issue candidates. It also checks empty input, optional
+  item scoping, and deterministic result order. Extended PLAN validation to
+  guard request filters, lifecycle fields, owner checks, and both test calls.
+  README and `ANOMALIES.md` record the coverage and remaining target-SAP
+  deletion checks.
+
+
+- Added direct SQLite coverage for the plant-level `GET_STOCK_STATUS` aggregate.
+  It checks unrestricted, quality, and blocked MARD totals; nets open RESB
+  withdrawals and filters closed, deleted, special-stock, and other-material
+  reservations; reads MARC safety stock; and verifies available quantities
+  before and after safety-stock subtraction. The PLAN validator now guards the
+  query fields and safety-stock calculation. Updated README coverage and the
+  target-system caveat in `ANOMALIES.md`.
+
+
+- Extended the SQLite stock-status test to execute `GET_STOCK_STATUS_BULK` as
+  well as the scalar method. It verifies batched MARD/RESB/MARC aggregation,
+  repeated material/plant requests, missing scopes, and caller-order output.
+  Added PLAN guards for the hashed material/plant totals, lifecycle filters,
+  and bulk merge loop. Updated README and `ANOMALIES.md` to describe the expanded
+  coverage and target-system limits.
+
+
+- Extended the direct stock-status repository test to execute
+  `GET_UNRESTRICTED_STOCK` as well. It verifies normal MARD/RESB netting and the
+  zero clamp when open reservations exceed unrestricted stock, without applying
+  safety stock. Added a PLAN guard for the scalar query and clamp path, and
+  updated README and `ANOMALIES.md` coverage notes.
+
+
+- Added direct SQLite coverage for scalar `GET_STOCK_BY_LOCATION` and
+  `GET_STOCK_STATUS_BY_LOCATION`. Tests verify gross category totals, exact
+  location deductions, distribution of unscoped reservations in ascending
+  location order, and exclusion of closed, deleted, and special-stock rows.
+  The PLAN validator now guards both grouped queries and their RESB filters.
+  Updated README and `ANOMALIES.md` with the direct coverage and SAP limits.
+
+
+- Fixed `GET_STOCK_BY_LOCATION`: its grouped MARD and RESB selects returned
+  `LGORT` into `CORRESPONDING FIELDS` structures named `storage_location`,
+  dropping the location key and producing an empty allocation result. Both
+  queries now alias the key correctly. The new direct SQL test reproduces the
+  empty result without the aliases and verifies both location balances after
+  exact and unscoped reservations.
+
+
+- Extended the direct RESB Open SQL test to cover scalar
+  `GET_OPEN_STOCK_RESERVATIONS` as well as the bulk method. It checks reservation
+  number/item, requirement date, location, batch, net open quantity, and the
+  empty result for a missing material. Added a PLAN guard for the scalar query's
+  scope/lifecycle filters and output mapping; documented the expanded local
+  coverage in README.
+
+
+- Fixed scalar batch reservation mapping: `GET_STOCK_STATUS_BY_BATCH` selected
+  `RESB-LGORT` and `RESB-CHARG` into differently named fields, dropping the
+  exact reservation scope. Added scalar SQLite coverage for exact batch/location
+  deduction, zero-balance status, closed/special-stock filters, and
+  `GET_STOCK_BY_BATCH` positive-row ordering; strengthened the shared batch
+  fixture so the bulk method covers the same cases. Added a PLAN guard and
+  documented the defect and target-SAP limitation. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,935
+  ABAP Unit methods.
+
+
+- Added direct SQLite coverage for scalar `GET_SAFETY_STOCK`, verifying a
+  present result, separate values for the same material at two plants, and the
+  initial result for a missing material. Added a PLAN guard for the scalar MARC
+  query and all three cases. Updated README and `ANOMALIES.md` to distinguish
+  scalar and bulk safety-stock coverage. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,935
+  ABAP Unit methods.
+
+
+- Added direct SQLite coverage for scalar `GET_SAFETY_STOCK` with both an
+  existing and missing MARC row, alongside the existing aggregate and bulk
+  coverage. PLAN validation now guards the scalar query and its two result
+  cases. Updated README and `ANOMALIES.md` to distinguish scalar and bulk
+  coverage. Full `npm test` passed: PLAN validation, 0 abaplint issues across
+  247 files, transpilation, and all 1,935 ABAP Unit methods.
+
+
+- Strengthened production-order readiness overflow coverage. The regression
+  now independently rejects overflowing requested, confirmed, and unconfirmed
+  totals, and PLAN validation checks each packed-field conversion and boundary
+  case. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247
+  files, transpilation, and all 1,989 ABAP Unit methods.
+
+
+- Added an end-to-end stock allocation test using the production factory and
+  SQLite-backed MARD/RESB reads. It checks reservation netting and shared stock
+  consumption across two demands. PLAN validation guards the factory-backed
+  path; README and `ANOMALIES.md` record coverage and the SAP-runtime limit.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,990 ABAP Unit methods.
+
+
+- Extended the factory integration to FEFO allocation with SQLite MCHB, MCHA,
+  MCH1, and RESB rows. It verifies that an open batch reservation reduces the
+  earliest-expiry lot, then checks the resulting two-lot split and expiry order.
+  PLAN validation guards the scenario. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 1,991 ABAP Unit
+  methods.
+
+
+- Fixed cross-plant preview validation so a request cannot list its receiving
+  plant as a source. The transfer-order service already rejected those pairs,
+  which let previews suggest unusable stock splits. Added regression coverage
+  for ordinary, dated, location-aware, FEFO, and batch allocator paths, plus a
+  PLAN guard and README/`ANOMALIES.md` notes. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,992
+  ABAP Unit methods.

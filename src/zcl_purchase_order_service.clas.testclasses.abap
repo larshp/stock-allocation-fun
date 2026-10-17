@@ -365,6 +365,7 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS preserves_po_read_errors FOR TESTING.
     METHODS rejects_mismatched_po_read FOR TESTING.
     METHODS creates_order_from_suggestions FOR TESTING.
+    METHODS rejects_po_unit_overflow FOR TESTING.
     METHODS groups_suggestions_by_vendor FOR TESTING.
     METHODS continues_vendor_batch FOR TESTING.
     METHODS validates_vendor_groups FOR TESTING.
@@ -1508,6 +1509,45 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_po_unit_overflow.
+    DATA(ls_header) = build_request( ).
+    CLEAR ls_header-items.
+    DATA(lt_suggestions) = VALUE
+      zcl_prod_comp_service=>ty_comp_replenishments(
+        ( material                = 'MAT-LIMIT'
+          plant                   = '1000'
+          base_unit               = 'EA'
+          required_date           = '20261101'
+          procurement_type        = 'F'
+          source_vendor           = '0000100001'
+          source_purchasing_org   = '1000'
+          source_info_record      = '0000001234'
+          suggested_base_quantity = '9999999.999' ) ).
+    DATA(lt_controls) = VALUE
+      zcl_purchase_order_service=>ty_suggestion_po_controls(
+        ( suggestion_index  = 1
+          purchasing_unit   = 'BIG'
+          order_to_base_num = 1
+          order_to_base_den = 99999 ) ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->prepare_from_suggestions(
+          is_header              = ls_header
+          it_suggestions         = lt_suggestions
+          it_purchasing_controls = lt_controls ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD groups_suggestions_by_vendor.

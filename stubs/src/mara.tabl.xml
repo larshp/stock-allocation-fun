@@ -11,8 +11,17 @@
       </DD02V>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>MATNR</FIELDNAME>
+          <FIELDNAME>MANDT</FIELDNAME>
           <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000040</LENG>
@@ -21,7 +30,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>MEINS</FIELDNAME>
-          <POSITION>0002</POSITION>
+          <POSITION>0003</POSITION>
           <DATATYPE>UNIT</DATATYPE>
           <LENG>000003</LENG>
           <INTTYPE>C</INTTYPE>

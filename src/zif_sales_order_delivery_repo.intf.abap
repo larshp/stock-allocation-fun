@@ -38,6 +38,9 @@ INTERFACE zif_sales_order_delivery_repo PUBLIC.
     RETURNING
       VALUE(rt_items)   TYPE ty_items.
 
+  " Results are grouped by sales document and item. Schedule rows within an
+  " item follow requested-date and schedule-line order; unscheduled items
+  " have one fallback row.
   METHODS get_orders_items
     IMPORTING
       it_sales_documents TYPE ty_sales_documents

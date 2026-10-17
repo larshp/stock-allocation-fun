@@ -14,16 +14,16 @@ CLASS zcl_t439i_cal_period_repo IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    SELECT t439i~werks AS plant,
-           t439i~mrppp AS planning_calendar_id,
-           t439i~ppvon AS start_date,
-           t439i~ppbis AS end_date
+    SELECT werks AS plant,
+           mrppp AS planning_calendar_id,
+           ppvon AS start_date,
+           ppbis AS end_date
       FROM t439i
       FOR ALL ENTRIES IN @it_requests
-      WHERE t439i~werks = @it_requests-plant
-        AND t439i~mrppp = @it_requests-planning_calendar_id
-        AND t439i~ppbis >= @it_requests-from_date
-        AND t439i~ppvon <= @it_requests-through_date
+      WHERE werks = @it_requests-plant
+        AND mrppp = @it_requests-planning_calendar_id
+        AND ppbis >= @it_requests-from_date
+        AND ppvon <= @it_requests-through_date
       INTO CORRESPONDING FIELDS OF TABLE @rt_periods.
   ENDMETHOD.
 

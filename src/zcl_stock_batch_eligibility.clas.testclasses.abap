@@ -11,6 +11,8 @@ CLASS ltcl_stock_batch_eligibility DEFINITION FINAL
     METHODS allows_undated_without_min FOR TESTING.
     METHODS rejects_undated_with_min FOR TESTING.
     METHODS rejects_invalid_date FOR TESTING.
+    METHODS rejects_malformed_as_of_date FOR TESTING.
+    METHODS rejects_malformed_expiry FOR TESTING.
     METHODS rejects_negative_min_days FOR TESTING.
 ENDCLASS.
 
@@ -85,6 +87,40 @@ CLASS ltcl_stock_batch_eligibility IMPLEMENTATION.
         mo_cut->is_eligible(
           iv_expiration_date = '20260930'
           iv_as_of_date      = '00000000'
+          iv_min_days        = 0 ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_malformed_as_of_date.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->is_eligible(
+          iv_expiration_date = '20260930'
+          iv_as_of_date      = '20260230'
+          iv_min_days        = 0 ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+  ENDMETHOD.
+
+  METHOD rejects_malformed_expiry.
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->is_eligible(
+          iv_expiration_date = '20260230'
+          iv_as_of_date      = '20260228'
           iv_min_days        = 0 ).
       CATCH zcx_invalid_stock_request.
         lv_exception_raised = abap_true.

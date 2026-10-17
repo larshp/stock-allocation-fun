@@ -407,7 +407,10 @@ CLASS zcl_prod_comp_service DEFINITION
       IMPORTING
         it_production_orders           TYPE zif_prod_comp_repo=>ty_production_orders
         iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
         iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
         iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
@@ -428,7 +431,10 @@ CLASS zcl_prod_comp_service DEFINITION
       IMPORTING
         iv_production_order            TYPE resb-aufnr
         iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
         iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
         iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
@@ -448,7 +454,10 @@ CLASS zcl_prod_comp_service DEFINITION
     METHODS preview_components_stock_bulk
       IMPORTING
         it_production_orders           TYPE zif_prod_comp_repo=>ty_production_orders
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
         iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
         iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
@@ -465,10 +474,37 @@ CLASS zcl_prod_comp_service DEFINITION
         zcx_invalid_production_order
         zcx_invalid_stock_request.
 
+    METHODS preview_scoped_components_bulk
+      IMPORTING
+        it_production_orders           TYPE zif_prod_comp_repo=>ty_production_orders
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
+    METHODS preview_scoped_components
+      IMPORTING
+        iv_production_order            TYPE resb-aufnr
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
     METHODS preview_components_stock
       IMPORTING
         iv_production_order            TYPE resb-aufnr
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
         iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
         iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
         iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
         iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
@@ -820,12 +856,33 @@ CLASS zcl_prod_comp_service DEFINITION
       RETURNING
         VALUE(rs_timing)              TYPE ty_replenishment_timing.
 
+    METHODS convert_component_quantity
+      IMPORTING
+        iv_source_quantity      TYPE resb-bdmng
+        iv_numerator            TYPE marm-umrez
+        iv_denominator          TYPE marm-umren
+      RETURNING
+        VALUE(rv_base_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS milli_to_stock_quantity
+      IMPORTING
+        iv_quantity_milli  TYPE int8
+      RETURNING
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS preview_components_internal
       IMPORTING
         it_production_orders           TYPE zif_prod_comp_repo=>ty_production_orders
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
         iv_check_atp                   TYPE abap_bool
         iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
         iv_include_po_receipts         TYPE abap_bool
+        iv_include_po_confirmations    TYPE abap_bool
         iv_include_sto_in_transit      TYPE abap_bool
         iv_include_unissued_sto        TYPE abap_bool
         iv_subtract_unissued_sto       TYPE abap_bool
@@ -925,6 +982,15 @@ CLASS zcl_prod_comp_service DEFINITION
     DATA mo_planning_calendar_repo TYPE REF TO
       zif_planning_calendar_repo.
     DATA mo_factory_calendar_api TYPE REF TO zif_factory_calendar_api.
+
+    METHODS sum_stock_quantities
+      IMPORTING
+        iv_left_quantity   TYPE mard-labst
+        iv_right_quantity  TYPE mard-labst
+      RETURNING
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
 ENDCLASS.
 
 CLASS zcl_prod_comp_service IMPLEMENTATION.
@@ -994,6 +1060,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_open_components_bulk.
+    DATA lv_open_quantity TYPE resb-bdmng.
     DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
       WITH UNIQUE KEY table_line.
 
@@ -1026,7 +1093,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      DATA(lv_open_quantity) = ls_item-required_quantity
+      lv_open_quantity = ls_item-required_quantity
         - ls_item-withdrawn_quantity.
       IF lv_open_quantity <= 0.
         CONTINUE.
@@ -1051,9 +1118,67 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     SORT rt_components BY production_order reservation_number reservation_item.
   ENDMETHOD.
 
+  METHOD sum_stock_quantities.
+    DATA lv_total TYPE decfloat34.
+
+    IF iv_left_quantity < 0 OR iv_right_quantity < 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    lv_total = CONV decfloat34( iv_left_quantity )
+      + CONV decfloat34( iv_right_quantity ).
+    TRY.
+        rv_quantity = CONV mard-labst( lv_total ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD convert_component_quantity.
+    IF iv_numerator <= 0 OR iv_denominator <= 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    TRY.
+        rv_base_quantity = CONV mard-labst(
+          CONV decfloat34( iv_source_quantity )
+          * CONV decfloat34( iv_numerator )
+          / CONV decfloat34( iv_denominator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+    IF iv_source_quantity <> 0 AND rv_base_quantity IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD milli_to_stock_quantity.
+    TRY.
+        rv_quantity = CONV mard-labst(
+          CONV decfloat34( CONV string( iv_quantity_milli ) ) / 1000 ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD preview_components_internal.
+    TYPES:
+      BEGIN OF ty_component_material_plant,
+        material     TYPE mard-matnr,
+        plant        TYPE mard-werks,
+        through_date TYPE d,
+        use_scoped   TYPE abap_bool,
+      END OF ty_component_material_plant,
+      ty_component_material_plants TYPE SORTED TABLE OF
+        ty_component_material_plant WITH UNIQUE KEY material plant.
     DATA lt_components TYPE ty_components.
     DATA lt_unit_ratios TYPE ty_component_unit_ratios.
+    DATA lt_projected_scope_keys TYPE ty_component_material_plants.
+    DATA lt_automatic_receipts TYPE zif_stock_repository=>ty_projected_receipts.
+    DATA lt_scoped_batch_receipts TYPE
+      zcl_stock_service=>ty_dated_batch_receipts.
+    DATA lt_scoped_location_receipts TYPE
+      zcl_stock_service=>ty_dated_location_receipts.
     DATA lt_excluded_reservations TYPE
       zif_stock_repository=>ty_reservation_keys.
     DATA lt_seen_reservations TYPE HASHED TABLE OF
@@ -1062,6 +1187,11 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lt_atp_days TYPE ty_component_atp_days.
     DATA lt_local_demands TYPE zcl_stock_service=>ty_dated_demands.
     DATA lt_local_estimates TYPE zcl_stock_service=>ty_dated_allocations.
+    DATA lt_scoped_demands TYPE zcl_stock_service=>ty_scoped_component_demands.
+    DATA lt_scoped_use_demands TYPE
+      zcl_stock_service=>ty_scoped_component_demands.
+    DATA lt_scoped_allocations TYPE
+      zcl_stock_service=>ty_scoped_component_allocations.
     DATA lv_cumulative_quantity TYPE mard-labst.
     DATA lv_previous_confirmed_quantity TYPE mard-labst.
     DATA lv_date_confirmed_quantity TYPE mard-labst.
@@ -1069,7 +1199,22 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lv_previous_plant TYPE mard-werks.
     DATA lv_previous_unit TYPE mara-meins.
     DATA lv_local_request_id TYPE c LENGTH 30.
+    DATA lv_component_request_id TYPE c LENGTH 30.
+    DATA lv_component_index TYPE i.
+    DATA lv_has_component_scope TYPE abap_bool.
+    DATA lv_use_scoped_allocation TYPE abap_bool.
+    DATA lv_auto_receipt_options TYPE abap_bool.
+    DATA lv_component_uses_scoped TYPE abap_bool.
+    DATA lv_component_available TYPE mard-labst.
+    DATA lv_component_allocated TYPE mard-labst.
+    DATA lv_component_shortfall TYPE mard-labst.
+    DATA lv_group_available TYPE mard-labst.
+    DATA lv_group_allocated TYPE mard-labst.
+    DATA lv_group_shortfall TYPE mard-labst.
+    DATA ls_component_group_estimate TYPE ty_component_local_estimate.
     FIELD-SYMBOLS <ls_atp_day> TYPE ty_component_atp_day.
+    FIELD-SYMBOLS <ls_projected_scope_key>
+      TYPE ty_component_material_plant.
 
     IF iv_include_sto_pr_receipts <> abap_true
         AND iv_include_sto_pr_receipts <> abap_false.
@@ -1087,6 +1232,44 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         AND iv_include_sched_agmt_receipts <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    IF ( iv_include_po_confirmations <> abap_true
+          AND iv_include_po_confirmations <> abap_false )
+        OR ( iv_include_po_receipts = abap_true
+          AND iv_include_po_confirmations = abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF ( iv_include_po_receipts <> abap_true
+          AND iv_include_po_receipts <> abap_false )
+        OR ( iv_include_sto_in_transit <> abap_true
+          AND iv_include_sto_in_transit <> abap_false )
+        OR ( iv_include_unissued_sto <> abap_true
+          AND iv_include_unissued_sto <> abap_false )
+        OR ( iv_subtract_unissued_sto <> abap_true
+          AND iv_subtract_unissued_sto <> abap_false )
+        OR ( iv_include_prod_receipts <> abap_true
+          AND iv_include_prod_receipts <> abap_false )
+        OR ( iv_include_pr_receipts <> abap_true
+          AND iv_include_pr_receipts <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    IF ( it_projected_batch_receipts IS NOT INITIAL
+          OR it_projected_location_receipts IS NOT INITIAL )
+        AND ( iv_include_po_receipts = abap_true
+          OR iv_include_po_confirmations = abap_true
+          OR iv_include_sto_in_transit = abap_true
+          OR iv_include_unissued_sto = abap_true
+          OR iv_subtract_unissued_sto = abap_true
+          OR iv_include_prod_receipts = abap_true
+          OR iv_include_pr_receipts = abap_true
+          OR iv_include_sto_pr_receipts = abap_true
+          OR iv_include_planned_receipts = abap_true
+          OR iv_include_fixed_planned = abap_true
+          OR iv_include_sched_agmt_receipts = abap_true ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    lt_scoped_batch_receipts = it_projected_batch_receipts.
+    lt_scoped_location_receipts = it_projected_location_receipts.
 
     lt_components = get_open_components_bulk(
       it_production_orders = it_production_orders ).
@@ -1131,18 +1314,52 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           ratio       = ls_unit_ratio ) INTO TABLE lt_unit_ratios.
       ENDIF.
 
-      DATA(lv_base_quantity) = CONV mard-labst(
-        CONV decfloat34( ls_component-open_quantity )
-        * CONV decfloat34( ls_unit_ratio-numerator )
-        / CONV decfloat34( ls_unit_ratio-denominator ) ).
+      DATA(lv_base_quantity) = convert_component_quantity(
+        iv_source_quantity = ls_component-open_quantity
+        iv_numerator       = ls_unit_ratio-numerator
+        iv_denominator     = ls_unit_ratio-denominator ).
+      lv_component_index += 1.
+      lv_component_request_id = |COMP_SCOPE_{ lv_component_index }|.
+      APPEND VALUE #(
+        request_id         = lv_component_request_id
+        material           = ls_component-material
+        plant              = ls_component-plant
+        reservation_number = ls_component-reservation_number
+        reservation_item   = ls_component-reservation_item
+        required_date      = ls_component-required_date
+        storage_location   = ls_component-storage_location
+        batch              = ls_component-batch
+        requested_quantity = lv_base_quantity ) TO lt_scoped_demands.
+      READ TABLE lt_projected_scope_keys ASSIGNING <ls_projected_scope_key>
+        WITH TABLE KEY material = ls_component-material
+                       plant = ls_component-plant.
+      IF sy-subrc = 0.
+        IF ls_component-required_date >
+            <ls_projected_scope_key>-through_date.
+          <ls_projected_scope_key>-through_date =
+            ls_component-required_date.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          material     = ls_component-material
+          plant        = ls_component-plant
+          through_date = ls_component-required_date
+          use_scoped   = abap_false )
+          INTO TABLE lt_projected_scope_keys.
+      ENDIF.
+      IF ls_component-storage_location IS NOT INITIAL
+          OR ls_component-batch IS NOT INITIAL.
+        lv_has_component_scope = abap_true.
+      ENDIF.
       READ TABLE lt_atp_days ASSIGNING <ls_atp_day>
         WITH TABLE KEY material = ls_component-material
                        plant = ls_component-plant
                        base_unit = ls_unit_ratio-base_unit
                        required_date = ls_component-required_date.
       IF sy-subrc = 0.
-        <ls_atp_day>-date_quantity = <ls_atp_day>-date_quantity
-          + lv_base_quantity.
+        <ls_atp_day>-date_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_atp_day>-date_quantity
+          iv_right_quantity = lv_base_quantity ).
       ELSE.
         INSERT VALUE #(
           material      = ls_component-material
@@ -1153,6 +1370,111 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    IF iv_include_po_receipts = abap_true
+        OR iv_include_po_confirmations = abap_true
+        OR iv_include_sto_in_transit = abap_true
+        OR iv_include_unissued_sto = abap_true
+        OR iv_include_prod_receipts = abap_true
+        OR iv_include_pr_receipts = abap_true
+        OR iv_include_sto_pr_receipts = abap_true
+        OR iv_include_planned_receipts = abap_true
+        OR iv_include_fixed_planned = abap_true
+        OR iv_include_sched_agmt_receipts = abap_true.
+      lv_auto_receipt_options = abap_true.
+    ENDIF.
+
+    IF iv_subtract_unissued_sto = abap_false
+        AND ( iv_check_atp = abap_false
+          OR it_projected_batch_receipts IS NOT INITIAL
+          OR it_projected_location_receipts IS NOT INITIAL
+          OR ( lv_has_component_scope = abap_true
+            AND lv_auto_receipt_options = abap_true ) )
+        AND ( lv_has_component_scope = abap_true
+          OR it_projected_batch_receipts IS NOT INITIAL
+          OR it_projected_location_receipts IS NOT INITIAL ).
+      LOOP AT lt_projected_scope_keys ASSIGNING <ls_projected_scope_key>.
+        <ls_projected_scope_key>-use_scoped = abap_true.
+      ENDLOOP.
+      IF lt_projected_scope_keys IS NOT INITIAL
+          OR it_projected_batch_receipts IS NOT INITIAL
+          OR it_projected_location_receipts IS NOT INITIAL.
+        lv_use_scoped_allocation = abap_true.
+      ENDIF.
+
+      IF lv_auto_receipt_options = abap_true
+          AND it_projected_batch_receipts IS INITIAL
+          AND it_projected_location_receipts IS INITIAL.
+        LOOP AT lt_projected_scope_keys ASSIGNING <ls_projected_scope_key>.
+          lt_automatic_receipts = mo_stock_service->get_projected_receipts(
+            iv_material                    = <ls_projected_scope_key>-material
+            iv_plant                       = <ls_projected_scope_key>-plant
+            iv_through_date                = <ls_projected_scope_key>-through_date
+            iv_include_po_receipts         = iv_include_po_receipts
+            iv_include_po_confirmations    = iv_include_po_confirmations
+            iv_include_sto_in_transit      = iv_include_sto_in_transit
+            iv_include_unissued_sto        = iv_include_unissued_sto
+            iv_include_prod_receipts       = iv_include_prod_receipts
+            iv_include_pr_receipts         = iv_include_pr_receipts
+            iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+            iv_include_planned_receipts    = iv_include_planned_receipts
+            iv_include_fixed_planned       = iv_include_fixed_planned
+            iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
+          LOOP AT lt_automatic_receipts INTO DATA(ls_automatic_receipt).
+            IF ls_automatic_receipt-storage_location IS INITIAL.
+              <ls_projected_scope_key>-use_scoped = abap_false.
+              EXIT.
+            ENDIF.
+            IF ls_automatic_receipt-batch IS INITIAL.
+              APPEND VALUE #(
+                material         = ls_automatic_receipt-material
+                plant            = ls_automatic_receipt-plant
+                storage_location = ls_automatic_receipt-storage_location
+                receipt_date     = ls_automatic_receipt-receipt_date
+                base_quantity    = ls_automatic_receipt-quantity )
+                TO lt_scoped_location_receipts.
+            ELSE.
+              APPEND VALUE #(
+                material         = ls_automatic_receipt-material
+                plant            = ls_automatic_receipt-plant
+                storage_location = ls_automatic_receipt-storage_location
+                batch            = ls_automatic_receipt-batch
+                receipt_date     = ls_automatic_receipt-receipt_date
+                base_quantity    = ls_automatic_receipt-quantity )
+                TO lt_scoped_batch_receipts.
+            ENDIF.
+          ENDLOOP.
+          IF <ls_projected_scope_key>-use_scoped = abap_false.
+            DELETE lt_scoped_batch_receipts
+              WHERE material = <ls_projected_scope_key>-material
+                AND plant = <ls_projected_scope_key>-plant.
+            DELETE lt_scoped_location_receipts
+              WHERE material = <ls_projected_scope_key>-material
+                AND plant = <ls_projected_scope_key>-plant.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT lt_scoped_demands INTO DATA(ls_scoped_demand).
+      READ TABLE lt_projected_scope_keys INTO DATA(ls_demand_scope_key)
+        WITH TABLE KEY material = ls_scoped_demand-material
+                       plant = ls_scoped_demand-plant.
+      IF sy-subrc = 0 AND ls_demand_scope_key-use_scoped = abap_true.
+        APPEND ls_scoped_demand TO lt_scoped_use_demands.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_use_scoped_allocation = abap_true
+        AND ( lt_scoped_use_demands IS NOT INITIAL
+          OR it_projected_batch_receipts IS NOT INITIAL
+          OR it_projected_location_receipts IS NOT INITIAL ).
+      lt_scoped_allocations = mo_stock_service->allocate_component_stock(
+        it_demands                     = lt_scoped_use_demands
+        it_projected_batch_receipts    = lt_scoped_batch_receipts
+        it_projected_location_receipts = lt_scoped_location_receipts
+        iv_protect_safety_stock        = iv_protect_safety_stock ).
+    ENDIF.
+
     LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
       IF sy-tabix = 1
           OR <ls_atp_day>-material <> lv_previous_material
@@ -1161,8 +1483,9 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         CLEAR lv_cumulative_quantity.
         CLEAR lv_previous_confirmed_quantity.
       ENDIF.
-      lv_cumulative_quantity = lv_cumulative_quantity
-        + <ls_atp_day>-date_quantity.
+      lv_cumulative_quantity = sum_stock_quantities(
+        iv_left_quantity  = lv_cumulative_quantity
+        iv_right_quantity = <ls_atp_day>-date_quantity ).
       <ls_atp_day>-cumulative_quantity = lv_cumulative_quantity.
 
       IF iv_check_atp = abap_true
@@ -1206,13 +1529,18 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
       lv_local_request_id = |COMP_ATP_{ sy-tabix }|.
       <ls_atp_day>-request_id = lv_local_request_id.
-      APPEND VALUE #(
-        request_id         = lv_local_request_id
-        material           = <ls_atp_day>-material
-        plant              = <ls_atp_day>-plant
-        required_date      = <ls_atp_day>-required_date
-        requested_quantity = <ls_atp_day>-date_quantity )
-        TO lt_local_demands.
+      READ TABLE lt_projected_scope_keys INTO DATA(ls_day_scope_key)
+        WITH TABLE KEY material = <ls_atp_day>-material
+                       plant = <ls_atp_day>-plant.
+      IF sy-subrc <> 0 OR ls_day_scope_key-use_scoped <> abap_true.
+        APPEND VALUE #(
+          request_id         = lv_local_request_id
+          material           = <ls_atp_day>-material
+          plant              = <ls_atp_day>-plant
+          required_date      = <ls_atp_day>-required_date
+          requested_quantity = <ls_atp_day>-date_quantity )
+          TO lt_local_demands.
+      ENDIF.
     ENDLOOP.
 
     IF lt_local_demands IS NOT INITIAL.
@@ -1220,6 +1548,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         it_demands                     = lt_local_demands
         it_excluded_reservations       = lt_excluded_reservations
         iv_include_po_receipts         = iv_include_po_receipts
+        iv_include_po_confirmations    = iv_include_po_confirmations
         iv_include_sto_in_transit      = iv_include_sto_in_transit
         iv_include_unissued_sto        = iv_include_unissued_sto
         iv_subtract_unissued_sto       = iv_subtract_unissued_sto
@@ -1242,6 +1571,43 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDLOOP.
     ENDIF.
 
+    LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
+      READ TABLE lt_projected_scope_keys INTO ls_day_scope_key
+        WITH TABLE KEY material = <ls_atp_day>-material
+                       plant = <ls_atp_day>-plant.
+      IF sy-subrc = 0 AND ls_day_scope_key-use_scoped = abap_true.
+        CLEAR lv_group_available.
+        CLEAR lv_group_allocated.
+        CLEAR lv_group_shortfall.
+        LOOP AT lt_scoped_allocations INTO DATA(ls_scoped_group_row).
+          IF ls_scoped_group_row-allocation-material <>
+                <ls_atp_day>-material
+              OR ls_scoped_group_row-allocation-plant <>
+                <ls_atp_day>-plant
+              OR ls_scoped_group_row-allocation-required_date <>
+                <ls_atp_day>-required_date.
+            CONTINUE.
+          ENDIF.
+          lv_group_available =
+            ls_scoped_group_row-group_available_quantity.
+          lv_group_allocated +=
+            ls_scoped_group_row-allocation-allocated_quantity.
+          lv_group_shortfall +=
+            ls_scoped_group_row-allocation-shortfall_quantity.
+        ENDLOOP.
+        <ls_atp_day>-local_estimate = VALUE #(
+          request_id         = <ls_atp_day>-request_id
+          material           = <ls_atp_day>-material
+          plant              = <ls_atp_day>-plant
+          required_date      = <ls_atp_day>-required_date
+          requested_quantity = <ls_atp_day>-date_quantity
+          available_quantity = lv_group_available
+          allocated_quantity = lv_group_allocated
+          shortfall_quantity = lv_group_shortfall ).
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR lv_component_index.
     LOOP AT lt_components INTO ls_component.
       READ TABLE lt_unit_ratios INTO ls_unit_ratio_cache
         WITH TABLE KEY material = ls_component-material
@@ -1251,10 +1617,10 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
                        plant = ls_component-plant
                        base_unit = ls_unit_ratio_cache-ratio-base_unit
                        required_date = ls_component-required_date.
-      DATA(lv_component_base_quantity) = CONV mard-labst(
-        CONV decfloat34( ls_component-open_quantity )
-        * CONV decfloat34( ls_unit_ratio_cache-ratio-numerator )
-        / CONV decfloat34( ls_unit_ratio_cache-ratio-denominator ) ).
+      DATA(lv_component_base_quantity) = convert_component_quantity(
+        iv_source_quantity = ls_component-open_quantity
+        iv_numerator       = ls_unit_ratio_cache-ratio-numerator
+        iv_denominator     = ls_unit_ratio_cache-ratio-denominator ).
       DATA(lv_component_confirmed) = COND mard-labst(
         WHEN iv_check_atp = abap_true
           AND <ls_atp_day>-atp_result-is_check_relevant = abap_true
@@ -1276,18 +1642,61 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           AND <ls_atp_day>-atp_result-is_check_relevant = abap_true
         THEN lv_component_base_quantity - lv_component_confirmed
         ELSE 0 ).
-      DATA(lv_component_available) = COND mard-labst(
-        WHEN <ls_atp_day>-local_remaining_quantity > 0
-        THEN <ls_atp_day>-local_remaining_quantity
-        ELSE 0 ).
-      DATA(lv_component_allocated) = COND mard-labst(
-        WHEN lv_component_base_quantity < lv_component_available
-        THEN lv_component_base_quantity
-        ELSE lv_component_available ).
-      DATA(lv_component_shortfall) = lv_component_base_quantity
-        - lv_component_allocated.
-      <ls_atp_day>-local_remaining_quantity = lv_component_available
-        - lv_component_allocated.
+      CLEAR ls_component_group_estimate.
+      lv_component_index += 1.
+      lv_component_request_id = |COMP_SCOPE_{ lv_component_index }|.
+      READ TABLE lt_projected_scope_keys INTO DATA(ls_component_scope_key)
+        WITH TABLE KEY material = ls_component-material
+                       plant = ls_component-plant.
+      lv_component_uses_scoped = COND #(
+        WHEN sy-subrc = 0
+          AND ls_component_scope_key-use_scoped = abap_true
+        THEN abap_true
+        ELSE abap_false ).
+      IF lv_component_uses_scoped = abap_true.
+        READ TABLE lt_scoped_allocations INTO DATA(ls_scoped_allocation)
+          WITH KEY allocation-request_id = lv_component_request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        lv_component_available =
+          ls_scoped_allocation-allocation-available_quantity.
+        lv_component_allocated =
+          ls_scoped_allocation-allocation-allocated_quantity.
+        lv_component_shortfall =
+          ls_scoped_allocation-allocation-shortfall_quantity.
+        ls_component_group_estimate = VALUE #(
+          requested_quantity =
+            <ls_atp_day>-local_estimate-requested_quantity
+          available_quantity =
+            <ls_atp_day>-local_estimate-available_quantity
+          allocated_quantity =
+            <ls_atp_day>-local_estimate-allocated_quantity
+          shortfall_quantity =
+            <ls_atp_day>-local_estimate-shortfall_quantity ).
+      ELSE.
+        lv_component_available = COND mard-labst(
+          WHEN <ls_atp_day>-local_remaining_quantity > 0
+          THEN <ls_atp_day>-local_remaining_quantity
+          ELSE 0 ).
+        lv_component_allocated = COND mard-labst(
+          WHEN lv_component_base_quantity < lv_component_available
+          THEN lv_component_base_quantity
+          ELSE lv_component_available ).
+        lv_component_shortfall = lv_component_base_quantity
+          - lv_component_allocated.
+        <ls_atp_day>-local_remaining_quantity = lv_component_available
+          - lv_component_allocated.
+        ls_component_group_estimate = VALUE #(
+          requested_quantity =
+            <ls_atp_day>-local_estimate-requested_quantity
+          available_quantity =
+            <ls_atp_day>-local_estimate-available_quantity
+          allocated_quantity =
+            <ls_atp_day>-local_estimate-allocated_quantity
+          shortfall_quantity =
+            <ls_atp_day>-local_estimate-shortfall_quantity ).
+      ENDIF.
       APPEND VALUE #(
         component                      = ls_component
         base_unit                      = ls_unit_ratio_cache-ratio-base_unit
@@ -1299,15 +1708,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           <ls_atp_day>-cum_unconfirmed_quantity
         component_confirmed_quantity   = lv_component_confirmed
         component_unconfirmed_quantity = lv_component_unconfirmed
-        local_estimate                 = VALUE #(
-          requested_quantity =
-            <ls_atp_day>-local_estimate-requested_quantity
-          available_quantity =
-            <ls_atp_day>-local_estimate-available_quantity
-          allocated_quantity =
-            <ls_atp_day>-local_estimate-allocated_quantity
-          shortfall_quantity =
-            <ls_atp_day>-local_estimate-shortfall_quantity )
+        local_estimate                 = ls_component_group_estimate
         component_local_estimate       = VALUE #(
           requested_quantity = lv_component_base_quantity
           available_quantity = lv_component_available
@@ -1324,9 +1725,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     rt_checks = preview_components_internal(
       it_production_orders           = it_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
       iv_check_atp                   = abap_true
       iv_check_rule                  = iv_check_rule
       iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
       iv_include_sto_in_transit      = iv_include_sto_in_transit
       iv_include_unissued_sto        = iv_include_unissued_sto
       iv_subtract_unissued_sto       = iv_subtract_unissued_sto
@@ -1348,8 +1752,11 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     APPEND iv_production_order TO lt_production_orders.
     rt_checks = preview_components_atp_bulk(
       it_production_orders           = lt_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
       iv_check_rule                  = iv_check_rule
       iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
       iv_include_sto_in_transit      = iv_include_sto_in_transit
       iv_include_unissued_sto        = iv_include_unissued_sto
       iv_subtract_unissued_sto       = iv_subtract_unissued_sto
@@ -1365,9 +1772,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   METHOD preview_components_stock_bulk.
     rt_checks = preview_components_internal(
       it_production_orders           = it_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
       iv_check_atp                   = abap_false
       iv_check_rule                  = space
       iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
       iv_include_sto_in_transit      = iv_include_sto_in_transit
       iv_include_unissued_sto        = iv_include_unissued_sto
       iv_subtract_unissued_sto       = iv_subtract_unissued_sto
@@ -1380,6 +1790,42 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       iv_protect_safety_stock        = iv_protect_safety_stock ).
   ENDMETHOD.
 
+  METHOD preview_scoped_components_bulk.
+    rt_checks = preview_components_internal(
+      it_production_orders           = it_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      iv_check_atp                   = abap_false
+      iv_check_rule                  = space
+      iv_include_po_receipts         = abap_false
+      iv_include_po_confirmations    = abap_false
+      iv_include_sto_in_transit      = abap_false
+      iv_include_unissued_sto        = abap_false
+      iv_subtract_unissued_sto       = abap_false
+      iv_include_prod_receipts       = abap_false
+      iv_include_pr_receipts         = abap_false
+      iv_include_sto_pr_receipts     = abap_false
+      iv_include_planned_receipts    = abap_false
+      iv_include_fixed_planned       = abap_false
+      iv_include_sched_agmt_receipts = abap_false
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
+  ENDMETHOD.
+
+  METHOD preview_scoped_components.
+    DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
+
+    IF iv_production_order IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
+
+    APPEND iv_production_order TO lt_production_orders.
+    rt_checks = preview_scoped_components_bulk(
+      it_production_orders           = lt_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
+  ENDMETHOD.
+
   METHOD preview_components_stock.
     IF iv_production_order IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_production_order.
@@ -1389,7 +1835,10 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     APPEND iv_production_order TO lt_production_orders.
     rt_checks = preview_components_stock_bulk(
       it_production_orders           = lt_production_orders
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
       iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
       iv_include_sto_in_transit      = iv_include_sto_in_transit
       iv_include_unissued_sto        = iv_include_unissued_sto
       iv_subtract_unissued_sto       = iv_subtract_unissued_sto
@@ -1526,15 +1975,17 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
 
       ADD 1 TO <ls_shortage>-component_count.
-      <ls_shortage>-requested_base_quantity =
-        <ls_shortage>-requested_base_quantity
-          + ls_check-requested_base_quantity.
-      <ls_shortage>-allocated_base_quantity =
-        <ls_shortage>-allocated_base_quantity
-          + ls_check-component_local_estimate-allocated_quantity.
-      <ls_shortage>-shortfall_base_quantity =
-        <ls_shortage>-shortfall_base_quantity
-          + ls_check-component_local_estimate-shortfall_quantity.
+      <ls_shortage>-requested_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_shortage>-requested_base_quantity
+        iv_right_quantity = ls_check-requested_base_quantity ).
+      <ls_shortage>-allocated_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_shortage>-allocated_base_quantity
+        iv_right_quantity =
+          ls_check-component_local_estimate-allocated_quantity ).
+      <ls_shortage>-shortfall_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_shortage>-shortfall_base_quantity
+        iv_right_quantity =
+          ls_check-component_local_estimate-shortfall_quantity ).
 
       IF ls_check-component_local_estimate-shortfall_quantity > 0.
         IF ls_check-component-production_order IS INITIAL.
@@ -1595,13 +2046,18 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
             ls_check-requested_base_quantity
           OR ls_check-confirmed_base_quantity < 0
           OR ls_check-unconfirmed_base_quantity < 0
-          OR ls_check-confirmed_base_quantity
-            + ls_check-unconfirmed_base_quantity
-            <> ls_check-cumulative_base_quantity
           OR ls_check-component_confirmed_quantity < 0
-          OR ls_check-component_unconfirmed_quantity < 0
-          OR ls_check-component_confirmed_quantity
-            + ls_check-component_unconfirmed_quantity
+          OR ls_check-component_unconfirmed_quantity < 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF sum_stock_quantities(
+          iv_left_quantity  = ls_check-confirmed_base_quantity
+          iv_right_quantity = ls_check-unconfirmed_base_quantity )
+            <> ls_check-cumulative_base_quantity
+          OR sum_stock_quantities(
+            iv_left_quantity  = ls_check-component_confirmed_quantity
+            iv_right_quantity =
+              ls_check-component_unconfirmed_quantity )
             <> ls_check-requested_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -1628,15 +2084,15 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ENDIF.
 
       ADD 1 TO <ls_summary>-component_count.
-      <ls_summary>-requested_base_quantity =
-        <ls_summary>-requested_base_quantity
-          + ls_check-requested_base_quantity.
-      <ls_summary>-confirmed_base_quantity =
-        <ls_summary>-confirmed_base_quantity
-          + ls_check-component_confirmed_quantity.
-      <ls_summary>-unconfirmed_base_quantity =
-        <ls_summary>-unconfirmed_base_quantity
-          + ls_check-component_unconfirmed_quantity.
+      <ls_summary>-requested_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-requested_base_quantity
+        iv_right_quantity = ls_check-requested_base_quantity ).
+      <ls_summary>-confirmed_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-confirmed_base_quantity
+        iv_right_quantity = ls_check-component_confirmed_quantity ).
+      <ls_summary>-unconfirmed_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-unconfirmed_base_quantity
+        iv_right_quantity = ls_check-component_unconfirmed_quantity ).
 
       IF <ls_summary>-first_required_date IS INITIAL
           OR ls_check-component-required_date <
@@ -2051,9 +2507,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           OR ls_shortage-affected_order_count < 0
           OR ls_shortage-requested_base_quantity < 0
           OR ls_shortage-allocated_base_quantity < 0
-          OR ls_shortage-shortfall_base_quantity <= 0
-          OR ls_shortage-allocated_base_quantity
-            + ls_shortage-shortfall_base_quantity
+          OR ls_shortage-shortfall_base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF sum_stock_quantities(
+          iv_left_quantity  = ls_shortage-allocated_base_quantity
+          iv_right_quantity = ls_shortage-shortfall_base_quantity )
             <> ls_shortage-requested_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -2472,15 +2931,15 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       <ls_month_shortage>-affected_order_count =
         <ls_month_shortage>-affected_order_count
           + ls_shortage-affected_order_count.
-      <ls_month_shortage>-requested_base_quantity =
-        <ls_month_shortage>-requested_base_quantity
-          + ls_shortage-requested_base_quantity.
-      <ls_month_shortage>-allocated_base_quantity =
-        <ls_month_shortage>-allocated_base_quantity
-          + ls_shortage-allocated_base_quantity.
-      <ls_month_shortage>-shortfall_base_quantity =
-        <ls_month_shortage>-shortfall_base_quantity
-          + ls_shortage-shortfall_base_quantity.
+      <ls_month_shortage>-requested_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_month_shortage>-requested_base_quantity
+        iv_right_quantity = ls_shortage-requested_base_quantity ).
+      <ls_month_shortage>-allocated_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_month_shortage>-allocated_base_quantity
+        iv_right_quantity = ls_shortage-allocated_base_quantity ).
+      <ls_month_shortage>-shortfall_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_month_shortage>-shortfall_base_quantity
+        iv_right_quantity = ls_shortage-shortfall_base_quantity ).
     ENDLOOP.
 
     LOOP AT lt_receipt_ordered_shortages INTO DATA(ls_month_member).
@@ -2523,9 +2982,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           lot_size_period_start =
             <ls_month_shortage>-lot_size_period_start
           receipt_date          = <ls_projected_receipt>-receipt_date
-          quantity              = CONV mard-labst(
-            CONV decfloat34(
-              CONV string( lv_month_receipt_usage_milli ) ) / 1000 )
+          quantity              = milli_to_stock_quantity(
+            iv_quantity_milli = lv_month_receipt_usage_milli )
           source_type           = <ls_projected_receipt>-source_type
           source_document       = <ls_projected_receipt>-source_document
           source_item           = <ls_projected_receipt>-source_item
@@ -2817,9 +3275,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           ENDIF.
           APPEND VALUE #(
             receipt_date         = <ls_projected_receipt>-receipt_date
-            quantity             = CONV mard-labst(
-              CONV decfloat34(
-                CONV string( lv_receipt_usage_milli ) ) / 1000 )
+            quantity             = milli_to_stock_quantity(
+            iv_quantity_milli = lv_receipt_usage_milli )
             source_type          = <ls_projected_receipt>-source_type
             source_document      = <ls_projected_receipt>-source_document
             source_item          = <ls_projected_receipt>-source_item
@@ -2995,25 +3452,21 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         lv_final_receipt_milli = lv_rounded_final_milli.
       ENDIF.
 
-      DATA(lv_suggested_quantity) = CONV mard-labst(
-        CONV decfloat34( CONV string( lv_target_milli ) ) / 1000 ).
-      DATA(lv_final_receipt_quantity) = CONV mard-labst(
-        CONV decfloat34( CONV string( lv_final_receipt_milli ) ) / 1000 ).
-      DATA(lv_planning_shortfall_quantity) = CONV mard-labst(
-        CONV decfloat34(
-          CONV string( lv_planning_shortfall_milli ) ) / 1000 ).
-      DATA(lv_prior_surplus_used_quantity) = CONV mard-labst(
-        CONV decfloat34(
-          CONV string( lv_prior_surplus_used_milli ) ) / 1000 ).
-      DATA(lv_receipt_used_quantity) = CONV mard-labst(
-        CONV decfloat34(
-          CONV string( lv_receipt_used_milli ) ) / 1000 ).
+      DATA(lv_suggested_quantity) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_target_milli ).
+      DATA(lv_final_receipt_quantity) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_final_receipt_milli ).
+      DATA(lv_planning_shortfall_quantity) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_planning_shortfall_milli ).
+      DATA(lv_prior_surplus_used_quantity) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_prior_surplus_used_milli ).
+      DATA(lv_receipt_used_quantity) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_receipt_used_milli ).
       DATA(lv_rounding_surplus_milli) = lv_available_surplus_milli
         - lv_prior_surplus_used_milli + lv_target_milli
         - lv_planning_shortfall_milli.
-      DATA(lv_round_surplus_qty) = CONV mard-labst(
-        CONV decfloat34(
-          CONV string( lv_rounding_surplus_milli ) ) / 1000 ).
+      DATA(lv_round_surplus_qty) = milli_to_stock_quantity(
+            iv_quantity_milli = lv_rounding_surplus_milli ).
       CLEAR ls_timing.
       IF lv_planning_shortfall_milli = 0.
         IF lv_receipt_used_milli > 0
@@ -3200,9 +3653,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           OR ls_shortage-affected_order_count < 0
           OR ls_shortage-requested_base_quantity < 0
           OR ls_shortage-allocated_base_quantity < 0
-          OR ls_shortage-shortfall_base_quantity <= 0
-          OR ls_shortage-allocated_base_quantity
-            + ls_shortage-shortfall_base_quantity
+          OR ls_shortage-shortfall_base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF sum_stock_quantities(
+          iv_left_quantity  = ls_shortage-allocated_base_quantity
+          iv_right_quantity = ls_shortage-shortfall_base_quantity )
             <> ls_shortage-requested_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.

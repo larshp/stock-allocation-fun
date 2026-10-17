@@ -99,14 +99,73 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
     rv_quantity = mv_date_available_stock.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_date_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id         = ls_request-request_id
+        material           = ls_request-material
+        plant              = ls_request-plant
+        required_date      = ls_request-required_date
+        available_quantity =
+          zif_stock_repository~get_available_stock_by_date(
+            iv_material                    = ls_request-material
+            iv_plant                       = ls_request-plant
+            iv_required_date               = ls_request-required_date
+            it_excluded_reservations       = it_excluded_reservations
+            iv_include_po_receipts         = iv_include_po_receipts
+            iv_include_sto_in_transit      = iv_include_sto_in_transit
+            iv_include_unissued_sto        = iv_include_unissued_sto
+            iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+            iv_include_prod_receipts       = iv_include_prod_receipts
+            iv_include_pr_receipts         = iv_include_pr_receipts
+            iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+            iv_include_planned_receipts    = iv_include_planned_receipts
+            iv_include_fixed_planned       = iv_include_fixed_planned
+            iv_include_sched_agmt_receipts =
+              iv_include_sched_agmt_receipts ) )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_projected_receipts.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_projected_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        through_date = ls_request-through_date ) TO rt_results.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_po_confirmed_receipts.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_po_confirmed_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        through_date = ls_request-through_date ) TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     ADD 1 TO mv_read_count.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_safety_stock_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
@@ -139,11 +198,19 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
   METHOD zif_stock_repository~get_location_stock_status_bulk.
     ADD 1 TO mv_read_count.
     LOOP AT it_requests INTO DATA(ls_request).
-      APPEND VALUE #(
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_stock_location_bulk_result(
         request_id = ls_request-request_id
         material   = ls_request-material
-        plant      = ls_request-plant )
-        TO rt_status.
+        plant      = ls_request-plant ).
+      LOOP AT mt_location_stock INTO DATA(ls_location_stock).
+        APPEND VALUE #(
+          storage_location           = ls_location_stock-storage_location
+          unrestricted_quantity      = ls_location_stock-available_quantity
+          available_unrestricted_qty = ls_location_stock-available_quantity )
+          TO ls_result-locations.
+      ENDLOOP.
+      APPEND ls_result TO rt_status.
     ENDLOOP.
   ENDMETHOD.
 
@@ -153,11 +220,22 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
 
   METHOD zif_stock_repository~get_batch_stock_status_bulk.
     ADD 1 TO mv_read_count.
+    DATA lt_batch_status TYPE zif_stock_repository=>ty_batch_stock_statuses.
+    LOOP AT mt_batch_stock INTO DATA(ls_batch_stock).
+      APPEND VALUE #(
+        storage_location      = ls_batch_stock-storage_location
+        batch                 = ls_batch_stock-batch
+        expiration_date       = ls_batch_stock-expiration_date
+        unrestricted_quantity = ls_batch_stock-available_quantity
+        available_quantity    = ls_batch_stock-available_quantity )
+        TO lt_batch_status.
+    ENDLOOP.
     LOOP AT it_requests INTO DATA(ls_request).
       APPEND VALUE #(
         request_id = ls_request-request_id
         material   = ls_request-material
-        plant      = ls_request-plant )
+        plant      = ls_request-plant
+        batches    = lt_batch_status )
         TO rt_status.
     ENDLOOP.
   ENDMETHOD.
@@ -170,6 +248,21 @@ CLASS lcl_cost_center_stock_repo IMPLEMENTATION.
   METHOD zif_stock_repository~get_stock_by_batch.
     ADD 1 TO mv_read_count.
     rt_stock = mt_batch_stock.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_reservations.
+    ADD 1 TO mv_read_count.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_res_bulk.
+    ADD 1 TO mv_read_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 
@@ -504,6 +597,7 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_bad_cc_bulk_rows FOR TESTING.
     METHODS empty_cc_reservations_bulk FOR TESTING.
     METHODS rejects_bad_cc_read_row FOR TESTING.
+    METHODS rejects_cc_sum_overflow FOR TESTING.
     METHODS rejects_duplicate_cc_items FOR TESTING.
     METHODS rejects_blank_cc_read FOR TESTING.
     METHODS previews_cost_center_demands FOR TESTING.
@@ -843,6 +937,30 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_reservation_reader->get_bulk_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_cc_sum_overflow.
+    mo_reservation_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '0000004711'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '9999999999.999'
+          withdrawn_quantity = '9999999999.999'
+          open_quantity      = '9999999999.999' ) ) ).
+
+    DATA(ls_result) = mo_cut->read_cost_center_reservations(
+      iv_cost_center = 'COST-100' ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-reservations ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Cost-center reservation reader returned invalid item data'
+      act = ls_result-messages[ 1 ]-message ).
   ENDMETHOD.
 
   METHOD rejects_bad_cc_read_row.

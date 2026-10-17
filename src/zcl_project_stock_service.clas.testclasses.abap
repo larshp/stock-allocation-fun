@@ -150,6 +150,10 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS setup.
     METHODS reads_project_available_stock FOR TESTING.
     METHODS reads_available_stock_in_unit FOR TESTING.
+    METHODS rejects_stock_uom_overflow FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_stock_uom_rounding FOR TESTING
+      RAISING cx_static_check.
     METHODS rejects_unknown_stock_unit FOR TESTING.
     METHODS reads_stock_bulk_by_date FOR TESTING.
     METHODS rejects_bad_stock_bulk FOR TESTING.
@@ -167,7 +171,13 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS rejects_invalid_location_date FOR TESTING.
     METHODS rejects_invalid_transfer_dates FOR TESTING.
     METHODS summarizes_wbs_resv_coverage FOR TESTING.
+    METHODS rejects_cov_stock_overflow FOR TESTING
+      RAISING cx_static_check.
     METHODS reads_wbs_coverage_uom FOR TESTING.
+    METHODS rejects_coverage_uom_overflow FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_coverage_uom_rounding FOR TESTING
+      RAISING cx_static_check.
     METHODS rejects_unknown_coverage_uom FOR TESTING.
     METHODS reads_coverage_bulk_uom FOR TESTING.
     METHODS rejects_bad_coverage_uom FOR TESTING.
@@ -375,6 +385,62 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 7
       act = mo_uom_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_stock_uom_overflow.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '9999999999.999' ) ) ).
+    mo_uom_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 99999 ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->read_available_stock_bulk_uom(
+          it_requests = VALUE #( (
+            request_id     = 'STOCK-RANGE'
+            material       = 'MAT-1'
+            plant          = '1000'
+            wbs_element    = 'PRJ-100-001'
+            requested_unit = 'BOX' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_stock_uom_rounding.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '0.001' ) ) ).
+    mo_uom_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->read_available_stock_bulk_uom(
+          it_requests = VALUE #( (
+            request_id     = 'STOCK-ROUND'
+            material       = 'MAT-1'
+            plant          = '1000'
+            wbs_element    = 'PRJ-100-001'
+            requested_unit = 'BOX' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
   ENDMETHOD.
 
   METHOD rejects_unknown_stock_unit.
@@ -1193,6 +1259,30 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = lt_coverage[ 2 ]-is_fully_covered ).
   ENDMETHOD.
 
+  METHOD rejects_cov_stock_overflow.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '9999999999.999' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '9999999999.999' ) ) ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->read_reservation_coverage(
+          it_wbs_elements = VALUE #( ( 'PRJ-100-001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
   METHOD reads_wbs_coverage_uom.
     mo_repository->set_stocks( it_stocks = VALUE #(
       ( material              = 'MAT-1'
@@ -1242,6 +1332,62 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_coverage-is_fully_covered ).
+  ENDMETHOD.
+
+  METHOD rejects_coverage_uom_overflow.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '9999999999.999' ) ) ).
+    mo_uom_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 99999 ).
+    DATA lv_rejected TYPE abap_bool.
+    DATA ls_coverage TYPE
+      zcl_project_stock_service=>ty_reservation_coverage_in_unit.
+
+    TRY.
+        ls_coverage = mo_cut->read_reservation_coverage_uom(
+          iv_material    = 'MAT-1'
+          iv_plant       = '1000'
+          iv_wbs_element = 'PRJ-100-001'
+          iv_unit        = 'BOX' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_coverage_uom_rounding.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '0.001' ) ) ).
+    mo_uom_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA lv_rejected TYPE abap_bool.
+    DATA ls_coverage TYPE
+      zcl_project_stock_service=>ty_reservation_coverage_in_unit.
+
+    TRY.
+        ls_coverage = mo_cut->read_reservation_coverage_uom(
+          iv_material    = 'MAT-1'
+          iv_plant       = '1000'
+          iv_wbs_element = 'PRJ-100-001'
+          iv_unit        = 'BOX' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
   ENDMETHOD.
 
   METHOD rejects_unknown_coverage_uom.

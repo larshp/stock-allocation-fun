@@ -297,7 +297,9 @@ CLASS zcl_stock_transfer_service DEFINITION
         iv_numerator       TYPE marm-umrez
         iv_denominator     TYPE marm-umren
       RETURNING
-        VALUE(rv_quantity) TYPE mard-labst.
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
 ENDCLASS.
 
 CLASS zcl_stock_transfer_service IMPLEMENTATION.
@@ -928,10 +930,21 @@ CLASS zcl_stock_transfer_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD convert_transfer_quantity.
-    rv_quantity = CONV mard-labst(
-      CONV decfloat34( iv_base_quantity )
-      * CONV decfloat34( iv_denominator )
-      / CONV decfloat34( iv_numerator ) ).
+    IF iv_numerator <= 0 OR iv_denominator <= 0.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    TRY.
+        rv_quantity = CONV mard-labst(
+          CONV decfloat34( iv_base_quantity )
+          * CONV decfloat34( iv_denominator )
+          / CONV decfloat34( iv_numerator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+    IF iv_base_quantity <> 0 AND rv_quantity IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.

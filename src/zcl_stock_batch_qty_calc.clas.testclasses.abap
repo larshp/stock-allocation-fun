@@ -7,6 +7,8 @@ CLASS ltcl_stock_batch_qty_calc DEFINITION FINAL
     METHODS spreads_unassigned_batch FOR TESTING.
     METHODS spreads_unassigned_location FOR TESTING.
     METHODS clamps_overreserved_batch FOR TESTING.
+    METHODS nets_negative_batch_stock FOR TESTING.
+    METHODS nets_large_negative_batch FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_batch_qty_calc IMPLEMENTATION.
@@ -78,6 +80,25 @@ CLASS ltcl_stock_batch_qty_calc IMPLEMENTATION.
       act = lt_result[ 1 ]-available_quantity ).
   ENDMETHOD.
 
+  METHOD nets_negative_batch_stock.
+    DATA(lo_cut) = NEW zcl_stock_batch_qty_calc( ).
+    DATA(lt_result) = lo_cut->calculate(
+      it_stock        = VALUE #(
+        ( storage_location = '0001' batch = 'B-1' quantity = '100.000' )
+        ( storage_location = '0001' batch = 'B-9' quantity = '-10.000' ) )
+      it_reservations = VALUE #( ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_result ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-1'
+      act = lt_result[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '90.000' )
+      act = lt_result[ 1 ]-available_quantity ).
+  ENDMETHOD.
+
   METHOD clamps_overreserved_batch.
     DATA(lo_cut) = NEW zcl_stock_batch_qty_calc( ).
     DATA(lt_result) = lo_cut->calculate(
@@ -89,6 +110,23 @@ CLASS ltcl_stock_batch_qty_calc IMPLEMENTATION.
           batch              = 'B-1'
           required_quantity  = '10.000'
           withdrawn_quantity = '0.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_result ) ).
+  ENDMETHOD.
+
+  METHOD nets_large_negative_batch.
+    DATA(lo_cut) = NEW zcl_stock_batch_qty_calc( ).
+    DATA(lt_result) = lo_cut->calculate(
+      it_stock        = VALUE #(
+        ( storage_location = '0001' batch = 'B-1'
+          quantity         = '9999999999.999' )
+        ( storage_location = '0001' batch = 'B-9'
+          quantity         = '-9999999999.999' )
+        ( storage_location = '0002' batch = 'B-9'
+          quantity         = '-9999999999.999' ) )
+      it_reservations = VALUE #( ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 0

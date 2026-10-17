@@ -23,6 +23,7 @@ CLASS ltcl_so_stock_service DEFINITION FINAL
     METHODS setup.
     METHODS set_fefo_stock.
     METHODS nets_open_reservations FOR TESTING.
+    METHODS rejects_stock_total_overflow FOR TESTING.
     METHODS nets_reservations_through_date FOR TESTING.
     METHODS rejects_bad_cutoff FOR TESTING.
     METHODS reads_stock_in_unit FOR TESTING.
@@ -1262,6 +1263,79 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV resb-bdmng( '3.000' )
       act = lt_results[ 1 ]-open_reservations[ 1 ]-open_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_stock_total_overflow.
+    DATA lv_stock_overflow_rejected TYPE abap_bool.
+    DATA lv_res_overflow_rejected TYPE abap_bool.
+    DATA(lt_requests) = VALUE zcl_so_stock_service=>ty_requests( (
+      request_id     = 'SO-RANGE'
+      sales_document = '0000001000'
+      item_number    = '000010'
+      material       = 'MAT-1'
+      plant          = '1000' ) ).
+    mo_repository->base_units = VALUE #(
+      ( material = 'MAT-1' base_unit = 'EA' ) ).
+    mo_repository->stocks = VALUE #(
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        base_unit        = 'EA'
+        quantity         = '9999999999.999' )
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0002'
+        base_unit        = 'EA'
+        quantity         = '9999999999.999' ) ).
+    TRY.
+        mo_service->read_stock_bulk( lt_requests ).
+      CATCH zcx_invalid_stock_request.
+        lv_stock_overflow_rejected = abap_true.
+    ENDTRY.
+
+    mo_repository->stocks = VALUE #(
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        base_unit        = 'EA'
+        quantity         = '10.000' ) ).
+    mo_repository->reservations = VALUE #(
+      ( sales_document     = '0000001000'
+        item_number        = '000010'
+        material           = 'MAT-1'
+        plant              = '1000'
+        reservation_number = '0000001301'
+        reservation_item   = '0001'
+        required_quantity  = '9999999999.999'
+        withdrawn_quantity = '0.000'
+        base_unit          = 'EA' )
+      ( sales_document     = '0000001000'
+        item_number        = '000010'
+        material           = 'MAT-1'
+        plant              = '1000'
+        reservation_number = '0000001302'
+        reservation_item   = '0001'
+        required_quantity  = '9999999999.999'
+        withdrawn_quantity = '0.000'
+        base_unit          = 'EA' ) ).
+    TRY.
+        mo_service->read_stock_bulk( lt_requests ).
+      CATCH zcx_invalid_stock_request.
+        lv_res_overflow_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_stock_overflow_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_res_overflow_rejected ).
   ENDMETHOD.
 
   METHOD nets_reservations_through_date.

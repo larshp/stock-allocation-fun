@@ -40,10 +40,17 @@ CLASS zcl_material_uom_converter IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result-base_quantity = CONV mard-labst(
-      CONV decfloat34( iv_quantity )
-      * CONV decfloat34( iv_numerator )
-      / CONV decfloat34( iv_denominator ) ).
+    TRY.
+        rs_result-base_quantity = CONV mard-labst(
+          CONV decfloat34( iv_quantity )
+          * CONV decfloat34( iv_numerator )
+          / CONV decfloat34( iv_denominator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RETURN.
+    ENDTRY.
+    IF iv_quantity <> 0 AND rs_result-base_quantity IS INITIAL.
+      RETURN.
+    ENDIF.
     rs_result-is_successful = abap_true.
   ENDMETHOD.
 
@@ -61,10 +68,17 @@ CLASS zcl_material_uom_converter IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result-base_quantity = CONV mard-labst(
-      CONV decfloat34( iv_quantity )
-      * CONV decfloat34( ls_unit_ratio-numerator )
-      / CONV decfloat34( ls_unit_ratio-denominator ) ).
+    TRY.
+        rs_result-base_quantity = CONV mard-labst(
+          CONV decfloat34( iv_quantity )
+          * CONV decfloat34( ls_unit_ratio-numerator )
+          / CONV decfloat34( ls_unit_ratio-denominator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RETURN.
+    ENDTRY.
+    IF iv_quantity <> 0 AND rs_result-base_quantity IS INITIAL.
+      RETURN.
+    ENDIF.
     rs_result-is_successful = abap_true.
   ENDMETHOD.
 
@@ -110,10 +124,18 @@ CLASS zcl_material_uom_converter IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result-alternative_quantity = CONV mard-labst(
-      CONV decfloat34( iv_base_quantity )
-      * CONV decfloat34( ls_unit_ratio-denominator )
-      / CONV decfloat34( ls_unit_ratio-numerator ) ).
+    TRY.
+        rs_result-alternative_quantity = CONV mard-labst(
+          CONV decfloat34( iv_base_quantity )
+          * CONV decfloat34( ls_unit_ratio-denominator )
+          / CONV decfloat34( ls_unit_ratio-numerator ) ).
+      CATCH cx_sy_conversion_overflow.
+        RETURN.
+    ENDTRY.
+    IF iv_base_quantity <> 0
+        AND rs_result-alternative_quantity IS INITIAL.
+      RETURN.
+    ENDIF.
     rs_result-is_successful = abap_true.
   ENDMETHOD.
 

@@ -17,6 +17,7 @@ ENDCLASS.
 CLASS zcl_pr_open_qty_calc IMPLEMENTATION.
   METHOD calculate_open_base_quantity.
     IF iv_requested_quantity <= 0
+        OR iv_ordered_quantity < 0
         OR iv_ordered_quantity >= iv_requested_quantity
         OR iv_unit_to_base_num <= 0
         OR iv_unit_to_base_denom <= 0.

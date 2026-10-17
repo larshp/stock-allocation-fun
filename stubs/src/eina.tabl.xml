@@ -39,9 +39,9 @@
           <FIELDNAME>MATNR</FIELDNAME>
           <POSITION>0003</POSITION>
           <DATATYPE>CHAR</DATATYPE>
-          <LENG>000018</LENG>
+          <LENG>000040</LENG>
           <INTTYPE>C</INTTYPE>
-          <INTLEN>000036</INTLEN>
+          <INTLEN>000080</INTLEN>
         </DD03P>
         <DD03P>
           <FIELDNAME>LIFNR</FIELDNAME>

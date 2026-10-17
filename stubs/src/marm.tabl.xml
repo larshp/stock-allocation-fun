@@ -11,8 +11,17 @@
       </DD02V>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>MATNR</FIELDNAME>
+          <FIELDNAME>MANDT</FIELDNAME>
           <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000040</LENG>
@@ -21,7 +30,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>MEINH</FIELDNAME>
-          <POSITION>0002</POSITION>
+          <POSITION>0003</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>UNIT</DATATYPE>
           <LENG>000003</LENG>
@@ -30,7 +39,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>UMREZ</FIELDNAME>
-          <POSITION>0003</POSITION>
+          <POSITION>0004</POSITION>
           <DATATYPE>DEC</DATATYPE>
           <LENG>000005</LENG>
           <DECIMALS>000000</DECIMALS>
@@ -39,7 +48,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>UMREN</FIELDNAME>
-          <POSITION>0004</POSITION>
+          <POSITION>0005</POSITION>
           <DATATYPE>DEC</DATATYPE>
           <LENG>000005</LENG>
           <DECIMALS>000000</DECIMALS>

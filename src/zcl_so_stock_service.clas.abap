@@ -659,6 +659,8 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
     DATA lt_base_units TYPE zif_so_stock_repository=>ty_material_units.
     DATA lt_stock TYPE zif_so_stock_repository=>ty_stock_rows.
     DATA lt_reservations TYPE zif_so_stock_repository=>ty_reservation_rows.
+    DATA lv_unrestricted_total TYPE decfloat34.
+    DATA lv_reserved_total TYPE decfloat34.
 
     IF it_requests IS INITIAL.
       RETURN.
@@ -758,13 +760,14 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         reservation_through_date = ls_request-reservation_through_date
         base_unit                = lt_base_units[
           material = ls_request-material ]-base_unit ).
+      CLEAR: lv_unrestricted_total, lv_reserved_total.
 
       LOOP AT lt_stock INTO ls_stock
           WHERE sales_document = ls_request-sales_document
             AND item_number = ls_request-item_number
             AND material = ls_request-material
             AND plant = ls_request-plant.
-        ls_result-unrestricted_qty += ls_stock-quantity.
+        lv_unrestricted_total += CONV decfloat34( ls_stock-quantity ).
         APPEND ls_stock TO ls_result-stock_balances.
       ENDLOOP.
 
@@ -783,12 +786,21 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
               OR ls_reservation-required_date IS INITIAL
               OR ls_reservation-required_date
                 <= ls_request-reservation_through_date.
-            ls_result-reserved_quantity +=
-              ls_open_reservation-open_quantity.
+            lv_reserved_total += CONV decfloat34(
+              ls_open_reservation-open_quantity ).
           ENDIF.
           APPEND ls_open_reservation TO ls_result-open_reservations.
         ENDIF.
       ENDLOOP.
+
+      TRY.
+          ls_result-unrestricted_qty = CONV mska-kalab(
+            lv_unrestricted_total ).
+          ls_result-reserved_quantity = CONV resb-bdmng(
+            lv_reserved_total ).
+        CATCH cx_sy_conversion_overflow.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDTRY.
 
       ls_result-available_quantity = lo_quantity_calculator->calculate(
         iv_unrestricted_quantity = ls_result-unrestricted_qty

@@ -55,6 +55,8 @@ CLASS ltcl_material_uom_converter DEFINITION FINAL
     METHODS returns_material_unit_ratio FOR TESTING.
     METHODS converts_to_alternative_unit FOR TESTING.
     METHODS rejects_unknown_target_unit FOR TESTING.
+    METHODS rejects_quantity_overflow FOR TESTING.
+    METHODS rejects_uom_round_to_zero FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_material_uom_converter IMPLEMENTATION.
@@ -250,5 +252,86 @@ CLASS ltcl_material_uom_converter IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'EA'
       act = ls_result-base_unit ).
+  ENDMETHOD.
+
+  METHOD rejects_quantity_overflow.
+    mo_repository->set_material_data(
+      iv_base_unit = 'EA' ).
+
+    DATA(ls_to_base) = mo_cut->convert_to_base(
+      iv_material    = 'MAT-1'
+      iv_quantity    = '9999999999.999'
+      iv_source_unit = 'BOX'
+      iv_numerator   = 99999
+      iv_denominator = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_to_base-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_to_base-base_unit ).
+
+    mo_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA(ls_material_unit) = mo_cut->convert_material_unit(
+      iv_material    = 'MAT-1'
+      iv_quantity    = '9999999999.999'
+      iv_source_unit = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_material_unit-is_successful ).
+
+    mo_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 99999 ).
+    DATA(ls_from_base) = mo_cut->convert_from_base(
+      iv_material      = 'MAT-1'
+      iv_base_quantity = '9999999999.999'
+      iv_target_unit   = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_from_base-is_successful ).
+  ENDMETHOD.
+
+  METHOD rejects_uom_round_to_zero.
+    mo_repository->set_material_data(
+      iv_base_unit = 'EA' ).
+
+    DATA(ls_to_base) = mo_cut->convert_to_base(
+      iv_material    = 'MAT-1'
+      iv_quantity    = CONV mard-labst( '0.001' )
+      iv_source_unit = 'BOX'
+      iv_numerator   = 1
+      iv_denominator = 1000 ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_to_base-is_successful ).
+
+    mo_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 1000 ).
+    DATA(ls_material_unit) = mo_cut->convert_material_unit(
+      iv_material    = 'MAT-1'
+      iv_quantity    = CONV mard-labst( '0.001' )
+      iv_source_unit = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_material_unit-is_successful ).
+
+    mo_repository->set_alt_unit_ratio(
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1000
+      iv_denominator      = 1 ).
+    DATA(ls_from_base) = mo_cut->convert_from_base(
+      iv_material      = 'MAT-1'
+      iv_base_quantity = CONV mard-labst( '0.001' )
+      iv_target_unit   = 'BOX' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_from_base-is_successful ).
   ENDMETHOD.
 ENDCLASS.

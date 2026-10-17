@@ -40,6 +40,14 @@ CLASS zcl_stock_allocation_factory DEFINITION
       RETURNING
         VALUE(ro_service) TYPE REF TO zcl_so_stock_service.
 
+    CLASS-METHODS create_so_res_read_service
+      RETURNING
+        VALUE(ro_service) TYPE REF TO zcl_so_res_read_service.
+
+    CLASS-METHODS create_so_reservation_service
+      RETURNING
+        VALUE(ro_service) TYPE REF TO zcl_so_reservation_service.
+
     CLASS-METHODS create_project_stock_service
       RETURNING
         VALUE(ro_service) TYPE REF TO zcl_project_stock_service.
@@ -60,9 +68,21 @@ CLASS zcl_stock_allocation_factory DEFINITION
       RETURNING
         VALUE(ro_service) TYPE REF TO zcl_planned_order_service.
 
+    CLASS-METHODS create_planned_read_service
+      RETURNING
+        VALUE(ro_service) TYPE REF TO zcl_planned_order_read_service.
+
     CLASS-METHODS create_prod_order_service
       RETURNING
         VALUE(ro_service) TYPE REF TO zcl_prod_order_service.
+
+    CLASS-METHODS create_prod_comp_service
+      RETURNING
+        VALUE(ro_service) TYPE REF TO zcl_prod_comp_service.
+
+    CLASS-METHODS create_prod_order_read_service
+      RETURNING
+        VALUE(ro_service) TYPE REF TO zcl_prod_order_read_service.
 
     CLASS-METHODS create_preq_service
       RETURNING
@@ -140,6 +160,17 @@ CLASS zcl_stock_allocation_factory IMPLEMENTATION.
       io_repository = NEW zcl_so_stock_repository( ) ).
   ENDMETHOD.
 
+  METHOD create_so_res_read_service.
+    ro_service = NEW zcl_so_res_read_service(
+      io_reader = NEW zcl_bapi_so_reservation_api( ) ).
+  ENDMETHOD.
+
+  METHOD create_so_reservation_service.
+    ro_service = NEW zcl_so_reservation_service(
+      io_api                = NEW zcl_bapi_so_reservation_api( )
+      io_reservation_finder = NEW zcl_mard_stock_repository( ) ).
+  ENDMETHOD.
+
   METHOD create_project_stock_service.
     DATA(lo_uom_repository) = NEW zcl_material_uom_repository( ).
     DATA(lo_uom_converter) = NEW zcl_material_uom_converter(
@@ -194,14 +225,28 @@ CLASS zcl_stock_allocation_factory IMPLEMENTATION.
       io_api = NEW zcl_bapi_planned_order_api( ) ).
   ENDMETHOD.
 
+  METHOD create_planned_read_service.
+    ro_service = NEW zcl_planned_order_read_service(
+      io_repository = NEW zcl_plaf_order_read_repo( ) ).
+  ENDMETHOD.
+
   METHOD create_prod_order_service.
-    DATA(lo_component_service) = NEW zcl_prod_comp_service( ).
+    DATA(lo_component_service) = create_prod_comp_service( ).
     DATA(lo_atp_checker) = NEW zcl_prod_order_atp_checker(
       io_component_service = lo_component_service ).
 
     ro_service = NEW zcl_prod_order_service(
       io_api         = NEW zcl_bapi_prod_order_api( )
       io_atp_checker = lo_atp_checker ).
+  ENDMETHOD.
+
+  METHOD create_prod_comp_service.
+    ro_service = NEW zcl_prod_comp_service( ).
+  ENDMETHOD.
+
+  METHOD create_prod_order_read_service.
+    ro_service = NEW zcl_prod_order_read_service(
+      io_repository = NEW zcl_prod_order_read_repo( ) ).
   ENDMETHOD.
 
   METHOD create_preq_service.

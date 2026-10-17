@@ -1544,6 +1544,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA lt_unit_ratios TYPE ty_stock_unit_ratios.
     DATA lt_base_requests TYPE ty_available_stock_requests.
     DATA lt_base_results TYPE ty_available_stock_bulk_items.
+    DATA lv_available_as_unit TYPE decfloat34.
+    DATA lv_converted_quantity TYPE mspr-prlab.
 
     IF it_requests IS INITIAL.
       RETURN.
@@ -1627,6 +1629,20 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         IF ls_base_stock-base_unit <> ls_unit_ratio-result-base_unit.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
+        lv_available_as_unit = CONV decfloat34(
+          ls_base_stock-available_quantity )
+          * CONV decfloat34( ls_unit_ratio-result-denominator )
+          / CONV decfloat34( ls_unit_ratio-result-numerator ).
+        TRY.
+            lv_converted_quantity = CONV mspr-prlab(
+              lv_available_as_unit ).
+          CATCH cx_sy_conversion_overflow.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDTRY.
+        IF ls_base_stock-available_quantity <> 0
+            AND lv_converted_quantity IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
         APPEND VALUE #(
           material           = ls_base_stock-material
           plant              = ls_base_stock-plant
@@ -1634,10 +1650,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
           storage_location   = ls_base_stock-storage_location
           batch              = ls_base_stock-batch
           expiration_date    = ls_base_stock-expiration_date
-          available_quantity = CONV mspr-prlab(
-            CONV decfloat34( ls_base_stock-available_quantity )
-            * CONV decfloat34( ls_unit_ratio-result-denominator )
-            / CONV decfloat34( ls_unit_ratio-result-numerator ) )
+          available_quantity = lv_converted_quantity
           unit               = ls_request-requested_unit
           base_quantity      = ls_base_stock-available_quantity
           base_unit          = ls_base_stock-base_unit )
@@ -1900,9 +1913,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         plant                  TYPE mard-werks,
         wbs_element            TYPE ty_wbs_element,
         base_unit              TYPE mara-meins,
-        project_stock_quantity TYPE mspr-prlab,
-        reserved_quantity      TYPE mspr-prlab,
-        available_quantity     TYPE mspr-prlab,
+        project_stock_quantity TYPE decfloat34,
+        reserved_quantity      TYPE decfloat34,
+        available_quantity     TYPE decfloat34,
         open_reservation_items TYPE i,
       END OF ty_coverage_balance.
     TYPES ty_coverage_balances TYPE HASHED TABLE OF ty_coverage_balance
@@ -1964,8 +1977,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
       ENDIF.
-      ADD ls_project_stock-unrestricted_quantity
-        TO <ls_balance>-project_stock_quantity.
+      <ls_balance>-project_stock_quantity += CONV decfloat34(
+        ls_project_stock-unrestricted_quantity ).
       APPEND ls_project_stock TO lt_eligible_stocks.
     ENDLOOP.
 
@@ -2001,7 +2014,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
-      ADD ls_conversion-base_quantity TO <ls_balance>-reserved_quantity.
+      <ls_balance>-reserved_quantity += CONV decfloat34(
+        ls_conversion-base_quantity ).
       <ls_balance>-open_reservation_items =
         <ls_balance>-open_reservation_items + 1.
       APPEND VALUE #(
@@ -2031,28 +2045,36 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
-      ADD ls_available_stock-unrestricted_quantity
-        TO <ls_balance>-available_quantity.
+      <ls_balance>-available_quantity += CONV decfloat34(
+        ls_available_stock-unrestricted_quantity ).
     ENDLOOP.
 
     LOOP AT lt_balances INTO DATA(ls_balance).
-      DATA(lv_shortfall) = ls_balance-reserved_quantity
+      DATA lv_shortfall TYPE decfloat34.
+      lv_shortfall = ls_balance-reserved_quantity
         - ls_balance-project_stock_quantity.
       IF lv_shortfall < 0.
         CLEAR lv_shortfall.
       ENDIF.
-      APPEND VALUE #(
-        material               = ls_balance-material
-        plant                  = ls_balance-plant
-        wbs_element            = ls_balance-wbs_element
-        base_unit              = ls_balance-base_unit
-        project_stock_quantity = ls_balance-project_stock_quantity
-        reserved_quantity      = ls_balance-reserved_quantity
-        available_quantity     = ls_balance-available_quantity
-        shortfall_quantity     = lv_shortfall
-        open_reservation_items = ls_balance-open_reservation_items
-        is_fully_covered       = xsdbool( lv_shortfall = 0 ) )
-        TO rt_coverage.
+      TRY.
+          APPEND VALUE #(
+            material               = ls_balance-material
+            plant                  = ls_balance-plant
+            wbs_element            = ls_balance-wbs_element
+            base_unit              = ls_balance-base_unit
+            project_stock_quantity = CONV mspr-prlab(
+              ls_balance-project_stock_quantity )
+            reserved_quantity      = CONV mspr-prlab(
+              ls_balance-reserved_quantity )
+            available_quantity     = CONV mspr-prlab(
+              ls_balance-available_quantity )
+            shortfall_quantity     = CONV mspr-prlab( lv_shortfall )
+            open_reservation_items = ls_balance-open_reservation_items
+            is_fully_covered       = xsdbool( lv_shortfall = 0 ) )
+            TO rt_coverage.
+        CATCH cx_sy_conversion_overflow.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDTRY.
     ENDLOOP.
     SORT rt_coverage BY wbs_element material plant.
   ENDMETHOD.
@@ -4662,22 +4684,45 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     rs_coverage-base_reserved_quantity = is_coverage-reserved_quantity.
     rs_coverage-base_available_quantity = is_coverage-available_quantity.
     rs_coverage-base_shortfall_quantity = is_coverage-shortfall_quantity.
-    rs_coverage-project_stock_quantity = CONV mspr-prlab(
-      CONV decfloat34( is_coverage-project_stock_quantity )
+    DATA lv_project_stock TYPE decfloat34.
+    DATA lv_reserved TYPE decfloat34.
+    DATA lv_available TYPE decfloat34.
+    DATA lv_shortfall TYPE decfloat34.
+    lv_project_stock = CONV decfloat34(
+      is_coverage-project_stock_quantity )
       * CONV decfloat34( is_unit_ratio-denominator )
-      / CONV decfloat34( is_unit_ratio-numerator ) ).
-    rs_coverage-reserved_quantity = CONV mspr-prlab(
-      CONV decfloat34( is_coverage-reserved_quantity )
+      / CONV decfloat34( is_unit_ratio-numerator ).
+    lv_reserved = CONV decfloat34( is_coverage-reserved_quantity )
       * CONV decfloat34( is_unit_ratio-denominator )
-      / CONV decfloat34( is_unit_ratio-numerator ) ).
-    rs_coverage-available_quantity = CONV mspr-prlab(
-      CONV decfloat34( is_coverage-available_quantity )
+      / CONV decfloat34( is_unit_ratio-numerator ).
+    lv_available = CONV decfloat34(
+      is_coverage-available_quantity )
       * CONV decfloat34( is_unit_ratio-denominator )
-      / CONV decfloat34( is_unit_ratio-numerator ) ).
-    rs_coverage-shortfall_quantity = CONV mspr-prlab(
-      CONV decfloat34( is_coverage-shortfall_quantity )
+      / CONV decfloat34( is_unit_ratio-numerator ).
+    lv_shortfall = CONV decfloat34( is_coverage-shortfall_quantity )
       * CONV decfloat34( is_unit_ratio-denominator )
-      / CONV decfloat34( is_unit_ratio-numerator ) ).
+      / CONV decfloat34( is_unit_ratio-numerator ).
+    TRY.
+        rs_coverage-project_stock_quantity =
+          CONV mspr-prlab( lv_project_stock ).
+        rs_coverage-reserved_quantity = CONV mspr-prlab( lv_reserved ).
+        rs_coverage-available_quantity =
+          CONV mspr-prlab( lv_available ).
+        rs_coverage-shortfall_quantity =
+          CONV mspr-prlab( lv_shortfall ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+    IF ( is_coverage-project_stock_quantity <> 0
+          AND rs_coverage-project_stock_quantity IS INITIAL )
+        OR ( is_coverage-reserved_quantity <> 0
+          AND rs_coverage-reserved_quantity IS INITIAL )
+        OR ( is_coverage-available_quantity <> 0
+          AND rs_coverage-available_quantity IS INITIAL )
+        OR ( is_coverage-shortfall_quantity <> 0
+          AND rs_coverage-shortfall_quantity IS INITIAL ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
     rs_coverage-open_reservation_items =
       is_coverage-open_reservation_items.
     rs_coverage-is_fully_covered = is_coverage-is_fully_covered.

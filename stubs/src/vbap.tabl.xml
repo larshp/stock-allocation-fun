@@ -11,8 +11,17 @@
       </DD02V>
       <DD03P_TABLE>
         <DD03P>
-          <FIELDNAME>VBELN</FIELDNAME>
+          <FIELDNAME>MANDT</FIELDNAME>
           <POSITION>0001</POSITION>
+          <KEYFLAG>X</KEYFLAG>
+          <DATATYPE>CLNT</DATATYPE>
+          <LENG>000003</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000006</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>VBELN</FIELDNAME>
+          <POSITION>0002</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000010</LENG>
@@ -21,7 +30,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>POSNR</FIELDNAME>
-          <POSITION>0002</POSITION>
+          <POSITION>0003</POSITION>
           <KEYFLAG>X</KEYFLAG>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000006</LENG>
@@ -30,15 +39,6 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>KWMENG</FIELDNAME>
-          <POSITION>0003</POSITION>
-          <DATATYPE>QUAN</DATATYPE>
-          <LENG>000013</LENG>
-          <DECIMALS>000003</DECIMALS>
-          <INTTYPE>P</INTTYPE>
-          <INTLEN>000008</INTLEN>
-        </DD03P>
-        <DD03P>
-          <FIELDNAME>VSMNG</FIELDNAME>
           <POSITION>0004</POSITION>
           <DATATYPE>QUAN</DATATYPE>
           <LENG>000013</LENG>
@@ -47,8 +47,17 @@
           <INTLEN>000008</INTLEN>
         </DD03P>
         <DD03P>
-          <FIELDNAME>MATNR</FIELDNAME>
+          <FIELDNAME>VSMNG</FIELDNAME>
           <POSITION>0005</POSITION>
+          <DATATYPE>QUAN</DATATYPE>
+          <LENG>000013</LENG>
+          <DECIMALS>000003</DECIMALS>
+          <INTTYPE>P</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MATNR</FIELDNAME>
+          <POSITION>0006</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000040</LENG>
           <INTTYPE>C</INTTYPE>
@@ -56,7 +65,7 @@
         </DD03P>
         <DD03P>
           <FIELDNAME>WERKS</FIELDNAME>
-          <POSITION>0006</POSITION>
+          <POSITION>0007</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000004</LENG>
           <INTTYPE>C</INTTYPE>

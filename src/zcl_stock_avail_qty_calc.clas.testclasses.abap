@@ -8,6 +8,7 @@ CLASS ltcl_stock_avail_qty_calc DEFINITION FINAL
     METHODS ignores_negative_reservations FOR TESTING.
     METHODS clamps_negative_physical_stock FOR TESTING.
     METHODS subtracts_safety_stock FOR TESTING.
+    METHODS clamps_open_reservation FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_stock_avail_qty_calc IMPLEMENTATION.
@@ -70,6 +71,24 @@ CLASS ltcl_stock_avail_qty_calc IMPLEMENTATION.
       act = lo_cut->calculate_with_safety_stock(
         iv_available_quantity    = '8.000'
         iv_safety_stock_quantity = '-2.000' ) ).
+  ENDMETHOD.
+
+  METHOD clamps_open_reservation.
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '3.000' )
+      act = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+        iv_required_quantity  = '5.000'
+        iv_withdrawn_quantity = '2.000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '0.000' )
+      act = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+        iv_required_quantity  = '5.000'
+        iv_withdrawn_quantity = '5.000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '0.000' )
+      act = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+        iv_required_quantity  = '3.000'
+        iv_withdrawn_quantity = '7.000' ) ).
   ENDMETHOD.
 
 ENDCLASS.

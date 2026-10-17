@@ -22,6 +22,12 @@ CLASS lcl_transfer_uom_repo_double IMPLEMENTATION.
     IF iv_alternative_unit = 'BOX'.
       rs_ratio-numerator = 12.
       rs_ratio-denominator = 1.
+    ELSEIF iv_alternative_unit = 'BIG'.
+      rs_ratio-numerator = 1.
+      rs_ratio-denominator = 99999.
+    ELSEIF iv_alternative_unit = 'SML'.
+      rs_ratio-numerator = 99999.
+      rs_ratio-denominator = 1.
     ENDIF.
   ENDMETHOD.
 ENDCLASS.
@@ -162,6 +168,7 @@ CLASS ltcl_stock_transfer_service DEFINITION FINAL
     METHODS rejects_dup_batch_uom FOR TESTING.
     METHODS empty_batch_uom_skips_reads FOR TESTING.
     METHODS returns_transfer_in_unit FOR TESTING.
+    METHODS rejects_transfer_uom_limits FOR TESTING.
     METHODS returns_batch_transfer FOR TESTING.
     METHODS returns_batch_transfer_in_unit FOR TESTING.
     METHODS aggregates_without_location FOR TESTING.
@@ -696,6 +703,42 @@ CLASS ltcl_stock_transfer_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_transfer_uom_limits.
+    DATA lv_exception_raised TYPE abap_bool.
+    mo_repository->set_balance(
+      is_balance = VALUE #(
+        plant_transfer_quantity = '9999999.999' ) ).
+    TRY.
+        mo_cut->get_stock_in_transfer_in_unit(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = space
+          iv_unit             = 'BIG' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    mo_repository->set_balance(
+      is_balance = VALUE #(
+        plant_transfer_quantity = '1.000' ) ).
+    TRY.
+        mo_cut->get_stock_in_transfer_in_unit(
+          iv_material         = 'MAT-1'
+          iv_plant            = '1000'
+          iv_storage_location = space
+          iv_unit             = 'SML' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
   ENDMETHOD.
 
   METHOD returns_batch_transfer.

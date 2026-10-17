@@ -152,6 +152,22 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000006</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>LGORT</FIELDNAME>
+          <POSITION>0017</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>CHARG</FIELDNAME>
+          <POSITION>0018</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

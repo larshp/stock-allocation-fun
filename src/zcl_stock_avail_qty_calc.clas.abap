@@ -4,6 +4,13 @@ CLASS zcl_stock_avail_qty_calc DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    CLASS-METHODS calculate_open_res_qty
+      IMPORTING
+        iv_required_quantity  TYPE resb-bdmng
+        iv_withdrawn_quantity TYPE resb-enmng
+      RETURNING
+        VALUE(rv_quantity)    TYPE resb-bdmng.
+
     METHODS calculate
       IMPORTING
         iv_unrestricted_quantity TYPE mard-labst
@@ -20,6 +27,13 @@ CLASS zcl_stock_avail_qty_calc DEFINITION
 ENDCLASS.
 
 CLASS zcl_stock_avail_qty_calc IMPLEMENTATION.
+
+  METHOD calculate_open_res_qty.
+    rv_quantity = iv_required_quantity - iv_withdrawn_quantity.
+    IF rv_quantity <= 0.
+      CLEAR rv_quantity.
+    ENDIF.
+  ENDMETHOD.
 
   METHOD calculate.
     rv_quantity = iv_unrestricted_quantity.

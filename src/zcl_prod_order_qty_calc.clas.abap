@@ -38,6 +38,7 @@ CLASS zcl_prod_order_qty_calc IMPLEMENTATION.
 
   METHOD calculate_open_base_quantity.
     IF iv_order_quantity <= 0
+        OR iv_received_quantity < 0
         OR iv_received_quantity >= iv_order_quantity
         OR iv_order_to_base_num <= 0
         OR iv_order_to_base_denom <= 0.

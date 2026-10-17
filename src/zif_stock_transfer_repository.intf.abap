@@ -77,13 +77,17 @@ INTERFACE zif_stock_transfer_repository PUBLIC.
       iv_plant            TYPE marc-werks
       iv_storage_location TYPE mard-lgort OPTIONAL
       RETURNING
-        VALUE(rs_balance) TYPE ty_balance.
+        VALUE(rs_balance) TYPE ty_balance
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_stock_in_transfer_bulk
     IMPORTING
       it_requests       TYPE ty_transfer_requests
     RETURNING
-      VALUE(rt_results) TYPE ty_transfer_results.
+      VALUE(rt_results) TYPE ty_transfer_results
+    RAISING
+      zcx_invalid_stock_request.
 
   METHODS get_transfer_locations_bulk
     IMPORTING

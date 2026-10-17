@@ -728,6 +728,13 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
 
   METHOD read_cc_reservations_bulk.
     TYPES ty_seen_cost_center TYPE rkpf-kostl.
+    TYPES:
+      BEGIN OF ty_reservation_position,
+        cost_center TYPE rkpf-kostl,
+        row_number  TYPE i,
+      END OF ty_reservation_position.
+    TYPES ty_reservation_positions TYPE SORTED TABLE OF
+      ty_reservation_position WITH UNIQUE KEY cost_center row_number.
     DATA lt_seen_cost_centers TYPE HASHED TABLE OF ty_seen_cost_center
       WITH UNIQUE KEY table_line.
     DATA lt_requested_cost_centers TYPE HASHED TABLE OF
@@ -735,6 +742,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     DATA lt_reservations TYPE zif_cc_reservation_read_repo=>ty_reservations.
     DATA lt_center_reservations TYPE
       zif_cc_reservation_read_repo=>ty_reservations.
+    DATA lt_reservation_positions TYPE ty_reservation_positions.
+    DATA lv_reservation_row_number TYPE i.
+    DATA ls_center_reservation TYPE
+      zif_cc_reservation_read_repo=>ty_reservation.
 
     rs_result-is_successful = abap_true.
     IF it_cost_centers IS INITIAL.
@@ -753,6 +764,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_cost_centers = it_cost_centers ).
 
     LOOP AT lt_reservations INTO DATA(ls_returned_reservation).
+      lv_reservation_row_number = sy-tabix.
       READ TABLE lt_requested_cost_centers TRANSPORTING NO FIELDS
         WITH TABLE KEY table_line = ls_returned_reservation-cost_center.
       IF sy-subrc <> 0.
@@ -764,14 +776,31 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         CLEAR rs_result-items.
         RETURN.
       ENDIF.
+      IF lines( it_cost_centers ) > 1.
+        INSERT VALUE #(
+          cost_center = ls_returned_reservation-cost_center
+          row_number  = lv_reservation_row_number )
+          INTO TABLE lt_reservation_positions.
+      ENDIF.
     ENDLOOP.
 
     LOOP AT it_cost_centers INTO lv_cost_center.
       CLEAR lt_center_reservations.
-      LOOP AT lt_reservations INTO DATA(ls_center_reservation)
-          WHERE cost_center = lv_cost_center.
-        APPEND ls_center_reservation TO lt_center_reservations.
-      ENDLOOP.
+      IF lt_reservation_positions IS INITIAL.
+        LOOP AT lt_reservations INTO ls_center_reservation
+            WHERE cost_center = lv_cost_center.
+          APPEND ls_center_reservation TO lt_center_reservations.
+        ENDLOOP.
+      ELSE.
+        LOOP AT lt_reservation_positions INTO DATA(ls_reservation_position)
+            WHERE cost_center = lv_cost_center.
+          READ TABLE lt_reservations INTO ls_center_reservation
+            INDEX ls_reservation_position-row_number.
+          IF sy-subrc = 0.
+            APPEND ls_center_reservation TO lt_center_reservations.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
 
       DATA(ls_center_result) = validate_reservation_read(
         iv_cost_center  = lv_cost_center
@@ -802,9 +831,11 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_reservation-required_quantity <= 0
           OR ls_reservation-withdrawn_quantity < 0
           OR ls_reservation-open_quantity <= 0
-          OR ls_reservation-open_quantity +
-            ls_reservation-withdrawn_quantity <>
-              ls_reservation-required_quantity.
+          OR CONV decfloat34( ls_reservation-open_quantity )
+            + CONV decfloat34(
+              ls_reservation-withdrawn_quantity ) <>
+              CONV decfloat34(
+                ls_reservation-required_quantity ).
         APPEND VALUE #(
           type    = 'E'
           message = 'Cost-center reservation reader returned invalid item data' )

@@ -46,10 +46,15 @@ the same ordering to quality-inspection batch balances. The UOM form returns
 source and base-unit quantities.
 Unit-aware stock allocation rejects a positive requested quantity when its
 conversion rounds to zero in the material base unit, before reading stock.
+The shared material-unit converter also reports an unsuccessful result when a
+nonzero quantity rounds to zero or the conversion exceeds the `MARD-LABST`
+range.
 `ZCL_SO_STOCK_SERVICE` reads stock assigned to a sales document item from
 `MSKA` and nets open special-stock E reservations from `RESB`. Its bulk method
 keeps each sales document/item/material/plant key separate and returns location
 and batch rows with aggregate available quantity in the material base unit.
+Stock and reservation totals accumulate in high precision; totals that do not
+fit their result quantity fields raise `ZCX_INVALID_STOCK_REQUEST`.
 The result also includes the open reservation rows and each row's outstanding
 quantity for audit and explanation. `READ_SALES_ORDER_ITEM` and
 `READ_SALES_ORDER_ITEMS_BULK` resolve material and plant from the sales item,
@@ -202,7 +207,7 @@ Unknown units and missing or nonpositive ratios raise
 units, converts them to base units, and allocates them together in input order.
 Stock is read once per material/plant and shared across those demands; each
 result retains the source quantity/unit and reports its base-unit allocation.
-Repeated material/unit ratios are read once per allocation call.
+Repeated material/unit ratios are read once per allocation call. Unit conversions reject overflow and nonzero source quantities that round to zero at MARD-LABST precision.
 `ALLOCATE_REQUEST`, `ALLOCATE_DEMANDS`, and their unit-aware variants accept
 `iv_require_full_quantity`, defaulting to `abap_false`. When enabled, a demand
 is allocated only when its full base-unit quantity is available after safety
@@ -227,7 +232,9 @@ units.
 `ALLOCATE_ACROSS_PLANTS` accepts base-unit demands and a caller-ordered source
 plant list for each request. It reports availability, allocation, and shortfall
 for the target plant, plus the amount assigned to each source plant and source
-storage location. The optional `it_storage_location_priority` list orders
+storage location. A source plant must differ from that request's target plant;
+same-plant stock belongs in a local allocator, and a same-plant source is
+rejected before stock reads. The optional `it_storage_location_priority` list orders
 locations within each source plant; unlisted locations follow ascending
 `LGORT`. With no list, the existing ascending order remains. Source-plant order
 still takes precedence. Demand order consumes shared source-plant balances; each
@@ -293,7 +300,9 @@ source plants, and results return in input order with priority and source-plant
 splits. It supports the dated PO, issued or unissued STO, and production receipt
 projections plus source safety-stock protection. This is a planning estimate
 and does not return storage-location splits or create a transfer because
-projected receipts have no storage-location assignment.
+projected receipts have no storage-location assignment. All unique
+material/source-plant/date availability scopes are fetched in one repository
+bulk call; confirmation receipts remain a separate batched read.
 `ALLOCATE_PLANTS_BY_DATE_LOC` applies the same date and priority ordering to
 location stock and returns the actual source-plant and storage-location splits
 in caller order. It supports source-plant order, source-location scopes,
@@ -337,6 +346,10 @@ date, and retains the caller-order local demand, plant, and location results.
 It accepts the same optional base-unit `it_projected_receipts` input as the
 local location allocator. ATP remains diagnostic and does not change the local
 location allocation.
+
+ATP groups and cumulative requests use checked high-precision sums. If a grouped
+quantity exceeds the `MARD-LABST` range accepted by the SAP ATP interface, the
+service raises `zcx_invalid_stock_request` before making the ATP call.
 The dated ordinary cross-plant methods and their unit/ATP variants also accept
 `iv_require_full_quantity`. It defaults to `abap_false`; when enabled, each
 date/priority-ordered request consumes stock only when its full quantity is
@@ -354,7 +367,9 @@ quantity field's precision.
 `ALLOCATE_PLANTS_BY_BATCH` keeps the caller-selected batch fixed while
 allocating across the ordered source plants. It returns plant and source
 location splits with batch and expiration details, and never substitutes stock
-from another batch. Caller-resolved `it_projected_batch_receipts` can add
+from another batch. It loads current batch status for all unique
+material/source-plant pairs with one bulk repository call. Caller-resolved
+`it_projected_batch_receipts` can add
 dated quantities for the exact material, source plant, and batch. The undated
 method uses each demand's optional `as_of_date` (defaulting to today), consumes
 shared balances by ascending cutoff date with input order breaking ties, and
@@ -416,6 +431,8 @@ plant and batch/location splits, and can protect static safety stock at each
 source plant. Undated batches are excluded when the minimum shelf life is
 greater than zero. This is a preview based on local stock estimates and does
 not run SAP batch determination or create a transfer.
+Stock for all unique material/source-plant pairs is loaded through one bulk
+repository call before the FEFO split is built.
 Use `ALLOCATE_PLANTS_FEFO_PRIORITY` or `ALLOCATE_PLANTS_FEFO_UOM_PRIO` when
 undated demands sharing source-plant stock need explicit precedence. A higher
 integer priority consumes eligible stock first; input order breaks ties. FEFO
@@ -444,6 +461,8 @@ demand priority. Earlier required dates consume shared batches first. Within
 the same date, higher integer `priority` values consume shared batches first;
 the default zero keeps input order, which also breaks equal-priority ties.
 Results still return in input order with priorities on demand and batch splits.
+Current batch stock for all unique material/source-plant pairs is fetched in one
+bulk repository call before the FEFO balances are built.
 Each batch must meet the requested minimum shelf life as of that demand's
 required date. `it_storage_location_priority` breaks ties between locations
 holding the same batch and expiration date without changing demand, source-plant,
@@ -558,7 +577,8 @@ change their availability ([SAP stock types](https://help.sap.com/doc/a6a8c7536e
 `GET_STOCK_STATUS_IN_UNIT` returns the same stock categories, reservations,
 available quantity, and safety-stock values in a requested material unit. The
 result includes both the requested unit and the material base unit; conversion
-uses the material's `MARA`/`MARM` ratio.
+uses the material's `MARA`/`MARM` ratio. Stock-service unit conversions reject
+overflow and nonzero quantities that round to zero at `MARD-LABST` precision.
 `GET_STOCK_STATUS_BULK_IN_UNIT` accepts keyed material/plant/unit requests and
 returns the same status fields in each requested unit. It preserves request
 order, caches ratios by material/unit, and performs one bulk plant-status read.
@@ -576,8 +596,9 @@ repository read.
 location breakdown for each material/plant pair in request order. Each nested
 location row includes unrestricted, quality-inspection, and blocked stock plus
 available unrestricted stock after the existing deterministic reservation
-distribution. Its input validation and empty-request behavior match
-`GET_STOCK_STATUS_BULK`.
+distribution. It keeps each open RESB row through allocation so large totals do
+not overflow an intermediate reservation quantity. Its input validation and
+empty-request behavior match `GET_STOCK_STATUS_BULK`.
 `GET_LOCATION_STOCK_BULK_UOM` adds a requested unit to each keyed request and
 converts every location quantity while preserving its storage-location key.
 It retains zero-available locations, caches ratios by material/unit, and uses
@@ -606,12 +627,16 @@ goods receipt can still use a different stock type, so treat this as a local
 projection rather than SAP ATP or a historical stock reconstruction.
 Set `iv_include_po_confirmations = abap_true` to use the confirmation-aware PO
 schedule and supplier-confirmation projection instead. The PO flags are
-mutually exclusive. `ALLOCATE_DEMANDS_BY_DATE` groups confirmation reads by
-material/plant through the latest demand date, then adds only receipts due by
+mutually exclusive. `ALLOCATE_DEMANDS_BY_DATE` batches availability reads across
+its unique material/plant/date scopes and groups confirmation reads by
+material/plant through the latest demand date. It adds only receipts due by
 each demand date before sharing the resulting stock across demands. Unit and
 ATP dated-allocation methods, including cross-plant source allocation, pass this
 option through to the same local estimate. Cross-plant reads group by
 material/source plant through the latest mapped demand date.
+`ALLOCATE_REQUEST_BY_DATE` uses the same bulk repository implementation with a
+single keyed request, preserving excluded-reservation keys while keeping its
+receipt filters consistent with bulk dated allocation.
 Set `iv_include_sto_in_transit = abap_true` to also include stock-transfer
 schedule quantities already issued but not yet received, dated by the schedule
 delivery date. Planned but unissued transfers are excluded by default. This
@@ -669,6 +694,8 @@ assumptions before acting on it. `SUGGEST_COMP_REPL_FROM_STOCK` combines those
 calls and accepts the same resolved lot-size periods: it loads the selected
 receipt types once per material/plant through the latest shortage date, then
 nets eligible receipts by required date before applying the period grouping.
+Rows with negative received, ordered, issued, or MRP-reduced counters contribute
+no projected quantity, so malformed source counters cannot increase availability.
 Set `iv_include_po_confirmations = abap_true` to include confirmation-aware PO
 receipts in this netting. This option is mutually exclusive with
 `iv_include_po_receipts`, since both project the same PO supply. The helper
@@ -696,22 +723,29 @@ the same as `GET_PROJECTED_RECEIPTS`.
 to confirmation-aware PO rows and preserves `PO`/`PO_CONFIRMATION` source
 identity.
 `GET_PO_CONF_RECEIPTS_BULK` accepts uniquely keyed material/plant/deadline
-requests, reads each distinct pair once through its latest deadline, and
-filters each result to that request's horizon. Its `_UOM` variant converts
-receipts to each requested unit and reuses conversion ratios by material/unit.
+requests, batches schedule-line and confirmation reads across the requested
+material/plant pairs, and filters each result to its request's horizon. Its
+`_UOM` variant converts receipts to each requested unit and reuses conversion
+ratios by material/unit.
 `GET_PROJECTED_RECEIPTS_BULK` accepts uniquely keyed material/plant/deadline
 requests with shared receipt-source flags, including
 `iv_include_po_confirmations`. It returns one result per request in input order
 and filters each receipt list to that request's deadline. Repeated
 material/plant pairs share projections through their latest requested date.
+The repository batches its purchase-order, scheduling-agreement, STO,
+production, requisition, and planned-order reads across those pairs. Each query
+uses that pair's latest deadline; returned receipts are then filtered to each
+request's own date. The PO-confirmation path applies the same batching and
+deadline rules to schedule remainders and confirmations.
 Invalid keys or source flags are rejected before reads; empty input and requests
 with no enabled receipt sources do not read the repository.
 `GET_PROJ_RECEIPTS_OPTS_BULK` accepts source flags on each keyed request. It
 accepts `include_po_confirmations` as an alternative to `include_po_receipts`,
 unions enabled source types for each material/plant read through that pair's
 latest deadline, then filters rows by each request's own source flags and date.
-Requests sharing a pair may select different PO projections; one request may
-not select both.
+Pairs with matching source selections share one bulk repository call; PO
+confirmations use their separate batched query. Requests sharing a pair may
+select different PO projections; one request may not select both.
 Results preserve input order; request groups with no enabled source types skip
 the repository read.
 `GET_PROJ_RECEIPTS_BULK_UOM` adds a requested material unit per keyed request
@@ -729,10 +763,12 @@ before lower-priority requests with the same material, plant, and required date.
 Earlier required dates always take precedence; input order breaks equal-priority
 ties. Each result echoes the request priority while results remain in input
 order.
-Identical material/plant/date estimates are read once, and optional static
-safety-stock protection is cached per material/plant. The result is returned in
-input order; each row's available quantity reflects stock remaining after
-earlier requests for that material/plant. The same opt-in receipt flags apply
+Stock, reservations, and selected dated receipts are fetched across the unique
+material/plant/date scopes in one repository bulk call; duplicate scopes are
+read once. PO confirmation rows remain a separate batched read, and optional
+static safety-stock protection is cached per material/plant. The result is
+returned in input order; each row's available quantity reflects stock remaining
+after earlier requests for that material/plant. The same opt-in receipt flags apply
 to each dated stock estimate, including unfixed and fixed planned orders and
 scheduling agreements when their respective receipt flags are enabled.
 `ALLOCATE_DATE_DEMANDS_IN_UNITS` accepts the same dated request list in
@@ -795,14 +831,18 @@ continue to total all returned lines. Invalid ratios raise
 `ZCX_INVALID_STOCK_REQUEST`.
 `GET_STOCK_STATUS_BY_LOCATION` returns the same stock-category breakdown for
 each storage location, along with available unrestricted quantity after active
-reservations. Plant-level reservations are distributed across locations in
-ascending location-code order, matching location-aware allocation.
+reservations. Plant-level reservations and reservations assigned to locations with no
+MARD stock row are distributed across locations in ascending location-code
+order, matching location-aware allocation. Negative location balances reduce
+the plant total, so their deficit is carried across positive locations.
 `GET_STOCK_STATUS_BY_BATCH` reports each batch's storage location and expiration
 date, unrestricted quantity from `MCHB-CLABS`, and quantity available after the
 reservation estimate. It includes batches with zero available quantity so
-fully reserved or depleted balances remain visible. The availability uses the
-same deterministic assignment for reservations missing a batch or location as
-batch allocation. `GET_FEFO_BATCH_STATUS` applies the same as-of date and
+fully reserved or depleted balances remain visible. Negative batch balances
+reduce positive batch availability so the net does not exceed plant stock. The
+availability uses the same deterministic assignment for reservations missing
+a batch or location as batch allocation. `GET_FEFO_BATCH_STATUS` applies the
+same as-of date and
 minimum-days eligibility rule as FEFO allocation, returns only eligible batch
 rows, and orders dated batches earliest first with undated batches last when
 the minimum is zero. Eligible rows with no available stock remain visible.
@@ -828,8 +868,10 @@ request and converts unrestricted, available, quality-inspection, and blocked
 quantities for every batch. It retains zero-available batches and their storage
 locations and expiration dates, caches ratios by material/unit, and uses one
 bulk batch read.
-It rejects blank fields, duplicate request IDs, and unknown units before the
-stock read; empty input returns without a repository read.
+The bulk batch status reader keeps individual open RESB rows through allocation
+so large same-batch reservation totals do not overflow an intermediate
+quantity. It rejects blank fields, duplicate request IDs, and unknown units
+before the stock read; empty input returns without a repository read.
 `GET_STOCK_BY_LOCATION_IN_UNIT` and `GET_STOCK_BY_BATCH_IN_UNIT` return those
 location and batch stock quantities in a requested material unit while
 preserving their location, batch, and expiration details. The result rows
@@ -887,10 +929,11 @@ chooses the earliest-expiring eligible batches first. It reads batch expiration
 dates, excludes batches expired before the requested as-of date, places batches
 without an expiration date last, and can restrict each demand to a storage
 location. With fallback enabled, it uses that location first and then considers
-other locations in expiration-date order. An optional
-`it_storage_location_priority` list breaks ties between locations for the same
-batch and expiration date; it does not override the FEFO order. A `batch` field
-on a demand restricts it to that exact batch while retaining expiry and
+other locations in expiration-date order. It fetches batch status for all
+unique material/plant pairs through one validated bulk repository call. An
+optional `it_storage_location_priority` list breaks ties between locations for
+the same batch and expiration date; it does not override the FEFO order. A
+`batch` field on a demand restricts it to that exact batch while retaining expiry and
 minimum-shelf-life checks. Repeated demands for the same batch share its
 remaining quantity in input order. This is a simple VFDAT ordering;
 SAP's configurable batch determination and search strategies are not reproduced
@@ -1388,6 +1431,10 @@ quantity, and material base unit. It applies the same Q-reservation matching
 rules as the previews. An optional `iv_reservation_through_date` excludes later
 dated reservations while still deducting undated reservations. This is a
 current snapshot and does not reserve stock.
+SQLite-backed Open SQL tests cover all five project-stock repository methods,
+including WBS stock selection, plant/global batch-expiry fallback, open
+reservation filtering, and final-issue item reads. SAP DDIC and query behavior
+still require target-system verification.
 `READ_AVAILABLE_STOCK_BULK` accepts unique request IDs with a material,
 plant, WBS element, and optional reservation cutoff for each request. It groups
 requests by cutoff and reads each distinct stock key once per date group,
@@ -1441,7 +1488,9 @@ Project-stock previews read positive `PRLAB` quantities from `MSPR` for the
 requested WBS elements and return FEFO batch splits with the matching WBS
 assignments.
 It also reads open project reservations from `RESB`, maps `RESB-PSPEL` through
-`PRPS`, and deducts `BDMNG - ENMNG` for the same WBS, material, and plant.
+`PRPS`, and deducts `max(BDMNG - ENMNG, 0)` per reservation item for the
+same WBS, material, and plant. SQLite-backed tests execute both keyed and WBS
+reservation reads and cover partial, fully withdrawn, and over-withdrawn rows.
 Reservations with a storage location or batch are matched to those stock keys
 first; blank keys apply more broadly within that WBS. Deleted and final-issued
 reservation rows are ignored. SAP's project reservation view defines open
@@ -1791,7 +1840,9 @@ into one PO request. Every positive suggestion must match the header vendor and
 purchasing organization and carry one selected PIR or agreement source; zero
 quantity rows are skipped. Each positive suggestion becomes one PO item and
 one dated schedule line. Optional per-suggestion purchasing controls convert
-the base quantity using the supplied order-to-base ratio. Review candidates
+the base quantity using the supplied order-to-base ratio. Overflow and nonzero
+quantities that round to zero raise `ZCX_INVALID_STOCK_REQUEST` before the
+BAPI call. Review candidates
 first with `zcl_repl_source_service`, apply the selected options, and pass the
 resulting suggestions here. The method does not perform source determination or
 split a single call across vendors. Verify selected-source, quantity precision,
@@ -2301,7 +2352,9 @@ original document can be reversed.
 `ZCL_STOCK_TRANSFER_SERVICE` reports plant-level stock in transfer from
 `MARC-UMLMC` and storage-location transfer stock from `MARD-UMLME`. The caller
 may request one storage location or leave it blank to aggregate across the
-plant's storage locations. These quantities stay separate from allocatable
+plant's storage locations. Blank-location scalar and bulk totals accumulate in
+high precision and raise `ZCX_INVALID_STOCK_REQUEST` if the result exceeds the
+`MARD-UMLME` field range. These quantities stay separate from allocatable
 unrestricted stock ([SAP stock in transfer fields](https://help.sap.com/docs/SUPPORT_CONTENT/erpscm/3362168094.html)).
 `GET_STOCK_IN_TRANSFER_BULK` accepts uniquely keyed material/plant requests
 with an optional storage location. It reads the requested plant and location
@@ -2315,7 +2368,8 @@ request and conversion ratio before the transfer-stock bulk read.
 `GET_STOCK_IN_TRANSFER_IN_UNIT` returns both transfer quantities in a requested
 material-specific unit and includes the requested and base units. It uses the
 material's `MARA`/`MARM` conversion ratio and rejects an unknown unit before
-reading transfer balances.
+reading transfer balances. Conversion overflow and nonzero base quantities that
+round to zero at MARD-LABST precision also raise `ZCX_INVALID_STOCK_REQUEST`.
 `GET_STOCK_IN_TRANSFER_BY_BATCH` reports nonzero storage-location transfer
 quantities by batch and storage location from `MCHB-CUMLM`.
 `GET_TRANSFER_LOCATIONS` enumerates nonzero `MARD-UMLME` quantities by storage
@@ -2376,6 +2430,9 @@ The adapter sends the complete document list in one
 `BAPISDORDER_GETDETAILEDLIST` call and reads `VBAP`, `VBUP`, and `VBEP` for the
 requested documents with one grouped query per table. Header output is
 requested through the BAPI's header view and mapped into the order result.
+SQLite-backed Open SQL tests cover the delivery repository's schedule ordering,
+status mapping, multi-document selection, and VBAP quantity fallback when no
+schedule lines exist.
 `change_orders_atomic` accepts item changes for multiple distinct orders,
 validates the full request before any BAPI call, and commits once after all
 changes succeed. Any failed change or commit triggers a rollback. Test runs
@@ -2419,7 +2476,8 @@ available, allocated, and shortfall quantities in the order's sales unit and
 the material base unit. The existing allocation and reservation quantities
 remain in the base unit; sales-unit quantities are converted from the retained
 `BAPISDIT-SALES_QTY1/SALES_QTY2` ratio and rounded to the quantity field's
-precision. Schedule
+precision. Conversion overflow and nonzero quantities that round to zero at this
+precision raise `ZCX_INVALID_STOCK_REQUEST`. Schedule
 lines are prioritized by requested date within each sales order item. The
 reservation BAPI runs its ATP check and commits the reservations in one
 transaction; an error rolls the transaction back. Partial allocations are
@@ -2682,7 +2740,11 @@ requested sales order and uses the same movement and stock scope. An order can
 preview eligible reservation numbers without a BAPI call, optionally scoped to one
 sales-order item. Item-scoped release requires every non-deleted document item
 to match that item. An order with no matching documents returns success without
-starting a BAPI transaction.
+starting a BAPI transaction. SQLite-backed repository tests execute both
+reservation-finder queries and cover order-only versus exact-item ownership,
+mixed-owner documents, and closed or filtered reservation rows; target SAP still
+determines whether an eligible document can be deleted after its use or status
+changes.
 `DELETE_ORDERS_RESERVATIONS` accepts a unique list of sales documents, returns
 eligible reservation numbers grouped by order, and deletes the combined list in
 one BAPI transaction. Empty matches are a successful no-op; blank or duplicate
@@ -2852,7 +2914,8 @@ after failures. The response preserves each SAP message and commit result
 ([SAP cancellation mapping](https://help.sap.com/docs/sap-digital-manufacturing/integration-guide/mapping-cancellation-for-production-time),
 [SAP BAPI catalog](https://help.sap.com/docs/SAP_S4HANA_BEST_PRACTICES/7c85a9907ecf4b039f4cf574cc299d93/5d55fc2d126844039fc4084ef3e945c9.html?locale=en-US)).
 `READ_CONFIRMATIONS_BULK` retrieves operation confirmations for requested
-production orders from `AFRU`, joined to `AFVC` for the operation and sequence.
+production orders from `AFRU` and resolves operations and sequences through
+`AFVC`.
 The result includes confirmation number/counter, posting date, actual
 yield/rework/scrap quantities and their entry unit, final status, and reversal
 status. Quantity values remain in SAP's confirmation unit and are not converted
@@ -2868,6 +2931,9 @@ order in request order; orders with no operation rows are reported as empty.
 The repository follows SAP's routing linkage and operation identifiers
 ([SAP operation data view](https://help.sap.com/docs/SAP_S4HANA_CLOUD/c0c54048d35849128be8e872df5bea6d/afa5a1dc1d81424784b89e079cec0b48.html),
 [SAP routing field mapping](https://help.sap.com/docs/sap-digital-manufacturing/integration-guide/mapping-routing)).
+SQLite-backed Open SQL tests execute the repository's order-item, status,
+confirmation, and operation reads, including category and active-status
+filters, status text mapping, confirmation ordering, and operation sorting.
 `CREATE_CONFIRMATIONS_ATOMIC` and `CREATE_CONFIRMATIONS_BULK` post
 production-operation time tickets through `BAPI_PRODORDCONF_CREATE_TT`.
 Requests provide the order, four-character operation, six-character sequence,
@@ -3025,6 +3091,37 @@ outgoing unissued STO demand, and static safety stock with
 `iv_subtract_unissued_sto`, and `iv_protect_safety_stock`. These options affect
 the local estimate only. The SAP request covers only the supplied orders and
 does not add local batch or storage-location restrictions.
+The ATP preview's local estimate remains plant-level by default. Pass
+`it_projected_batch_receipts` and/or `it_projected_location_receipts` to
+`PREVIEW_COMPONENTS_ATP` or its bulk variant to use the scoped local allocator
+with caller-assigned receipts. These options cannot be combined with the
+SAP-derived local receipt flags above. The SAP ATP
+request remains cumulative by material, plant, unit, and date; it does not
+receive the local batch or location assignments and cannot confirm them.
+When components have batch or location assignments, the local stock and ATP
+previews can use SAP-derived standard PO or confirmation-aware PO receipts,
+issued or unissued STO, scheduling-agreement, production-order, PR, STO PR, and
+planned-order receipts when every selected row for that material/plant pair has
+a receiving location. A row without a location sends only its material/plant
+pair through the plant-level estimate; other pairs can remain scoped.
+`iv_include_po_receipts` and `iv_include_po_confirmations` are mutually
+exclusive. Standard PO, STO, and scheduling-agreement rows use the purchasing
+item's `EKPO-LGORT` and schedule-line batch `EKET-CHARG`. Confirmation-aware PO
+schedule remainder rows use those same fields; supplier-confirmation rows use
+`EKPO-LGORT` and `EKES-CHARG`. Production-order rows use `AFPO-LGORT` and
+`AFPO-CHARG`; PR and STO PR rows use `EBAN-LGORT`; planned and fixed
+planned-order rows use `PLAF-LGORT`. SAP documents the assigned location and
+batch for production-order items, and the location fields for requisitions and
+planned orders ([production-order item
+CDS](https://help.sap.com/docs/PRODUCT_ID/8308e6d301d54584a33cd04a9861bc52/9ecb6ea8a220445aa21a0435fafca571.html?locale=en-US),
+[purchase requisition field catalog](https://help.sap.com/saphelp_aii710/helpdata/en/a3/9857a130f74936ae53aed874867dc3/content.htm?no_cache=true),
+[planned-order field catalog](https://help.sap.com/docs/signavio-process-insights/administration-guide/be4b0a35f6d048eb979899f569509c78.html)).
+Each material/plant receipt read is capped at that pair's latest component
+required date.
+If a selected receipt has no location, only that material/plant pair uses the
+plant-level estimate. Enabling outgoing-STO subtraction uses the plant-level
+estimate for every pair. The SAP ATP request remains plant-level in either
+case.
 `PREVIEW_COMPONENTS_STOCK` and `PREVIEW_COMPONENTS_STOCK_BULK` return the same
 local date-group and per-component estimates without requiring an ATP checking
 rule or calling the availability API. In those results, ATP confirmation
@@ -3033,6 +3130,65 @@ The local estimate removes the selected components' own open reservation items
 from the `RESB` deduction before allocating the component requirements. Other
 active reservations remain deducted, and each selected component is charged once
 by the local allocation.
+`PREVIEW_SCOPED_COMPONENTS` and `PREVIEW_SCOPED_COMPONENTS_BULK` provide an
+explicit current-stock estimate that honors each open component's assigned
+`RESB-LGORT` and/or `RESB-CHARG`. `PREVIEW_COMPONENTS_STOCK` selects this
+allocation automatically when any component has a scope and no projected receipt
+options are enabled. Quantities are converted to the material base unit. Overflow and nonzero reservation quantities that round to zero at MARD-LABST precision raise ZCX_INVALID_STOCK_REQUEST before stock is read. The
+allocator processes earlier required dates first, then gives batch-and-location
+and batch-only demands priority over location-only and unscoped demands. Batch
+balances are tracked as part of their location totals, so allocations share the
+same stock pool. Batchless demands skip batches that expire before the component
+required date; stock with no expiry date remains eligible. The allocator starts
+from raw unrestricted location and batch balances, excludes the selected
+component reservation keys, and deducts other
+active `RESB` open quantities by their assigned scope. A competing reservation
+uses its assigned batch and location first, then any remaining quantity is
+deducted from the rest of the plant stock. Competing reservations enter the
+ledger by required date, before selected components due on that date. Batch
+stock used by a component or competing reservation must remain eligible through
+its required date; undated stock remains eligible. The estimate does not call
+ATP. SAP-derived standard PO or confirmation-aware PO, issued or unissued STO,
+scheduling-agreement, production-order, PR, STO PR, and planned-order receipts
+can enter this ledger when they have a receiving location. PO confirmation
+rows use `EKES-CHARG`; both PO modes use `EKPO-LGORT`. A material/plant pair
+falls back to the plant-level path if any of its selected receipts has no
+location. Enabling outgoing-STO subtraction uses that path for every pair.
+Callers can provide `it_projected_batch_receipts` or
+`it_projected_location_receipts` to the explicit scoped preview or the stock
+preview with material, plant, storage location, receipt date, and base-unit
+quantity; batch receipts also include a batch and optional expiration date.
+Receipts enter the shared stock ledger on their
+arrival date, before reservations due that date, so they cannot cover earlier
+reservations. A receipt with no supplied expiration date inherits a known date
+for that batch from current stock or another caller-supplied receipt; any known
+expiry must be on or after each receipt date. Supplied dates must agree with
+known batch expiry. Due receipts
+replenish any remaining protected safety-stock buffer before the excess becomes
+allocatable. Caller-assigned receipt rows are not checked against purchase
+orders, transfers, production orders, or batch master data. Production-order
+receipts use `AFPO-LGORT` and `AFPO-CHARG`; PR/STO PR rows use `EBAN-LGORT`;
+planned and fixed planned-order rows use `PLAF-LGORT`. The
+`it_projected_location_receipts` input accepts material, plant, storage
+location, receipt date, and base-unit quantity for non-batch stock. It enters
+the location's residual stock pool on its arrival date, before due reservations,
+and can satisfy batchless components at that location (or unscoped components).
+Exact-batch component demands cannot allocate location-only receipt quantities.
+Both receipt inputs can be combined, but neither can be combined with the
+SAP-derived local receipt flags. Without component scopes, the automatic
+`PREVIEW_COMPONENTS_STOCK` path continues to use the plant-level estimate when
+SAP-derived receipt options are enabled. With component scopes, the automatic
+sources listed above use the scoped estimate for each material/plant pair
+whose selected receipts all have a storage location. A pair with a missing
+location falls back independently. Scoped results contain
+component estimates and a shared date-group estimate. Batch totals and demand
+scope sums use high precision before location clamping; an unrepresentable
+group or demand total raises ZCX_INVALID_STOCK_REQUEST. Receipt additions to
+scoped location or batch balances are checked and raise the same exception when
+they exceed those fields. Group available quantity
+counts each eligible stock pool once across the union of component scopes; the
+group's requested, allocated, and shortfall quantities sum its components. ATP
+fields remain initial. See `ANOMALIES.md` for the local snapshot limits.
 `SUMMARIZE_COMPONENT_READINESS` rolls preview rows up by production order. It
 reports the open, locally covered, and locally short component counts, the
 required-date range, the first local shortage date, and `is_locally_ready`.
@@ -3049,6 +3205,9 @@ requested/confirmed/unconfirmed base quantities, required-date range, first
 unconfirmed date, and `is_split_fully_confirmed`. Quantities remain separated
 by material and unit, and the status describes the deterministic component
 split rather than an order-level result returned by SAP.
+Grouped shortage and ATP summary quantities are checked against the
+`MARD-LABST` range; an unrepresentable total raises
+`zcx_invalid_stock_request`.
 `SUGGEST_COMP_REPLENISHMENT` turns component shortage rows into base-unit
 quantity suggestions. Caller policies override material master planning data.
 For materials without an override, the service reads the base unit from `MARA`
@@ -3076,8 +3235,11 @@ overlap, and every shortage for a procedure with supplied periods must fall
 within one. Built-in `EX`, `FX`, `HB`, `TB`, `MB`, `WB`, and `PK` handling cannot
 be overridden through this input; `PK` continues to use the planning-calendar
 input.
-Projected receipts are netted against each shortage date before
-each period total is lot-sized. A `PK` shortage without a matching period
+Projected PO, STO, production, purchase-requisition, and planned-order
+receipts convert to the material base unit before netting. Overflow and
+nonzero amounts that round to zero at MARD-LABST precision raise
+zcx_invalid_stock_request. Projected receipts are netted against each shortage
+date before each period total is lot-sized. A `PK` shortage without a matching period
 remains a date-level suggestion. The result uses the first shortage
 date and includes `planning_calendar_id`, `lot_size_period_start`,
 `lot_size_period_end`, and `grouped_shortage_count` for resolved periods. `WB`
@@ -3098,8 +3260,10 @@ quantity after maximum-lot splitting.
 For supported lot-sizing policies, a caller or material-master `MARC-RDPRF`
 applies static threshold rounding from plant/profile `RDPR` rows to each receipt
 after lot sizing. The result reports the profile and updates the aggregate,
-receipt count, final receipt, and rounding surplus. A profile that rounds a
-receipt above its configured maximum lot size raises
+receipt count, final receipt, and rounding surplus. Every returned quantity
+must fit `MARD-LABST`; a rounded aggregate beyond that field's range
+raises `zcx_invalid_stock_request`. A profile that rounds a receipt above its
+configured maximum lot size raises
 `zcx_invalid_stock_request`; keep maximum lot size compatible with the profile.
 SAP documents lot sizing before rounding and threshold-based static profiles
 ([procurement quantity calculation](https://help.sap.com/docs/SAP_ERP_SPV/85d3fce10e264972a0155c8b46ecf93b/dca5bb53707db44ce10000000a174cb4.html),
@@ -3155,6 +3319,14 @@ candidate without such a listed entry is omitted when this filter is enabled.
 Set `iv_require_fixed_source = abap_true` to additionally require that the
 matching source-list entry is fixed. This omits unlisted and non-fixed
 candidates even when the material does not require a source list.
+Each request's delivery date is validated as a Gregorian date before
+repository reads.
+SQLite integration tests run this service through the EINA/EINE/EORD/MARC and
+quota repository reads, checking deletion filtering, source-list eligibility,
+vendor-specific source blocking, source flags, automatic-sourcing filtering,
+exact-day validity expiry, and the default visibility of unlisted sources when
+the material does not require a source list, alongside the opt-in listed-source
+filter.
 These flags accept only `abap_true` or `abap_false`; invalid values raise
 `zcx_invalid_stock_request`, including when the request list is empty.
 When `MARC-USEQU` is set,
@@ -3167,8 +3339,10 @@ workflow before treating preview order as an assignment. Candidates then rank
 by fixed-source flag, optional request
 `preferred_vendor`, and plant-specific info records. A vendor without a
 matching quota item remains visible after quota-assigned candidates so callers
-can review the whole candidate set. Each result also includes the matching
-`TMQ2` usage rule, showing whether purchase requisitions, purchase orders,
+can review the whole candidate set. Each result's `has_active_vendor_quota`
+flag is true only when that vendor has an in-date, external-supplier quota item
+with a positive quota value. Each result also includes the matching `TMQ2`
+usage rule, showing whether purchase requisitions, purchase orders,
 scheduling-agreement schedules, planned orders, automatic MRP, production
 orders, and invoices contribute to quota allocation.
 Each PIR result includes `candidate_rank`, starting at one for the highest
@@ -3335,6 +3509,8 @@ used ([source determination](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/af9
 [source-list entries](https://help.sap.com/docs/SAP_ERP/967e1c2a6a8c4183b7e07d28e7574445/7b7fb65334e6b54ce10000000a174cb4.html),
 [contract category](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/29193bf0ebdd4583930b2176cb993268/59acf04a594348839b8020ff725eb520.html),
 [scheduling-agreement category](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/29193bf0ebdd4583930b2176cb993268/b1cbbdc144ed44fa82645ae0a84c7640.html)).
+Each request's delivery date must be a valid Gregorian date; malformed dates
+are rejected before the source repository is read.
 Results include the agreement/item, vendor, document and source-list validity
 windows, fixed-source and MRP-use flags, and preferred-vendor match. Fixed
 sources sort first, followed by the request's preferred vendor. Blocked source
@@ -3343,8 +3519,12 @@ completed items, source-list/header vendor mismatches, and sources outside
 either validity window are omitted. This is review data: it does not check
 release status, prices, remaining contract
 quantity, scheduling-agreement schedule lines, or delivery confirmation, and
-it does not assign or create a source. Validate the `EORD`/`EKKO`/`EKPO` join
-and target-specific source rules in the host SAP release.
+it does not assign or create a source. SQLite-backed tests exercise the
+`EORD`/`EKKO`/`EKPO`/`MARC` reads through the service and verify the resulting
+outline-candidate filtering for blocked sources, deleted headers or items,
+completed items, validity-window boundaries and exclusions, plus K/L category
+mapping and source-list flags. Validate the query and target-specific source
+rules in the host SAP release.
 Each result includes `candidate_rank`, starting at one within its request, so
 callers can retain the fixed-source/preferred-vendor ranking explicitly.
 Set `iv_require_mrp_relevant = abap_true` to omit agreements whose matching
@@ -3475,8 +3655,9 @@ an empty prepared request.
 `PREPARE_FROM_SELECTED_SOURCES` applies reviewed PIR or agreement choices and
 includes the chosen vendor, source reference, and purchasing-unit conversion.
 `PREPARE_FROM_QUOTA_SPLITS` also verifies split reconciliation and returns one
-item per selected quota share. The matching create methods submit these same
-prepared rows.
+item per selected quota share. Proposal quantities must fit `MARD-LABST`; an
+oversized split raises `zcx_invalid_stock_request` before any BAPI call. The
+matching create methods submit these same prepared rows.
 It only accepts externally procured (`F`) suggestions
 without a special procurement key; in-house, ambiguous, special-source, and
 unresolved routes are rejected. Verify BAPI availability, required item fields,
@@ -3498,7 +3679,8 @@ and rows with neither value are rejected before the BAPI call.
 For `create_from_selected_sources`, a selected PIR candidate's purchasing unit
 and info-record conversion ratio are carried into each generated PR lot. Base
 quantities are converted with `EINA-UMREZ`/`EINA-UMREN` before the BAPI call;
-outline-agreement and unresolved sources keep the suggestion's base unit.
+outline-agreement and unresolved sources keep the suggestion's base unit. Conversion overflow and nonzero base quantities that round to zero at
+MARD-LABST precision raise `ZCX_INVALID_STOCK_REQUEST` before a BAPI call.
 `create_from_quota_splits` connects the quota preview to PR creation. Pass rows
 keyed by their original suggestion index with each `SIMULATE_SPLIT_QUOTA` split.
 The service requires each selected suggestion's allocated shares to reconcile
@@ -3689,13 +3871,15 @@ and account assignment on the reservation header ([movement type](https://help.s
 `read_cost_center_reservations` lists active, open reservation items for a cost
 center, including reservation/item keys, material, plant, storage location,
 batch, requirement date, entry unit, required quantity, withdrawn quantity, and
-remaining open quantity. It reads movement-type 201 items from `RESB` and joins
-`RKPF` by reservation number because SAP stores the cost-center assignment on
-the reservation header ([reservation header](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/03a55f57017647368bfb386e41573ff7.html),
+remaining open quantity. The repository reads matching `RKPF` headers and
+movement-type 201 `RESB` items in batches, then matches them by reservation
+number because SAP stores the cost-center assignment on the reservation header
+([reservation header](https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/eb2a39dd0c124fed8252f684002d55e1/03a55f57017647368bfb386e41573ff7.html),
 [cost center at header level](https://userapps.support.sap.com/sap/support/knowledge/en/3736490)).
 Deleted, finally issued, special-stock, fully withdrawn, and non-201 items are
-excluded. The read is a snapshot; it does not lock the reservation before later
-deletion or goods issue. The result marks malformed or duplicate repository
+excluded. SQLite-backed Open SQL tests cover the query filters, cost-center
+scope mapping, ordering, and open quantity calculation. The read is a snapshot;
+it does not lock the reservation before later deletion or goods issue. The result marks malformed or duplicate repository
 rows unsuccessful and clears the returned item list; an empty list is a valid
 successful read.
 `ZCL_RESERVATION_ISSUE_SERVICE=>PREVIEW_CC_ISSUE_REMAINING` returns these
@@ -3717,9 +3901,9 @@ cost centers with one repository call. It returns one result per requested
 center in input order; centers with no open items receive a successful empty
 result. Blank or duplicate center keys are rejected before the read, and rows
 for unrequested centers or malformed/duplicate rows make the overall and
-affected center results unsuccessful. The repository uses one `RESB`/`RKPF`
-query for the requested centers; verify its SQL and authorization behavior in
-the target SAP release as noted in [ANOMALIES.md](ANOMALIES.md).
+affected center results unsuccessful. The repository reads matching `RKPF`
+headers and `RESB` rows in two batched SQL statements; verify target-release
+query and authorization behavior as noted in [ANOMALIES.md](ANOMALIES.md).
 
 `delete_reservations` accepts reservation numbers returned by creation and
 deletes each complete reservation document through `BAPI_RESERVATION_DELETE`.
@@ -3934,6 +4118,26 @@ the greater minimum applies. A supplied storage location remains a hard
 restriction unless `iv_allow_fallback = abap_true` is passed, in which case it
 is tried first and other locations are considered afterward.
 
+## SAP installation via abapGit
+
+The repository includes [abapGit object metadata](https://docs.abapgit.org/development-guide/serializers/file-formats.html)
+for its custom classes and interfaces. The root [`.abapgit.xml`](https://docs.abapgit.org/user-guide/repo-settings/dot-abapgit.html)
+selects `/src/` as the starting folder, so abapGit imports the custom objects and
+package definition from `src/`. The `stubs/`, `scripts/`, `deps/`, and `output/`
+folders are tooling artifacts and are outside that SAP import folder.
+
+1. Create or link an abapGit repository for this Git repository.
+2. Assign it to a customer package in the target SAP system; `PREFIX` folder
+   logic lets the repository use the package selected during installation.
+3. Pull the repository and activate the imported objects.
+4. Check that the target release provides the standard dictionary objects and
+   BAPIs used by the adapters, then run SAP-side smoke tests before posting.
+
+When adding a custom class or interface under `src/`, run
+`npm run generate:abapgit` to create missing metadata, then run `npm test`.
+Metadata generation is local tooling; it does not validate the target system's
+ABAP release, DDIC definitions, BAPI signatures, or activation behavior.
+
 ## Production construction
 
 `ZCL_STOCK_ALLOCATION_FACTORY=>CREATE_STOCK_SERVICE()` wires the stock service
@@ -3950,7 +4154,10 @@ reservations. `CREATE_SALES_ORDER_SERVICE()` wires sales-order
 read and change operations to the sales-order BAPI. The service constructors
 remain public for applications that supply their own adapters.
 `CREATE_SALES_STOCK_SERVICE()` reads sales-order-specific stock and open
-reservations by sales document item.
+reservations by sales document item. `CREATE_SO_RES_READ_SERVICE()` wires
+reservation detail reads to the reservation BAPI adapter.
+`CREATE_SO_RESERVATION_SERVICE()` wires reservation release workflows to the
+reservation BAPI adapter and stock repository used to find order reservations.
 `CREATE_PROJECT_STOCK_SERVICE()`
 wires WBS stock and reservation reads to the project-stock repository and the
 material UOM converter. `CREATE_PROJECT_RESV_SERVICE()` wires the WBS
@@ -3960,9 +4167,14 @@ material UOM converter, and goods-movement BAPI used for reservation issues.
 repository and material UOM converter. `CREATE_PURCHASE_ORDER_SERVICE()` wires
 PO creation and change workflows to the purchasing BAPI and material UOM
 converter. `CREATE_PLANNED_ORDER_SERVICE()` wires planned-order management to
-its BAPI. `CREATE_PROD_ORDER_SERVICE()` wires production-order operations to
-their BAPI and connects the ATP release gate to the production-component
-service.
+its BAPI. `CREATE_PLANNED_READ_SERVICE()` wires bulk planned-order reads
+to the PLAF repository. `CREATE_PROD_COMP_SERVICE()` wires production-component
+reads, stock and ATP checks, replenishment planning, and goods movements to
+their SAP adapters. `CREATE_PROD_ORDER_SERVICE()` wires production-order
+operations to their BAPI and connects the ATP release gate to the
+production-component service. `CREATE_PROD_ORDER_READ_SERVICE()` wires bulk
+order, status, operation, and confirmation reads to the production-order
+repository.
 `CREATE_PREQ_SERVICE()` wires purchase-requisition reads and writes to the PR
 BAPI. `CREATE_CC_RESERVATION_SERVICE()` wires cost-center stock reservations
 to the MARD repository, reservation API and reader, material UOM repository,
@@ -3984,6 +4196,10 @@ DATA(lo_sales_orders) =
   zcl_stock_allocation_factory=>create_sales_order_service( ).
 DATA(lo_sales_stock) =
   zcl_stock_allocation_factory=>create_sales_stock_service( ).
+DATA(lo_sales_reservations) =
+  zcl_stock_allocation_factory=>create_so_res_read_service( ).
+DATA(lo_sales_reservation_release) =
+  zcl_stock_allocation_factory=>create_so_reservation_service( ).
 DATA(lo_project_stock) =
   zcl_stock_allocation_factory=>create_project_stock_service( ).
 DATA(lo_project_reservations) =
@@ -3994,8 +4210,14 @@ DATA(lo_purchase_orders) =
   zcl_stock_allocation_factory=>create_purchase_order_service( ).
 DATA(lo_planned_orders) =
   zcl_stock_allocation_factory=>create_planned_order_service( ).
+DATA(lo_planned_order_reads) =
+  zcl_stock_allocation_factory=>create_planned_read_service( ).
+DATA(lo_production_components) =
+  zcl_stock_allocation_factory=>create_prod_comp_service( ).
 DATA(lo_production_orders) =
   zcl_stock_allocation_factory=>create_prod_order_service( ).
+DATA(lo_production_order_reads) =
+  zcl_stock_allocation_factory=>create_prod_order_read_service( ).
 DATA(lo_purchase_requisitions) =
   zcl_stock_allocation_factory=>create_preq_service( ).
 DATA(lo_cc_reservations) =
@@ -4009,7 +4231,9 @@ DATA(lo_replenishment_sources) =
 The `stubs/src/` definitions model only fields used by the local tooling; SAP's
 delivered dictionary and function module signatures are authoritative at
 deployment. Local verification uses fake APIs and does not connect to an SAP
-system. `quantity` and `base_quantity` describe the requested item quantity;
+system. The delivery repository SQL is exercised against SQLite test tables;
+this does not validate SAP authorization, DDIC, or database behavior.
+`quantity` and `base_quantity` describe the requested item quantity;
 `open_quantity` and `open_base_quantity` describe the undelivered portion.
 Open quantities use `VBEP-WMENG - VBEP-VSMNG` per schedule line and the item
 delivery status in `VBUP`; the requested schedule date comes from `VBEP-EDATU`
@@ -4046,19 +4270,50 @@ result, separately from local allocation; ATP checks do not alter the local
 splits or success flag. `reserve_order` returns these diagnostics before its
 reservation calls, but the diagnostic does not block the reservation; the
 reservation BAPI performs its own ATP check.
-`GET_STOCK_STATUS` reports raw plant totals for `MARD-LABST`, `MARD-INSME`, and
-`MARD-SPEME`, plus active unrestricted `RESB` reservations net of withdrawals
-and a clamped available-unrestricted estimate. Local tests use a fake
-repository and do not execute the MARD, RESB, or MARC database queries. The
-report also returns static `MARC-EISBE` and an available quantity after that
-buffer; neither quantity represents every ATP element or dynamic safety-stock
-behavior.
+`GET_STOCK_STATUS` and its bulk variant report raw plant totals for `MARD-LABST`,
+`MARD-INSME`, and `MARD-SPEME`, plus active unrestricted `RESB` reservations. Each reservation item's open
+quantity is clamped to `max(BDMNG - ENMNG, 0)` before rows are aggregated,
+so an over-withdrawn item cannot cancel another item's demand. The report
+also includes a clamped available-unrestricted estimate. SQLite-backed
+repository tests execute both scalar and bulk queries alongside scalar and bulk
+MARD location reads, scalar and bulk RESB open-stock reservation reads, batch
+reads, and standalone scalar and bulk MARC safety-stock reads.
+They check plant totals, withdrawal netting, reservation lifecycle filters,
+safety-stock subtraction, and caller-order results for duplicate and missing
+bulk scopes, but do not model target-system ATP configuration. The report also
+returns static `MARC-EISBE` and an available quantity after that buffer; neither
+quantity represents every ATP element or dynamic safety-stock behavior. The
+SQLite tests also execute `GET_UNRESTRICTED_STOCK` directly, including the zero
+clamp when open reservations exceed unrestricted stock; that method does not
+apply safety stock. It nets stock and open reservations in high precision, then
+rejects an available result outside MARD-LABST. Plant stock status totals
+accumulate stock categories and
+open reservations in high precision. The bulk read keeps LGORT in its
+FOR ALL ENTRIES projection so equal balances at separate locations are
+both counted. If an output total cannot fit its SAP quantity field,
+scalar and bulk status reads raise zcx_invalid_stock_request.
+
 Date-based projections can add PO receipts, issued or unissued STO quantities,
-subtract unissued outgoing STO quantities, and add released production and
-unfixed planned-order receipts. These are local schedule estimates from
-`EKET`, `EKPO`, `EKKO`, `AFPO`, `AFKO`, `AUFK`, and `PLAF`; repository doubles do not
-execute those database queries or validate live schedule filters and units.
-They do not replace SAP ATP.
+subtract unissued outgoing STO quantities, and add production, PR/STO PR, and
+planned-order receipts. These are local schedule estimates from `EKET`, `EKPO`,
+`EKKO`, `AFPO`, `AFKO`, `AUFK`, `EBAN`, `MARA`, `MARM`, and `PLAF`. Direct
+SQLite-backed tests execute bulk standard PO, confirmation-aware PO, external
+scheduling-agreement, STO schedule, production/process-order, and PR/STO PR
+reads. Direct scalar projection tests also cover PO, process-order, and
+confirmation-aware PO rows.
+The bulk dated-availability method reuses the projected-receipt reader for
+standard PO and incoming-STO supply. It batches production item, date, and
+release data separately from outgoing-STO deductions. Tests check header/item
+eligibility, schedule and confirmation reductions, order release filters,
+multiple date horizons, outgoing-STO deductions, unit conversion, and
+requisition filters.
+Planned-order tests cover fixed/unfixed flags and alternative-unit conversion.
+Every source still needs validation against live schedules and target-system
+units. These estimates do not replace SAP ATP. Plant-date availability nets
+storage-location balances, projected receipts, outgoing transfers, and
+reservations in high precision, then checks the final available quantity fits
+MARD-LABST. Out-of-range results raise zcx_invalid_stock_request.
+
 Caller-supplied cutoff dates, dated allocation requirements, and FEFO as-of
 dates are checked as Gregorian calendar dates before UOM conversion, stock
 reads, or ATP calls. This rejects malformed dates; SAP still determines whether
@@ -4066,17 +4321,31 @@ a valid date is usable for the material, plant, and planning horizon.
 `GET_STOCK_STATUS_BY_LOCATION` aggregates the same category quantities by
 `LGORT`; its available-unrestricted values use the location reservation
 calculator, including the deterministic distribution of plant-level
-reservations.
+reservations. Each RESB item is clamped to a nonnegative open quantity before
+location totals are aggregated in high precision, avoiding overflow when
+many reservations are combined. Negative location balances reduce the plant
+total, so their deficit is carried across positive locations; location results
+remain consistent with the plant-level available quantity. SQLite-backed
+repository tests execute both scalar location queries and check category
+totals, exact-location deductions, and distribution of unscoped reservations or
+reservations assigned to a location with no MARD row.
 `GET_STOCK_STATUS_BY_BATCH` returns unrestricted batch quantities and their
 available estimates by `LGORT` and batch, including zero-available rows. It
 reads the partial `MCHB`, `MCHA`, `MCH1`, and `RESB` stubs and uses the batch
-reservation calculator; local tests verify service mapping but do not execute
-those queries.
-Sales-order previews also read active `RESB` reservations assigned to the order
-and subtract `BDMNG - ENMNG` from matching open demand. The query uses
-`KDAUF`, `KDPOS`, `KDEIN`, and `BDTER`; target-system BAPI field propagation and
-the fallback when schedule-line/date keys do not match need validation. Local
-tests use reservation data doubles rather than executing that query.
+reservation calculator. SQLite-backed repository tests execute both scalar
+and bulk MCHB/MCHA/MCH1/RESB reads, check plant expiry precedence, exact
+location/batch and unscoped reservation deductions, net negative batch balances
+against positive batches, clamp open quantities per RESB item before batch
+reservation totals are aggregated, ignore closed and special-stock reservations,
+and verify that the scalar available-stock wrapper
+omits zero balances. Service tests also verify mapping with doubles.
+Sales-order previews also read active `RESB` reservations assigned to the order.
+The repository clamps each item to `max(BDMNG - ENMNG, 0)` before grouping
+positive open quantities by `KDAUF`, `KDPOS`, `KDEIN`, `BDTER`, material, and
+plant, so an over-withdrawn item cannot cancel another item's demand. SQLite-backed tests execute this query and cover partial withdrawals,
+schedule-line grouping, and deleted/final-issue/movement/special-stock filters.
+Target-system BAPI field propagation and the fallback when schedule-line/date
+keys do not match still need validation.
 Cost-center reservations use movement type 201 and the `COSTCENTER` header
 assignment with `BAPI_RESERVATION_CREATE1`; alternative units are converted
 through `MARA`/`MARM`. The local tests use repository/API doubles and do not
@@ -4090,17 +4359,19 @@ available quantity conservative but does not identify SAP's physical pick
 location.
 Optional safety-stock protection subtracts static plant-level `MARC-EISBE` when
 `iv_protect_safety_stock` is true; it is off by default. The local tests cover
-the allocation arithmetic but do not execute the `MARC` query or validate the
-target system's ATP configuration. This does not model time-dependent safety
-stock or every checking-rule scope.
+the allocation arithmetic, and a SQLite-backed repository test executes the
+bulk `MARC` safety-stock read. Target-system ATP configuration remains
+unverified. This does not model time-dependent safety stock or every
+checking-rule scope.
 Batch availability is a separate estimate based on `MCHB-CLABS` and open
 `RESB` quantities. Reservations without a batch or storage location are
 deducted from compatible balances in ascending location and batch order. If a
 reservation exceeds its matching batch/location stock, the excess is deducted
 from other remaining balances in that same order to avoid overstating free
 quantity. `ALLOCATE_BY_BATCH` requires a caller-selected batch and never
-substitutes another batch. Sales-order batch selections must cover every
-positive-open schedule line; item-wide choices cover all open lines, while
+substitutes another batch. It reads stock for all unique material/plant pairs
+through one validated batch-status bulk call. Sales-order batch selections must
+cover every positive-open schedule line; item-wide choices cover all open lines, while
 schedule-line choices can select different batches on one item. Partial,
 duplicate, or mixed item-wide and schedule-line choices are rejected before
 stock is read. FEFO mode selects batches automatically by expiration date but
@@ -4142,11 +4413,33 @@ npm install
 npm test
 ```
 
-`npm test` runs abaplint, transpiles the ABAP sources with open-abap-core, and
-runs ABAP Unit tests through the transpiler runtime. The `MARD` definition in
-`stubs/src/` is only a local tooling stub; the target SAP system supplies the
-real standard table. GitHub Actions runs this same validation on pushes and
-pull requests with Node.js 22 and a pinned open-abap-core revision.
+`npm test` validates the PLAN configuration, checks typed SAP table-field
+references across custom ABAP against local stubs, and checks additional
+required fields for stock, material UOM, replenishment policy, planning
+calendar, and planned-order queries. It then runs abaplint, transpiles
+the ABAP sources with open-abap-core, and runs ABAP Unit tests through the
+transpiler runtime. SQLite-backed Open SQL tests exercise scalar and bulk MARD
+location stock,
+MARA/MARM unit-of-measure, MARC replenishment-policy, T439I planning-period,
+PLAF planned-order, RESB production-component, and MARC/MARD/MCHB stock-transfer
+reads, plus MARD scalar unrestricted-stock reads and plant-status aggregates,
+and RESB sales-order reservation
+finder reads, VBAP/MSKA/MARA/MCHA/MCH1/RESB sales-order stock reads, bulk
+EKPO/EKKO/EKET/MARA PO, scheduling-agreement, and STO receipt reads, EKET/EKES
+confirmation-aware PO receipt reads, and the
+EINA/EINE/EORD/EKKO/EKPO/MARC/EQUK/EQUP/RDPR/TMQ2 replenishment-source reads.
+Integration tests also run the PIR and outline-source services over their
+SQLite-backed repository queries to verify end-to-end filtering and result
+mapping. Factory-backed stock allocation tests run MARD/RESB netting and
+multiple shared demands, plus MCHB/MCHA/RESB reads through FEFO allocation to
+verify expiry ordering and batch splits in the production composition.
+Separate tests exercise AFKO/AFPO/AUFK production-order items,
+JEST/TJ02T/TJ30T
+statuses, and AFRU/AFVC confirmations and operations.
+The definitions in `stubs/src/` are local tooling stubs; the target SAP system
+supplies the real standard tables.
+GitHub Actions runs this same validation on pushes and pull requests with
+Node.js 22 and a pinned open-abap-core revision.
 
 See [PLAN.md](PLAN.md) for implementation requirements and [NOTES.md](NOTES.md)
 for progress.

@@ -35,13 +35,53 @@ CLASS lcl_quality_stock_repository IMPLEMENTATION.
   METHOD zif_stock_repository~get_available_stock_by_date.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_date_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id    = ls_request-request_id
+        material      = ls_request-material
+        plant         = ls_request-plant
+        required_date = ls_request-required_date ) TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_projected_receipts.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_projected_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        through_date = ls_request-through_date ) TO rt_results.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_po_confirmed_receipts.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_po_confirmed_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        through_date = ls_request-through_date ) TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_safety_stock_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
@@ -67,12 +107,36 @@ CLASS lcl_quality_stock_repository IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_batch_stock_status_bulk.
-    ADD 1 TO mv_batch_status_reads.
+    DATA lt_batches TYPE zif_stock_repository=>ty_batch_stock_statuses.
+    READ TABLE it_requests INTO DATA(ls_first_request) INDEX 1.
+    IF sy-subrc = 0 AND ls_first_request-request_id CP 'QF*'.
+      ADD 1 TO mv_batch_status_reads.
+    ELSEIF sy-subrc = 0.
+      ADD 1 TO mv_unrestricted_stock_reads.
+    ENDIF.
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lt_batches) = mt_quality_stock.
-      IF mv_use_recheck_quality_stock = abap_true
-          AND mv_batch_status_reads > 1.
-        lt_batches = mt_recheck_quality_stock.
+      CLEAR lt_batches.
+      IF ls_request-request_id CP 'QF*'.
+        lt_batches = mt_quality_stock.
+        IF mv_use_recheck_quality_stock = abap_true
+            AND mv_batch_status_reads > 1.
+          lt_batches = mt_recheck_quality_stock.
+        ENDIF.
+      ELSE.
+        DATA(lt_unrestricted_stock) = mt_unrestricted_stock.
+        IF mv_use_recheck_unrestricted = abap_true
+            AND mv_unrestricted_stock_reads > 1.
+          lt_unrestricted_stock = mt_recheck_unrestricted_stock.
+        ENDIF.
+        LOOP AT lt_unrestricted_stock INTO DATA(ls_unrestricted_stock).
+          APPEND VALUE #(
+            storage_location      = ls_unrestricted_stock-storage_location
+            batch                 = ls_unrestricted_stock-batch
+            expiration_date       = ls_unrestricted_stock-expiration_date
+            unrestricted_quantity = ls_unrestricted_stock-available_quantity
+            available_quantity    = ls_unrestricted_stock-available_quantity )
+            TO lt_batches.
+        ENDLOOP.
       ENDIF.
       APPEND VALUE #(
         request_id = ls_request-request_id
@@ -93,6 +157,19 @@ CLASS lcl_quality_stock_repository IMPLEMENTATION.
     ELSE.
       rt_stock = mt_unrestricted_stock.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_reservations.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_res_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 ENDCLASS.
 

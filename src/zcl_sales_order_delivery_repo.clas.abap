@@ -21,8 +21,10 @@ CLASS zcl_sales_order_delivery_repo IMPLEMENTATION.
 
   METHOD zif_sales_order_delivery_repo~get_orders_items.
     DATA lt_order_items TYPE STANDARD TABLE OF vbap WITH EMPTY KEY.
-    DATA lt_statuses TYPE STANDARD TABLE OF vbup WITH EMPTY KEY.
-    DATA lt_schedules TYPE STANDARD TABLE OF vbep WITH EMPTY KEY.
+    DATA lt_statuses TYPE HASHED TABLE OF vbup
+      WITH UNIQUE KEY vbeln posnr.
+    DATA lt_schedules TYPE SORTED TABLE OF vbep
+      WITH NON-UNIQUE KEY vbeln posnr edatu etenr.
     DATA ls_status TYPE vbup.
     DATA lv_has_status TYPE abap_bool.
 
@@ -48,7 +50,6 @@ CLASS zcl_sales_order_delivery_repo IMPLEMENTATION.
       FOR ALL ENTRIES IN @it_sales_documents
       WHERE vbeln = @it_sales_documents-table_line
       INTO CORRESPONDING FIELDS OF TABLE @lt_schedules.
-    SORT lt_schedules BY vbeln posnr edatu etenr.
 
     LOOP AT lt_order_items INTO DATA(ls_order_item).
       CLEAR: ls_status, lv_has_status.

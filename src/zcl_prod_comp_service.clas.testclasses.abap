@@ -289,6 +289,20 @@ ENDCLASS.
 CLASS lcl_prod_stock_repository DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_stock_repository.
+    METHODS set_location_status
+      IMPORTING
+        iv_material TYPE mard-matnr
+        iv_plant    TYPE mard-werks
+        it_status   TYPE zif_stock_repository=>ty_stock_status_locations.
+    METHODS set_batch_status
+      IMPORTING
+        iv_material TYPE mard-matnr
+        iv_plant    TYPE mard-werks
+        it_status   TYPE zif_stock_repository=>ty_batch_stock_statuses.
+    METHODS set_open_stock_reservations
+      IMPORTING
+        it_reservations TYPE
+          zif_stock_repository=>ty_stock_allocation_reservations.
     METHODS set_projected_receipts
       IMPORTING
         it_receipts TYPE zif_stock_repository=>ty_projected_receipts.
@@ -311,11 +325,37 @@ CLASS lcl_prod_stock_repository DEFINITION FINAL.
     METHODS set_safety_stock
       IMPORTING
         iv_quantity TYPE marc-eisbe.
+    METHODS get_location_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_batch_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_res_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    METHODS get_safety_bulk_call_count
+      RETURNING
+        VALUE(rv_count) TYPE i.
     METHODS get_excluded_reservations
       RETURNING
         VALUE(rt_reservations) TYPE zif_stock_repository=>ty_reservation_keys.
   PRIVATE SECTION.
     TYPES:
+      BEGIN OF ty_location_status_config,
+        material TYPE mard-matnr,
+        plant    TYPE mard-werks,
+        status   TYPE zif_stock_repository=>ty_stock_status_locations,
+      END OF ty_location_status_config,
+      ty_location_status_configs TYPE STANDARD TABLE OF
+        ty_location_status_config WITH EMPTY KEY,
+      BEGIN OF ty_batch_status_config,
+        material TYPE mard-matnr,
+        plant    TYPE mard-werks,
+        status   TYPE zif_stock_repository=>ty_batch_stock_statuses,
+      END OF ty_batch_status_config,
+      ty_batch_status_configs TYPE STANDARD TABLE OF
+        ty_batch_status_config WITH EMPTY KEY,
       BEGIN OF ty_date_stock,
         required_date                 TYPE resb-bdter,
         quantity                      TYPE mard-labst,
@@ -335,14 +375,44 @@ CLASS lcl_prod_stock_repository DEFINITION FINAL.
     TYPES ty_date_stocks TYPE STANDARD TABLE OF ty_date_stock
       WITH EMPTY KEY.
     DATA mt_date_stocks TYPE ty_date_stocks.
+    DATA mt_location_status TYPE ty_location_status_configs.
+    DATA mt_batch_status TYPE ty_batch_status_configs.
+    DATA mt_open_stock_reservations TYPE
+      zif_stock_repository=>ty_stock_allocation_reservations.
     DATA mt_projected_receipts TYPE
       zif_stock_repository=>ty_projected_receipts.
     DATA mt_excluded_reservations TYPE
       zif_stock_repository=>ty_reservation_keys.
     DATA mv_safety_stock TYPE marc-eisbe.
+    DATA mv_location_bulk_call_count TYPE i.
+    DATA mv_batch_bulk_call_count TYPE i.
+    DATA mv_reservation_bulk_call_count TYPE i.
+    DATA mv_safety_bulk_call_count TYPE i.
 ENDCLASS.
 
 CLASS lcl_prod_stock_repository IMPLEMENTATION.
+  METHOD set_location_status.
+    DELETE mt_location_status WHERE material = iv_material
+      AND plant = iv_plant.
+    APPEND VALUE #(
+      material = iv_material
+      plant    = iv_plant
+      status   = it_status ) TO mt_location_status.
+  ENDMETHOD.
+
+  METHOD set_batch_status.
+    DELETE mt_batch_status WHERE material = iv_material
+      AND plant = iv_plant.
+    APPEND VALUE #(
+      material = iv_material
+      plant    = iv_plant
+      status   = it_status ) TO mt_batch_status.
+  ENDMETHOD.
+
+  METHOD set_open_stock_reservations.
+    mt_open_stock_reservations = it_reservations.
+  ENDMETHOD.
+
   METHOD set_projected_receipts.
     mt_projected_receipts = it_receipts.
   ENDMETHOD.
@@ -369,6 +439,22 @@ CLASS lcl_prod_stock_repository IMPLEMENTATION.
 
   METHOD set_safety_stock.
     mv_safety_stock = iv_quantity.
+  ENDMETHOD.
+
+  METHOD get_location_bulk_call_count.
+    rv_count = mv_location_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_batch_bulk_call_count.
+    rv_count = mv_batch_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_res_bulk_call_count.
+    rv_count = mv_reservation_bulk_call_count.
+  ENDMETHOD.
+
+  METHOD get_safety_bulk_call_count.
+    rv_count = mv_safety_bulk_call_count.
   ENDMETHOD.
 
   METHOD get_excluded_reservations.
@@ -432,6 +518,34 @@ CLASS lcl_prod_stock_repository IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_available_stock_date_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id         = ls_request-request_id
+        material           = ls_request-material
+        plant              = ls_request-plant
+        required_date      = ls_request-required_date
+        available_quantity =
+          zif_stock_repository~get_available_stock_by_date(
+            iv_material                    = ls_request-material
+            iv_plant                       = ls_request-plant
+            iv_required_date               = ls_request-required_date
+            it_excluded_reservations       = it_excluded_reservations
+            iv_include_po_receipts         = iv_include_po_receipts
+            iv_include_sto_in_transit      = iv_include_sto_in_transit
+            iv_include_unissued_sto        = iv_include_unissued_sto
+            iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+            iv_include_prod_receipts       = iv_include_prod_receipts
+            iv_include_pr_receipts         = iv_include_pr_receipts
+            iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+            iv_include_planned_receipts    = iv_include_planned_receipts
+            iv_include_fixed_planned       = iv_include_fixed_planned
+            iv_include_sched_agmt_receipts =
+              iv_include_sched_agmt_receipts ) )
+        TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_projected_receipts.
     LOOP AT mt_projected_receipts INTO DATA(ls_receipt)
         WHERE material = iv_material
@@ -478,6 +592,39 @@ CLASS lcl_prod_stock_repository IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_projected_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_projected_receipt_bulk_result(
+          request_id   = ls_request-request_id
+          material     = ls_request-material
+          plant        = ls_request-plant
+          through_date = ls_request-through_date ).
+      ls_result-receipts = zif_stock_repository~get_projected_receipts(
+        iv_material                    = ls_request-material
+        iv_plant                       = ls_request-plant
+        iv_through_date                = ls_request-through_date
+        iv_include_po_receipts         = iv_include_po_receipts
+        iv_include_sto_in_transit      = iv_include_sto_in_transit
+        iv_include_unissued_sto        = iv_include_unissued_sto
+        iv_include_prod_receipts       = iv_include_prod_receipts
+        iv_include_pr_receipts         = iv_include_pr_receipts
+        iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+        iv_include_planned_receipts    = iv_include_planned_receipts
+        iv_include_fixed_planned       = iv_include_fixed_planned
+        iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts ).
+      IF iv_include_po_confirmations = abap_true.
+        DATA(lt_confirmed_receipts) =
+          zif_stock_repository~get_po_confirmed_receipts(
+            iv_material     = ls_request-material
+            iv_plant        = ls_request-plant
+            iv_through_date = ls_request-through_date ).
+        APPEND LINES OF lt_confirmed_receipts TO ls_result-receipts.
+      ENDIF.
+      APPEND ls_result TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_po_confirmed_receipts.
     LOOP AT mt_projected_receipts INTO DATA(ls_receipt)
         WHERE material = iv_material
@@ -490,8 +637,36 @@ CLASS lcl_prod_stock_repository IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD zif_stock_repository~get_po_confirmed_receipts_bulk.
+    LOOP AT it_requests INTO DATA(ls_request).
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_projected_receipt_bulk_result(
+          request_id   = ls_request-request_id
+          material     = ls_request-material
+          plant        = ls_request-plant
+          through_date = ls_request-through_date ).
+      ls_result-receipts = zif_stock_repository~get_po_confirmed_receipts(
+          iv_material     = ls_request-material
+          iv_plant        = ls_request-plant
+          iv_through_date = ls_request-through_date ).
+      APPEND ls_result TO rt_results.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD zif_stock_repository~get_safety_stock.
     rv_quantity = mv_safety_stock.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_safety_stock_bulk.
+    ADD 1 TO mv_safety_bulk_call_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id = ls_request-request_id
+        material   = ls_request-material
+        plant      = ls_request-plant
+        quantity   = mv_safety_stock )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_sales_order_reservations.
@@ -514,28 +689,72 @@ CLASS lcl_prod_stock_repository IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_status_by_location.
+    READ TABLE mt_location_status INTO DATA(ls_location_config)
+      WITH KEY material = iv_material
+               plant = iv_plant.
+    IF sy-subrc = 0.
+      rt_status = ls_location_config-status.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_location_stock_status_bulk.
+    ADD 1 TO mv_location_bulk_call_count.
     LOOP AT it_requests INTO DATA(ls_request).
-      APPEND VALUE #(
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_stock_location_bulk_result(
         request_id = ls_request-request_id
         material   = ls_request-material
-        plant      = ls_request-plant )
-        TO rt_status.
+        plant      = ls_request-plant ).
+      READ TABLE mt_location_status INTO DATA(ls_location_config)
+        WITH KEY material = ls_request-material
+                 plant = ls_request-plant.
+      IF sy-subrc = 0.
+        ls_result-locations = ls_location_config-status.
+      ENDIF.
+      APPEND ls_result TO rt_status.
     ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_status_by_batch.
+    READ TABLE mt_batch_status INTO DATA(ls_batch_config)
+      WITH KEY material = iv_material
+               plant = iv_plant.
+    IF sy-subrc = 0.
+      rt_status = ls_batch_config-status.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_reservations.
+    rt_reservations = mt_open_stock_reservations.
+  ENDMETHOD.
+
+  METHOD zif_stock_repository~get_open_stock_res_bulk.
+    ADD 1 TO mv_reservation_bulk_call_count.
+    LOOP AT it_requests INTO DATA(ls_request).
+      APPEND VALUE #(
+        request_id   = ls_request-request_id
+        material     = ls_request-material
+        plant        = ls_request-plant
+        reservations = mt_open_stock_reservations )
+        TO rt_status.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_batch_stock_status_bulk.
+    ADD 1 TO mv_batch_bulk_call_count.
     LOOP AT it_requests INTO DATA(ls_request).
-      APPEND VALUE #(
+      DATA(ls_result) = VALUE
+        zif_stock_repository=>ty_batch_status_bulk_result(
         request_id = ls_request-request_id
         material   = ls_request-material
-        plant      = ls_request-plant )
-        TO rt_status.
+        plant      = ls_request-plant ).
+      READ TABLE mt_batch_status INTO DATA(ls_batch_config)
+        WITH KEY material = ls_request-material
+                 plant = ls_request-plant.
+      IF sy-subrc = 0.
+        ls_result-batches = ls_batch_config-status.
+      ENDIF.
+      APPEND ls_result TO rt_status.
     ENDLOOP.
   ENDMETHOD.
 
@@ -730,16 +949,30 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
     METHODS previews_components_atp FOR TESTING.
     METHODS previews_order_components_atp FOR TESTING.
     METHODS previews_components_stock FOR TESTING.
+    METHODS previews_scoped_components FOR TESTING.
+    METHODS rejects_component_uom_overflow FOR TESTING.
+    METHODS scoped_stock_status_reads_bulk FOR TESTING.
+    METHODS scoped_deducts_competing_resv FOR TESTING.
+    METHODS scope_skips_expired_stock FOR TESTING.
+    METHODS scoped_receipts_ordered FOR TESTING.
+    METHODS scoped_receipts_safety FOR TESTING.
+    METHODS scoped_location_receipts FOR TESTING.
+    METHODS scoped_combined_receipts_bulk FOR TESTING.
+    METHODS scoped_sap_projected_receipts FOR TESTING.
     METHODS excludes_current_reservations FOR TESTING.
     METHODS rejects_component_atp_rule FOR TESTING.
     METHODS rejects_component_atp_date FOR TESTING.
     METHODS summarizes_component_readiness FOR TESTING.
     METHODS summarizes_component_shortages FOR TESTING.
     METHODS summarizes_order_atp FOR TESTING.
+    METHODS rejects_atp_summary_overflow FOR TESTING.
+    METHODS rejects_atp_date_overflow FOR TESTING.
+    METHODS rejects_month_qty_overflow FOR TESTING.
     METHODS suggests_comp_replenishment FOR TESTING.
     METHODS rounds_replenishment_profile FOR TESTING.
     METHODS rejects_missing_profile_levels FOR TESTING.
     METHODS rejects_rounding_over_max_lot FOR TESTING.
+    METHODS rejects_repl_qty_overflow FOR TESTING.
     METHODS groups_monthly_lot_size FOR TESTING.
     METHODS groups_daily_lot_size FOR TESTING.
     METHODS groups_resolved_lot_periods FOR TESTING.
@@ -766,7 +999,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
         ( production_order   = '0000004711'
           reservation_number = '0000001234'
           reservation_item   = '0030'
-          material           = 'MAT-2'
+          material           = 'MAT-1'
           plant              = '1000'
           movement_type      = '261'
           required_quantity  = '5.000'
@@ -2785,6 +3018,135 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_atp_date_overflow.
+    DATA(lo_comp_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = NEW lcl_prod_stock_repository( )
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_comp_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+    DATA(lv_max_quantity) = CONV resb-bdmng( '9999999999.999' ).
+    DATA lv_rejected TYPE abap_bool.
+
+    lo_comp_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261005'
+          required_quantity  = lv_max_quantity
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261005'
+          required_quantity  = lv_max_quantity
+          unit               = 'EA' ) ) ).
+    TRY.
+        lo_cut->preview_components_atp_bulk(
+          it_production_orders = VALUE #( ( '0000004711' ) )
+          iv_check_rule        = 'A' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lo_availability_api->get_requests( ) ) ).
+
+    lo_comp_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261005'
+          required_quantity  = lv_max_quantity
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261006'
+          required_quantity  = lv_max_quantity
+          unit               = 'EA' ) ) ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->preview_components_atp_bulk(
+          it_production_orders = VALUE #( ( '0000004711' ) )
+          iv_check_rule        = 'A' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD rejects_month_qty_overflow.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lv_max_quantity) = CONV mard-labst( '9999999999.999' ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages  = VALUE #(
+            ( material                = 'MAT-MB'
+              plant                   = '1000'
+              base_unit               = 'EA'
+              required_date           = '20280205'
+              requested_base_quantity = lv_max_quantity
+              shortfall_base_quantity = lv_max_quantity )
+            ( material                = 'MAT-MB'
+              plant                   = '1000'
+              base_unit               = 'EA'
+              required_date           = '20280225'
+              requested_base_quantity = lv_max_quantity
+              shortfall_base_quantity = lv_max_quantity ) )
+          it_policies   = VALUE #(
+            ( lot_size_procedure = 'MB'
+              procurement_type   = 'E'
+              material           = 'MAT-MB'
+              plant              = '1000'
+              base_unit          = 'EA' ) )
+          iv_as_of_date = '20261001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
   METHOD rejects_component_atp_rule.
     DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
     DATA(lo_cut) = NEW zcl_prod_comp_service(
@@ -3043,6 +3405,1426 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD previews_scoped_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '4.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-2'
+          required_date      = '20261020'
+          required_quantity  = '4.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0030'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0040'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0002'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '6.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0002'
+          unrestricted_quantity      = '2.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_batch_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'BATCH-1'
+          expiration_date       = '20261231'
+          unrestricted_quantity = '4.000'
+          available_quantity    = '0.000' )
+        ( storage_location      = '0001'
+          batch                 = 'BATCH-2'
+          expiration_date       = '20261231'
+          unrestricted_quantity = '2.000'
+          available_quantity    = '0.000' ) ) ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          open_quantity      = '4.000' )
+        ( reservation_number = '0000001234'
+          reservation_item   = '0020'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          batch              = 'BATCH-2'
+          open_quantity      = '4.000' )
+        ( reservation_number = '0000001234'
+          reservation_item   = '0030'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          open_quantity      = '2.000' )
+        ( reservation_number = '0000001234'
+          reservation_item   = '0040'
+          required_date      = '20261020'
+          storage_location   = '0002'
+          open_quantity      = '2.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order = '0000004711' ).
+    DATA(lt_default_checks) = lo_cut->preview_components_stock(
+      iv_production_order = '0000004711' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 3 ]-component_local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 4 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_default_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = lt_checks[ 1 ]-local_estimate-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = lt_checks[ 1 ]-local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = lt_checks[ 1 ]-local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_checks[ 1 ]-local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_checks[ 1 ]-local_estimate
+      act = lt_checks[ 4 ]-local_estimate ).
+  ENDMETHOD.
+
+  METHOD rejects_component_uom_overflow.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '9999999.999'
+          unit               = 'PAL' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'PAL'
+      iv_numerator        = 99999
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->preview_scoped_components(
+          iv_production_order = '0000004711' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_stock_repository->get_location_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD scoped_stock_status_reads_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000005678'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '2000'
+          storage_location   = '0002'
+          required_date      = '20261021'
+          required_quantity  = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '2.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      it_status   = VALUE #(
+        ( storage_location           = '0002'
+          unrestricted_quantity      = '3.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order     = '0000004711'
+      iv_protect_safety_stock = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_stock_repository->get_location_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_stock_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_stock_repository->get_res_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_stock_repository->get_safety_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD scoped_deducts_competing_resv.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261030'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '5.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_batch_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'BATCH-1'
+          expiration_date       = '20261231'
+          unrestricted_quantity = '5.000'
+          available_quantity    = '0.000' ) ) ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          open_quantity      = '2.000' )
+        ( reservation_number = '0000001234'
+          reservation_item   = '0020'
+          required_date      = '20261030'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          open_quantity      = '2.000' )
+        ( reservation_number = '0000009999'
+          reservation_item   = '0010'
+          required_date      = '20261025'
+          open_quantity      = '7.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order = '0000004711' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD scope_skips_expired_stock.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261020'
+          required_quantity  = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '3.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_batch_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'EXPIRED'
+          expiration_date       = '20261019'
+          unrestricted_quantity = '2.000'
+          available_quantity    = '0.000' )
+        ( storage_location      = '0001'
+          batch                 = 'FRESH'
+          expiration_date       = '20261231'
+          unrestricted_quantity = '1.000'
+          available_quantity    = '0.000' ) ) ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          open_quantity      = '3.000' )
+        ( reservation_number = '0000009999'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          open_quantity      = '2.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order = '0000004711' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD scoped_receipts_ordered.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '1.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_batch_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'BATCH-1'
+          expiration_date       = '20261231'
+          unrestricted_quantity = '1.000'
+          available_quantity    = '0.000' ) ) ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          open_quantity      = '2.000' )
+        ( reservation_number = '0000009999'
+          reservation_item   = '0010'
+          required_date      = '20261019'
+          open_quantity      = '3.000' ) ) ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = lo_stock_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order         = '0000004711'
+      it_projected_batch_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'BATCH-1'
+          expiration_date  = '20261231'
+          receipt_date     = '20261020'
+          base_quantity    = '2.000' ) ) ).
+    DATA(lt_atp_checks) = lo_cut->preview_components_atp(
+      iv_production_order         = '0000004711'
+      it_projected_batch_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'BATCH-1'
+          expiration_date  = '20261231'
+          receipt_date     = '20261020'
+          base_quantity    = '2.000' ) )
+      iv_check_rule               = 'A' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_checks[ 1 ]-atp_result-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+
+    DATA lv_conflict_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->preview_components_atp(
+          iv_production_order         = '0000004711'
+          it_projected_batch_receipts = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'BATCH-1'
+              expiration_date  = '20261231'
+              receipt_date     = '20261020'
+              base_quantity    = '2.000' ) )
+          iv_check_rule               = 'A'
+          iv_include_po_receipts      = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_conflict_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( act = lv_conflict_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+
+    DATA lv_invalid_receipt_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->preview_components_atp(
+          iv_production_order         = '0000004711'
+          it_projected_batch_receipts = VALUE #(
+            ( material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'BATCH-1'
+              expiration_date  = '20261231'
+              receipt_date     = '20261301'
+              base_quantity    = '2.000' ) )
+          iv_check_rule               = 'A' ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_receipt_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( act = lv_invalid_receipt_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD scoped_receipts_safety.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '2.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_batch_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'BATCH-1'
+          unrestricted_quantity = '2.000'
+          available_quantity    = '0.000' ) ) ).
+    lo_stock_repository->set_safety_stock( iv_quantity = '3.000' ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          open_quantity      = '3.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order         = '0000004711'
+      iv_protect_safety_stock     = abap_true
+      it_projected_batch_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'BATCH-1'
+          expiration_date  = '20261231'
+          receipt_date     = '20261015'
+          base_quantity    = '1.000' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'BATCH-1'
+          receipt_date     = '20261020'
+          base_quantity    = '3.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
+  ENDMETHOD.
+
+  METHOD scoped_location_receipts.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_safety_stock( iv_quantity = '1.000' ).
+    lo_stock_repository->set_open_stock_reservations(
+      it_reservations = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0010'
+          required_date      = '20261020'
+          storage_location   = '0001'
+          open_quantity      = '2.000' )
+        ( reservation_number = '0000009999'
+          reservation_item   = '0010'
+          required_date      = '20261019'
+          open_quantity      = '1.000' ) ) ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = lo_stock_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order            = '0000004711'
+      iv_protect_safety_stock        = abap_true
+      it_projected_location_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261020'
+          base_quantity    = '3.000' ) ) ).
+    DATA(lt_stock_checks) = lo_cut->preview_components_stock(
+      iv_production_order            = '0000004711'
+      iv_protect_safety_stock        = abap_true
+      it_projected_location_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261020'
+          base_quantity    = '3.000' ) ) ).
+    DATA(lt_atp_checks) = lo_cut->preview_components_atp(
+      iv_production_order            = '0000004711'
+      iv_check_rule                  = 'A'
+      iv_protect_safety_stock        = abap_true
+      it_projected_location_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261020'
+          base_quantity    = '3.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_stock_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_checks[ 1 ]-atp_result-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD scoped_combined_receipts_bulk.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          required_date      = '20261021'
+          required_quantity  = '3.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = lo_stock_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+    DATA(lt_orders) = VALUE zif_prod_comp_repo=>ty_production_orders(
+      ( '0000004711' )
+      ( '0000004712' ) ).
+    DATA(lt_batch_receipts) = VALUE zcl_stock_service=>ty_dated_batch_receipts(
+      ( material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        batch            = 'BATCH-1'
+        receipt_date     = '20261020'
+        base_quantity    = '2.000' ) ).
+    DATA(lt_location_receipts) = VALUE
+      zcl_stock_service=>ty_dated_location_receipts(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261021'
+          base_quantity    = '3.000' ) ).
+
+    DATA(lt_scoped_checks) = lo_cut->preview_scoped_components_bulk(
+      it_production_orders           = lt_orders
+      it_projected_batch_receipts    = lt_batch_receipts
+      it_projected_location_receipts = lt_location_receipts ).
+    DATA(lt_stock_checks) = lo_cut->preview_components_stock_bulk(
+      it_production_orders           = lt_orders
+      it_projected_batch_receipts    = lt_batch_receipts
+      it_projected_location_receipts = lt_location_receipts ).
+    DATA(lt_atp_checks) = lo_cut->preview_components_atp_bulk(
+      it_production_orders           = lt_orders
+      iv_check_rule                  = 'A'
+      it_projected_batch_receipts    = lt_batch_receipts
+      it_projected_location_receipts = lt_location_receipts ).
+
+    READ TABLE lt_scoped_checks INTO DATA(ls_scoped_batch)
+      WITH KEY component-production_order = '0000004711'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_scoped_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_scoped_checks INTO DATA(ls_scoped_location)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_scoped_location-component_local_estimate-allocated_quantity ).
+
+    READ TABLE lt_stock_checks INTO DATA(ls_stock_location)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_stock_location-component_local_estimate-allocated_quantity ).
+
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_batch)
+      WITH KEY component-production_order = '0000004711'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_atp_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_location)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_atp_location-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD scoped_sap_projected_receipts.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-2'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004712'
+          reservation_number = '0000005678'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0001'
+          batch              = 'BATCH-1'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004713'
+          reservation_number = '0000007890'
+          reservation_item   = '0030'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0002'
+          required_date      = '20261021'
+          required_quantity  = '3.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004714'
+          reservation_number = '0000007891'
+          reservation_item   = '0040'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0003'
+          batch              = 'BATCH-PRD'
+          required_date      = '20261022'
+          required_quantity  = '4.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004715'
+          reservation_number = '0000007892'
+          reservation_item   = '0050'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0004'
+          required_date      = '20261022'
+          required_quantity  = '5.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004716'
+          reservation_number = '0000007893'
+          reservation_item   = '0060'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0005'
+          required_date      = '20261022'
+          required_quantity  = '6.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004717'
+          reservation_number = '0000007894'
+          reservation_item   = '0070'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0006'
+          required_date      = '20261022'
+          required_quantity  = '7.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004718'
+          reservation_number = '0000007895'
+          reservation_item   = '0080'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0007'
+          required_date      = '20261022'
+          required_quantity  = '8.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004719'
+          reservation_number = '0000007896'
+          reservation_item   = '0090'
+          material           = 'MAT-1'
+          plant              = '1000'
+          storage_location   = '0008'
+          batch              = 'BATCH-CNF'
+          required_date      = '20261022'
+          required_quantity  = '9.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004720'
+          reservation_number = '0000007897'
+          reservation_item   = '0100'
+          material           = 'MAT-1'
+          plant              = '2000'
+          storage_location   = '0009'
+          batch              = 'BATCH-2'
+          required_date      = '20261020'
+          required_quantity  = '1.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004721'
+          reservation_number = '0000007898'
+          reservation_item   = '0110'
+          material           = 'MAT-1'
+          plant              = '3000'
+          storage_location   = '0010'
+          batch              = 'BATCH-3'
+          required_date      = '20261021'
+          required_quantity  = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0002'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0003'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0004'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0005'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0006'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0007'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' )
+        ( storage_location           = '0008'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '2000'
+      it_status   = VALUE #(
+        ( storage_location           = '0009'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '3000'
+      it_status   = VALUE #(
+        ( storage_location           = '0010'
+          unrestricted_quantity      = '0.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261020'
+      iv_quantity = '0.000' ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261021'
+      iv_quantity = '1.000' ).
+    lo_stock_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0001'
+          batch            = 'BATCH-1'
+          receipt_date     = '20261020'
+          quantity         = '2.000'
+          source_type      = 'PO' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0002'
+          receipt_date     = '20261021'
+          quantity         = '3.000'
+          source_type      = 'SCHED_AGREEMENT' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0003'
+          batch            = 'BATCH-PRD'
+          receipt_date     = '20261022'
+          quantity         = '4.000'
+          source_type      = 'PRODUCTION' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0004'
+          receipt_date     = '20261022'
+          quantity         = '5.000'
+          source_type      = 'PR' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0005'
+          receipt_date     = '20261022'
+          quantity         = '6.000'
+          source_type      = 'STO_PR' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0006'
+          receipt_date     = '20261022'
+          quantity         = '7.000'
+          source_type      = 'PLANNED_ORDER' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0007'
+          receipt_date     = '20261022'
+          quantity         = '8.000'
+          source_type      = 'FIXED_PLAN_ORDER' )
+        ( material         = 'MAT-1'
+          plant            = '1000'
+          base_unit        = 'EA'
+          storage_location = '0008'
+          batch            = 'BATCH-CNF'
+          receipt_date     = '20261022'
+          quantity         = '9.000'
+          source_type      = 'PO_CONFIRMATION' )
+        ( material     = 'MAT-1'
+          plant        = '2000'
+          base_unit    = 'EA'
+          receipt_date = '20261020'
+          quantity     = '1.000'
+          source_type  = 'PO' )
+        ( material     = 'MAT-1'
+          plant        = '3000'
+          base_unit    = 'EA'
+          receipt_date = '20261022'
+          quantity     = '1.000'
+          source_type  = 'PO' ) ) ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = lo_stock_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+    DATA(lt_orders) = VALUE zif_prod_comp_repo=>ty_production_orders(
+      ( '0000004711' )
+      ( '0000004712' )
+      ( '0000004713' )
+      ( '0000004714' )
+      ( '0000004715' )
+      ( '0000004716' )
+      ( '0000004717' )
+      ( '0000004718' )
+      ( '0000004719' )
+      ( '0000004720' )
+      ( '0000004721' ) ).
+
+    DATA(lt_stock_checks) = lo_cut->preview_components_stock_bulk(
+      it_production_orders           = lt_orders
+      iv_include_po_confirmations    = abap_true
+      iv_include_prod_receipts       = abap_true
+      iv_include_pr_receipts         = abap_true
+      iv_include_sto_pr_receipts     = abap_true
+      iv_include_planned_receipts    = abap_true
+      iv_include_fixed_planned       = abap_true
+      iv_include_sched_agmt_receipts = abap_true ).
+    DATA(lt_standard_po_checks) = lo_cut->preview_components_stock_bulk(
+      it_production_orders   = lt_orders
+      iv_include_po_receipts = abap_true ).
+    DATA(lt_atp_checks) = lo_cut->preview_components_atp_bulk(
+      it_production_orders           = lt_orders
+      iv_check_rule                  = 'A'
+      iv_include_po_confirmations    = abap_true
+      iv_include_prod_receipts       = abap_true
+      iv_include_pr_receipts         = abap_true
+      iv_include_sto_pr_receipts     = abap_true
+      iv_include_planned_receipts    = abap_true
+      iv_include_fixed_planned       = abap_true
+      iv_include_sched_agmt_receipts = abap_true ).
+
+    READ TABLE lt_stock_checks INTO DATA(ls_mixed_fallback)
+      WITH KEY component-production_order = '0000004720'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_mixed_fallback-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_scoped_horizon)
+      WITH KEY component-production_order = '0000004721'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_scoped_horizon-component_local_estimate-allocated_quantity ).
+
+    READ TABLE lt_stock_checks INTO DATA(ls_other_batch)
+      WITH KEY component-production_order = '0000004711'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_other_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_assigned_batch)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_assigned_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_standard_po_checks INTO DATA(ls_standard_po_batch)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_standard_po_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_assigned_location)
+      WITH KEY component-production_order = '0000004713'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_assigned_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_production_batch)
+      WITH KEY component-production_order = '0000004714'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_production_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_pr_location)
+      WITH KEY component-production_order = '0000004715'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_pr_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_sto_pr_location)
+      WITH KEY component-production_order = '0000004716'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_sto_pr_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_planned_location)
+      WITH KEY component-production_order = '0000004717'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = ls_planned_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_fixed_planned_location)
+      WITH KEY component-production_order = '0000004718'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.000' )
+      act = ls_fixed_planned_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_stock_checks INTO DATA(ls_confirmed_batch)
+      WITH KEY component-production_order = '0000004719'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_confirmed_batch-component_local_estimate-allocated_quantity ).
+
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_assigned_batch)
+      WITH KEY component-production_order = '0000004712'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_atp_assigned_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_assigned_location)
+      WITH KEY component-production_order = '0000004713'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_atp_assigned_location-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_production_batch)
+      WITH KEY component-production_order = '0000004714'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_atp_production_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_confirmed_batch)
+      WITH KEY component-production_order = '0000004719'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = ls_atp_confirmed_batch-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_mixed_fallback)
+      WITH KEY component-production_order = '0000004720'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_atp_mixed_fallback-component_local_estimate-allocated_quantity ).
+    READ TABLE lt_atp_checks INTO DATA(ls_atp_scoped_horizon)
+      WITH KEY component-production_order = '0000004721'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_atp_scoped_horizon-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lines( lo_availability_api->get_requests( ) ) ).
+
+    lo_stock_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material     = 'MAT-1'
+          plant        = '1000'
+          base_unit    = 'EA'
+          batch        = 'BATCH-1'
+          receipt_date = '20261020'
+          quantity     = '2.000'
+          source_type  = 'PO' ) ) ).
+    lo_stock_repository->set_date_stock(
+      iv_date             = '20261020'
+      iv_quantity         = '0.000'
+      iv_receipt_quantity = '2.000' ).
+    DATA(lt_unassigned_checks) = lo_cut->preview_components_stock_bulk(
+      it_production_orders           = lt_orders
+      iv_include_po_receipts         = abap_true
+      iv_include_sched_agmt_receipts = abap_false ).
+    READ TABLE lt_unassigned_checks INTO DATA(ls_plant_level_fallback)
+      WITH KEY component-production_order = '0000004711'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_plant_level_fallback-component_local_estimate-allocated_quantity ).
+
+    lo_stock_repository->set_projected_receipts(
+      it_receipts = VALUE #(
+        ( material     = 'MAT-1'
+          plant        = '1000'
+          base_unit    = 'EA'
+          batch        = 'BATCH-CNF'
+          receipt_date = '20261020'
+          quantity     = '2.000'
+          source_type  = 'PO_CONFIRMATION' ) ) ).
+    DATA(lt_conf_fallback_checks) =
+      lo_cut->preview_components_stock_bulk(
+        it_production_orders        = lt_orders
+        iv_include_po_confirmations = abap_true ).
+    READ TABLE lt_conf_fallback_checks
+      INTO DATA(ls_confirmation_plant_fallback)
+      WITH KEY component-production_order = '0000004711'.
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = sy-subrc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act =
+        ls_confirmation_plant_fallback-component_local_estimate-allocated_quantity ).
+
+    DATA(lv_po_modes_rejected) = abap_false.
+    TRY.
+        DATA(lt_rejected_po_modes) = lo_cut->preview_components_stock_bulk(
+          it_production_orders        = lt_orders
+          iv_include_po_receipts      = abap_true
+          iv_include_po_confirmations = abap_true ).
+        cl_abap_unit_assert=>assert_equals(
+          exp = 0
+          act = lines( lt_rejected_po_modes ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_po_modes_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_po_modes_rejected ).
   ENDMETHOD.
 
   METHOD rejects_component_atp_date.
@@ -3339,6 +5121,53 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = lt_shortages[ 2 ]-shortfall_base_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_atp_summary_overflow.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lv_max_quantity) = CONV mard-labst( '9999999999.999' ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->summarize_order_atp(
+          it_checks = VALUE #(
+            ( component                      = VALUE #(
+                production_order   = '0000004711'
+                reservation_number = '0000001234'
+                reservation_item   = '0010'
+                material           = 'MAT-1'
+                plant              = '1000'
+                required_date      = '20261005' )
+              base_unit                      = 'EA'
+              requested_base_quantity        = lv_max_quantity
+              cumulative_base_quantity       = lv_max_quantity
+              confirmed_base_quantity        = 0
+              unconfirmed_base_quantity      = lv_max_quantity
+              component_confirmed_quantity   = 0
+              component_unconfirmed_quantity = lv_max_quantity
+              atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+            ( component                      = VALUE #(
+                production_order   = '0000004711'
+                reservation_number = '0000001234'
+                reservation_item   = '0020'
+                material           = 'MAT-1'
+                plant              = '1000'
+                required_date      = '20261005' )
+              base_unit                      = 'EA'
+              requested_base_quantity        = lv_max_quantity
+              cumulative_base_quantity       = lv_max_quantity
+              confirmed_base_quantity        = 0
+              unconfirmed_base_quantity      = lv_max_quantity
+              component_confirmed_quantity   = 0
+              component_unconfirmed_quantity = lv_max_quantity
+              atp_result                     = VALUE #( is_check_relevant = abap_true ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
   ENDMETHOD.
 
   METHOD summarizes_order_atp.
@@ -4118,6 +5947,37 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_limit_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_repl_qty_overflow.
+    DATA lv_overflow_rejected TYPE abap_bool.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+
+    TRY.
+        DATA(lt_suggestions) = lo_cut->suggest_comp_replenishment(
+          it_shortages  = VALUE #(
+            ( material                = 'MAT-LIMIT'
+              plant                   = '1000'
+              base_unit               = 'EA'
+              required_date           = '20261015'
+              component_count         = 1
+              requested_base_quantity = '9999999999.998'
+              allocated_base_quantity = '0.000'
+              shortfall_base_quantity = '9999999999.998' ) )
+          it_policies   = VALUE #(
+            ( material                     = 'MAT-LIMIT'
+              plant                        = '1000'
+              base_unit                    = 'EA'
+              lot_size_procedure           = 'EX'
+              order_multiple_base_quantity = '999999999.999' ) )
+          iv_as_of_date = '20261001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_overflow_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_overflow_rejected ).
   ENDMETHOD.
 
   METHOD groups_monthly_lot_size.

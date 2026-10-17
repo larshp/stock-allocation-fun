@@ -243,10 +243,12 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
     METHODS creates_project_stock_req FOR TESTING.
     METHODS rejects_bad_project_shortfall FOR TESTING.
     METHODS prepares_from_suggestions FOR TESTING.
+    METHODS rejects_purch_uom_limits FOR TESTING.
     METHODS creates_from_selected_sources FOR TESTING.
     METHODS prepares_from_selected_sources FOR TESTING.
     METHODS creates_pr_from_quota_splits FOR TESTING.
     METHODS rejects_incomplete_quota_split FOR TESTING.
+    METHODS rejects_quota_split_overflow FOR TESTING.
     METHODS creates_in_selected_order_unit FOR TESTING.
     METHODS creates_with_unit_control FOR TESTING.
     METHODS reads_pr_items FOR TESTING.
@@ -630,6 +632,59 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       act = lo_api->get_create_count( ) ).
   ENDMETHOD.
 
+  METHOD rejects_purch_uom_limits.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->prepare_from_suggestions(
+          it_suggestions         = VALUE #(
+            ( material                    = 'MAT-LIMIT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'F'
+              suggested_base_quantity     = '9999999.999'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '9999999.999' ) )
+          it_purchasing_controls = VALUE #(
+            ( source_suggestion_index = 1
+              purchasing_unit         = 'BOX'
+              order_to_base_num       = 1
+              order_to_base_den       = 99999 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        lo_cut->prepare_from_suggestions(
+          it_suggestions         = VALUE #(
+            ( material                    = 'MAT-LIMIT-2'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'F'
+              suggested_base_quantity     = '1.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '1.000' ) )
+          it_purchasing_controls = VALUE #(
+            ( source_suggestion_index = 1
+              purchasing_unit         = 'BOX'
+              order_to_base_num       = 99999
+              order_to_base_den       = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+  ENDMETHOD.
+
   METHOD creates_from_selected_sources.
     DATA(lo_api) = NEW lcl_replenishment_req_api( ).
     lo_api->set_write_result( is_result = VALUE #(
@@ -944,6 +999,55 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_quota_split_overflow.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+    DATA lv_overflow_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->prepare_from_quota_splits(
+          it_suggestions = VALUE #(
+            ( material                    = 'MAT-QUOTA-LIMIT'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261120'
+              procurement_type            = 'F'
+              suggested_base_quantity     = '10.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '10.000' ) )
+          it_splits      = VALUE #(
+            ( source_suggestion_index = 1
+              split                   = VALUE #(
+                split_sequence     = 1
+                allocated_quantity = '1.000'
+                proposal_quantity  = '99999999999.000'
+                candidate          = VALUE #(
+                  request_index     = 1
+                  candidate_rank    = 1
+                  material          = 'MAT-QUOTA-LIMIT'
+                  plant             = '1000'
+                  purchasing_org    = '2000'
+                  delivery_date     = '20261120'
+                  vendor            = '0000100001'
+                  info_record       = '0000001001'
+                  source_category   = '0'
+                  base_unit         = 'EA'
+                  is_quota_assigned = abap_true
+                  quota_number      = '00000001'
+                  quota_item        = '01'
+                  quota_value       = 1 ) ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_overflow_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_overflow_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_create_count( ) ).

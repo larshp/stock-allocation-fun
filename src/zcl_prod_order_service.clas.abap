@@ -825,9 +825,12 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           OR ls_readiness-requested_base_quantity < 0
           OR ls_readiness-confirmed_base_quantity < 0
           OR ls_readiness-unconfirmed_base_quantity < 0
-          OR ls_readiness-confirmed_base_quantity
-            + ls_readiness-unconfirmed_base_quantity <>
-            ls_readiness-requested_base_quantity
+          OR CONV decfloat34(
+            ls_readiness-confirmed_base_quantity )
+            + CONV decfloat34(
+              ls_readiness-unconfirmed_base_quantity ) <>
+            CONV decfloat34(
+              ls_readiness-requested_base_quantity )
           OR ( ls_readiness-component_count = 0
             AND ls_readiness-requested_base_quantity <> 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -916,9 +919,12 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           OR ls_readiness-requested_base_quantity < 0
           OR ls_readiness-confirmed_base_quantity < 0
           OR ls_readiness-unconfirmed_base_quantity < 0
-          OR ls_readiness-confirmed_base_quantity
-            + ls_readiness-unconfirmed_base_quantity <>
-            ls_readiness-requested_base_quantity
+          OR CONV decfloat34(
+            ls_readiness-confirmed_base_quantity )
+            + CONV decfloat34(
+              ls_readiness-unconfirmed_base_quantity ) <>
+            CONV decfloat34(
+              ls_readiness-requested_base_quantity )
           OR ( ls_readiness-component_count = 0
             AND ls_readiness-requested_base_quantity <> 0 )
           OR ( ls_readiness-is_fully_confirmed <> abap_true

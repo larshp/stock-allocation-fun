@@ -322,6 +322,8 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS rejects_incomplete_atp_results FOR TESTING
       RAISING cx_static_check.
+    METHODS rejects_atp_sum_overflow FOR TESTING
+      RAISING cx_static_check.
     METHODS bulk_atp_release_skips_short FOR TESTING
       RAISING cx_static_check.
     METHODS bulk_atp_release_continues FOR TESTING
@@ -951,6 +953,36 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_api->commit_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_atp_sum_overflow.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    DATA(lo_checker) = NEW lcl_prod_order_atp_checker( ).
+    DATA(lo_cut) = NEW zcl_prod_order_service(
+      io_api         = lo_api
+      io_atp_checker = lo_checker ).
+    DATA lv_rejected TYPE abap_bool.
+    lo_checker->readiness = VALUE #(
+      ( production_order          = '0000000101'
+        component_count           = 1
+        requested_base_quantity   = '9999999999.999'
+        confirmed_base_quantity   = '9999999999.999'
+        unconfirmed_base_quantity = '9999999999.999'
+        is_fully_confirmed        = abap_false ) ).
+
+    TRY.
+        lo_cut->release_orders_after_atp(
+          it_production_orders = VALUE #( ( '0000000101' ) )
+          iv_release_control   = '1'
+          iv_check_rule        = 'A' ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->release_calls
       exp = 0 ).
   ENDMETHOD.
 

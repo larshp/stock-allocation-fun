@@ -30,6 +30,7 @@ CLASS ltcl_bapi_sales_order_api DEFINITION FINAL
     METHODS setup.
     METHODS maps_rejected_alt_unit FOR TESTING.
     METHODS rejects_missing_ratio FOR TESTING.
+    METHODS rejects_item_uom_round_zero FOR TESTING.
     METHODS maps_sales_order_header FOR TESTING.
 ENDCLASS.
 
@@ -93,6 +94,33 @@ CLASS ltcl_bapi_sales_order_api IMPLEMENTATION.
         material   = 'MAT-1'
         req_qty    = '3.000'
         sales_unit = 'BOX'
+        reason_rej = '01' )
+      io_unit_converter = mo_converter ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_mapping-is_conversion_successful ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_mapping-item-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = ls_mapping-item-base_unit ).
+  ENDMETHOD.
+
+  METHOD rejects_item_uom_round_zero.
+    mo_repository->mv_base_unit = 'EA'.
+    mo_repository->mv_alternative_unit = 'BOX'.
+    mo_repository->mv_numerator = 1.
+    mo_repository->mv_denominator = 1000.
+
+    DATA(ls_mapping) = zcl_bapi_sales_order_api=>map_rejected_item(
+      is_bapi_item      = VALUE #(
+        itm_number = '000020'
+        material   = 'MAT-1'
+        req_qty    = '0.001'
+        sales_unit = 'BOX'
+        sales_qty1 = 1
+        sales_qty2 = 1000
         reason_rej = '01' )
       io_unit_converter = mo_converter ).
 

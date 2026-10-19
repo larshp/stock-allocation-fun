@@ -122,9 +122,14 @@ CLASS zcl_purchase_order_service DEFINITION
       ty_order_base_schedule_change WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_write_result,
-        order_results TYPE ty_write_results,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        order_results      TYPE ty_write_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_write_result.
     TYPES:
       BEGIN OF ty_atomic_write_result,
@@ -192,10 +197,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS create_from_requisitions_bulk
       IMPORTING
-        is_header         TYPE zif_purchase_order_api=>ty_request
-        it_selected_items TYPE ty_selected_requisition_items
+        is_header          TYPE zif_purchase_order_api=>ty_request
+        it_selected_items  TYPE ty_selected_requisition_items
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -223,6 +229,7 @@ CLASS zcl_purchase_order_service DEFINITION
         it_suggestions         TYPE
           zcl_prod_comp_service=>ty_comp_replenishments
         it_purchasing_controls TYPE ty_suggestion_po_controls OPTIONAL
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_write_result
       RAISING
@@ -270,9 +277,10 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS create_orders_bulk
       IMPORTING
-        it_requests      TYPE ty_requests
+        it_requests        TYPE ty_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -298,10 +306,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS delete_orders_items_bulk
       IMPORTING
-        it_deletions     TYPE ty_order_item_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_deletions       TYPE ty_order_item_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -328,10 +337,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS mark_delivery_complete_bulk
       IMPORTING
-        it_changes       TYPE ty_order_item_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_changes         TYPE ty_order_item_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -358,10 +368,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS change_item_quantities_bulk
       IMPORTING
-        it_changes       TYPE ty_order_qty_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_changes         TYPE ty_order_qty_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -387,10 +398,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS change_qty_from_base_bulk
       IMPORTING
-        it_changes       TYPE ty_order_base_qty_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_changes         TYPE ty_order_base_qty_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -417,10 +429,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS change_order_schedules_bulk
       IMPORTING
-        it_changes       TYPE ty_order_schedule_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_changes         TYPE ty_order_schedule_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -446,10 +459,11 @@ CLASS zcl_purchase_order_service DEFINITION
 
     METHODS change_base_schedules_bulk
       IMPORTING
-        it_changes       TYPE ty_order_base_schedule_changes
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_changes         TYPE ty_order_base_schedule_changes
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_write_result
+        VALUE(rs_result)   TYPE ty_bulk_write_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -598,6 +612,18 @@ CLASS zcl_purchase_order_service DEFINITION
       RETURNING
         VALUE(rs_result) TYPE zif_purchase_order_api=>ty_write_result.
 
+    METHODS finalize_bulk_write
+      IMPORTING
+        is_result        TYPE ty_bulk_write_result
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_write_result.
+
+    METHODS validate_stop_on_failure
+      IMPORTING
+        iv_stop_on_failure TYPE abap_bool
+      RAISING
+        zcx_invalid_stock_request.
+
     DATA mo_api TYPE REF TO zif_purchase_order_api.
     DATA mo_uom_converter TYPE REF TO zif_material_uom_converter.
 ENDCLASS.
@@ -707,10 +733,14 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_from_requisitions_bulk.
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA(lt_requests) = prepare_from_requisitions(
       is_header         = is_header
       it_selected_items = it_selected_items ).
-    rs_result = create_orders_bulk( it_requests = lt_requests ).
+    rs_result = create_orders_bulk(
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_requisitions_atomic.
@@ -854,6 +884,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_from_suggestions_bulk.
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA(lt_requests) = prepare_from_suggestions_bulk(
       is_header              = is_header
       it_suggestions         = it_suggestions
@@ -872,7 +904,9 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result = create_orders_bulk( it_requests = lt_requests ).
+    rs_result = create_orders_bulk(
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_from_suggestions_atomic.
@@ -1320,6 +1354,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_orders_bulk.
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     IF it_requests IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -1339,15 +1375,31 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         is_request = ls_request ).
       APPEND ls_write_result TO rs_result-order_results.
       IF ls_write_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      DATA(lv_next_request_index) = lines( rs_result-order_results ) + 1.
+      LOOP AT it_requests INTO ls_request FROM lv_next_request_index.
+        APPEND VALUE #(
+          submitted_items = ls_request-items
+          is_test_run     = ls_request-is_test_run
+          is_skipped      = abap_true ) TO rs_result-order_results.
+      ENDLOOP.
+    ENDIF.
+
+    rs_result = finalize_bulk_write( is_result = rs_result ).
   ENDMETHOD.
 
   METHOD complete_atomic_write.
     rs_result = is_result.
     LOOP AT rs_result-order_results
         ASSIGNING FIELD-SYMBOL(<ls_write_result>).
+      <ls_write_result>-is_attempted = abap_true.
       <ls_write_result>-is_test_run = rs_result-is_test_run.
       <ls_write_result>-is_committed = abap_false.
     ENDLOOP.
@@ -1404,6 +1456,7 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
     rs_result = is_result.
     LOOP AT rs_result-order_results
         ASSIGNING FIELD-SYMBOL(<ls_write_result>).
+      <ls_write_result>-is_attempted = abap_true.
       <ls_write_result>-is_test_run = iv_test_run.
       <ls_write_result>-is_committed = abap_false.
     ENDLOOP.
@@ -1473,6 +1526,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD delete_orders_items_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -1502,9 +1557,24 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         iv_test_run              = iv_test_run ).
       APPEND ls_write_result TO rs_result-order_results.
       IF ls_write_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      DATA(lv_next_deletion_index) = lines( rs_result-order_results ) + 1.
+      LOOP AT it_deletions INTO ls_deletion FROM lv_next_deletion_index.
+        APPEND VALUE #(
+          purchase_order_number  = ls_deletion-purchase_order_number
+          submitted_item_numbers = ls_deletion-item_numbers
+          is_test_run            = iv_test_run
+          is_skipped             = abap_true ) TO rs_result-order_results.
+      ENDLOOP.
+    ENDIF.
+    rs_result = finalize_bulk_write( is_result = rs_result ).
   ENDMETHOD.
 
   METHOD delete_orders_items_atomic.
@@ -1535,6 +1605,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD mark_delivery_complete_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -1563,9 +1635,24 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         iv_test_run              = iv_test_run ).
       APPEND ls_write_result TO rs_result-order_results.
       IF ls_write_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      DATA(lv_next_change_index) = lines( rs_result-order_results ) + 1.
+      LOOP AT it_changes INTO ls_change FROM lv_next_change_index.
+        APPEND VALUE #(
+          purchase_order_number  = ls_change-purchase_order_number
+          submitted_item_numbers = ls_change-item_numbers
+          is_test_run            = iv_test_run
+          is_skipped             = abap_true ) TO rs_result-order_results.
+      ENDLOOP.
+    ENDIF.
+    rs_result = finalize_bulk_write( is_result = rs_result ).
   ENDMETHOD.
 
   METHOD mark_delivery_complete_atomic.
@@ -1674,6 +1761,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD change_order_schedules_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -1702,9 +1791,24 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         iv_test_run              = iv_test_run ).
       APPEND ls_write_result TO rs_result-order_results.
       IF ls_write_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      DATA(lv_next_change_index) = lines( rs_result-order_results ) + 1.
+      LOOP AT it_changes INTO ls_change FROM lv_next_change_index.
+        APPEND VALUE #(
+          purchase_order_number = ls_change-purchase_order_number
+          submitted_schedules   = ls_change-schedule_changes
+          is_test_run           = iv_test_run
+          is_skipped            = abap_true ) TO rs_result-order_results.
+      ENDLOOP.
+    ENDIF.
+    rs_result = finalize_bulk_write( is_result = rs_result ).
   ENDMETHOD.
 
   METHOD change_order_schedules_atomic.
@@ -1788,6 +1892,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD change_base_schedules_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -1814,8 +1920,9 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = change_order_schedules_bulk(
-      it_changes  = lt_order_schedule_changes
-      iv_test_run = iv_test_run ).
+      it_changes         = lt_order_schedule_changes
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD change_base_schedules_atomic.
@@ -1872,6 +1979,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD change_item_quantities_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -1901,9 +2010,24 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         iv_test_run              = iv_test_run ).
       APPEND ls_write_result TO rs_result-order_results.
       IF ls_write_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      DATA(lv_next_change_index) = lines( rs_result-order_results ) + 1.
+      LOOP AT it_changes INTO ls_change FROM lv_next_change_index.
+        APPEND VALUE #(
+          purchase_order_number     = ls_change-purchase_order_number
+          submitted_item_quantities = ls_change-item_changes
+          is_test_run               = iv_test_run
+          is_skipped                = abap_true ) TO rs_result-order_results.
+      ENDLOOP.
+    ENDIF.
+    rs_result = finalize_bulk_write( is_result = rs_result ).
   ENDMETHOD.
 
   METHOD change_item_quantities_atomic.
@@ -1988,6 +2112,8 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
 
   METHOD change_qty_from_base_bulk.
     validate_test_run( iv_test_run = iv_test_run ).
+    validate_stop_on_failure(
+      iv_stop_on_failure = iv_stop_on_failure ).
     DATA lt_seen_purchase_orders TYPE HASHED TABLE OF
       zif_purchase_order_api=>ty_purchase_order_number
       WITH UNIQUE KEY table_line.
@@ -2014,8 +2140,9 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = change_item_quantities_bulk(
-      it_changes  = lt_order_qty_changes
-      iv_test_run = iv_test_run ).
+      it_changes         = lt_order_qty_changes
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD change_qty_from_base_atomic.
@@ -2115,6 +2242,39 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
         AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_stop_on_failure.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD finalize_bulk_write.
+    rs_result = is_result.
+    CLEAR: rs_result-successful_count,
+      rs_result-failed_count,
+      rs_result-skipped_count,
+      rs_result-is_committed.
+    rs_result-is_successful = abap_true.
+
+    LOOP AT rs_result-order_results
+        ASSIGNING FIELD-SYMBOL(<ls_write_result>).
+      IF <ls_write_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_write_result>-is_attempted = abap_true.
+        IF <ls_write_result>-is_successful = abap_true.
+          ADD 1 TO rs_result-successful_count.
+          IF <ls_write_result>-is_committed = abap_true.
+            rs_result-is_committed = abap_true.
+          ENDIF.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+          rs_result-is_successful = abap_false.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD validate_item_change.
@@ -2327,6 +2487,7 @@ CLASS zcl_purchase_order_service IMPLEMENTATION.
   METHOD complete_write.
     rs_result = is_result.
     rs_result-is_test_run = iv_test_run.
+    rs_result-is_attempted = abap_true.
     rs_result-is_committed = abap_false.
 
     DATA(lv_has_error_message) = abap_false.

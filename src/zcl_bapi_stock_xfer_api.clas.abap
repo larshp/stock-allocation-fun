@@ -5,6 +5,12 @@ CLASS zcl_bapi_stock_xfer_api DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_stock_transfer_order_api.
+
+    CLASS-METHODS ensure_sto_create_key
+      IMPORTING
+        iv_test_run TYPE abap_bool
+      CHANGING
+        cs_result   TYPE zif_stock_transfer_order_api=>ty_result.
 ENDCLASS.
 
 CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
@@ -123,6 +129,26 @@ CLASS zcl_bapi_stock_xfer_api IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    ensure_sto_create_key(
+      EXPORTING
+        iv_test_run = is_request-is_test_run
+      CHANGING
+        cs_result   = rs_result ).
+  ENDMETHOD.
+
+  METHOD ensure_sto_create_key.
+    IF iv_test_run = abap_true
+        OR cs_result-is_successful <> abap_true
+        OR cs_result-purchase_order_number IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    cs_result-is_successful = abap_false.
+    APPEND VALUE #(
+      type    = 'E'
+      message = 'BAPI_PO_CREATE1 returned no purchase order number' )
+      TO cs_result-messages.
   ENDMETHOD.
 
   METHOD zif_stock_transfer_order_api~mark_items_for_deletion.

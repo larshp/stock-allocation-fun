@@ -5,6 +5,13 @@ CLASS zcl_bapi_goods_movement_api DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_goods_movement_api.
+
+    CLASS-METHODS ensure_document_key
+      IMPORTING
+        iv_test_run  TYPE abap_bool
+        iv_is_cancel TYPE abap_bool
+      CHANGING
+        cs_result    TYPE zif_goods_movement_api=>ty_result.
 ENDCLASS.
 
 CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
@@ -30,6 +37,7 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-plant = ls_movement_item-plant.
       ls_item-stge_loc = ls_movement_item-storage_location.
       ls_item-move_type = ls_movement_item-movement_type.
+      ls_item-move_reas = ls_movement_item-movement_reason.
       ls_item-entry_qnt = ls_movement_item-quantity.
       ls_item-entry_uom = ls_movement_item-entry_unit.
       ls_item-entry_uom_iso = ls_movement_item-entry_unit_iso.
@@ -37,6 +45,7 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-move_plant = ls_movement_item-receiving_plant.
       ls_item-move_stloc = ls_movement_item-receiving_storage_location.
       ls_item-move_batch = ls_movement_item-receiving_batch.
+      ls_item-move_val_type = ls_movement_item-receiving_valuation_type.
       ls_item-costcenter = ls_movement_item-cost_center.
       ls_item-orderid = ls_movement_item-order_id.
       ls_item-order_itm = ls_movement_item-order_item.
@@ -51,6 +60,7 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
       ls_item-mvt_ind = ls_movement_item-movement_indicator.
       ls_item-xstob = ls_movement_item-is_reversal.
       ls_item-batch = ls_movement_item-batch.
+      ls_item-val_type = ls_movement_item-valuation_type.
       ls_item-po_number = ls_movement_item-purchase_order.
       ls_item-po_item = ls_movement_item-purchase_order_item.
       APPEND ls_item TO lt_items.
@@ -85,6 +95,36 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    ensure_document_key(
+      EXPORTING
+        iv_test_run  = iv_test_run
+        iv_is_cancel = abap_false
+      CHANGING
+        cs_result    = rs_result ).
+  ENDMETHOD.
+
+  METHOD ensure_document_key.
+    DATA lv_message TYPE c LENGTH 220.
+
+    IF iv_test_run = abap_true
+        OR cs_result-is_successful <> abap_true
+        OR ( cs_result-material_document IS NOT INITIAL
+          AND cs_result-fiscal_year IS NOT INITIAL ).
+      RETURN.
+    ENDIF.
+
+    cs_result-is_successful = abap_false.
+    IF iv_is_cancel = abap_true.
+      lv_message = 'BAPI_GOODSMVT_CANCEL returned no reversal document key'.
+    ELSE.
+      lv_message = 'BAPI_GOODSMVT_CREATE returned no material document key'.
+    ENDIF.
+
+    APPEND VALUE #(
+      type    = 'E'
+      message = lv_message )
+      TO cs_result-messages.
   ENDMETHOD.
 
   METHOD zif_goods_movement_api~cancel_movement.
@@ -126,6 +166,13 @@ CLASS zcl_bapi_goods_movement_api IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    ensure_document_key(
+      EXPORTING
+        iv_test_run  = abap_false
+        iv_is_cancel = abap_true
+      CHANGING
+        cs_result    = rs_result ).
   ENDMETHOD.
 
   METHOD zif_goods_movement_api~commit.

@@ -35,15 +35,17 @@ INTERFACE zif_cc_reservation_read_repo PUBLIC.
 
   METHODS get_open_reservations
     IMPORTING
-      iv_cost_center         TYPE rkpf-kostl
+      iv_cost_center           TYPE rkpf-kostl
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_reservations.
+      VALUE(rt_reservations)   TYPE ty_reservations.
 
   METHODS get_open_reservations_bulk
     IMPORTING
-      it_cost_centers        TYPE ty_cost_centers
+      it_cost_centers          TYPE ty_cost_centers
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_reservations.
+      VALUE(rt_reservations)   TYPE ty_reservations.
 
   METHODS get_reservation_item_scopes
     IMPORTING

@@ -4,6 +4,7 @@ CLASS ltcl_date_validation DEFINITION FINAL
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS validates_gregorian_dates FOR TESTING.
+    METHODS validates_times FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_date_validation IMPLEMENTATION.
@@ -45,6 +46,30 @@ CLASS ltcl_date_validation IMPLEMENTATION.
       exp = abap_false
       act = zcl_date_validation=>is_valid_gregorian_date(
         iv_date = '00000000' ) ).
+  ENDMETHOD.
+
+  METHOD validates_times.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = zcl_date_validation=>is_valid_time( iv_time = '000000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = zcl_date_validation=>is_valid_time( iv_time = '235959' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = zcl_date_validation=>is_valid_time( iv_time = '123456' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = zcl_date_validation=>is_valid_time( iv_time = '240000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = zcl_date_validation=>is_valid_time( iv_time = '126000' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = zcl_date_validation=>is_valid_time( iv_time = '125960' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = zcl_date_validation=>is_valid_time( iv_time = 'AB0000' ) ).
   ENDMETHOD.
 
 ENDCLASS.

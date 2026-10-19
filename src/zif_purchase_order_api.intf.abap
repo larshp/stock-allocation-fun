@@ -123,6 +123,8 @@ INTERFACE zif_purchase_order_api PUBLIC.
       submitted_item_numbers    TYPE ty_item_numbers,
       submitted_item_quantities TYPE ty_item_quantity_changes,
       messages                  TYPE ty_messages,
+      is_attempted              TYPE abap_bool,
+      is_skipped                TYPE abap_bool,
       is_successful             TYPE abap_bool,
       is_test_run               TYPE abap_bool,
       is_committed              TYPE abap_bool,

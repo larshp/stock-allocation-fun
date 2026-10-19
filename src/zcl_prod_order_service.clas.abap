@@ -30,6 +30,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_create_order_item.
     TYPES ty_create_order_items TYPE STANDARD TABLE OF
       ty_create_order_item WITH EMPTY KEY.
@@ -45,10 +46,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_create_orders_atomic_result.
     TYPES:
       BEGIN OF ty_create_orders_bulk_result,
-        orders           TYPE ty_create_order_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_create_order_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_create_orders_bulk_result.
     TYPES:
       BEGIN OF ty_release_result,
@@ -66,6 +70,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result  TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted   TYPE abap_bool,
         is_committed   TYPE abap_bool,
+        is_skipped     TYPE abap_bool,
       END OF ty_operation_release_item.
     TYPES ty_operation_release_items TYPE STANDARD TABLE OF
       ty_operation_release_item WITH EMPTY KEY.
@@ -79,10 +84,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_operation_release_result.
     TYPES:
       BEGIN OF ty_bulk_operation_release_result,
-        operations       TYPE ty_operation_release_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        operations         TYPE ty_operation_release_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_operation_release_result.
     TYPES:
       BEGIN OF ty_confirmation_cancel_item,
@@ -94,6 +102,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_confirmation_cancel_item.
     TYPES ty_confirmation_cancel_items TYPE STANDARD TABLE OF
       ty_confirmation_cancel_item WITH EMPTY KEY.
@@ -107,10 +116,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_confirmation_cancel_result.
     TYPES:
       BEGIN OF ty_bulk_confirmation_cancel_result,
-        confirmations    TYPE ty_confirmation_cancel_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        confirmations      TYPE ty_confirmation_cancel_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_confirmation_cancel_result.
     TYPES:
       BEGIN OF ty_confirmation_create_item,
@@ -122,6 +134,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_confirmation_create_item.
     TYPES ty_confirmation_create_items TYPE STANDARD TABLE OF
       ty_confirmation_create_item WITH EMPTY KEY.
@@ -136,10 +149,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_confirmation_create_atomic_result.
     TYPES:
       BEGIN OF ty_bulk_confirmation_create_result,
-        confirmations    TYPE ty_confirmation_create_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        confirmations      TYPE ty_confirmation_create_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_confirmation_create_result.
     TYPES:
       BEGIN OF ty_bulk_order_result,
@@ -148,15 +164,19 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result  TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted   TYPE abap_bool,
         is_committed   TYPE abap_bool,
+        is_skipped     TYPE abap_bool,
       END OF ty_bulk_order_result.
     TYPES ty_bulk_order_results TYPE STANDARD TABLE OF ty_bulk_order_result
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_release_result,
-        orders           TYPE ty_bulk_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_bulk_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_release_result.
     TYPES:
       BEGIN OF ty_completion_order_result,
@@ -165,6 +185,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result     TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted      TYPE abap_bool,
         is_committed      TYPE abap_bool,
+        is_skipped        TYPE abap_bool,
       END OF ty_completion_order_result.
     TYPES ty_completion_order_results TYPE STANDARD TABLE OF
       ty_completion_order_result WITH EMPTY KEY.
@@ -178,10 +199,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_completion_result.
     TYPES:
       BEGIN OF ty_bulk_completion_result,
-        orders          TYPE ty_completion_order_results,
-        completed_count TYPE i,
-        failed_count    TYPE i,
-        is_successful   TYPE abap_bool,
+        orders             TYPE ty_completion_order_results,
+        completed_count    TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_completion_result.
     TYPES:
       BEGIN OF ty_deletion_flag_order_result,
@@ -190,6 +214,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result        TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted         TYPE abap_bool,
         is_committed         TYPE abap_bool,
+        is_skipped           TYPE abap_bool,
       END OF ty_deletion_flag_order_result.
     TYPES ty_deletion_flag_order_results TYPE STANDARD TABLE OF
       ty_deletion_flag_order_result WITH EMPTY KEY.
@@ -203,10 +228,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_deletion_flag_result.
     TYPES:
       BEGIN OF ty_bulk_deletion_flag_result,
-        orders           TYPE ty_deletion_flag_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_deletion_flag_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_deletion_flag_result.
     TYPES:
       BEGIN OF ty_close_order_result,
@@ -215,6 +243,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_close_order_result.
     TYPES ty_close_order_results TYPE STANDARD TABLE OF
       ty_close_order_result WITH EMPTY KEY.
@@ -228,10 +257,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_close_result.
     TYPES:
       BEGIN OF ty_bulk_close_result,
-        orders        TYPE ty_close_order_results,
-        closed_count  TYPE i,
-        failed_count  TYPE i,
-        is_successful TYPE abap_bool,
+        orders             TYPE ty_close_order_results,
+        closed_count       TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_close_result.
     TYPES:
       BEGIN OF ty_deletion_indicator_order_result,
@@ -240,6 +272,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result      TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted       TYPE abap_bool,
         is_committed       TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_deletion_indicator_order_result.
     TYPES ty_deletion_indicator_orders TYPE STANDARD TABLE OF
       ty_deletion_indicator_order_result WITH EMPTY KEY.
@@ -253,10 +286,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_deletion_indicator_result.
     TYPES:
       BEGIN OF ty_bulk_deletion_indicator_result,
-        orders           TYPE ty_deletion_indicator_orders,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_deletion_indicator_orders,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_deletion_indicator_result.
     TYPES:
       BEGIN OF ty_change_order_result,
@@ -266,6 +302,7 @@ CLASS zcl_prod_order_service DEFINITION
         commit_result TYPE zif_prod_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_change_order_result.
     TYPES ty_change_order_results TYPE STANDARD TABLE OF
       ty_change_order_result WITH EMPTY KEY.
@@ -279,10 +316,13 @@ CLASS zcl_prod_order_service DEFINITION
       END OF ty_change_result.
     TYPES:
       BEGIN OF ty_bulk_change_result,
-        orders        TYPE ty_change_order_results,
-        changed_count TYPE i,
-        failed_count  TYPE i,
-        is_successful TYPE abap_bool,
+        orders             TYPE ty_change_order_results,
+        changed_count      TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_change_result.
     TYPES:
       BEGIN OF ty_atp_release_result,
@@ -306,18 +346,22 @@ CLASS zcl_prod_order_service DEFINITION
         is_atp_ready        TYPE abap_bool,
         is_attempted        TYPE abap_bool,
         is_committed        TYPE abap_bool,
+        is_skipped          TYPE abap_bool,
       END OF ty_atp_bulk_order_result.
     TYPES ty_atp_bulk_order_results TYPE STANDARD TABLE OF
       ty_atp_bulk_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_atp_bulk_release_result,
-        orders            TYPE ty_atp_bulk_order_results,
-        message           TYPE zif_prod_order_api=>ty_message,
-        successful_count  TYPE i,
-        failed_count      TYPE i,
-        atp_blocked_count TYPE i,
-        is_atp_checked    TYPE abap_bool,
-        is_successful     TYPE abap_bool,
+        orders             TYPE ty_atp_bulk_order_results,
+        message            TYPE zif_prod_order_api=>ty_message,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        atp_blocked_count  TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_atp_checked     TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_atp_bulk_release_result.
 
     METHODS constructor
@@ -343,9 +387,10 @@ CLASS zcl_prod_order_service DEFINITION
 
     METHODS create_orders_bulk
       IMPORTING
-        it_requests      TYPE zif_prod_order_api=>ty_create_order_requests
+        it_requests        TYPE zif_prod_order_api=>ty_create_order_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_create_orders_bulk_result
+        VALUE(rs_result)   TYPE ty_create_orders_bulk_result
       RAISING
         zcx_invalid_production_order.
 
@@ -371,6 +416,7 @@ CLASS zcl_prod_order_service DEFINITION
       IMPORTING
         it_operations      TYPE zif_prod_order_api=>ty_operation_keys
         iv_release_control TYPE zif_prod_order_api=>ty_release_control
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)   TYPE ty_bulk_operation_release_result
       RAISING
@@ -387,19 +433,21 @@ CLASS zcl_prod_order_service DEFINITION
 
     METHODS cancel_confirmations_bulk
       IMPORTING
-        it_requests      TYPE
+        it_requests        TYPE
           zif_prod_order_api=>ty_confirmation_cancel_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_confirmation_cancel_result
+        VALUE(rs_result)   TYPE ty_bulk_confirmation_cancel_result
       RAISING
         zcx_invalid_production_order.
 
     METHODS create_confirmations_bulk
       IMPORTING
-        it_requests      TYPE
+        it_requests        TYPE
           zif_prod_order_api=>ty_confirmation_create_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_confirmation_create_result
+        VALUE(rs_result)   TYPE ty_bulk_confirmation_create_result
       RAISING
         zcx_invalid_production_order.
 
@@ -429,6 +477,7 @@ CLASS zcl_prod_order_service DEFINITION
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
         iv_release_control   TYPE zif_prod_order_api=>ty_release_control
         iv_check_rule        TYPE zif_material_availability_api=>ty_check_rule
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_atp_bulk_release_result
       RAISING
@@ -439,6 +488,7 @@ CLASS zcl_prod_order_service DEFINITION
       IMPORTING
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
         iv_release_control   TYPE zif_prod_order_api=>ty_release_control
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_bulk_release_result
       RAISING
@@ -455,6 +505,7 @@ CLASS zcl_prod_order_service DEFINITION
     METHODS complete_orders_tech_bulk
       IMPORTING
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_bulk_completion_result
       RAISING
@@ -471,6 +522,7 @@ CLASS zcl_prod_order_service DEFINITION
     METHODS set_deletion_flags_bulk
       IMPORTING
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_bulk_deletion_flag_result
       RAISING
@@ -487,6 +539,7 @@ CLASS zcl_prod_order_service DEFINITION
     METHODS close_orders_bulk
       IMPORTING
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_bulk_close_result
       RAISING
@@ -503,6 +556,7 @@ CLASS zcl_prod_order_service DEFINITION
     METHODS set_deletion_indicators_bulk
       IMPORTING
         it_production_orders TYPE zif_prod_order_api=>ty_order_numbers
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_bulk_deletion_indicator_result
       RAISING
@@ -518,9 +572,10 @@ CLASS zcl_prod_order_service DEFINITION
 
     METHODS change_orders_bulk
       IMPORTING
-        it_requests      TYPE zif_prod_order_api=>ty_change_requests
+        it_requests        TYPE zif_prod_order_api=>ty_change_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_change_result
+        VALUE(rs_result)   TYPE ty_bulk_change_result
       RAISING
         zcx_invalid_production_order.
 
@@ -723,62 +778,83 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
     DATA lt_created_orders TYPE HASHED TABLE OF
       zif_prod_order_api=>ty_order_number WITH UNIQUE KEY table_line.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_create_orders( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(ls_create_item) = VALUE ty_create_order_item(
+      APPEND VALUE ty_create_order_item(
         request_index = sy-tabix
         request       = prepare_create_order_request(
-          is_request = ls_request )
-        is_attempted  = abap_true ).
-      ls_create_item-create_result = execute_order_create(
-        is_request = ls_create_item-request ).
+          is_request = ls_request ) ) TO rs_result-orders.
+    ENDLOOP.
 
-      IF ls_create_item-create_result-is_successful = abap_true.
-        INSERT ls_create_item-create_result-production_order
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_create_item>).
+      <ls_create_item>-is_attempted = abap_true.
+      <ls_create_item>-create_result = execute_order_create(
+        is_request = <ls_create_item>-request ).
+
+      IF <ls_create_item>-create_result-is_successful = abap_true.
+        INSERT <ls_create_item>-create_result-production_order
           INTO TABLE lt_created_orders.
         IF sy-subrc <> 0.
-          ls_create_item-create_result-is_successful = abap_false.
-          ls_create_item-create_result-message-type = 'E'.
-          ls_create_item-create_result-message-message =
+          <ls_create_item>-create_result-is_successful = abap_false.
+          <ls_create_item>-create_result-message-type = 'E'.
+          <ls_create_item>-create_result-message-message =
             'Duplicate production order number returned'.
         ENDIF.
       ENDIF.
 
-      IF ls_create_item-create_result-is_successful = abap_false.
+      IF <ls_create_item>-create_result-is_successful = abap_false.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
-        APPEND ls_create_item TO rs_result-orders.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
-      ls_create_item-commit_result = mo_api->commit( ).
-      IF ls_create_item-commit_result-message-type = 'A'
-          OR ls_create_item-commit_result-message-type = 'E'
-          OR ls_create_item-commit_result-message-type = 'X'.
-        ls_create_item-commit_result-is_successful = abap_false.
+      <ls_create_item>-commit_result = mo_api->commit( ).
+      IF <ls_create_item>-commit_result-message-type = 'A'
+          OR <ls_create_item>-commit_result-message-type = 'E'
+          OR <ls_create_item>-commit_result-message-type = 'X'.
+        <ls_create_item>-commit_result-is_successful = abap_false.
       ENDIF.
-      IF ls_create_item-commit_result-is_successful = abap_false.
+      IF <ls_create_item>-commit_result-is_successful = abap_false.
         mo_api->rollback( ).
         DELETE TABLE lt_created_orders
-          FROM ls_create_item-create_result-production_order.
-        ls_create_item-create_result-is_successful = abap_false.
-        IF ls_create_item-commit_result-message-message IS NOT INITIAL.
-          ls_create_item-create_result-message =
-            ls_create_item-commit_result-message.
+          FROM <ls_create_item>-create_result-production_order.
+        <ls_create_item>-create_result-is_successful = abap_false.
+        IF <ls_create_item>-commit_result-message-message IS NOT INITIAL.
+          <ls_create_item>-create_result-message =
+            <ls_create_item>-commit_result-message.
         ENDIF.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
-        APPEND ls_create_item TO rs_result-orders.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
-      ls_create_item-is_committed = abap_true.
+      <ls_create_item>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
-      APPEND ls_create_item TO rs_result-orders.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_create>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_create>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD release_orders_after_atp.
@@ -858,7 +934,13 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
     DATA lt_ready_orders TYPE zif_prod_order_api=>ty_order_numbers.
     DATA lt_ready_request_indexes TYPE STANDARD TABLE OF i
       WITH EMPTY KEY.
+    DATA lv_readiness_stopped TYPE abap_bool.
+    DATA lv_first_blocked_index TYPE i.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_requests(
       it_production_orders = it_production_orders
       iv_release_control   = iv_release_control ).
@@ -945,6 +1027,22 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           AND ls_readiness-not_fully_confirmed_count = 0
           AND ls_readiness-unconfirmed_base_quantity = 0.
         <ls_order_result>-is_atp_ready = abap_true.
+      ELSE.
+        <ls_order_result>-is_atp_ready = abap_false.
+      ENDIF.
+
+      IF lv_readiness_stopped = abap_true.
+        <ls_order_result>-is_skipped = abap_true.
+        IF <ls_order_result>-is_atp_ready = abap_false.
+          ADD 1 TO rs_result-atp_blocked_count.
+        ENDIF.
+        ADD 1 TO rs_result-skipped_count.
+        CONTINUE.
+      ENDIF.
+
+      IF ls_readiness-is_fully_confirmed = abap_true
+          AND ls_readiness-not_fully_confirmed_count = 0
+          AND ls_readiness-unconfirmed_base_quantity = 0.
         APPEND lv_production_order TO lt_ready_orders.
         APPEND lv_request_index TO lt_ready_request_indexes.
         CONTINUE.
@@ -952,24 +1050,51 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
 
       rs_result-is_successful = abap_false.
       ADD 1 TO rs_result-atp_blocked_count.
-      ADD 1 TO rs_result-failed_count.
       <ls_order_result>-message-type = 'E'.
       <ls_order_result>-message-message =
         'One or more order components are not fully confirmed'.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+        lv_readiness_stopped = abap_true.
+        lv_first_blocked_index = lv_request_index.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
     ENDLOOP.
 
     IF lt_ready_orders IS INITIAL.
+      IF lv_first_blocked_index > 0.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
       RETURN.
     ENDIF.
 
     DATA(ls_release_result) = release_orders_bulk(
       it_production_orders = lt_ready_orders
-      iv_release_control   = iv_release_control ).
+      iv_release_control   = iv_release_control
+      iv_stop_on_failure   = iv_stop_on_failure ).
     rs_result-successful_count = ls_release_result-successful_count.
     rs_result-failed_count = rs_result-failed_count
       + ls_release_result-failed_count.
+    rs_result-skipped_count = rs_result-skipped_count
+      + ls_release_result-skipped_count.
+    rs_result-is_committed = ls_release_result-is_committed.
+    IF ls_release_result-stopped_on_failure = abap_true.
+      rs_result-stopped_on_failure = abap_true.
+    ENDIF.
     IF ls_release_result-is_successful = abap_false.
       rs_result-is_successful = abap_false.
+    ENDIF.
+
+    IF lv_first_blocked_index > 0.
+      ASSIGN rs_result-orders[ lv_first_blocked_index ]
+        TO <ls_order_result>.
+      IF ls_release_result-stopped_on_failure = abap_true.
+        <ls_order_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
     ENDIF.
 
     LOOP AT ls_release_result-orders INTO DATA(ls_released_order).
@@ -985,6 +1110,7 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
       <ls_order_result>-commit_result = ls_released_order-commit_result.
       <ls_order_result>-is_attempted = ls_released_order-is_attempted.
       <ls_order_result>-is_committed = ls_released_order-is_committed.
+      <ls_order_result>-is_skipped = ls_released_order-is_skipped.
       <ls_order_result>-message = ls_released_order-release_result-message.
       IF ls_released_order-is_committed = abap_false
           AND ls_released_order-release_result-is_successful = abap_true.
@@ -1257,21 +1383,27 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD release_operations_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_operation_keys(
       it_operations      = it_operations
       iv_release_control = iv_release_control ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_operations INTO DATA(ls_operation).
-      DATA(lv_request_index) = sy-tabix.
-      DATA(lt_single_operation) =
-        VALUE zif_prod_order_api=>ty_operation_keys( ( ls_operation ) ).
       APPEND VALUE #(
-        request_index = lv_request_index
-        operation_key = ls_operation
-        is_attempted  = abap_true ) TO rs_result-operations.
-      ASSIGN rs_result-operations[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_bulk_operation_result>).
+        request_index = sy-tabix
+        operation_key = ls_operation ) TO rs_result-operations.
+    ENDLOOP.
+
+    LOOP AT rs_result-operations
+        ASSIGNING FIELD-SYMBOL(<ls_bulk_operation_result>).
+      <ls_bulk_operation_result>-is_attempted = abap_true.
+      DATA(lt_single_operation) =
+        VALUE zif_prod_order_api=>ty_operation_keys(
+          ( <ls_bulk_operation_result>-operation_key ) ).
 
       DATA(ls_api_result) = mo_api->release_operations(
         it_operations      = lt_single_operation
@@ -1281,15 +1413,15 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
       IF lines( ls_api_result-operations ) = 1
           AND sy-subrc = 0
           AND <ls_api_operation>-production_order =
-            ls_operation-production_order
+            <ls_bulk_operation_result>-operation_key-production_order
           AND <ls_api_operation>-operation_number =
-            ls_operation-operation_number.
+            <ls_bulk_operation_result>-operation_key-operation_number.
         <ls_bulk_operation_result>-release_result = <ls_api_operation>.
       ELSE.
         <ls_bulk_operation_result>-release_result-production_order =
-          ls_operation-production_order.
+          <ls_bulk_operation_result>-operation_key-production_order.
         <ls_bulk_operation_result>-release_result-operation_number =
-          ls_operation-operation_number.
+          <ls_bulk_operation_result>-operation_key-operation_number.
         <ls_bulk_operation_result>-release_result-is_successful =
           abap_false.
         <ls_bulk_operation_result>-release_result-message-type = 'E'.
@@ -1305,6 +1437,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1320,12 +1456,26 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_bulk_operation_result>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-operations
+          ASSIGNING FIELD-SYMBOL(<ls_skipped_operation>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_operation>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD cancel_confirmations_atomic.
@@ -1393,28 +1543,33 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD cancel_confirmations_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_confirmation_cancels( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        request       = ls_request
-        is_attempted  = abap_true ) TO rs_result-confirmations.
-      ASSIGN rs_result-confirmations[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_bulk_cancel_item>).
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-confirmations.
+    ENDLOOP.
+
+    LOOP AT rs_result-confirmations
+        ASSIGNING FIELD-SYMBOL(<ls_bulk_cancel_item>).
+      <ls_bulk_cancel_item>-is_attempted = abap_true.
 
       <ls_bulk_cancel_item>-cancel_result = mo_api->cancel_confirmation(
-        is_request = ls_request ).
+        is_request = <ls_bulk_cancel_item>-request ).
       IF <ls_bulk_cancel_item>-cancel_result-confirmation <>
-            ls_request-confirmation
+            <ls_bulk_cancel_item>-request-confirmation
           OR <ls_bulk_cancel_item>-cancel_result-confirmation_counter <>
-            ls_request-confirmation_counter.
+            <ls_bulk_cancel_item>-request-confirmation_counter.
         <ls_bulk_cancel_item>-cancel_result-confirmation =
-          ls_request-confirmation.
+          <ls_bulk_cancel_item>-request-confirmation.
         <ls_bulk_cancel_item>-cancel_result-confirmation_counter =
-          ls_request-confirmation_counter.
+          <ls_bulk_cancel_item>-request-confirmation_counter.
         <ls_bulk_cancel_item>-cancel_result-is_successful = abap_false.
         <ls_bulk_cancel_item>-cancel_result-message-type = 'E'.
         <ls_bulk_cancel_item>-cancel_result-message-message =
@@ -1425,6 +1580,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1439,12 +1598,26 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_bulk_cancel_item>-cancel_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_bulk_cancel_item>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-confirmations
+          ASSIGNING FIELD-SYMBOL(<ls_skipped_cancel>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_cancel>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD create_confirmations_atomic.
@@ -1467,8 +1640,9 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         TO FIELD-SYMBOL(<ls_create_item>).
       <ls_create_item>-is_attempted = abap_true.
       <ls_create_item>-create_result = mo_api->create_confirmation(
-        is_request = ls_request
-        iv_commit  = abap_false ).
+        is_request  = ls_request
+        iv_test_run = iv_test_run
+        iv_commit   = abap_false ).
 
       IF <ls_create_item>-create_result-production_order <>
             ls_request-production_order
@@ -1490,25 +1664,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
 
       IF <ls_create_item>-create_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
-        mo_api->rollback( ).
-        rs_result-is_rolled_back = abap_true.
-        LOOP AT rs_result-confirmations
-            ASSIGNING FIELD-SYMBOL(<ls_rolled_back_item>).
-          <ls_rolled_back_item>-is_committed = abap_false.
-          <ls_rolled_back_item>-create_result-is_successful = abap_false.
-          IF <ls_rolled_back_item>-create_result-message-type IS INITIAL.
-            <ls_rolled_back_item>-create_result-message-type = 'E'.
-            <ls_rolled_back_item>-create_result-message-message =
-              'Confirmation group rolled back after a failed request'.
-          ENDIF.
-        ENDLOOP.
+        IF iv_test_run <> abap_true.
+          mo_api->rollback( ).
+          rs_result-is_rolled_back = abap_true.
+          LOOP AT rs_result-confirmations
+              ASSIGNING FIELD-SYMBOL(<ls_rolled_back_item>).
+            <ls_rolled_back_item>-is_committed = abap_false.
+            <ls_rolled_back_item>-create_result-is_successful = abap_false.
+            IF <ls_rolled_back_item>-create_result-message-type IS INITIAL.
+              <ls_rolled_back_item>-create_result-message-type = 'E'.
+              <ls_rolled_back_item>-create_result-message-message =
+                'Confirmation group rolled back after a failed request'.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
         RETURN.
       ENDIF.
     ENDLOOP.
 
     IF iv_test_run = abap_true.
-      mo_api->rollback( ).
-      rs_result-is_rolled_back = abap_true.
       RETURN.
     ENDIF.
 
@@ -1541,55 +1715,88 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_confirmations_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_confirmation_creates( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        request       = ls_request
-        is_attempted  = abap_true ) TO rs_result-confirmations.
-      ASSIGN rs_result-confirmations[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_create_item>).
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-confirmations.
+    ENDLOOP.
+
+    LOOP AT rs_result-confirmations
+        ASSIGNING FIELD-SYMBOL(<ls_create_item>).
+      <ls_create_item>-is_attempted = abap_true.
 
       <ls_create_item>-create_result = mo_api->create_confirmation(
-        is_request = ls_request ).
-      <ls_create_item>-commit_result =
-        <ls_create_item>-create_result-commit_result.
+        is_request = <ls_create_item>-request
+        iv_commit  = abap_false ).
       IF <ls_create_item>-create_result-production_order <>
-            ls_request-production_order
+            <ls_create_item>-request-production_order
           OR <ls_create_item>-create_result-operation_number <>
-            ls_request-operation_number
+            <ls_create_item>-request-operation_number
           OR <ls_create_item>-create_result-operation_sequence <>
-            ls_request-operation_sequence.
+            <ls_create_item>-request-operation_sequence.
         <ls_create_item>-create_result-production_order =
-          ls_request-production_order.
+          <ls_create_item>-request-production_order.
         <ls_create_item>-create_result-operation_number =
-          ls_request-operation_number.
+          <ls_create_item>-request-operation_number.
         <ls_create_item>-create_result-operation_sequence =
-          ls_request-operation_sequence.
+          <ls_create_item>-request-operation_sequence.
         <ls_create_item>-create_result-is_successful = abap_false.
         <ls_create_item>-create_result-message-type = 'E'.
         <ls_create_item>-create_result-message-message =
           'Confirmation result did not match the request'.
       ENDIF.
 
+      IF <ls_create_item>-create_result-is_successful = abap_false.
+        mo_api->rollback( ).
+        rs_result-is_successful = abap_false.
+        ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
+      <ls_create_item>-commit_result = mo_api->commit( ).
       IF <ls_create_item>-commit_result-message-type = 'A'
           OR <ls_create_item>-commit_result-message-type = 'E'
           OR <ls_create_item>-commit_result-message-type = 'X'.
         <ls_create_item>-commit_result-is_successful = abap_false.
       ENDIF.
-      IF <ls_create_item>-create_result-is_successful = abap_false
-          OR <ls_create_item>-commit_result-is_successful = abap_false.
+      <ls_create_item>-create_result-commit_result =
+        <ls_create_item>-commit_result.
+      IF <ls_create_item>-commit_result-is_successful = abap_false.
+        mo_api->rollback( ).
+        <ls_create_item>-create_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_create_item>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-confirmations
+          ASSIGNING FIELD-SYMBOL(<ls_skipped_create>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_create>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD release_orders_atomic.
@@ -1666,20 +1873,26 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD release_orders_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_requests(
       it_production_orders = it_production_orders
       iv_release_control   = iv_release_control ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_production_orders INTO DATA(lv_production_order).
-      DATA(lv_request_index) = sy-tabix.
-      DATA(lt_single_order) = VALUE zif_prod_order_api=>ty_order_numbers(
-        ( lv_production_order ) ).
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_bulk_order_result>).
+        request_index                   = sy-tabix
+        release_result-production_order = lv_production_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_bulk_order_result>).
+      <ls_bulk_order_result>-is_attempted = abap_true.
+      DATA(lt_single_order) = VALUE zif_prod_order_api=>ty_order_numbers(
+        ( <ls_bulk_order_result>-release_result-production_order ) ).
 
       DATA(ls_api_result) = mo_api->release_orders(
         it_production_orders = lt_single_order
@@ -1687,11 +1900,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
       READ TABLE ls_api_result-orders
         ASSIGNING FIELD-SYMBOL(<ls_api_order_result>) INDEX 1.
       IF sy-subrc = 0
-          AND <ls_api_order_result>-production_order = lv_production_order.
+          AND <ls_api_order_result>-production_order =
+            <ls_bulk_order_result>-release_result-production_order.
         <ls_bulk_order_result>-release_result = <ls_api_order_result>.
       ELSE.
-        <ls_bulk_order_result>-release_result-production_order =
-          lv_production_order.
         <ls_bulk_order_result>-release_result-is_successful = abap_false.
         <ls_bulk_order_result>-release_result-message-type = 'E'.
         <ls_bulk_order_result>-release_result-message-message =
@@ -1705,6 +1917,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_bulk_order_result>-release_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1719,12 +1935,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_bulk_order_result>-release_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_bulk_order_result>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_order>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_order>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD complete_orders_tech_atomic.
@@ -1790,16 +2019,24 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD complete_orders_tech_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_order_numbers( it_production_orders = it_production_orders ).
     rs_result-is_successful = abap_true.
 
-    LOOP AT it_production_orders INTO DATA(lv_production_order).
-      DATA(lv_request_index) = sy-tabix.
+    LOOP AT it_production_orders INTO DATA(lv_input_order).
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_completion_order>).
+        request_index                      = sy-tabix
+        completion_result-production_order = lv_input_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_completion_order>).
+      <ls_completion_order>-is_attempted = abap_true.
+      DATA(lv_production_order) =
+        it_production_orders[ <ls_completion_order>-request_index ].
 
       <ls_completion_order>-completion_result =
         mo_api->complete_technically(
@@ -1820,6 +2057,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1834,12 +2075,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_completion_order>-completion_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_completion_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-completed_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_completion>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_completion>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD set_deletion_flags_atomic.
@@ -1905,16 +2159,24 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD set_deletion_flags_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_order_numbers( it_production_orders = it_production_orders ).
     rs_result-is_successful = abap_true.
 
-    LOOP AT it_production_orders INTO DATA(lv_production_order).
-      DATA(lv_request_index) = sy-tabix.
+    LOOP AT it_production_orders INTO DATA(lv_input_order).
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_deletion_order>).
+        request_index                         = sy-tabix
+        deletion_flag_result-production_order = lv_input_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_deletion_order>).
+      <ls_deletion_order>-is_attempted = abap_true.
+      DATA(lv_production_order) =
+        it_production_orders[ <ls_deletion_order>-request_index ].
 
       <ls_deletion_order>-deletion_flag_result =
         mo_api->set_deletion_flag(
@@ -1935,6 +2197,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1949,12 +2215,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_deletion_order>-deletion_flag_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_deletion_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_flag>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_flag>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD close_orders_atomic.
@@ -2015,16 +2294,24 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD close_orders_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_order_numbers( it_production_orders = it_production_orders ).
     rs_result-is_successful = abap_true.
 
-    LOOP AT it_production_orders INTO DATA(lv_production_order).
-      DATA(lv_request_index) = sy-tabix.
+    LOOP AT it_production_orders INTO DATA(lv_input_order).
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_close_order>).
+        request_index                 = sy-tabix
+        close_result-production_order = lv_input_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_close_order>).
+      <ls_close_order>-is_attempted = abap_true.
+      DATA(lv_production_order) =
+        it_production_orders[ <ls_close_order>-request_index ].
 
       <ls_close_order>-close_result = mo_api->close_order(
         iv_production_order = lv_production_order ).
@@ -2042,6 +2329,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -2056,12 +2347,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_close_order>-close_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_close_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-closed_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_close>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_close>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD set_deletion_indicators_atomic.
@@ -2127,16 +2431,24 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD set_deletion_indicators_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_order_numbers( it_production_orders = it_production_orders ).
     rs_result-is_successful = abap_true.
 
-    LOOP AT it_production_orders INTO DATA(lv_production_order).
-      DATA(lv_request_index) = sy-tabix.
+    LOOP AT it_production_orders INTO DATA(lv_input_order).
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_indicator_order>).
+        request_index                       = sy-tabix
+        deletion_indicator-production_order = lv_input_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_indicator_order>).
+      <ls_indicator_order>-is_attempted = abap_true.
+      DATA(lv_production_order) =
+        it_production_orders[ <ls_indicator_order>-request_index ].
 
       <ls_indicator_order>-deletion_indicator =
         mo_api->set_deletion_indicator(
@@ -2157,6 +2469,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -2172,12 +2488,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
           abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_indicator_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_indicator>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_indicator>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD change_orders_atomic.
@@ -2239,24 +2568,28 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD change_orders_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
     validate_change_requests( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        request       = ls_request
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_change_order>).
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_change_order>).
+      <ls_change_order>-is_attempted = abap_true.
 
       <ls_change_order>-change_result = mo_api->change_order(
-        is_request = ls_request ).
+        is_request = <ls_change_order>-request ).
       IF <ls_change_order>-change_result-production_order <>
-          ls_request-production_order.
+          <ls_change_order>-request-production_order.
         <ls_change_order>-change_result-production_order =
-          ls_request-production_order.
+          <ls_change_order>-request-production_order.
         <ls_change_order>-change_result-is_successful = abap_false.
         <ls_change_order>-change_result-message-type = 'E'.
         <ls_change_order>-change_result-message-message =
@@ -2267,6 +2600,10 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -2281,12 +2618,25 @@ CLASS zcl_prod_order_service IMPLEMENTATION.
         <ls_change_order>-change_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_change_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-changed_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_change>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_change>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD validate_change_requests.

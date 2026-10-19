@@ -1424,6 +1424,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       END OF ty_stock_row,
       ty_stock_rows TYPE STANDARD TABLE OF ty_stock_row WITH EMPTY KEY,
       BEGIN OF ty_reservation_row,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
         required_quantity  TYPE resb-bdmng,
         withdrawn_quantity TYPE resb-enmng,
       END OF ty_reservation_row,
@@ -1446,7 +1448,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       lv_unrestricted_quantity += CONV decfloat34( ls_stock_row-quantity ).
     ENDLOOP.
 
-    SELECT bdmng AS required_quantity,
+    SELECT rsnum AS reservation_number,
+           rspos AS reservation_item,
+           bdmng AS required_quantity,
            enmng AS withdrawn_quantity
       FROM resb
       WHERE matnr = @iv_material
@@ -1457,6 +1461,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_rows.
 
     LOOP AT lt_reservation_rows INTO DATA(ls_reservation_row).
+      IF line_exists( it_excluded_reservations[
+          reservation_number = ls_reservation_row-reservation_number
+          reservation_item = ls_reservation_row-reservation_item ] ).
+        CONTINUE.
+      ENDIF.
       lv_open_quantity = CONV decfloat34(
         ls_reservation_row-required_quantity )
         - CONV decfloat34( ls_reservation_row-withdrawn_quantity ).
@@ -2728,7 +2737,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
     APPEND iv_sales_document TO lt_sales_documents.
     rt_reservations = zif_stock_repository~get_order_reservations_bulk(
-      it_sales_documents = lt_sales_documents ).
+      it_sales_documents       = lt_sales_documents
+      iv_required_through_date = iv_required_through_date ).
   ENDMETHOD.
 
   METHOD zif_so_reservation_finder~get_open_reservation_numbers.
@@ -2952,12 +2962,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         item_number        TYPE resb-kdpos,
         schedule_line      TYPE resb-kdein,
         requirement_date   TYPE resb-bdter,
+        storage_location   TYPE resb-lgort,
+        batch              TYPE resb-charg,
         required_quantity  TYPE resb-bdmng,
         withdrawn_quantity TYPE resb-enmng,
       END OF ty_reservation_row,
       ty_reservation_rows TYPE STANDARD TABLE OF ty_reservation_row
         WITH EMPTY KEY.
     DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lv_initial_required_date TYPE resb-bdter.
 
     IF it_sales_documents IS INITIAL.
       RETURN.
@@ -2971,6 +2984,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
            kdpos AS item_number,
            kdein AS schedule_line,
            bdter AS requirement_date,
+           lgort AS storage_location,
+           charg AS batch,
            bdmng AS required_quantity,
            enmng AS withdrawn_quantity
       FROM resb
@@ -2980,6 +2995,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_reservation_rows.
 
     LOOP AT lt_reservation_rows INTO DATA(ls_reservation_row).
@@ -2991,17 +3009,24 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         CONTINUE.
       ENDIF.
       APPEND VALUE #(
-        sales_document   = ls_reservation_row-sales_document
-        material         = ls_reservation_row-material
-        plant            = ls_reservation_row-plant
-        item_number      = ls_reservation_row-item_number
-        schedule_line    = ls_reservation_row-schedule_line
-        requirement_date = ls_reservation_row-requirement_date
-        open_quantity    = lv_open_quantity )
+        reservation_number = ls_reservation_row-reservation_number
+        reservation_item   = ls_reservation_row-reservation_item
+        sales_document     = ls_reservation_row-sales_document
+        material           = ls_reservation_row-material
+        plant              = ls_reservation_row-plant
+        item_number        = ls_reservation_row-item_number
+        schedule_line      = ls_reservation_row-schedule_line
+        requirement_date   = ls_reservation_row-requirement_date
+        storage_location   = ls_reservation_row-storage_location
+        batch              = ls_reservation_row-batch
+        required_quantity  = ls_reservation_row-required_quantity
+        withdrawn_quantity = ls_reservation_row-withdrawn_quantity
+        open_quantity      = lv_open_quantity )
         TO rt_reservations.
     ENDLOOP.
     SORT rt_reservations BY sales_document item_number material plant
-      schedule_line requirement_date.
+      schedule_line requirement_date storage_location batch
+      reservation_number reservation_item.
   ENDMETHOD.
 
   METHOD zif_stock_repository~get_stock_status.
@@ -3239,6 +3264,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lt_mard_rows TYPE ty_mard_rows.
     DATA lt_stock_totals TYPE ty_stock_totals.
     DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lt_excluded_reservations TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
     DATA lt_stock TYPE zcl_stock_location_qty_calc=>ty_stocks.
     DATA lt_reservations TYPE zcl_stock_location_qty_calc=>ty_reservations.
     DATA lt_available_stock TYPE zif_stock_repository=>ty_location_stocks.
@@ -3248,6 +3276,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     IF it_requests IS INITIAL.
       RETURN.
     ENDIF.
+
+    lt_excluded_reservations = CORRESPONDING #( it_excluded_reservations ).
 
     SELECT matnr AS material,
            werks AS plant,
@@ -3321,6 +3351,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
             iv_required_quantity  = ls_reservation_row-required_quantity
             iv_withdrawn_quantity = ls_reservation_row-withdrawn_quantity ).
         IF lv_open_reservation_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        IF line_exists( lt_excluded_reservations[
+            reservation_number = ls_reservation_row-reservation_number
+            reservation_item = ls_reservation_row-reservation_item ] ).
           CONTINUE.
         ENDIF.
         APPEND VALUE #(
@@ -3465,7 +3500,10 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         plant            TYPE mchb-werks,
         storage_location TYPE mchb-lgort,
         batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+        batch_managed    TYPE marc-xchar,
         expiration_date  TYPE mcha-vfdat,
+        expiry_source    TYPE c LENGTH 1,
         unrestricted_qty TYPE mchb-clabs,
         quality_qty      TYPE mchb-cinsm,
         blocked_qty      TYPE mchb-cspem,
@@ -3479,6 +3517,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         plant              TYPE resb-werks,
         storage_location   TYPE resb-lgort,
         batch              TYPE resb-charg,
+        valuation_type     TYPE resb-bwtar,
+        required_date      TYPE resb-bdter,
         required_quantity  TYPE resb-bdmng,
         withdrawn_quantity TYPE resb-enmng,
       END OF ty_reservation_row,
@@ -3488,10 +3528,18 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         material        TYPE mcha-matnr,
         plant           TYPE mcha-werks,
         batch           TYPE mcha-charg,
+        valuation_type  TYPE mcha-bwtar,
         expiration_date TYPE mcha-vfdat,
       END OF ty_plant_batch,
       ty_plant_batches TYPE HASHED TABLE OF ty_plant_batch
         WITH UNIQUE KEY material plant batch,
+      BEGIN OF ty_material_plant,
+        material      TYPE marc-matnr,
+        plant         TYPE marc-werks,
+        batch_managed TYPE marc-xchar,
+      END OF ty_material_plant,
+      ty_material_plants TYPE HASHED TABLE OF ty_material_plant
+        WITH UNIQUE KEY material plant,
       BEGIN OF ty_global_batch,
         material        TYPE mch1-matnr,
         batch           TYPE mch1-charg,
@@ -3502,17 +3550,31 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lt_mchb_rows TYPE ty_mchb_rows.
     DATA lt_stock_totals TYPE ty_stock_totals.
     DATA lt_reservation_rows TYPE ty_reservation_rows.
+    DATA lt_excluded_reservations TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_matched_exclusions TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
     DATA lt_plant_batches TYPE ty_plant_batches.
+    DATA lt_material_plants TYPE ty_material_plants.
     DATA lt_global_batches TYPE ty_global_batches.
     DATA lt_stock TYPE zcl_stock_batch_qty_calc=>ty_stocks.
     DATA lt_reservations TYPE zcl_stock_batch_qty_calc=>ty_reservations.
     DATA lt_available_stock TYPE zif_stock_repository=>ty_batch_stocks.
     DATA ls_result TYPE zif_stock_repository=>ty_batch_status_bulk_result.
+    DATA ls_availability_result TYPE
+      zcl_stock_batch_qty_calc=>ty_calculation_result.
     DATA lv_available_quantity TYPE mchb-clabs.
 
     IF it_requests IS INITIAL.
       RETURN.
     ENDIF.
+
+    LOOP AT it_excluded_reservations
+        INTO DATA(ls_excluded_reservation).
+      INSERT ls_excluded_reservation INTO TABLE lt_excluded_reservations.
+    ENDLOOP.
 
     SELECT matnr AS material,
            werks AS plant,
@@ -3554,6 +3616,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       SELECT matnr AS material,
              werks AS plant,
              charg AS batch,
+             bwtar AS valuation_type,
              vfdat AS expiration_date
         FROM mcha
         FOR ALL ENTRIES IN @lt_stock_totals
@@ -3561,6 +3624,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           AND werks = @lt_stock_totals-plant
           AND charg = @lt_stock_totals-batch
         INTO CORRESPONDING FIELDS OF TABLE @lt_plant_batches.
+
+      SELECT matnr AS material,
+             werks AS plant,
+             xchar AS batch_managed
+        FROM marc
+        FOR ALL ENTRIES IN @lt_stock_totals
+        WHERE matnr = @lt_stock_totals-material
+          AND werks = @lt_stock_totals-plant
+        INTO CORRESPONDING FIELDS OF TABLE @lt_material_plants.
 
       SELECT matnr AS material,
              charg AS batch,
@@ -3577,15 +3649,40 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         WITH TABLE KEY material = <ls_stock_total>-material
                        plant = <ls_stock_total>-plant
                        batch = <ls_stock_total>-batch.
-      IF sy-subrc = 0 AND ls_plant_batch-expiration_date IS NOT INITIAL.
-        <ls_stock_total>-expiration_date = ls_plant_batch-expiration_date.
-      ELSE.
+      IF sy-subrc = 0.
+        IF ls_plant_batch-expiration_date IS NOT INITIAL.
+          <ls_stock_total>-expiration_date =
+            ls_plant_batch-expiration_date.
+          <ls_stock_total>-expiry_source =
+            zif_stock_repository=>c_expiry_source_plant.
+        ENDIF.
+        IF ls_plant_batch-valuation_type IS NOT INITIAL.
+          <ls_stock_total>-valuation_type =
+            ls_plant_batch-valuation_type.
+        ENDIF.
+      ENDIF.
+      READ TABLE lt_material_plants INTO DATA(ls_material_plant)
+        WITH TABLE KEY material = <ls_stock_total>-material
+                       plant = <ls_stock_total>-plant.
+      IF sy-subrc = 0.
+        <ls_stock_total>-batch_managed =
+          ls_material_plant-batch_managed.
+        IF <ls_stock_total>-valuation_type IS INITIAL
+            AND <ls_stock_total>-batch_managed IS INITIAL.
+          <ls_stock_total>-valuation_type = <ls_stock_total>-batch.
+        ENDIF.
+      ENDIF.
+      IF <ls_stock_total>-expiration_date IS INITIAL.
         READ TABLE lt_global_batches INTO DATA(ls_global_batch)
           WITH TABLE KEY material = <ls_stock_total>-material
                          batch = <ls_stock_total>-batch.
         IF sy-subrc = 0.
-          <ls_stock_total>-expiration_date =
-            ls_global_batch-expiration_date.
+          IF ls_global_batch-expiration_date IS NOT INITIAL.
+            <ls_stock_total>-expiration_date =
+              ls_global_batch-expiration_date.
+            <ls_stock_total>-expiry_source =
+              zif_stock_repository=>c_expiry_source_global.
+          ENDIF.
         ENDIF.
       ENDIF.
     ENDLOOP.
@@ -3596,6 +3693,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
            werks AS plant,
            lgort AS storage_location,
            charg AS batch,
+           bwtar AS valuation_type,
+           bdter AS required_date,
            bdmng AS required_quantity,
            enmng AS withdrawn_quantity
       FROM resb
@@ -3609,13 +3708,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
     DATA(lo_batch_qty_calc) = NEW zcl_stock_batch_qty_calc( ).
     LOOP AT it_requests INTO DATA(ls_request).
-      CLEAR: lt_stock, lt_reservations, lt_available_stock, ls_result.
+      CLEAR: lt_stock, lt_reservations, lt_available_stock,
+        lt_matched_exclusions, ls_result.
       LOOP AT lt_stock_totals INTO DATA(ls_stock_total)
         WHERE material = ls_request-material
           AND plant = ls_request-plant.
         APPEND VALUE #(
           storage_location = ls_stock_total-storage_location
           batch            = ls_stock_total-batch
+          valuation_type   = ls_stock_total-valuation_type
           expiration_date  = ls_stock_total-expiration_date
           quantity         = ls_stock_total-unrestricted_qty )
           TO lt_stock.
@@ -3630,15 +3731,105 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         IF lv_open_reservation_quantity <= 0.
           CONTINUE.
         ENDIF.
+        IF line_exists( lt_excluded_reservations[
+            reservation_number = ls_reservation_row-reservation_number
+            reservation_item = ls_reservation_row-reservation_item ] ).
+          ls_result-excluded_open_resv_quantity +=
+            lv_open_reservation_quantity.
+          INSERT VALUE #(
+            reservation_number = ls_reservation_row-reservation_number
+            reservation_item   = ls_reservation_row-reservation_item )
+            INTO TABLE lt_matched_exclusions.
+          ADD 1 TO ls_result-excluded_open_resv_row_count.
+          CONTINUE.
+        ENDIF.
+        ls_result-open_reservation_quantity +=
+          lv_open_reservation_quantity.
+        ADD 1 TO ls_result-open_reservation_row_count.
         APPEND VALUE #(
-          storage_location  = ls_reservation_row-storage_location
-          batch             = ls_reservation_row-batch
-          required_quantity = lv_open_reservation_quantity )
+          reservation_number = ls_reservation_row-reservation_number
+          reservation_item   = ls_reservation_row-reservation_item
+          required_date      = ls_reservation_row-required_date
+          storage_location   = ls_reservation_row-storage_location
+          batch              = ls_reservation_row-batch
+          valuation_type     = ls_reservation_row-valuation_type
+          required_quantity  = ls_reservation_row-required_quantity
+          withdrawn_quantity = ls_reservation_row-withdrawn_quantity )
           TO lt_reservations.
       ENDLOOP.
-      lt_available_stock = lo_batch_qty_calc->calculate(
+      LOOP AT lt_excluded_reservations INTO ls_excluded_reservation.
+        IF line_exists( lt_matched_exclusions[
+            reservation_number =
+              ls_excluded_reservation-reservation_number
+            reservation_item = ls_excluded_reservation-reservation_item ] ).
+          CONTINUE.
+        ENDIF.
+        APPEND ls_excluded_reservation
+          TO ls_result-unmatched_excl_reservations.
+      ENDLOOP.
+      SORT ls_result-unmatched_excl_reservations
+        BY reservation_number reservation_item.
+      ls_result-unmatched_open_resv_excl_count =
+        lines( ls_result-unmatched_excl_reservations ).
+      ls_availability_result = lo_batch_qty_calc->calculate_with_summary(
         it_stock        = lt_stock
         it_reservations = lt_reservations ).
+      lt_available_stock = ls_availability_result-stocks.
+      ls_result-uncovered_open_resv_quantity =
+        ls_availability_result-uncovered_reservation_quantity.
+      ls_result-matched_allocation_quantity =
+        ls_availability_result-matched_allocation_quantity.
+      ls_result-fallback_allocation_quantity =
+        ls_availability_result-fallback_allocation_quantity.
+      ls_result-matched_allocation_row_count =
+        ls_availability_result-matched_allocation_row_count.
+      ls_result-fallback_allocation_row_count =
+        ls_availability_result-fallback_allocation_row_count.
+      ls_result-fully_allocated_resv_count =
+        ls_availability_result-fully_allocated_resv_count.
+      ls_result-partially_allocated_resv_count =
+        ls_availability_result-partially_allocated_resv_count.
+      ls_result-unallocated_resv_count =
+        ls_availability_result-unallocated_resv_count.
+      ls_result-uncovered_open_resv_keys =
+        ls_availability_result-uncovered_reservation_keys.
+      ls_result-uncovered_open_reservations =
+        ls_availability_result-uncovered_reservations.
+      ls_result-allocation_details =
+        ls_availability_result-allocation_details.
+      ls_result-uncovered_open_resv_row_count =
+        lines( ls_result-uncovered_open_reservations ).
+      LOOP AT ls_result-uncovered_open_reservations
+          INTO DATA(ls_uncovered_summary).
+        IF ls_uncovered_summary-required_date IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        IF ls_result-first_uncovered_required_date IS INITIAL
+            OR ls_uncovered_summary-required_date
+              < ls_result-first_uncovered_required_date.
+          ls_result-first_uncovered_required_date =
+            ls_uncovered_summary-required_date.
+          ls_result-first_uncovered_resv_number =
+            ls_uncovered_summary-reservation_number.
+          ls_result-first_uncovered_resv_item =
+            ls_uncovered_summary-reservation_item.
+        ELSEIF ls_uncovered_summary-required_date
+            = ls_result-first_uncovered_required_date.
+          IF ls_uncovered_summary-reservation_number
+                < ls_result-first_uncovered_resv_number
+              OR ( ls_uncovered_summary-reservation_number
+                    = ls_result-first_uncovered_resv_number
+                AND ls_uncovered_summary-reservation_item
+                    < ls_result-first_uncovered_resv_item ).
+            ls_result-first_uncovered_required_date =
+              ls_uncovered_summary-required_date.
+            ls_result-first_uncovered_resv_number =
+              ls_uncovered_summary-reservation_number.
+            ls_result-first_uncovered_resv_item =
+              ls_uncovered_summary-reservation_item.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
 
       ls_result-request_id = ls_request-request_id.
       ls_result-material = ls_request-material.
@@ -3656,7 +3847,11 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         APPEND VALUE #(
           storage_location            = ls_stock_total-storage_location
           batch                       = ls_stock_total-batch
+          valuation_type              = ls_stock_total-valuation_type
+          batch_managed               = ls_stock_total-batch_managed
           expiration_date             = ls_stock_total-expiration_date
+          expiration_date_source      =
+            ls_stock_total-expiry_source
           unrestricted_quantity       = ls_stock_total-unrestricted_qty
           available_quantity          = lv_available_quantity
           quality_inspection_quantity = ls_stock_total-quality_qty
@@ -3685,6 +3880,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA lt_global_batches TYPE STANDARD TABLE OF mch1 WITH DEFAULT KEY.
     DATA lt_category_quantities TYPE ty_batch_category_quantities.
     DATA ls_category_quantity TYPE ty_batch_category_quantity.
+    DATA lv_batch_managed TYPE marc-xchar.
     DATA lv_available_quantity TYPE mchb-clabs.
 
     SELECT lgort AS storage_location,
@@ -3706,11 +3902,17 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         TO lt_stock.
     ENDLOOP.
 
-    SELECT charg, vfdat
+    SELECT charg, vfdat, bwtar
       FROM mcha
       WHERE matnr = @iv_material
         AND werks = @iv_plant
       INTO CORRESPONDING FIELDS OF TABLE @lt_plant_batches.
+
+    SELECT SINGLE xchar
+      FROM marc
+      WHERE matnr = @iv_material
+        AND werks = @iv_plant
+      INTO @lv_batch_managed.
 
     SELECT charg, vfdat
       FROM mch1
@@ -3720,9 +3922,19 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     LOOP AT lt_stock ASSIGNING FIELD-SYMBOL(<ls_stock>).
       READ TABLE lt_plant_batches INTO DATA(ls_plant_batch)
         WITH KEY charg = <ls_stock>-batch.
-      IF sy-subrc = 0 AND ls_plant_batch-vfdat IS NOT INITIAL.
-        <ls_stock>-expiration_date = ls_plant_batch-vfdat.
+      IF sy-subrc = 0.
+        IF ls_plant_batch-vfdat IS NOT INITIAL.
+          <ls_stock>-expiration_date = ls_plant_batch-vfdat.
+        ENDIF.
+        IF ls_plant_batch-bwtar IS NOT INITIAL.
+          <ls_stock>-valuation_type = ls_plant_batch-bwtar.
+        ELSEIF lv_batch_managed IS INITIAL.
+          <ls_stock>-valuation_type = <ls_stock>-batch.
+        ENDIF.
       ELSE.
+        IF lv_batch_managed IS INITIAL.
+          <ls_stock>-valuation_type = <ls_stock>-batch.
+        ENDIF.
         READ TABLE lt_global_batches INTO DATA(ls_global_batch)
           WITH KEY charg = <ls_stock>-batch.
         IF sy-subrc = 0.
@@ -3733,6 +3945,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
     SELECT lgort AS storage_location,
            charg AS batch,
+           bwtar AS valuation_type,
            bdmng AS required_quantity,
            enmng AS withdrawn_quantity
       FROM resb
@@ -3761,6 +3974,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       APPEND VALUE #(
         storage_location            = ls_stock-storage_location
         batch                       = ls_stock-batch
+        valuation_type              = ls_stock-valuation_type
+        batch_managed               = lv_batch_managed
         expiration_date             = ls_stock-expiration_date
         unrestricted_quantity       = ls_stock-quantity
         available_quantity          = lv_available_quantity
@@ -3786,6 +4001,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       ty_reservation_rows TYPE STANDARD TABLE OF ty_reservation_row
         WITH EMPTY KEY.
     DATA lt_rows TYPE ty_reservation_rows.
+    DATA lv_initial_required_date TYPE resb-bdter.
 
     SELECT rsnum AS reservation_number,
            rspos AS reservation_item,
@@ -3800,11 +4016,15 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_rows.
 
     LOOP AT lt_rows INTO DATA(ls_row).
-      DATA(lv_open_quantity) = ls_row-required_quantity
-        - ls_row-withdrawn_quantity.
+      DATA(lv_open_quantity) = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+        iv_required_quantity  = ls_row-required_quantity
+        iv_withdrawn_quantity = ls_row-withdrawn_quantity ).
       IF lv_open_quantity <= 0.
         CONTINUE.
       ENDIF.
@@ -3835,6 +4055,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         WITH EMPTY KEY
         WITH NON-UNIQUE SORTED KEY by_scope COMPONENTS material plant.
     DATA lt_rows TYPE ty_reservation_rows.
+    DATA lv_initial_required_date TYPE resb-bdter.
     FIELD-SYMBOLS <ls_result> TYPE
       zif_stock_repository=>ty_stock_reservation_bulk_result.
 
@@ -3866,14 +4087,18 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_rows.
 
     LOOP AT rt_status ASSIGNING <ls_result>.
       LOOP AT lt_rows USING KEY by_scope INTO DATA(ls_row)
           WHERE material = <ls_result>-material
             AND plant = <ls_result>-plant.
-        DATA(lv_open_quantity) = ls_row-required_quantity
-          - ls_row-withdrawn_quantity.
+        DATA(lv_open_quantity) = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+          iv_required_quantity  = ls_row-required_quantity
+          iv_withdrawn_quantity = ls_row-withdrawn_quantity ).
         IF lv_open_quantity <= 0.
           CONTINUE.
         ENDIF.
@@ -3883,6 +4108,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           required_date      = ls_row-required_date
           storage_location   = ls_row-storage_location
           batch              = ls_row-batch
+          required_quantity  = ls_row-required_quantity
+          withdrawn_quantity = ls_row-withdrawn_quantity
           open_quantity      = lv_open_quantity )
           TO <ls_result>-reservations.
       ENDLOOP.

@@ -14,6 +14,8 @@ CLASS lcl_prod_order_api DEFINITION FINAL.
       zif_prod_order_api=>ty_confirmation_create_requests.
     DATA conf_create_commit_flags TYPE STANDARD TABLE OF abap_bool
       WITH EMPTY KEY.
+    DATA conf_create_test_flags TYPE STANDARD TABLE OF abap_bool
+      WITH EMPTY KEY.
     DATA release_calls TYPE i.
     DATA operation_release_calls TYPE i.
     DATA confirmation_cancel_calls TYPE i.
@@ -139,6 +141,7 @@ CLASS lcl_prod_order_api IMPLEMENTATION.
     ADD 1 TO confirmation_create_calls.
     APPEND is_request TO confirmation_create_requests.
     APPEND iv_commit TO conf_create_commit_flags.
+    APPEND iv_test_run TO conf_create_test_flags.
     rs_result-production_order = is_request-production_order.
     rs_result-operation_number = is_request-operation_number.
     rs_result-operation_sequence = is_request-operation_sequence.
@@ -147,12 +150,12 @@ CLASS lcl_prod_order_api IMPLEMENTATION.
       rs_result-is_successful = abap_false.
       rs_result-message-type = 'E'.
       rs_result-message-message = 'Production confirmation failed'.
-    ELSE.
+    ELSEIF iv_test_run <> abap_true.
       rs_result-confirmation = confirmation_create_calls.
       rs_result-confirmation_counter = '00000001'.
     ENDIF.
 
-    IF iv_commit = abap_true.
+    IF iv_commit = abap_true AND iv_test_run <> abap_true.
       rs_result-commit_result = zif_prod_order_api~commit( ).
       IF rs_result-commit_result-is_successful = abap_false.
         zif_prod_order_api~rollback( ).
@@ -264,6 +267,8 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS creates_orders_bulk FOR TESTING
       RAISING cx_static_check.
+    METHODS stops_order_create_failures FOR TESTING
+      RAISING cx_static_check.
     METHODS rolls_back_order_create_batch FOR TESTING
       RAISING cx_static_check.
     METHODS rolls_back_order_creation FOR TESTING
@@ -283,6 +288,8 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
     METHODS rolls_back_operation_release FOR TESTING
       RAISING cx_static_check.
     METHODS bulk_op_release_continues FOR TESTING
+      RAISING cx_static_check.
+    METHODS stops_op_release_failures FOR TESTING
       RAISING cx_static_check.
     METHODS validates_op_release_keys FOR TESTING
       RAISING cx_static_check.
@@ -314,6 +321,8 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS bulk_release_continues FOR TESTING
       RAISING cx_static_check.
+    METHODS stops_order_release_failures FOR TESTING
+      RAISING cx_static_check.
     METHODS bulk_release_commit_failure FOR TESTING
       RAISING cx_static_check.
     METHODS releases_only_when_atp_ready FOR TESTING
@@ -327,6 +336,10 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
     METHODS bulk_atp_release_skips_short FOR TESTING
       RAISING cx_static_check.
     METHODS bulk_atp_release_continues FOR TESTING
+      RAISING cx_static_check.
+    METHODS stops_atp_block_rows FOR TESTING
+      RAISING cx_static_check.
+    METHODS stops_atp_release_failure FOR TESTING
       RAISING cx_static_check.
     METHODS blocks_bulk_on_incomplete_atp FOR TESTING
       RAISING cx_static_check.
@@ -379,6 +392,8 @@ CLASS ltcl_prod_order_service DEFINITION FINAL
     METHODS rolls_back_change_commit FOR TESTING
       RAISING cx_static_check.
     METHODS bulk_change_continues FOR TESTING
+      RAISING cx_static_check.
+    METHODS stops_order_change_failures FOR TESTING
       RAISING cx_static_check.
     METHODS validates_change_requests FOR TESTING
       RAISING cx_static_check.
@@ -505,6 +520,62 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       ls_result-orders[ 3 ]-is_committed ).
     cl_abap_unit_assert=>assert_false(
       ls_result-orders[ 2 ]-create_result-is_successful ).
+  ENDMETHOD.
+
+  METHOD stops_order_create_failures.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_create_order_call = 2.
+    DATA(lo_cut) = NEW zcl_prod_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->create_orders_bulk(
+      it_requests        = VALUE #(
+        ( order_number      = '0000000301'
+          material          = 'MAT-1'
+          plant             = '1000'
+          order_type        = 'PP01'
+          basic_finish_date = '20261101'
+          quantity          = '12.000'
+          quantity_uom      = 'EA' )
+        ( order_number      = '0000000302'
+          material          = 'MAT-2'
+          plant             = '1000'
+          order_type        = 'PP01'
+          basic_finish_date = '20261102'
+          quantity          = '8.000'
+          quantity_uom      = 'EA' )
+        ( order_number      = '0000000303'
+          material          = 'MAT-3'
+          plant             = '1000'
+          order_type        = 'PP01'
+          basic_finish_date = '20261103'
+          quantity          = '6.000'
+          quantity_uom      = 'EA' ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->create_order_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->commit_calls
+      exp = 1 ).
   ENDMETHOD.
 
   METHOD rolls_back_order_create_batch.
@@ -851,6 +922,42 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       ls_result-orders[ 3 ]-is_committed ).
   ENDMETHOD.
 
+  METHOD stops_order_release_failures.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_on_order = '0000000102'.
+    DATA(lo_cut) = NEW zcl_prod_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->release_orders_bulk(
+      it_production_orders = VALUE #(
+        ( '0000000101' )
+        ( '0000000102' )
+        ( '0000000103' ) )
+      iv_release_control   = '1'
+      iv_stop_on_failure   = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->release_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+  ENDMETHOD.
+
   METHOD bulk_release_commit_failure.
     DATA(lo_api) = NEW lcl_prod_order_api( ).
     lo_api->commit_success = abap_true.
@@ -1117,6 +1224,126 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-orders[ 3 ]-request_index
       exp = 3 ).
+  ENDMETHOD.
+
+  METHOD stops_atp_block_rows.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    DATA(lo_checker) = NEW lcl_prod_order_atp_checker( ).
+    lo_checker->readiness = VALUE #(
+      ( production_order        = '0000000101'
+        component_count         = 1
+        requested_base_quantity = '1.000'
+        confirmed_base_quantity = '1.000'
+        is_fully_confirmed      = abap_true )
+      ( production_order          = '0000000102'
+        component_count           = 1
+        not_fully_confirmed_count = 1
+        requested_base_quantity   = '1.000'
+        unconfirmed_base_quantity = '1.000'
+        is_fully_confirmed        = abap_false )
+      ( production_order          = '0000000103'
+        component_count           = 1
+        not_fully_confirmed_count = 1
+        requested_base_quantity   = '1.000'
+        unconfirmed_base_quantity = '1.000'
+        is_fully_confirmed        = abap_false ) ).
+    DATA(lo_cut) = NEW zcl_prod_order_service(
+      io_api         = lo_api
+      io_atp_checker = lo_checker ).
+
+    DATA(ls_result) = lo_cut->release_orders_bulk_after_atp(
+      it_production_orders = VALUE #(
+        ( '0000000101' )
+        ( '0000000102' )
+        ( '0000000103' ) )
+      iv_release_control   = '1'
+      iv_check_rule        = 'A'
+      iv_stop_on_failure   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-atp_blocked_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->release_calls
+      exp = 1 ).
+  ENDMETHOD.
+
+  METHOD stops_atp_release_failure.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_on_order = '0000000101'.
+    DATA(lo_checker) = NEW lcl_prod_order_atp_checker( ).
+    lo_checker->readiness = VALUE #(
+      ( production_order        = '0000000101'
+        component_count         = 1
+        requested_base_quantity = '1.000'
+        confirmed_base_quantity = '1.000'
+        is_fully_confirmed      = abap_true )
+      ( production_order        = '0000000102'
+        component_count         = 1
+        requested_base_quantity = '1.000'
+        confirmed_base_quantity = '1.000'
+        is_fully_confirmed      = abap_true )
+      ( production_order          = '0000000103'
+        component_count           = 1
+        not_fully_confirmed_count = 1
+        requested_base_quantity   = '1.000'
+        unconfirmed_base_quantity = '1.000'
+        is_fully_confirmed        = abap_false ) ).
+    DATA(lo_cut) = NEW zcl_prod_order_service(
+      io_api         = lo_api
+      io_atp_checker = lo_checker ).
+
+    DATA(ls_result) = lo_cut->release_orders_bulk_after_atp(
+      it_production_orders = VALUE #(
+        ( '0000000101' )
+        ( '0000000102' )
+        ( '0000000103' ) )
+      iv_release_control   = '1'
+      iv_check_rule        = 'A'
+      iv_stop_on_failure   = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-atp_blocked_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 1 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->release_calls
+      exp = 1 ).
   ENDMETHOD.
 
   METHOD blocks_bulk_on_incomplete_atp.
@@ -1858,6 +2085,50 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       ls_result-orders[ 4 ]-is_committed ).
   ENDMETHOD.
 
+  METHOD stops_order_change_failures.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_change_on_order = '0000000102'.
+    DATA(lo_cut) = NEW zcl_prod_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->change_orders_bulk(
+      it_requests        = VALUE #(
+        ( production_order = '0000000101'
+          quantity         = 1
+          quantity_uom     = 'EA'
+          change_quantity  = abap_true )
+        ( production_order = '0000000102'
+          quantity         = 2
+          quantity_uom     = 'EA'
+          change_quantity  = abap_true )
+        ( production_order = '0000000103'
+          quantity         = 3
+          quantity_uom     = 'EA'
+          change_quantity  = abap_true ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-changed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->change_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+  ENDMETHOD.
+
   METHOD validates_change_requests.
     DATA(lo_api) = NEW lcl_prod_order_api( ).
     DATA(lo_cut) = NEW zcl_prod_order_service( lo_api ).
@@ -1979,6 +2250,41 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_true(
       ls_result-operations[ 3 ]-is_committed ).
+  ENDMETHOD.
+
+  METHOD stops_op_release_failures.
+    DATA(lo_api) = NEW lcl_prod_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_operation_order = '0000000101'.
+    lo_api->fail_operation_number = '0020'.
+    DATA(lo_cut) = NEW zcl_prod_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->release_operations_bulk(
+      it_operations      = VALUE #(
+        ( production_order = '0000000101' operation_number = '0010' )
+        ( production_order = '0000000101' operation_number = '0020' )
+        ( production_order = '0000000102' operation_number = '0010' ) )
+      iv_release_control = '1'
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->operation_release_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-operations[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-operations[ 3 ]-is_skipped ).
   ENDMETHOD.
 
   METHOD validates_op_release_keys.
@@ -2253,7 +2559,7 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_true( ls_result-is_successful ).
     cl_abap_unit_assert=>assert_true( ls_result-is_test_run ).
-    cl_abap_unit_assert=>assert_true( ls_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_false( ls_result-is_rolled_back ).
     cl_abap_unit_assert=>assert_false( ls_result-is_committed ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_api->confirmation_create_calls
@@ -2263,11 +2569,21 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_api->rollback_calls
-      exp = 1 ).
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->conf_create_test_flags[ 1 ]
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->conf_create_test_flags[ 2 ]
+      exp = abap_true ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_result-confirmations[ 1 ]-create_result-confirmation ).
+    cl_abap_unit_assert=>assert_initial(
+      ls_result-confirmations[ 1 ]-create_result-confirmation_counter ).
 
     DATA(lo_failed_api) = NEW lcl_prod_order_api( ).
     lo_failed_api->commit_success = abap_true.
-    lo_failed_api->fail_confirmation_create_call = 1.
+    lo_failed_api->fail_confirmation_create_call = 2.
     DATA(lo_failed_cut) = NEW zcl_prod_order_service( lo_failed_api ).
     DATA(ls_failed_result) = lo_failed_cut->create_confirmations_atomic(
       it_requests = VALUE #(
@@ -2276,18 +2592,36 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
           operation_sequence = '000000'
           posting_date       = '20261011'
           yield_quantity     = '3.000'
+          quantity_unit_iso  = 'EA' )
+        ( production_order   = '0000000202'
+          operation_number   = '0020'
+          operation_sequence = '000000'
+          posting_date       = '20261011'
+          yield_quantity     = '4.000'
+          quantity_unit_iso  = 'EA' )
+        ( production_order   = '0000000203'
+          operation_number   = '0030'
+          operation_sequence = '000000'
+          posting_date       = '20261011'
+          yield_quantity     = '5.000'
           quantity_unit_iso  = 'EA' ) )
       iv_test_run = abap_true ).
 
     cl_abap_unit_assert=>assert_false( ls_failed_result-is_successful ).
     cl_abap_unit_assert=>assert_true( ls_failed_result-is_test_run ).
-    cl_abap_unit_assert=>assert_true( ls_failed_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_false( ls_failed_result-is_rolled_back ).
+    cl_abap_unit_assert=>assert_true(
+      ls_failed_result-confirmations[ 1 ]-create_result-is_successful ).
+    cl_abap_unit_assert=>assert_false(
+      ls_failed_result-confirmations[ 2 ]-create_result-is_successful ).
+    cl_abap_unit_assert=>assert_false(
+      ls_failed_result-confirmations[ 3 ]-is_attempted ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_failed_api->commit_calls
       exp = 0 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_failed_api->rollback_calls
-      exp = 1 ).
+      exp = 0 ).
   ENDMETHOD.
 
   METHOD rolls_back_confirmation_commit.
@@ -2465,10 +2799,10 @@ CLASS ltcl_prod_order_service IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_api->commit_calls
-      exp = 3 ).
+      exp = 2 ).
     cl_abap_unit_assert=>assert_equals(
       act = lo_api->rollback_calls
-      exp = 0 ).
+      exp = 1 ).
     cl_abap_unit_assert=>assert_true(
       ls_result-confirmations[ 3 ]-is_committed ).
   ENDMETHOD.

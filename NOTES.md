@@ -1,6 +1,2718 @@
 # Development notes
 
+## 2026-10-19
+
+- `ZIF_BATCH_EXPIRY_READER` now exposes the stock service’s unit-aware bulk
+  expiry read alongside the base-unit read, forwarding reservation exclusions.
+- Planned-order reads now return `PLAF-PSTMP` as a raw packed-decimal short
+  last-change timestamp. SAP documents that this value can differ from the
+  apparent change time.
+- Planned-order reads now return `PLAF-PUSER` and finish-window searches
+  can filter by an exact nonblank user or explicitly select blank with
+  `filter_planned_order_user`. The repository filters before pagination, the
+  service rejects returned scope drift, and regressions cover bad flags.
+
+- Planned-order bulk and finish-window headers now return scheduled start
+  and finish dates/times from `PLAF-GSTRS`/`GSUZS` and `GLTRS`/`GLUZS`,
+  distinct from basic dates. Added returned-header regression assertions and
+  local DDIC field shapes.
+
+- Planned-order reads now return `PLAF-PERTR` and can filter an inclusive
+  creation-date range. Both bounds are validated before reading, and returned
+  rows are checked against the range; added filtering, partial-range, and
+  scope-drift regressions.
+
+- Planned-order bulk and finish-window reads now return both the production
+  plant (`PLAF-PWWRK`) and planning plant (`PLAF-PLWRK`). Finish-window callers
+  can optionally filter the exact planning plant or explicitly select blank with
+  `filter_planning_plant`; invalid flags and returned scope drift have regressions.
+
+- Planned-order bulk reads now reject blank, duplicate, or unrequested rows
+  returned by the repository before mapping. Missing requested numbers remain
+  per-row not-found results. Added regressions for all three malformed-result
+  cases.
+
+- Planned-order bulk and finish-window reads now return `PLAF-KDEIN`. Callers
+  can filter a schedule line within a selected sales order and nonblank item,
+  including the initial `0000` value. The service validates this scope before
+  reads and checks returned rows; added specific, initial, invalid-input, and
+  scope-drift regressions.
+
+- Planned-order finish-window searches can now select an initial sales-order
+  assignment explicitly with `filter_sales_order`, while existing nonblank
+  `sales_order` filters remain compatible. The repository applies the predicate
+  before pagination and the service checks returned scope. Added blank-value,
+  invalid-flag, and scope-drift regressions; strengthened existing nonblank
+  sales-order and planning-scenario drift assertions to check the read count.
+
+- Planned-order finish-window searches can now select the initial planning
+  scenario explicitly with `filter_planning_scenario`, while existing nonblank
+  scenario filters remain compatible. The repository applies the predicate
+  before pagination and the service validates the flag and returned scope.
+  Added blank-scenario, invalid-flag, and scope-drift regressions.
+
+- Planned-order bulk and finish-window reads now return the account-assignment
+  category from `PLAF-KNTTP`. Finish-window callers can filter the exact
+  category, including blank, using `filter_account_category`; the service
+  validates both the flag/value combination and returned-row scope. Added
+  matching, blank-category, invalid-input, and scope-drift regressions.
+
+- Planned-order bulk and finish-window reads now return `PLAF-KDPOS`. The
+  finish-window search can filter an exact sales-order item when a sales order
+  is selected, including the initial `000000` value. Invalid flag/value
+  combinations fail before reading, and returned items are checked for scope
+  drift. Added specific-item, initial-item, validation, and drift regressions.
+
+- Planned-order finish-window searches can now filter fixed (`AUFFX = X`) or
+  unfixed (`AUFFX` blank) orders. An enable flag distinguishes selecting blank
+  from omitting the filter; invalid values fail before the read. Returned headers
+  are checked against the selected state. Added fixed/unfixed, validation, and
+  scope-drift regressions.
+
+- Planned-order finish-window searches can filter by `SOBKZ` exactly, including
+  blank for ordinary stock. `filter_special_stock` distinguishes a blank-value
+  filter from no filter; malformed flags and a value supplied while filtering is
+  disabled fail before the repository read. Returned rows are scope-checked.
+  Added blank-stock, flag-validation, and scope-drift regressions.
+
+- Production-order finish-window searches now accept an optional inclusive
+  basic-start-date range. The repository filters AFKO keys before pagination,
+  both bounds are validated before reads, and returned keys are checked before
+  detail reads. Added range, partial-bound, and scope-drift regressions.
+
+- Planned-order finish-window reads now accept an optional inclusive start-date
+  interval. Both dates are required together and must be valid and ordered; the
+  repository filters before pagination, and returned headers are checked against
+  the requested range. Added range filtering, partial-input, and scope-drift
+  regressions.
+
+- Planned-order finish-window searches now optionally filter by `planning_scenario`,
+  alongside the sales-order filter. Both predicates run before pagination, and
+  returned headers are checked against both selected values before details are
+  mapped. Added scenario matching and scope-drift regressions.
+
+- Planned-order finish-window reads can now select one sales order while
+  preserving the same material/plant/date scope and keyset pagination. The
+  service rejects repository rows whose sales-order assignment no longer
+  matches the selection. Added matching and scope-drift regressions.
+
+- Production-order finish-window reads now accept an optional `order_category`
+  (`10` production or `40` process); omitted, the query includes both. The
+  repository applies the filter before pagination, and invalid categories fail
+  before the read. Added category-scope and prevalidation regressions.
+- The production-order read test repository now honors requested order and
+  status keys, so malformed-result guards test the service contract without
+  unrelated fixture rows leaking into reads.
+
+- Production-order bulk, confirmation, and operation results now expose UTC
+  `snapshot_timestamp` values after their repository reads. Finish-window reads
+  also expose a separate `key_selection_timestamp`; the later
+  `snapshot_timestamp` marks detail/status completion. Empty direct bulk input
+  leaves these fields initial, while finish-window searches timestamp empty
+  results too. These values expose read timing without promising atomic snapshots.
+- Production-order number-based bulk reads reject unrequested repository rows
+  and duplicate item/status keys before mapping; added regressions for foreign
+  and repeated order-item rows.
+- Finish-window production-order results now flag an `active_status_code` that
+  was active during key selection but disappeared by the later status read. Each
+  affected order sets `status_filter_lost`; the top-level count summarizes
+  the drift while keeping the order available for reconciliation.
+- Planned-order bulk and finish-window reads now expose UTC
+  `snapshot_timestamp` values after their repository queries. Empty direct bulk
+  input leaves the field initial; window searches include it for empty results.
+
+- Confirmation searches can select rows with positive rework and/or scrap
+  quantities using independent flags. The repository and service apply both
+  predicates, reject invalid flag values, and verify matching results.
+
+- Confirmation window searches now have a `reversed_only` mode to isolate
+  reversals. It cannot be combined with `exclude_reversed`; the service rejects
+  invalid or conflicting flags before repository reads and validates returned
+  rows against the requested reversal mode.
+
+- Confirmation rows now expose the AFVC internal operation counter, and
+  page summaries use it to keep otherwise identical routing operations distinct.
+  Window searches can filter by this counter when a production order is supplied.
+  Bulk/window repository tests and service regressions cover mapping and scoping.
+
+- Confirmation window reads can filter by order category (`10` production or
+  `40` process), and confirmation rows expose the category in both windowed and
+  bulk reads. The repository and service validate the category scope.
+
+- Confirmation window searches can now filter by AFRU confirmation number
+  and, optionally, its counter. The counter requires a confirmation number; the
+  service validates the selection before repository reads and checks returned
+  rows against both filters. OSQL and service tests cover the exact pair and the
+  invalid counter-only selection.
+
+- Confirmation summaries now expose raw yield/rework/scrap totals alongside
+  totals that skip rows flagged reversed. Added an optional AFVC control-key
+  filter that works with the operation filters or on its own; repository and
+  service result validation enforce it. Added an optional production-order
+  filter, `partial_only` for confirmations
+  not marked final, plus a quantity-unit filter; conflicting final/partial flags
+  are rejected. Repository and service regressions cover these paths. The PLAN
+  validator, README, PLAN, and ANOMALIES document the API. Abaplint reported 0
+  issues across 252 files,
+  transpilation succeeded, PLAN validation passed, the full ABAP Unit suite
+  passed, and the CRLF-aware diff check was clean.
+
+## 2026-10-18
+
+- Production-order confirmation reads now support a bounded material/plant
+  posting-date window with keyset paging by date, order, confirmation, and
+  counter. Production and process orders are included; reversed rows retain
+  their reversal flag by default, with options to exclude them and filter by
+  operation number, routing fields, control key, or final-only state. Confirmation rows now carry routing
+  sequence, suboperation, description,
+  and control key on both bulk and posting-window reads. Repository tests
+  exercise the AFVC mapping and paged search query. Coverage includes same-date
+  tuple paging, material and category scoping,
+  exact-limit results, reversal visibility/filtering, and validation before
+  reads. The service also rejects over-sized, out-of-range, misfiltered,
+  cursor-overlapping, and unsorted repository pages. Pages are point-in-time
+  reads and do not share a snapshot. Results include page-local summaries by
+  order/operation/sequence/unit with confirmation state counts, raw yield/rework/scrap totals, and matching
+  non-reversed quantity totals that skip rows flagged reversed; the lookahead
+  row is excluded.
+
+- Production-order reads now support a bounded finish-window search by
+  material and plant. The repository filters production and process orders,
+  deduplicates orders with multiple matching AFPO items, and returns one extra
+  key to identify truncation. The service reuses full item/base-quantity and
+  status mapping, provides date/order keyset paging, and can filter by an exact
+  active SAP status while retaining the full status list. Added coverage for
+  same-date paging, status filtering, retaining all order items and statuses,
+  exact-limit output, and validation before reads.
+
+- Planned-order reads now include a bounded finish-window query scoped to one
+  material and plant. The repository fetches one row beyond the caller's
+  1-to-500 limit, sorts deterministically by finish date and planned-order
+  number, and reports truncation with a keyset continuation cursor while
+  reusing base-unit conversion. Added coverage for ordering, same-date paging,
+  filtering, conversion, exact-limit results, truncation, and validation before
+  reads. The query is a snapshot and does not lock orders for later changes.
+
+- Planned-order creation now supports SAP BAPI TestRun mode across atomic,
+  bulk, and suggestion-based paths. Simulated creates accept missing planned
+  order numbers, skip commit and rollback, and preserve bulk stop-on-failure
+  accounting. Added tests for atomic simulation, suggestion identity, bulk
+  stop behavior, and invalid-flag rejection before API calls.
+
+- Atomic production-order confirmation test runs now pass SAP's BAPI `TESTRUN`
+  flag for each ticket. Simulations no longer commit or roll back, and a
+  successful simulated result may omit confirmation keys. Added adapter and
+  service regressions for forwarded flags, keyless success, and stopping on a
+  simulated failure without changing prior simulated success rows.
+
+- Added a purchase-requisition simulation regression for stop-on-failure. A
+  simulated create error stops later requests, returns those rows as skipped,
+  and makes no commit call. The PLAN guard now requires this case.
+
+- Production-component remaining-quantity issue and return batches now accept
+  `iv_stop_on_failure`, report one ordered row per reservation group, and mark
+  every unattempted group as skipped after a failed post. Component issue
+  cancellation forwards the option to generic material-document cancellation.
+  Abaplint passed with 0 issues across 252 files, transpilation succeeded,
+  PLAN validation passed, and the full ABAP Unit suite passed.
+
+- Purchase-order independent bulk creation, deletion, delivery completion,
+  schedule changes, and quantity changes now accept `iv_stop_on_failure`.
+  Suggestion/requisition and base-unit wrappers forward it after full
+  validation/conversion. Results retain an ordered row per PO with attempted
+  and skipped flags plus separate outcome counts. Base-unit quantity and
+  schedule regressions confirm every PO read and conversion completes before
+  writes, the flag stops after the failed update, and the later row remains
+  skipped. Invalid stop flags are rejected before schedule conversion reads.
+  Abaplint passed with 0 issues across 252 files, transpilation succeeded,
+  PLAN validation passed, and the full ABAP Unit suite passed.
+
+- Added STO creation stop-on-failure coverage for source-plant creation, its
+  ATP wrapper, and multi-pair creation. The tests verify that later suppliers
+  or pairs remain in order as skipped after a failed create, and that atomic
+  commit failure sets `stopped_on_failure` when requested. The PLAN guard now
+  requires these cases. Abaplint passed with 0 issues across 252 files,
+  transpilation succeeded, PLAN validation passed, and the full ABAP Unit suite
+  passed.
+
+- Added production-order stop-on-failure regressions for create, change,
+  single-order release, operation release, and ATP-gated release. The ATP cases
+  verify that skipped blocked orders still count in readiness diagnostics and
+  that an earlier release failure takes precedence over a later ATP block. The
+  PLAN guard requires these cases; abaplint, transpilation, PLAN validation, and
+  the full ABAP Unit suite passed.
+
+- Added planned-order stop-on-failure regressions across direct create,
+  suggestion-based create, delete, change, and conversion. The suggestion case
+  verifies skipped receipt rows retain their source suggestion and receipt
+  indexes, and a final-row create failure still sets `stopped_on_failure` with
+  no skipped rows. The PLAN guard requires the cases; abaplint, transpilation,
+  PLAN validation, and the full ABAP Unit suite passed.
+
+- Added purchase-requisition stop-on-failure regressions for delete-all read
+  failures, item updates, selected-item deletion, and requisition creation.
+  These verify earlier commits remain, later request rows retain their identity
+  as skipped, invalid flags fail before API calls, and atomic update rollback
+  marks uncalled rows skipped. The PLAN guard requires the cases; abaplint,
+  transpilation, PLAN validation, and the full ABAP Unit suite passed.
+
+- Purchase-requisition bulk item update, selected-item deletion, delete-all,
+  and prepared document creation now accept `iv_stop_on_failure`. They validate
+  the option and complete input before side effects, preserve later requests as
+  skipped after the first failure, and report separate success/failure/skip
+  counts. Independent commits before the failure remain; atomic update mode
+  retains its group rollback boundary and identifies uncalled rows as skipped.
+  README, PLAN, ANOMALIES, and the PLAN source guard document the behavior.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 3, and left 1187 unchanged; the CRLF-aware diff check passed. The PLAN
+  validator runs but reports 26 outstanding checks in other feature guards;
+  the new PR checks pass. Duplicate top-level declarations that prevented the
+  validator from loading were removed. ABAP Unit was not run.
+
+- Cost-center reservation bulk creation now accepts `iv_stop_on_failure`,
+  including its date-first and FEFO date-first wrappers. It validates the full
+  request first, stops at the first failed create in execution order, keeps
+  later caller-order rows with `is_skipped`, and reports separate outcome
+  counts. Earlier independent commits remain. README, PLAN, ANOMALIES, and the
+  PLAN source guard document the behavior.
+
+- Cost-center reservation document and item deletion batches now accept
+  `iv_stop_on_failure`. They retain later rows as skipped after a failed
+  deletion or commit, report separate success/failure/skip counts, and preserve
+  each document's independent commit boundary. README, PLAN, ANOMALIES, and the
+  PLAN source guard document the behavior. Abaplint passed with 0 issues across
+  252 files; transpilation created 0, updated 6, and left 1184 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` could not launch because the
+  Node shim reports WSL 1 as unsupported; ABAP Unit was not run.
+
+- Cost-center reservation issue-reversal bulk methods now accept
+  `iv_stop_on_failure`. The option is validated before scope reads and unit
+  conversion; after a failed reservation group, later groups remain in result
+  order as skipped with separate counts. Earlier independent commits remain.
+  README, PLAN, ANOMALIES, and the PLAN source guard describe the behavior.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 3, and left 1187 unchanged. The CRLF-aware diff check passed.
+  `validate:plan` remains unavailable under the WSL 1 Node shim; ABAP Unit was
+  not run.
+
+- Reservation-scoped sales-order issue and reversal batches now accept
+  `iv_stop_on_failure`, including remaining-quantity and exact-item forms.
+  They validate before reads or conversion, preserve later reservation groups
+  as skipped, and report separate outcome counts. Earlier independent commits
+  remain. README, PLAN, ANOMALIES, and the PLAN source guard document the
+  behavior. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 4, and left 1186 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` remains unavailable under WSL 1; ABAP Unit was not
+  run.
+
+- General reservation goods-issue and reversal batches now accept
+  `iv_stop_on_failure` in base-unit and UOM forms. The flag is validated before
+  conversion; a failed reservation group skips later groups with separate
+  outcome counts, while earlier commits remain. README, PLAN, ANOMALIES, and
+  the PLAN source guard cover the behavior. Abaplint passed with 0 issues
+  across 252 files; transpilation created 0, updated 5, and left 1185
+  unchanged. The CRLF-aware diff check passed. `validate:plan` remains
+  unavailable under WSL 1; ABAP Unit was not run.
+
+- Cost-center reservation goods-issue batches now accept
+  `iv_stop_on_failure` across base-unit, UOM, remaining-quantity, and exact-item
+  entry points. The flag is checked before local reads or conversion; later
+  reservation groups are skipped after a failure and prior commits remain.
+  README, PLAN, ANOMALIES, and the PLAN source guard cover the behavior.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 4, and left 1186 unchanged. The CRLF-aware diff check passed.
+  `validate:plan` remains unavailable under WSL 1; ABAP Unit was not run.
+
+- Project WBS reservation document and item deletion batches now accept
+  `iv_stop_on_failure`. They stop after the first failed deletion, preserve
+  later rows as skipped, and report separate success, failure, and skip counts;
+  earlier independent commits remain. README, PLAN, ANOMALIES, and the PLAN
+  source guard document the behavior. Abaplint passed with 0 issues across 252
+  files; transpilation created 0, updated 6, and left 1184 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` remains unavailable under WSL
+  1; ABAP Unit was not run.
+
+- Project WBS reservation rescheduling now accepts `iv_stop_on_failure`, with
+  skipped result rows and separate outcome counts after a failure. The option
+  is checked alongside full request/date validation before writes. Earlier
+  independent commits remain. README, PLAN, ANOMALIES, and the PLAN source
+  guard cover the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 6, and left 1184 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` remains unavailable under WSL 1; ABAP Unit
+  was not run.
+
+- Project WBS reservation quantity changes, final-issue marks/resets, and stock
+  changes now accept `iv_stop_on_failure`. Each fully validates its request
+  before writes, then retains later calls as skipped after the first failure.
+  Result summaries count successes, failures, and skips separately; earlier
+  commits remain. README, PLAN, ANOMALIES, and PLAN source guards cover these
+  flows. Abaplint passed with 0 issues across 252 files; transpilation created
+  0, updated 6, and left 1184 unchanged. The CRLF-aware diff check passed.
+  `validate:plan` remains unavailable under WSL 1; ABAP Unit was not run.
+
+- Reservation-backed project WBS issue and return bulk methods now expose
+  `iv_stop_on_failure`, validate it before reading WBS/item scopes, and forward
+  it to the per-reservation posting service. Later rows remain visible as
+  skipped, separate from failures, while earlier successful documents stay
+  committed. README, PLAN, ANOMALIES, and the PLAN source guard cover the
+  behavior. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 4, and left 1186 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` could not launch because the WSL 1 Node shim fails;
+  ABAP Unit was not run.
+
+- Project WBS reservation creation now supports `iv_stop_on_failure` in direct
+  `RESERVE_WBS_BULK`, allocation-based, FEFO, priority, dated, and location
+  methods. The option is checked before previews or conversions; after a failed
+  create/commit, later WBS groups remain in caller order as skipped. Atomic
+  creation stops later calls when opted in and still rolls back attempted
+  groups. Result summaries separate skipped and failed counts. README, PLAN,
+  ANOMALIES, and PLAN source guards describe the behavior. Top-level
+  `is_committed` now reflects any independent child commit and remains false
+  for failed atomic groups. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 4, and left 1186 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- Sales-order reservation release and shared dated reservation creation now
+  accept `iv_stop_on_failure`. Both validate it before reservation lookup or
+  preview reads, preserve one result row per order, and count skipped orders
+  separately after a delete, ATP, create, response, or commit failure. Earlier
+  independent commits remain visible. README, PLAN, ANOMALIES, and PLAN source
+  guards cover the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 10, and left 1180 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- STO deletion-indicator and delivery-completion pair updates now accept
+  `iv_stop_on_failure`. STO source-plant and pair-order creation methods now
+  expose the same option through their allocation wrappers. They retain
+  caller-order rows, distinguish skipped work, report outcome counts, preserve
+  earlier independent commits, and roll back staged atomic writes on failure.
+  Goods-movement issue and receipt batches also preserve skipped state from
+  the preceding creation or issue stage. README, PLAN, ANOMALIES, and PLAN
+  source guards cover these flows.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 5, and left 1185 unchanged. The CRLF-aware diff check passed.
+  `validate:plan` could not launch under WSL 1; ABAP Unit was not run.
+
+- STO chain issue, receipt, and combined retry batches now accept
+  `iv_stop_on_failure`. They retain completed rows, report successful, failed,
+  and skipped counts, and preserve prior committed reversals when an atomic
+  retry group rolls back. Combined retries preserve receipt-first execution;
+  both issue-only and combined atomic retries now roll back their staged LUW
+  when a retry BAPI fails. README, PLAN, ANOMALIES, and PLAN source guards
+  describe the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 5, and left 1185 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- STO issue, receipt, and cancellation pair batches now accept
+  `iv_stop_on_failure`. They prevalidate the full input, retain caller-order
+  rows, stop after the first failed or ineligible pair when opted in, and
+  report successful, failed, and skipped counts. Receipt-chain cancellation
+  preserves its per-pair 101/351 state, while atomic failures still roll back
+  staged reversals. README, PLAN, ANOMALIES, and PLAN source guards describe
+  the behavior. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 6, and left 1184 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` could not launch because the WSL 1 Node shim fails;
+  ABAP Unit was not run.
+
+- STO issue and receipt pair batches now accept `iv_stop_on_failure`. They
+  prevalidate the full pair list, stop after the first failed or ineligible
+  pair when opted in, preserve caller-order rows, and report successful,
+  failed, and skipped counts. STO issue, receipt, issued-PO cancellation,
+  received-PO cancellation, and receipt-chain cancellation batches now share
+  the same policy. Atomic failures still roll back staged movements. README,
+  PLAN, ANOMALIES, and the PLAN source guards describe the behavior. Abaplint
+  passed with 0 issues across 252 files; transpilation created 0, updated 6,
+  and left 1184 unchanged. The CRLF-aware diff check passed. `validate:plan`
+  could not launch because the WSL 1 Node shim fails; ABAP Unit was not run.
+
+- Bulk material-document cancellation now accepts `iv_stop_on_failure` and
+  reports success, failure, and skipped counts. Independent cancellations keep
+  going by default; opt-in stop marks later rows as skipped. Atomic API or
+  commit failures still roll back staged reversals and now distinguish
+  unattempted documents from attempted rows. README, PLAN, ANOMALIES, and the
+  PLAN source guard describe the contract. Abaplint passed with 0 issues across
+  252 files; transpilation created 0, updated 10, and left 1180 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` could not launch because the
+  WSL 1 Node shim fails. ABAP Unit was not run.
+
+- Production-order component return and unplanned issue bulk methods now accept
+  `iv_stop_on_failure` in base-unit and UOM forms. They prevalidate before
+  writes, preserve caller-order rows, and count unattempted rows separately.
+  README, PLAN, ANOMALIES, and the PLAN source guard cover the behavior. The
+  same lint, transpilation, and diff checks passed; `validate:plan` could not
+  launch because the WSL 1 Node shim fails.
+
+- Production-order receipt bulk methods now accept `iv_stop_on_failure` in
+  base-unit and UOM forms. They validate the complete request before writes,
+  retain input-order result rows, and count later skipped receipts separately
+  after a failed movement. README, PLAN, ANOMALIES, and the PLAN source guard
+  describe the contract. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 6, and left 1184 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- Purchase-order receipt and return bulk methods now accept
+  `iv_stop_on_failure` in base-unit and UOM forms. They prevalidate requests,
+  keep caller-order result rows, and report skipped rows separately after the
+  first failed movement when enabled. README, PLAN, ANOMALIES, and the PLAN
+  source guard cover the behavior. Abaplint passed with 0 issues across 252
+  files; transpilation created 0, updated 6, and left 1184 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` could not launch because the
+  WSL 1 Node shim fails; ABAP Unit was not run.
+
+- Project WBS issue and return bulk methods now accept
+  `iv_stop_on_failure`, including both UOM forms. They prevalidate before
+  writes, preserve input-order rows, and report skipped rows separately after
+  the first failed posting. README, PLAN, ANOMALIES, and the PLAN source guard
+  describe the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 6, and left 1184 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- Sales-order stock transfers into and out of sales-order stock now support
+  `iv_stop_on_failure` in both base-unit and UOM bulk methods. They retain all
+  caller-order rows, count skipped transfers separately, and preserve earlier
+  successful commits. README, PLAN, ANOMALIES, and the PLAN source guard cover
+  the behavior. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 6, and left 1184 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` could not launch because the WSL 1 Node shim fails;
+  ABAP Unit was not run.
+
+- Sales-order issue and return bulk methods now accept
+  `iv_stop_on_failure` in base-unit and UOM forms, while preserving the existing
+  special-stock option. All requests are validated before movement calls, UOM
+  conversion completes before posting, and later rows are marked skipped after
+  a failure when enabled. README, PLAN, ANOMALIES, and the PLAN source guard
+  cover the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 6, and left 1184 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- Cost-center issue and return bulk methods now accept `iv_stop_on_failure` in
+  base-unit and UOM forms. They prevalidate full requests, preserve caller-order
+  rows, and mark later unattempted movements as skipped after the first failure.
+  The UOM methods validate the flag and convert every request before posting.
+  README, PLAN, ANOMALIES, and the PLAN source guard describe the contract.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 6, and left 1184 unchanged. The CRLF-aware diff check passed.
+  `validate:plan` could not launch because the WSL 1 Node shim fails; ABAP Unit
+  was not run.
+
+- ATP-gated production-order bulk release now accepts `iv_stop_on_failure`.
+  Readiness for the full request is still validated before writes. By default,
+  ATP-ready orders continue past blocked rows; with the option enabled, the
+  first ATP block or failed release/commit stops later work. A release failure
+  earlier in request order makes a later blocked order skipped, while
+  `atp_blocked_count` retains readiness diagnostics. README, PLAN, ANOMALIES,
+  and the PLAN source guard cover the accounting. Abaplint passed with 0 issues
+  across 252 files; transpilation created 0, updated 6, and left 1184 unchanged.
+  The CRLF-aware diff check passed. `validate:plan` could not launch because the
+  WSL 1 Node shim fails; ABAP Unit was not run.
+
+- Production-order confirmation cancel and create bulk methods now support
+  `iv_stop_on_failure`, preserve skipped rows, and keep earlier independent
+  commits. Confirmation creation now asks the adapter to defer commit, validates
+  the returned order/operation/sequence, then commits through the service; a
+  mismatched result rolls back before persistence. README, PLAN, ANOMALIES, and
+  the PLAN source guard cover the behavior. Abaplint passed with 0 issues across
+  252 files; transpilation created 0, updated 6, and left 1184 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` could not launch because the
+  WSL 1 Node shim fails; ABAP Unit was not run.
+
+- Production-order technical completion, deletion flags, close, and deletion
+  indicators now accept `iv_stop_on_failure` alongside create, change, and
+  release operations. All order numbers are validated first; the bulk methods
+  preserve every input row, count skipped orders separately, and retain earlier
+  independent commits. README, PLAN, ANOMALIES, and the PLAN source guard cover
+  the contract. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 6, and left 1184 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` still cannot launch through the WSL 1 Node shim;
+  ABAP Unit was not run.
+
+- Planned-order bulk create, suggestion create, delete, change, and conversion
+  now accept `iv_stop_on_failure` (default false). They prevalidate the full
+  request, preserve all caller-order result rows, stop after the first failed
+  BAPI result or commit when opted in, and report skipped rows separately from
+  failures. Earlier independent commits remain committed. Invalid option values
+  fail before API calls. README, PLAN, ANOMALIES, and the PLAN source guard
+  describe the behavior. Abaplint passed with 0 issues across 252 files;
+  transpilation created 0, updated 6, and left 1184 unchanged. The CRLF-aware
+  diff check passed. `validate:plan` could not launch because the WSL 1 Node
+  shim fails; ABAP Unit was not run.
+
+- Production-order `RELEASE_ORDERS_BULK` and `RELEASE_OPERATIONS_BULK` now
+  accept the same validated stop-on-failure flag. Both retain all result rows
+  in request order, count unattempted rows separately, and preserve earlier
+  commits. README, PLAN, ANOMALIES, and the PLAN source guard describe the
+  behavior. Abaplint passed with 0 issues across 252 files; transpilation
+  created 0, updated 3, and left 1187 unchanged. The CRLF-aware diff check
+  passed. `validate:plan` could not launch because the WSL 1 Node shim fails;
+  ABAP Unit was not run.
+
+- Production-order `CREATE_ORDERS_BULK` and `CHANGE_ORDERS_BULK` now accept the
+  same optional stop-on-failure behavior. They prebuild caller-order result
+  rows after full validation, preserve earlier commits, and mark later requests
+  skipped after the first failed API result or commit. Duplicate returned
+  create numbers remain request failures. README, PLAN, ANOMALIES, and the PLAN
+  source guard cover the contract. Abaplint passed with 0 issues across 252
+  files; transpilation created 0, updated 6, and left 1184 unchanged. The
+  CRLF-aware diff check passed. `validate:plan` could not launch because the
+  WSL 1 Node shim fails; ABAP Unit was not run.
+
+- Caller-supplied expiry snapshots now follow the same inclusive window rule as
+  stock-backed reads. The shared posting-date validator receives `through_date`
+  at every direct and rechecked call site; full recheck validation also rejects
+  upcoming rows beyond the window. README, PLAN, ANOMALIES, and the PLAN source
+  guard cover direct preview and all three posting categories. Abaplint passed
+  with 0 issues across 252 files; transpilation created 0, updated 4, and left
+  1186 unchanged. Twenty-five focused source/documentation assertions and the
+  CRLF-aware diff check passed. `validate:plan` still cannot launch because the
+  WSL 1 Node shim fails; ABAP Unit was not run.
+
+- The expiry-window check now applies to caller-supplied snapshots as well as
+  stock-backed reads. Direct FEFO preview and unrestricted/QI/blocked posting
+  reject upcoming rows after `through_date`; selected recheck rows and complete
+  recheck snapshots enforce the same inclusive bound. The PLAN source guard and
+  README/PLAN/ANOMALIES describe the rule. Abaplint passed with 0 issues across
+  252 files; transpilation created 0, updated 4, and left 1186 unchanged.
+  Sixteen focused source/documentation checks and the CRLF-aware diff check
+  passed. `validate:plan` remains unavailable through the WSL 1 Node shim;
+  ABAP Unit was not run.
+
+- Stock-backed expiry exposure validation now rejects upcoming rows whose
+  expiration is after the request's inclusive `through_date`; those quantities
+  belong in the report's after-window summary and cannot enter FEFO capacity.
+  README, PLAN, ANOMALIES, and the source guard cover this boundary. Abaplint
+  passed with 0 issues across 252 files; transpilation created 0, updated 4,
+  and left 1186 unchanged. Six focused source/documentation assertions and the
+  CRLF-aware diff check passed. PLAN validation still cannot launch because
+  WSL 1 blocks the Node shim; ABAP Unit was not run.
+
+- Stock-backed expiry exposures now pass one shared pre-pooling validator in
+  preview and posting paths. It checks complete request/date context, valid
+  expiry dates and status/as-of consistency, duplicate batch keys, and
+  available-unrestricted balances before shared-capacity summaries are built.
+  README, PLAN, ANOMALIES, and the PLAN source guard document the contract.
+  Abaplint passed with 0 issues across 252 files; transpilation created 0,
+  updated 5, and left 1185 unchanged. The CRLF-aware diff check passed. PLAN
+  validation still cannot launch because the WSL 1 Node shim cannot determine
+  its install directory; ABAP Unit was not run.
+
+- Live document-key checks cover goods-movement create/cancel, purchase
+  requisition, sales-order, purchase-order, stock-transfer-order, cost-center
+  reservation, and sales-order reservation APIs. Production-confirmation creates
+  now require the returned number and counter before commit; BAPI errors or
+  missing keys roll back. Successful create simulations may omit generated
+  numbers. Five existing goods-movement helper ABAP Unit cases compiled but were
+  not run. Abaplint passed with 0 issues across 252 files; transpilation created
+  0, updated 4, and left 1186 unchanged. Focused source checks and the diff check
+  passed. PLAN validation still cannot launch because the WSL Node shim cannot
+  determine its install directory.
+
+- PLAN coverage scan: it has no explicit TODO/FIXME or unchecked checklist
+  items. A static cross-reference found all 103 backticked identifiers in
+  `src` and confirmed both configs name the open-abap-core GitHub URL. This
+  checks text presence only; it does not establish behavior or SAP runtime
+  integration. The full PLAN validator still cannot launch through the
+  current Node shim.
+
+- Direct, bulk, and atomic FEFO results now echo `is_rechecked` and
+  `rechecked_snapshot_timestamp` as soon as a supplied snapshot passes
+  validation. Bulk UOM now fully validates every recheck before execution and
+  retains the metadata on skipped rows. BOX regressions verify converted base
+  quantities and shortfall previews for skipped rows; atomic UOM shortfall
+  metadata is covered too, and malformed skipped rechecks are rejected before
+  any post. Abaplint passed with 0 issues across 251 files; the latest transpilation created 0, updated 2, and
+  left 1186 unchanged. Focused source checks and the CRLF-aware diff check
+  passed. PLAN validation could not launch because WSL 1 blocks the Node shim.
+  ABAP Unit was not run.
+
+- Direct bulk and atomic FEFO now validate each supplied recheck before
+  allocation, including request context, reservation exclusions, timestamp
+  ordering, unique complete batch keys, and expiry status/date. A duplicate row
+  is rejected even when full-quantity policy would otherwise shortfall with no
+  selected rows. README, PLAN, ANOMALIES, and source guards cover the behavior.
+  Abaplint passed with 0 issues across 251 files; transpilation created 0,
+  updated 8, and left 1180 unchanged. Focused source checks and the CRLF-aware
+  diff check passed. PLAN validation could not launch because WSL 1 blocks the
+  Node shim. ABAP Unit was not run.
+
+- Shared FEFO capacity rows now report `contributing_request_count`, counting
+  distinct request IDs separately from initial/recheck exposure rows, and
+  `rechecked_exposure_count`, counting rows from supplied second snapshots.
+  Atomic aggregation tracks each request once per capacity key; stock-backed
+  previews return zero rechecked rows. Regressions assert two requests and two
+  rechecks across four atomic rows, and two requests across two preview rows.
+  README, PLAN, and source guards document and require the fields.
+  Abaplint passed with 0 issues across 251 files; transpilation created 0,
+  updated 6, and left 1182 unchanged. The CRLF-aware diff check passed. PLAN
+  validation could not launch because WSL 1 blocks the Node shim. ABAP Unit
+  was not run.
+
+- Atomic FEFO results now populate sorted `shared_capacities` rows from the
+  initial and optional recheck exposure snapshots. Rows include the pooled
+  minimum/maximum balances, exposure and timestamp counts, selected quantities,
+  and remaining capacity; values describe the preflight plan and stay available
+  on shortfall or rollback. The priority regression checks shared capacity,
+  caller-order tie metadata, planned splits, and timestamp bounds across both
+  snapshots. README, PLAN, and source guards cover the contract. Abaplint passed
+  with 0 issues across 251 files; transpilation created 0 outputs, updated 2,
+  and left 1186 unchanged. The CRLF-aware diff check passed. PLAN validation
+  could not launch because WSL 1 blocks the Node shim. ABAP Unit was not run.
+
+- FEFO bulk and atomic result rows now expose a one-based `allocation_sequence`
+  in ranked processing order while remaining in caller order. Bulk rows skipped
+  after stop-on-failure retain their scheduled sequence. Regressions cover
+  default caller order, ranked UOM processing, skipped rows, and atomic shared
+  capacity awarded by rank. PLAN, README, and source guards document and require
+  the field. Abaplint passed with 0 issues across 251 files; transpilation
+  created 0 outputs, updated 4, and left 1184 unchanged. The CRLF-aware diff
+  check passed. PLAN validation could not launch because WSL 1 blocks the Node
+  shim. ABAP Unit was not run.
+
+- FEFO direct, bulk, and atomic posting results now echo `require_full_quantity`
+  at the top level and on each per-request FEFO result. Empty, shortfall, and
+  skipped outcomes retain the chosen policy. Regressions cover default and
+  partial direct calls, bulk/UOM summaries, and atomic base/UOM rows; PLAN,
+  README, and source guards cover the output contract. Abaplint passed with 0
+  issues across 251 files; transpilation created 0 outputs, updated 6, and left
+  1182 unchanged. The CRLF-aware diff check passed. PLAN validation could not
+  launch because WSL 1 blocks the Node shim. ABAP Unit was not run.
+
+- Stock-backed FEFO preview summaries now echo `require_full_quantity`, the
+  all-or-nothing policy used for the request group, including empty input.
+  Regressions cover the default, explicit partial allocation, and empty partial
+  calls. PLAN, README, and the source guard describe the result field. Abaplint
+  passed with 0 issues across 251 files; transpilation created 0 outputs,
+  updated 6, and left 1182 unchanged. The CRLF-aware diff check passed. PLAN
+  validation could not launch because WSL 1 blocks the Node shim. ABAP Unit was
+  not run.
+
+- FEFO `selection_details` now report the material-base-unit `category_balance`
+  used to cap each split: reservation-net unrestricted, QI, or blocked stock.
+  It can exceed the selected quantity when a split only uses part of a batch.
+  Base and UOM regressions cover all stock categories and a partial split; PLAN,
+  README, and source guards describe the field. Abaplint passed with 0 issues
+  across 251 files; transpilation created 0 outputs, updated 6, and left 1182
+  unchanged. The CRLF-aware diff check passed. PLAN validation could not launch
+  because WSL 1 blocks the Node shim. ABAP Unit was not run.
+
+- FEFO `selection_details` now expose `location_priority_rank` so callers can
+  see how storage location affected same-expiry tie ordering. It is zero with
+  no priority list, uses caller ranks for listed locations, and places
+  unlisted locations after the list. Regressions cover preferred, unlisted,
+  no-priority, and UOM results; PLAN, README, and source guards cover the field.
+  Abaplint passed with 0 issues across 251 files; transpilation created 0
+  outputs, updated 6, and left 1182 unchanged. The CRLF-aware diff check
+  passed. PLAN validation could not launch because WSL 1 blocks the Node shim.
+  ABAP Unit was not run.
+
+- Direct expired-scrap preview results now echo the source exposure's
+  `excluded_reservations`, unchanged and including an empty list. UOM and FEFO
+  results retain the exclusions in their nested preview. Base and UOM
+  regressions verify reservation/item keys, and the PLAN, README, and source
+  guard cover the contract. Abaplint passed with 0 issues across 251 files;
+  transpilation created 0 outputs, updated 1, and left 1187 unchanged. The
+  CRLF-aware diff check passed. PLAN validation could not launch because WSL 1
+  blocks the Node shim. ABAP Unit was not run.
+
+- Direct expired-scrap preview results now echo the exposure request ID,
+  material, plant, as-of date, through date, and requested posting date. UOM
+  and FEFO results retain this context in the nested preview. Base and UOM
+  regressions, README, PLAN, and source guards cover the fields. Abaplint passed
+  with 0 issues across 251 files; transpilation created 0 outputs, updated 3,
+  and left 1185 unchanged. The CRLF-aware diff check passed. PLAN validation
+  could not launch because WSL 1 blocks the Node shim. ABAP Unit was not run.
+
+- Direct FEFO posting results now expose the timestamp from a successfully
+  compared second exposure as `rechecked_snapshot_timestamp`; it stays initial
+  when no recheck runs. Base and UOM regressions cover returned timestamps and
+  the no-recheck case. PLAN and README describe the result field. Abaplint
+  passed with 0 issues across 251 files; transpilation created 0 outputs,
+  updated 3, and left 1185 unchanged. The CRLF-aware diff check passed. PLAN
+  validation could not launch because WSL 1 blocks the Node shim. ABAP Unit was
+  not run.
+
+- Direct expired-scrap previews now echo the source exposure's
+  `snapshot_timestamp`; unit-aware and FEFO results retain it through their
+  nested preview, while legacy untimestamped exposures leave it initial.
+  Regression coverage checks both timestamped and untimestamped inputs. Abaplint
+  passed with 0 issues across 251 files; transpilation updated 1 output and
+  left 1187 unchanged. PLAN validation could not launch because WSL 1 blocks
+  the Node shim. ABAP Unit was not run.
+
+- FEFO preview `selection_details` now include `days_expired_at_posting`, the
+  elapsed days from batch expiry to the requested posting date. Direct and UOM
+  regressions cover the calculation and the source guard requires both paths.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 3
+  outputs and left 1185 unchanged. PLAN validation could not launch because
+  WSL 1 blocks the Node shim. ABAP Unit was not run.
+
+- Expired-scrap previews now return `selection_details` alongside posting
+  selections, preserving each selected batch's expiration date and source
+  marker through base-unit and UOM previews. All-or-nothing shortfalls clear
+  both lists. The regression also corrected an upcoming-batch fixture whose
+  expiration date contradicted its status. Abaplint passed with 0 issues across
+  251 files; transpilation updated 6 outputs and left 1182 unchanged. PLAN
+  validation could not launch because WSL 1 blocks the Node shim. ABAP Unit was
+  not run.
+
+- Duplicate reservation exclusions now have preflight regressions across the
+  stock-backed preview, atomic, and bulk FEFO entry points. Request-level and
+  call-wide duplicates are rejected before UOM reads, expiry reads, or
+  movement calls. The PLAN source guard requires all three cases. Abaplint
+  passed with 0 issues across 251 files; transpilation updated 1 output and
+  left 1187 unchanged. PLAN validation could not launch because WSL 1 blocks
+  the Node shim. ABAP Unit was not run.
+
+- Stock expiry exposure now has a regression for reservation exclusion
+  grouping: requests with the same call-wide plus request-specific union share
+  a repository read, distinct unions use separate reads, duplicate keys are
+  removed, and output remains in caller order. The repository double records
+  the grouped request sets and effective keys; the PLAN source guard requires
+  the grouping and ordering assertions. The stock-backed FEFO preview fixture
+  also captures each reader request and verifies different per-request keys
+  combine with the call-wide keys in the returned rows. Abaplint passed with
+  0 issues across 251 files; transpilation updated 8 outputs and left 1180
+  unchanged. Duplicate call-wide and request-level exclusion cases verify
+  rejection before UOM conversion or exposure reads. PLAN validation could not launch
+  because the WSL 1 Node shim failed. ABAP Unit was not run.
+
+- Direct and stock-backed FEFO previews now reject expiry detail rows without a
+  storage location or batch instead of silently omitting them from allocation
+  or pooled capacity. The PLAN, README, regression coverage, and source guard
+  require that check. The shared stock-backed posting validator applies the
+  same rule to both the original and rechecked exposure snapshots for atomic
+  and independent bulk posting. Those posting paths validate the first
+  snapshot before requesting the recheck; an invalid original fails after one
+  stock read, with no movement attempt.
+
+- Stock-backed FEFO preview tests now inspect the pooled-capacity rows: keys,
+  minimum and maximum exposure balances, spread, selected quantity, remaining
+  capacity, limiting and maximum request IDs, row counts, and timestamp bounds.
+  A second prioritized read checks caller-order tie handling for the minimum
+  and maximum, and that processing sequences can differ from result order. A
+  separate case verifies partial allocation is available only by explicit
+  opt-in and still reconciles the pooled capacity summary. Abaplint passed with
+  0 issues across 251 files; transpilation updated 4 outputs and left 1184
+  unchanged. PLAN validation could not launch because the WSL 1 Node shim
+  failed. ABAP Unit was not run.
+
+- Generic base-unit and UOM, plus stock-backed bulk FEFO, now cover
+  request-level UOM exceptions. Exception rows are marked unattempted, counted
+  as failed, and include an error message. Generic UOM cases verify that a
+  rank-1 exception either stops the rank-2 request or, by default, allows it to
+  commit, with result rows in caller order. The base-unit case verifies a final
+  exception sets `stopped_on_failure` with no skipped rows. Stock-backed cases
+  verify continuing and stopping. PLAN, user docs, and the source guard require
+  these outcomes. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 4 outputs and left 1184 unchanged. PLAN validation could not launch
+  because the WSL 1 Node shim failed. ABAP Unit was not run.
+
+- Stock-backed atomic and independent FEFO posting now both have a regression
+  proving ranked movement order while result rows stay in caller order and
+  echo rank metadata. A bulk case also covers caller-order ties and puts
+  unranked requests after ranked requests. Abaplint passed with 0 issues across
+  251 files; final transpilation updated 4 outputs and left 1184
+  unchanged. PLAN validation could not launch because the WSL 1 Node shim
+  failed. ABAP Unit was not run.
+
+- Stock-backed atomic posting now has a regression for unknown priority IDs,
+  and independent posting has one for duplicate priority rows. Both assert
+  rejection before any exposure read or movement call. The PLAN already
+  requires this preflight ordering. Abaplint passed with 0 issues across 251
+  files; transpilation updated 4 outputs and left 1184 unchanged. PLAN
+  validation could not launch because the WSL 1 Node shim failed. ABAP Unit
+  was not run.
+
+- Stock-backed bulk FEFO now has assertions for both stop-on-failure cases:
+  later requests are skipped after an earlier failure, and the summary still
+  marks a stop when the final request fails with no rows to skip. This also
+  verifies skip counts, attempt state, and an earlier successful commit.
+  Abaplint passed with 0 issues across 251 files; final transpilation updated
+  2 outputs and left 1186 unchanged. PLAN validation could not launch because
+  the WSL 1 Node shim failed. ABAP Unit was not run.
+
+- Stock-backed independent FEFO posting now has regression coverage that a
+  failed request leaves shared capacity available to the next request. The
+  test checks the later movement receives the full quantity, and the source
+  guard requires this coverage. The PLAN already documents consume-on-success
+  semantics. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 1 output and left 1187 unchanged. PLAN validation could not launch
+  because the WSL 1 Node shim failed. ABAP Unit was not run.
+
+- Duplicate location/batch/valuation stock rows now have regression coverage
+  in both the atomic and independently committed FEFO posting paths. The
+  bulk case asserts malformed exposure rows fail before any goods movement;
+  the existing PLAN text already documents this rejection. Added its method
+  to the source guard. The ABAP lint and transpilation results for this method
+  are included with the shared-capacity regression immediately above.
+
+- Stock-backed atomic and bulk FEFO posting now reject rechecks whose
+  snapshot timestamp is equal to the initial read. Added regression coverage
+  for both paths and guarded the bulk PLAN timestamp contract. The transpiler
+  passed (0 created, 1 updated, 1187 unchanged), and abaplint passed with 0
+  issues after the final alignment adjustment. PLAN validation could not
+  launch because the WSL 1 Node shim failed. Static guard checks and the
+  CRLF-aware diff check passed. ABAP Unit was not run.
+
+- Stock-backed atomic and independently committed FEFO posting now verify
+  both returned snapshots echo each request's effective call-wide and
+  request-specific exclusions, and reject duplicate batch/location/
+  valuation rows before allocation. Regression cases cover a mismatched
+  initial snapshot, a mismatched recheck, and duplicate atomic rows.
+  Updated PLAN, README, ANOMALIES, and source guard. Abaplint passed with
+  0 issues across 251 files; transpilation updated 4 outputs and left
+  1184 unchanged. PLAN validation could not launch because the WSL 1 Node
+  shim rejects WSL 1. ABAP Unit was not run.
+
+- Stock-backed FEFO preview rows now echo the request's cost center,
+  movement reason, and storage-location priority, including a regression
+  request with no selected stock. Added output assertions and extended the
+  PLAN, README, ANOMALIES, and source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 2 outputs and left 1186 unchanged.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Stock-backed FEFO previews now reject duplicate location/batch/valuation
+  rows from one exposure before pooling, avoiding duplicate capacity from
+  malformed reader output. Request result rows also echo material, plant,
+  expiry window, and stock category. Updated README, PLAN, ANOMALIES,
+  regression assertions, and source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 8 outputs and left 1180
+  unchanged. PLAN validation could not launch because the WSL 1 Node shim
+  rejects WSL 1. ABAP Unit was not run.
+
+- Stock-backed FEFO preview rows now echo request material, plant, expiry
+  window, and stock category, so each result identifies its request scope
+  without a lookup. Updated README, PLAN, ANOMALIES, test assertions, and
+  the source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 6 outputs and left 1182 unchanged. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit
+  was not run.
+
+- Stock-backed FEFO previews now verify each reader result echoes the
+  union of call-wide and request-specific reservation exclusions before
+  pooling capacity. Updated the reader fixture, README, PLAN, ANOMALIES, and
+  source guard. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 6 outputs and left 1182 unchanged. PLAN validation could not launch
+  because the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Stock-backed FEFO preview request rows now echo the source exposure
+  `snapshot_timestamp` in UTC, so callers can associate each preview with
+  its exact stock read. Updated README, PLAN, ANOMALIES, and the source guard.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 6
+  outputs and left 1182 unchanged. PLAN validation could not launch because
+  the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Shared-capacity preview rows now include earliest/latest contributing
+  snapshot timestamps and `untimestamped_exposure_count`, exposing read-time
+  spread across exclusion groups while preserving rows from injected readers
+  without timestamps. Updated README, PLAN, ANOMALIES, and the source guard.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 3
+  outputs and left 1185 unchanged. PLAN validation could not launch because
+  the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Shared-capacity preview rows now include `positive_exposure_count`,
+  counting contributing exposure rows whose selected stock category has a
+  positive balance. Updated README, PLAN, ANOMALIES, and the source guard.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 6
+  outputs and left 1182 unchanged. PLAN validation could not launch because
+  the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Shared-capacity preview rows now include `maximum_exposure_count`, counting
+  exposure rows tied at the maximum; a newly higher report resets the count,
+  and equal reports increment it. Updated README, PLAN, ANOMALIES, and the
+  source guard. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 6 outputs and left 1182 unchanged. PLAN validation could not launch
+  because the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Shared-capacity preview rows now include `minimum_exposure_count`, which
+  counts exposure rows tied at the minimum balance; a newly lower report
+  resets the count and equal reports increment it. Updated README, PLAN,
+  ANOMALIES, and the source guard. Abaplint passed with 0 issues across 251
+  files; transpilation updated 6 outputs and left 1182 unchanged. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Shared-capacity preview rows now include `maximum_reported_request_id`,
+  identifying the request that supplied the largest observed balance; ties
+  keep the first request in caller order. Updated README, PLAN, ANOMALIES, and
+  the source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 3 outputs and left 1185 unchanged. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was
+  not run.
+
+- Shared-capacity preview rows now include `maximum_reported_quantity` and
+  `capacity_spread_quantity`, exposing the maximum observed balance and its
+  spread from the minimum allocation cap. Updated README, PLAN, ANOMALIES,
+  and the source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 6 outputs and left 1182 unchanged. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was
+  not run.
+
+- Shared-capacity preview rows now include `allocation_row_count`, counting
+  positive request-preview selection rows assigned to each pooled stock key.
+  Updated README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0
+  issues across 251 files; transpilation updated 6 outputs and left 1182
+  unchanged. PLAN validation could not launch because the WSL 1 Node shim
+  rejects WSL 1. ABAP Unit was not run.
+
+- Shared-capacity preview rows now report `reported_exposure_count` and
+  `limiting_request_id` to show how many exposure balances contributed and
+  which request supplied the minimum. Ties preserve caller order. Updated
+  README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 6 outputs and left 1182 unchanged.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Stock-backed FEFO previews now return sorted `shared_capacities` rows with
+  material base units, the minimum reported balance, total selected quantity,
+  and remaining shared capacity per material/plant/location/batch/valuation/
+  category key. Updated README, PLAN, ANOMALIES, and the source guard. Abaplint
+  passed with 0 issues across 251 files; transpilation updated 6 outputs and
+  left 1182 unchanged. PLAN validation could not launch because the WSL 1 Node
+  shim rejects WSL 1. ABAP Unit was not run.
+
+- Stock-backed FEFO preview rows now include a one-based
+  `allocation_sequence` for the rank/caller-order sequence used to consume
+  shared batch capacity, while result rows remain in caller order. Updated
+  README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 6 outputs and left 1182 unchanged.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch allocation results now include a one-based `allocation_sequence` on
+  uncovered reservations and every trace row. The calculator resolves equal
+  reservation selectors by input order and traverses stock rows stably by
+  location, batch, valuation type, and expiry date; callers can sort by the
+  sequence to reconstruct shared-stock consumption. UOM rows echo it. Updated
+  README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 30 outputs and left 1158 unchanged.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch reservation summaries now classify eligible open rows as fully
+  allocated, partially allocated, or unallocated. The three counts reconcile
+  to the eligible open row count, exclude effective exclusions, and flow
+  through direct, expiry, and UOM expiry results. Updated README, PLAN,
+  ANOMALIES, and the source guard. Abaplint passed with 0 issues across 251
+  files; transpilation updated 28 outputs and left 1160 unchanged. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Allocation trace rows now include the reservation's requested location,
+  batch, and valuation type beside the actual stock-row selectors. UOM trace
+  rows echo the selectors, making fallback differences visible for fully
+  covered reservations as well. Updated README, PLAN, ANOMALIES, and the source
+  guard. Abaplint passed with 0 issues across 251 files; transpilation updated
+  28 outputs and left 1160 unchanged. PLAN validation could not launch because
+  the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch-stock summaries now count matched-pass and fallback-pass allocation
+  trace rows. Each count represents a positive deduction against one stock row,
+  not a distinct reservation, and UOM expiry results echo the counts. Updated
+  README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 28 outputs and left 1160 unchanged.
+  CRLF-aware diff checks passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch-stock summaries now report total matched-pass and fallback-pass
+  allocation quantities. Their sum plus the uncovered quantity reconciles to
+  eligible open reservation demand; excluded demand stays separate. Base and
+  requested-unit expiry results carry both totals, so callers can compare the
+  passes without summing allocation trace entries. Updated README, PLAN,
+  ANOMALIES, and the source guard. Abaplint passed with 0 issues across 251
+  files; transpilation updated 28 outputs and left 1160 unchanged. CRLF-aware
+  diff checks passed. PLAN validation could not launch because the WSL 1 Node
+  shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch-stock results now return `allocation_details` for each positive
+  reservation deduction, with the reservation key, required date, actual
+  location/batch/valuation/expiry row, quantity, and matched (`M`) or fallback
+  (`F`) pass. The calculator sorts traces stably by reservation/item, preserving
+  allocation-pass and stock traversal order. Repository, expiry, and UOM results
+  carry the trace; UOM entries include base and requested quantities. Updated
+  README, PLAN, ANOMALIES, and the source guard. Abaplint passed with 0 issues
+  across 251 files; transpilation updated 28 outputs and left 1160 unchanged.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry uncovered-reservation details now carry RESB requirement date,
+  storage location, batch, valuation type, original required/withdrawn
+  quantities, open quantity, locally allocated quantity, and selector-matched/
+  fallback quantities through base and UOM results. Each row reconciles source
+  required/withdrawn quantities to matched, fallback, and uncovered amounts,
+  and reports days until its requirement date. Results report the residual row
+  count and earliest known requirement date with its reservation key and
+  calendar-day distance from the as-of date. UOM results convert required,
+  withdrawn, open, allocated, matched, fallback, and uncovered quantities and
+  echo the reservation context, per-row day counts, aggregate count, and date
+  summary. Residuals are grouped into overdue, due-today, future-dated, and
+  undated quantities and row counts; base totals reconcile to the uncovered
+  amount and detail count. UOM results convert each bucket and echo counts.
+  Undated requirements are skipped in the earliest-date summary and kept apart
+  from due-today rows; ties use reservation/item order. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 13 outputs and left 1175 unchanged.
+  CRLF-aware diff checks passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry results now return each uncovered reservation/item key with its
+  positive residual quantity. The row quantities reconcile to the aggregate
+  uncovered total; UOM rows include base and requested-unit amounts. Updated
+  README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed with 0
+  issues across 251 files; transpilation updated 28 outputs and left 1160
+  unchanged. Focused per-reservation/base/UOM checks and CRLF-aware diff checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- Batch expiry results now return `uncovered_open_resv_keys` for reservations
+  left with positive demand after local allocation. The keys are sorted by
+  reservation/item and echoed unchanged by UOM results. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 4 outputs and left 1184 unchanged. Focused
+  key-order/base/UOM flow checks and CRLF-aware diff checks passed. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry results now include `uncovered_open_resv_quantity`: positive
+  eligible reservation demand left after the calculator's matching and
+  fallback passes. The calculator exposes this summary without changing its
+  existing stock-table API; UOM results convert the total to the requested
+  unit. Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint
+  passed with 0 issues across 251 files; transpilation updated 3 outputs and
+  left 1185 unchanged. Focused summary/UOM flow and CRLF-aware diff checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- Direct batch-stock status bulk results now carry a shared UTC
+  `snapshot_timestamp`; the UOM wrapper echoes it, and expiry exposure reuses
+  the grouped status timestamp. Updated README, PLAN, ANOMALIES, and the PLAN
+  source guard. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 19 outputs and left 1169 unchanged. Focused timestamp capture,
+  grouped-read consistency, UOM echo, and CRLF-aware diff checks passed. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry exposure now reports raw eligible and excluded open-reservation
+  quantities alongside row counts. The UOM result includes each total in base
+  and requested units; the totals describe reservation demand, not stock
+  deductions. Updated README, PLAN, ANOMALIES, and the PLAN source guard.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 3
+  outputs and left 1185 unchanged. Focused aggregation/UOM/source-flow checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now returns `unmatched_excl_reservations`, the
+  effective reservation/item keys without positive open RESB matches, sorted
+  by reservation and item. The UOM result echoes the list unchanged. Updated
+  README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed with 0
+  issues across 251 files; transpilation updated 3 outputs and left 1185
+  unchanged. Focused collection/order/count and base/UOM flow checks plus
+  CRLF-aware diff checks passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now reports `unmatched_open_resv_excl_count` for
+  effective exclusion keys with no matching positive open RESB row. The UOM
+  result echoes the value unchanged. Updated README, PLAN, ANOMALIES, and the
+  PLAN source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 26 outputs and left 1162 unchanged. Focused count-flow,
+  UOM, and documentation checks plus CRLF-aware diff checks passed. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry exposure now reports `excluded_open_resv_row_count` for RESB
+  rows with a positive remainder that match effective reservation exclusions.
+  The UOM result echoes this count alongside eligible reservation rows.
+  Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed
+  with 0 issues across 251 files; transpilation updated 3 outputs and left
+  1185 unchanged. Focused count-flow/UOM/guard checks and CRLF-aware diff
+  checks passed. PLAN validation could not launch because the WSL 1 Node shim
+  rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now reports `open_reservation_row_count` for eligible
+  RESB rows with positive remaining quantities after effective exclusions.
+  The count follows each request's local batch-status read and is echoed by
+  UOM results. Updated README, PLAN, ANOMALIES, and the PLAN source guard.
+  Abaplint passed with 0 issues across 251 files; transpilation updated 3
+  outputs and left 1185 unchanged. Focused request-flow/UOM/guard checks and
+  CRLF-aware diff checks passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now counts positive-stock dated rows sourced from
+  plant-level MCHA and global MCH1 separately, including after-window rows.
+  UOM results echo both counts. Updated README, PLAN, ANOMALIES, and the PLAN
+  source guard. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 13 outputs and left 1175 unchanged. Focused boundary/UOM/guard checks
+  and CRLF-aware diff checks passed. PLAN validation could not launch because
+  the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry rows now expose `expiration_date_source`: `P` for a resolved
+  plant-level MCHA date, `G` for a resolved global MCH1 fallback, and blank
+  when no date resolves. Dated details and expired, upcoming, and after-window
+  summaries carry the marker; UOM results echo it. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 4 outputs and left 1184 unchanged. Focused
+  precedence/UOM/guard checks and CRLF-aware diff checks passed. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was
+  not run.
+
+- Batch expiry exposure now returns every positive-stock row with no resolved
+  expiry date in the sorted `undated_batches` list. UOM rows include base and
+  requested units plus converted category balances. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 3 outputs and left 1185 unchanged. Focused
+  list/UOM/guard checks and CRLF-aware diff checks passed. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was
+  not run.
+
+- Batch expiry exposure now identifies the first positive-stock undated row by
+  batch, location, and valuation type, with its four category balances. UOM
+  results include the same row's base and requested-unit values. Updated
+  README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed with 0
+  issues across 251 files; transpilation updated 13 outputs and left 1175
+  unchanged. Focused selection/UOM/guard checks and CRLF-aware diff checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now identifies the first positive-stock expired row in
+  expiration, batch, location, and valuation order. It reports the row identity,
+  expiration date, days since expiry, and four stock-category balances; UOM
+  results include base and requested-unit balances. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 13 outputs and left 1175 unchanged. Focused
+  row/UOM/guard checks and CRLF-aware diff checks passed. PLAN validation could
+  not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now reports `days_after_window_end` for the earliest
+  positive-stock row after the inclusive through date, alongside the existing
+  days from as-of date. UOM results echo the day values. Updated README, PLAN,
+  ANOMALIES, and the PLAN source guard. Abaplint passed with 0 issues across
+  251 files; transpilation updated 13 outputs and left 1175 unchanged. Focused
+  date/UOM/guard checks and CRLF-aware diff checks passed. PLAN validation
+  could not launch because the WSL 1 Node shim rejects WSL 1. ABAP Unit was
+  not run.
+
+- The earliest after-window row now carries its unrestricted, available, QI,
+  and blocked balances. UOM results provide each value in base and requested
+  units. Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint
+  passed with 0 issues across 251 files; transpilation updated 3 outputs and
+  left 1185 unchanged. Focused row/UOM/guard checks and CRLF-aware diff checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now identifies the earliest positive-stock row after
+  the requested window by storage location, batch, and valuation type, with
+  its expiration date and days from the as-of date. It follows expiry, batch,
+  location, and valuation order; UOM results echo its identity and date fields.
+  Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed
+  with 0 issues across 251 files; transpilation updated 13 outputs and left
+  1175 unchanged. Focused ordering/UOM/guard checks and CRLF-aware diff checks
+  passed. PLAN validation could not launch because the WSL 1 Node shim rejects
+  WSL 1. ABAP Unit was not run.
+
+- The earliest-upcoming batch summary now includes unrestricted,
+  reservation-net available, QI, and blocked quantities for its identified
+  row. UOM results carry each value in base and requested units. Updated
+  README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed with 0
+  issues across 251 files; transpilation updated 13 outputs and left 1175
+  unchanged. Focused identity, quantity, UOM, and guard checks plus the
+  CRLF-aware diff check passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- The earliest-upcoming summary now echoes the selected row's storage
+  location, batch, and valuation type. It selects the first upcoming row after
+  the deterministic expiry/batch/location/valuation sort, keeping the identity
+  aligned with the reported date; UOM results echo the identity unchanged.
+  Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed
+  with 0 issues across 251 files; transpilation updated 3 outputs and left
+  1185 unchanged. Focused sort/UOM checks and CRLF-aware diff checks passed.
+  PLAN validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry exposure now returns the earliest positive-stock upcoming
+  expiration date within the requested window and its calendar-day distance
+  from the as-of date. The day count is zero for expiry on the as-of date, and
+  both fields remain initial when no upcoming row has positive stock. The UOM
+  result echoes these values. Updated README, PLAN, ANOMALIES, and the PLAN
+  source guard. Abaplint passed with 0 issues across 251 files; transpilation
+  updated 13 outputs and left 1175 unchanged. Focused source/guard checks and
+  CRLF-aware diff checks passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1. ABAP Unit was not run.
+
+- Batch expiry exposure now reports positive-stock batch/location/valuation
+  rows with valid expiry dates after the requested window in a separate count
+  and unrestricted, available, QI, and blocked totals. The UOM result carries
+  base and requested-unit totals; after-window rows remain outside dated
+  detail and expired/upcoming totals. Updated README, PLAN, ANOMALIES, and the
+  PLAN source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 3 outputs and left 1185 unchanged. Focused
+  source/documentation guard checks and CRLF-aware diff checks passed. PLAN
+  validation could not launch because the WSL 1 Node shim rejects WSL 1.
+  ABAP Unit was not run.
+
+- Batch expiry exposure now reports undated positive-stock row counts and
+  unrestricted, reservation-net available, QI, and blocked quantity totals.
+  The UOM result includes both base and requested-unit totals, while undated
+  rows stay outside the dated batch detail and expired/upcoming totals.
+  Updated README, PLAN, ANOMALIES, and the PLAN source guard. Abaplint passed
+  with 0 issues across 251 files; transpilation updated 13 outputs and left
+  1175 unchanged. Focused source/guard checks and the CRLF-aware diff check
+  passed. PLAN validation could not launch because of the WSL 1 Node shim
+  error. ABAP Unit was not run.
+
+- Batch expiry results now count positive-stock rows with no resolved expiry
+  date and sum their unrestricted, reservation-net available, QI, and blocked
+  quantities separately from dated exposure. The UOM result carries each
+  quantity in base and requested units. Updated README, PLAN, ANOMALIES, and
+  the PLAN source guard. Abaplint passed with 0 issues across 251 files;
+  transpilation updated 13 outputs and left 1175 unchanged. Focused exposure
+  and guard checks plus the CRLF-aware diff check passed. PLAN validation could
+  not launch because the WSL 1 Node shim rejects WSL 1 before running the
+  script. ABAP Unit was not run.
+
+- Batch expiry reports now carry a UTC read-completion timestamp through the
+  UOM result. Rechecked scrap posting rejects a second report whose timestamp
+  is missing or not later when the original report is timestamped; legacy
+  untimestamped reports keep the prior behavior. Updated README, PLAN,
+  ANOMALIES, and the source guard. Abaplint passed with 0 issues across 251
+  files; transpilation updated 6 outputs and left 1182 unchanged. Focused
+  timestamp ordering and recheck source checks plus CRLF-aware diff checks
+  passed. PLAN validation could not launch: the WSL 1 Node shim cannot find
+  its installation directory, and direct node.exe launch hit a WSL socket
+  error. ABAP Unit was not run.
+
+- Batch expiry exposure results now report expired and upcoming row counts
+  for returned batch/location/valuation rows with positive stock; the UOM
+  result carries those counts unchanged. The earlier valuation-type tie-break
+  also keeps equal-expiry selection deterministic. Updated README, PLAN,
+  ANOMALIES, and the PLAN guard. Abaplint found 0 issues across 251 files;
+  transpilation created 0 outputs, updated 3, and left 1185 unchanged. Focused
+  row-count and CRLF-aware diff checks passed. PLAN validation could not launch
+  because the WSL 1 Node shim reports WSL 1 unsupported and cannot determine
+  the Node.js install directory. ABAP Unit was not run.
+
+- Batch expiry exposure now sorts ties by valuation type after status, expiry,
+  batch, and location, making equal-expiry FEFO selection deterministic when
+  one batch/location appears in multiple valuations. Updated README, PLAN,
+  ANOMALIES, and the PLAN guard. Abaplint found 0 issues across 251 files;
+  transpilation created 0 outputs, updated 4, and left 1184 unchanged. The
+  CRLF-aware diff check passed. PLAN validation could not launch because the
+  WSL 1 Node shim rejects WSL 1 and cannot determine the Node.js install
+  directory. ABAP Unit was not run.
+
+- Stock-backed scrap preview, atomic posting, and independent posting now
+  prevalidate all request structure, IDs, categories, exclusion keys, and
+  priority rows before the first UOM conversion. A shared request validator
+  handles date windows, quantities, units, and category fields. Updated the
+  README, PLAN, ANOMALIES, and source guards. Abaplint found 0 issues across
+  251 files; transpilation reported 0 created or updated outputs and 1188
+  unchanged. Focused source-order and CRLF-aware diff checks passed. PLAN validation could not launch
+  because the WSL 1 Node shim reports WSL 1 unsupported and cannot determine
+  the Node.js install directory. ABAP Unit was not run.
+
+- Stock-backed scrap preview, atomic posting, and independent posting now
+  validate complete, unique call-wide and request-specific reservation keys
+  before the first UOM conversion. Empty-input behavior is unchanged. Added
+  a shared key validator and PLAN source guards, and documented the ordering
+  in README, PLAN, and ANOMALIES. Abaplint found 0 issues across 251 files;
+  transpilation completed with 0 created, 5 updated, and 1183 unchanged. The
+  CRLF-aware diff check passed. PLAN validation could not launch because the
+  WSL 1 Node shim reports that WSL 1 is unsupported and cannot determine the
+  Node.js install directory. ABAP Unit was not run.
+
+- Added request-specific reservation exclusions to bulk batch expiry exposure
+  and its UOM variant. Each request's keys combine with call-wide exclusions,
+  and requests with identical effective key sets share a stock read. Stock-backed
+  scrap previews and posting requests now carry their own exclusions through
+  initial and recheck reads. Base and UOM results echo the effective keys.
+  Rechecked scrapping also requires effective exclusion sets to match;
+  malformed or duplicate keys fail comparison. Updated README, PLAN, anomaly
+  notes, and the PLAN guard. Abaplint passed with 0 issues across 251 files;
+  transpilation passed with 0 created, 5 updated, and 1183 unchanged. The
+  CRLF-aware diff check passed. PLAN validation could not launch because the
+  WSL 1 Node shim reports that WSL 1 is unsupported and cannot determine the
+  Node.js install directory. ABAP Unit was not run.
+
+- Aligned expired-batch scrap preview, direct posting, and rechecked posting on
+  the posting date. Exposure status is validated against its as-of date, then
+  the expiration date determines eligibility at posting; a batch reported as
+  upcoming can qualify if it expires before posting. Updated README, PLAN,
+  anomaly notes, and the PLAN guard. Abaplint passed with 0 issues across 251
+  files; transpilation passed with 0 created, 5 updated, and 1183 unchanged.
+  The CRLF-aware diff check passed. PLAN validation could not launch because
+  the WSL 1 Node shim reports that WSL 1 is unsupported and cannot determine
+  the Node.js install directory. ABAP Unit was not run.
+
+- Added optional request priorities to atomic FEFO posting, including the
+  stock-backed entry point. Atomic preflight now allocates pooled
+  material/plant/location/batch/valuation/category capacity in rank order,
+  returns rows in caller order, and executes the group in the same priority
+  order. Partial allocations share snapshot stock by rank; the group still
+  commits or rolls back as one unit. Preflight keeps distinct errors for
+  individual shortfalls and requests that exceed the shared pool. Updated
+  README, PLAN, anomaly notes, and the PLAN guard. Abaplint passed with 0
+  issues across 251 files; transpilation passed with 0 created, 4 updated, and
+  1184 unchanged. The CRLF-aware diff check passed. PLAN validation remains
+  unavailable because the WSL1 Node shim fails before the script launches.
+  ABAP Unit was not run.
+
+- Atomic FEFO bulk posting now catches a request-level
+  `zcx_invalid_goods_movement` from deferred execution, rolls back the pending
+  group outside test-run mode, retains the exception message on its row, and
+  reports `exception_count`. Updated README, PLAN, anomaly notes, and the PLAN
+  guard.
+  Abaplint passed with 0 issues across 251 files; transpilation passed with 0
+  created, 6 updated, and 1182 unchanged. The CRLF-aware diff check passed.
+  PLAN validation remains unavailable because of the WSL1 Node shim failure.
+  ABAP Unit was not run.
+
+- Fixed shared-capacity allocation in the independent stock-backed FEFO bulk
+  path. The preflight and posting passes pool matching material/plant/location/
+  batch/valuation/category balances using the lower amount reported across the
+  initial and recheck snapshots. Priorities determine allocation order, result
+  rows remain in caller order, and only successful requests consume capacity.
+  Failed requests release their allocation for later requests. Updated README,
+  PLAN, anomaly notes, and the PLAN guard. Abaplint passed with 0 issues across
+  251 files; transpilation passed with 0 created, 5 updated, and 1183 unchanged.
+  The CRLF-aware diff check passed. PLAN validation remains unavailable because
+  the WSL1 Node shim fails before the script launches. ABAP Unit was not run.
+
+- Added `exception_count` to the independent FEFO bulk summary so callers can
+  identify request-level posting exceptions without scanning result rows. It
+  counts a subset of `failed_count`. Updated README, PLAN, anomaly notes, and
+  the PLAN guard. Abaplint passed with 0 issues across 251 files;
+  transpilation passed with 0 created, 5 updated, and 1183 unchanged. The
+  CRLF-aware diff check passed. PLAN validation remains unavailable because of
+  the WSL1 Node shim failure. ABAP Unit was not run.
+
+- Added `stopped_on_failure` to the independent bulk summary. It records when
+  stop-on-failure triggers even if the failed request was last and no rows are
+  skipped. Updated README, PLAN, anomaly notes, and the PLAN guard. Abaplint
+  passed with 0 issues across 251 files; transpilation passed with 0 created,
+  6 updated, and 1182 unchanged. The CRLF-aware diff check passed. PLAN
+  validation remains unavailable because of the WSL1 Node shim failure. ABAP
+  Unit was not run.
+
+- Updated independent FEFO bulk posting to catch a request-level
+  `zcx_invalid_goods_movement` raised during posting. The row retains its
+  preflight preview and receives the exception text as an error message, so
+  prior independent commits remain visible in the returned summary. Updated
+  README, PLAN, anomaly notes, and the PLAN guard. Abaplint passed with 0
+  issues across 251 files; transpilation passed with 0 created, 6 updated, and
+  1182 unchanged. PLAN validation could not launch because the WSL1 Node shim
+  failed; direct `cmd.exe` invocation also hit the WSL interop socket error.
+  The CRLF-aware diff check passed. ABAP Unit was not run.
+
+- Added opt-in `iv_stop_on_failure` to both independent FEFO bulk methods and
+  the stock-backed bulk method. A first shortfall or returned posting error
+  stops later requests; result rows mark them `is_skipped` and `skipped_count`
+  stays separate from `failed_count`. Earlier independent commits remain
+  recorded. Updated README, PLAN, anomaly notes, and the PLAN guard. Abaplint
+  passed with 0 issues across 251 files; transpilation passed with 0 created,
+  6 updated, and 1182 unchanged. The CRLF-aware diff check passed. PLAN
+  validation could not start because the WSL1 Node shim reports that WSL1 is
+  unsupported and cannot determine the Node.js install directory. ABAP Unit was
+  not run.
+
+- Added optional request-priority ranks to `SCRAP_EXPIRED_FEFO_BULK` and its
+  UOM form. Lower positive ranks post first, unranked requests follow, and ties
+  keep caller order; results remain in caller order and echo rank metadata.
+  Invalid, duplicate, and unknown priority rows are rejected before posting.
+  Updated README, anomaly notes, PLAN, and its validation guard. Abaplint passed
+  with 0 issues across 251 files; transpilation passed with 0 outputs created,
+  6 updated, and 1182 unchanged. The CRLF-aware diff check passed. PLAN
+  validation could not start because the WSL1 Node shim reports that WSL1 is
+  unsupported and cannot determine the Node.js install directory. ABAP Unit was
+  not run.
+
+- Added `SCRAP_FEFO_BULK_FROM_STOCK` for stock-backed, independently committed
+  FEFO posting. It validates requests, UOM mappings, and priority rows before
+  stock reads, forwards reservation exclusions to the initial and optional
+  recheck reads, and passes ranked requests into the existing bulk posting
+  path. Updated README, anomaly notes, PLAN, and the PLAN guard. Abaplint passed
+  with 0 issues across 251 files; transpilation passed with 0 outputs created,
+  5 updated, and 1183 unchanged. The CRLF-aware diff check passed. PLAN
+  validation remains unavailable because the WSL1 Node shim cannot determine
+  the Node.js install directory. ABAP Unit was not run.
+
+- Added `SCRAP_EXPIRED_QI_BATCH_STOCK` for expired batch stock in quality
+  inspection. It validates expiry and selected quantity against the reported QI
+  balance, then posts movement 553 with the required cost center. Added a
+  success fixture where unrestricted stock is zero and a rejection above the
+  QI quantity, plus README, anomaly, and PLAN guard updates. Validation:
+  abaplint passed (0 issues across 247 files), transpilation passed (4 updated,
+  1181 unchanged), and the CRLF-aware diff check passed. ABAP Unit was not run.
+  PLAN validation could not start because the WSL1 Node shim reported that WSL1
+  is unsupported and could not determine the Node.js install directory.
+
+- Added `SCRAP_EXPIRED_QI_BATCH_UOM` to convert caller quantities to the
+  material base unit before enforcing the reported QI balance. Added success,
+  over-balance, and unknown-unit fixtures.
+
+- Added `SCRAP_EXPIRED_QI_RECHECKED` to compare the selected batch across
+  the original and second expiry exposure before posting movement 553 against
+  the rechecked QI quantity. Added unchanged-snapshot and changed-QI fixtures.
+  Validation: abaplint passed (0 issues across 247 files), transpilation passed
+  (8 updated, 1177 unchanged), and the CRLF-aware diff check passed. ABAP Unit
+  was not run. PLAN validation could not start because the WSL1 Node shim
+  reported that WSL1 is unsupported and could not determine the Node.js install
+  directory.
+
+- Added `SCRAP_EXPIRED_QI_RECHECKED_UOM`, which converts per-selection units to
+  base units before running the second-snapshot comparison. Added a successful
+  conversion fixture. Final validation for the QI posting variants: abaplint
+  passed (0 issues across 247 files), transpilation passed (8 updated, 1177
+  unchanged), and the CRLF-aware diff check passed. ABAP Unit was not run.
+  PLAN validation could not start because the WSL1 Node shim reported that
+  WSL1 is unsupported and could not determine the Node.js install directory.
+
+- Added `SCRAP_EXPIRED_BLOCKED_STOCK` for expired batch stock in the blocked
+  category. It caps movement 555 against the selected row's blocked quantity,
+  independent of unrestricted and QI balances. Added success and overage
+  fixtures, README/anomaly notes, and a PLAN guard.
+
+- Added `SCRAP_EXPIRED_BLOCKED_UOM` to convert selections into the material base
+  unit before enforcing the blocked-stock cap. Added success and converted
+  overage fixtures.
+
+- Added blocked-stock recheck methods for base-unit and alternate-unit
+  selections. They compare selected batch categories across two expiry reports
+  before posting movement 555. Added unchanged-snapshot, changed-balance, and
+  unit-conversion fixtures. Validation for the blocked-stock paths: abaplint
+  passed (0 issues across 247 files), transpilation passed (8 updated, 1177
+  unchanged), and the CRLF-aware diff check passed. ABAP Unit was not run.
+  PLAN validation could not start because the WSL1 Node shim reported that
+  WSL1 is unsupported and could not determine the Node.js install directory.
+
+- Added `PREVIEW_EXPIRED_BLOCKED_SCRAP` to produce FEFO-ordered selections from
+  expired blocked batches, including partial shortfalls or all-or-nothing
+  behavior. Added FEFO, location-priority, upcoming-batch exclusion, and
+  all-or-nothing shortfall fixtures. Final validation for the blocked-stock
+  feature set: abaplint passed (0 issues across 247 files), transpilation passed
+  (8 updated, 1177 unchanged), and the CRLF-aware diff check passed. ABAP Unit
+  was not run. PLAN validation could not start because the WSL1 Node shim
+  reported that WSL1 is unsupported and could not determine the Node.js install
+  directory.
+
+- Added `PREVIEW_EXPIRED_BLOCKED_SCRAP_UOM` to accept alternate-unit quantities,
+  echo source and base units, and return posting-ready base-unit splits. Added
+  success, converted-shortage, and unknown-unit fixtures. Final validation for
+  the blocked-stock preview and posting paths: abaplint passed (0 issues across
+  247 files), transpilation passed (8 updated, 1177 unchanged), and the
+  CRLF-aware diff check passed. ABAP Unit was not run. PLAN validation could not
+  start because the WSL1 Node shim reported that WSL1 is unsupported and could
+  not determine the Node.js install directory.
+
+- Added QI and unrestricted variants of the expired-scrap FEFO preview. They
+  share the category-aware allocator while selecting from raw QI or
+  reservation-net unrestricted quantities, and echo the corresponding
+  movement type. Added a fixture that verifies category-specific balances and
+  movements. Validation: abaplint passed (0 issues across 247 files),
+  transpilation passed (8 updated, 1177 unchanged), and the CRLF-aware diff
+  check passed. ABAP Unit was not run. PLAN validation could not start because
+  the WSL1 Node shim reported that WSL1 is unsupported and could not determine
+  the Node.js install directory.
+
+- Generalized expired-scrap previews to accept a stock category directly and
+  added `PREVIEW_EXPIRED_SCRAP_UOM` so blocked, QI, and unrestricted previews
+  share the same material-unit conversion and base-unit result. Kept the
+  blocked UOM entry point as a compatibility wrapper and added a fixture for
+  all three categories, including an all-or-nothing unrestricted shortfall.
+  Validation: abaplint passed (0 issues across 247 files), transpilation passed
+  (0 created, 8 updated, 1177 unchanged), and the CRLF-aware diff check passed.
+  ABAP Unit was not run. PLAN validation could not start because the WSL1 Node
+  shim reported that WSL1 is unsupported and could not determine the Node.js
+  install directory.
+
+- Added `SCRAP_EXPIRED_SCRAP` and `SCRAP_EXPIRED_SCRAP_UOM` as category-selecting
+  entry points over the existing guarded unrestricted, QI, and blocked posting
+  paths. Added fixtures for 551, 553, and 555 dispatch in base and alternative
+  units, plus invalid-category rejection before posting. Validation: abaplint
+  passed (0 issues across 247 files), transpilation passed (0 created, 8
+  updated, 1177 unchanged), and the CRLF-aware diff check passed. ABAP Unit was
+  not run. PLAN validation could not start because the WSL1 Node shim reported
+  that WSL1 is unsupported and could not determine the Node.js install
+  directory.
+
+- Added `SCRAP_EXPIRED_CAT_RECHECKED` and `SCRAP_EXP_CAT_RECHECK_UOM` to route
+  category-selecting requests through the matching unrestricted, QI, or
+  blocked second-snapshot validation. The UOM form converts selections before
+  comparison. Fixtures cover all three movement types and invalid categories.
+  Validation: abaplint passed (0 issues across 247 files), transpilation passed
+  (0 created, 8 updated, 1177 unchanged), and the CRLF-aware diff check passed.
+  ABAP Unit was not run. PLAN validation could not start because the WSL1 Node
+  shim reported that WSL1 is unsupported and could not determine the Node.js
+  install directory.
+
+- Added `SCRAP_EXPIRED_FEFO` and `SCRAP_EXPIRED_FEFO_UOM` to allocate expired
+  stock in FEFO order and pass the proposed splits to the selected category's
+  posting method. Full quantity is required by default; callers can opt into
+  partial posting, and may supply a second exposure for rechecking. Added
+  fixtures for all three stock categories, unit conversion, shortfall without
+  posting, partial posting, and changed-snapshot rejection. Validation:
+  abaplint passed (0 issues across 247 files), transpilation passed (0 created,
+  8 updated, 1177 unchanged), and the CRLF-aware diff check passed. ABAP Unit
+  was not run. PLAN validation could not start because the WSL1 Node shim
+  reported that WSL1 is unsupported and could not determine the Node.js install
+  directory.
+
+- Added `SCRAP_EXPIRED_FEFO_BULK` and `SCRAP_EXPIRED_FEFO_BULK_UOM`. They
+  prevalidate unique exposure request IDs and all base or alternative units
+  before posting, then return per-request results and continue after a returned
+  BAPI failure. Successful requests commit independently outside test-run mode.
+  Fixtures cover mixed 551,
+  553, and 555 requests, UOM conversion, continued processing after a failed
+  request, duplicate IDs, and an invalid later unit before the first post.
+  Validation: abaplint passed (0 issues across 247 files), transpilation passed
+  (0 created, 8 updated, 1177 unchanged), and the CRLF-aware diff check passed.
+  ABAP Unit was not run. PLAN validation could not start because the WSL1 Node
+  shim reported that WSL1 is unsupported and could not determine the Node.js
+  install directory.
+
+- Added `SCRAP_EXP_FEFO_BULK_ATOMIC` and `SCRAP_EXP_FEFO_BULK_ATOMIC_UOM` with
+  full request preflight, one deferred movement per request, and one shared
+  commit. A preflight shortfall stops all posts; movement or commit failures
+  roll back the group and clear provisional document references. Added fixtures
+  for mixed-category shared commit, create rollback, commit rollback, shortfall
+  before posting, and UOM test-run behavior. Extended both bulk forms to
+  prevalidate optional per-request second exposures before posting, including
+  the atomic group; added unchanged and changed snapshot fixtures. Validation
+  also groups atomic consumption by material, plant, location, batch, valuation
+  type, and stock category to block overlapping requests from exceeding the
+  smallest supplied balance and return a preflight diagnostic. A fixture covers
+  repeated allocation from two individually valid snapshots. Validation:
+  abaplint reported 0 issues across 247 files, transpilation reported 0
+  created, 6 updated, and 1179 unchanged, and the CRLF-aware diff check passed.
+  ABAP Unit was not run. PLAN validation
+  could not start because the WSL1 Node shim reported that WSL1 is unsupported
+  and could not determine the Node.js install directory.
+
+- Added `SCRAP_FEFO_ATOMIC_FROM_STOCK`, an end-to-end path that bulk-reads expiry
+  exposures, reads a second snapshot by default, checks selected batches, then
+  uses the existing atomic UOM posting path. It validates request identities,
+  dates, categories, base-unit mappings, and requested units before stock reads;
+  it forwards reservation exclusions to both reads and returns both snapshots
+  with posting outcomes. The production factory injects the repository-backed
+  reader. Fixtures cover changed snapshots, pre-read unit rejection, empty input
+  without an injected reader, and exclusion forwarding. Validation: abaplint
+  reported 0 issues across 251 files; transpilation created 0 outputs, updated
+  4, and left 1184 unchanged; the CRLF-aware diff check passed. PLAN validation
+  could not start because the WSL1 Node shim reported that WSL1 is unsupported
+  and could not determine the Node.js install directory. ABAP Unit was not run.
+
+- Added `PREVIEW_EXP_SCRAP_FROM_STOCK` to bulk-read expiry exposures and return
+  per-request, posting-ready FEFO splits without calling the goods-movement API.
+  It validates unique request IDs, dates, categories, material base-unit
+  mappings, and requested UOMs before stock reads, forwards reservation
+  exclusions, and requires full allocation by default. It pools matching batch
+  capacity across requests at the smallest reported balance and consumes it in
+  caller order. Optional positive priority ranks allocate lower ranks first,
+  preserve caller order for ties, and retain caller-order results; each output
+  row echoes its rank and whether it was prioritized. Fixtures check BOX
+  conversion, overlapping requests against one batch, explicit
+  priority, an all-or-nothing shortfall, group counts and status, empty input,
+  exclusion forwarding, no posting, and rejection of invalid UOM or priority
+  rows before stock reads. Abaplint reported 0 issues across 251 files; the
+  final transpilation created 0 outputs, updated 6, and left 1182 unchanged. The
+  CRLF-aware diff check and focused source-flow checks
+  passed. PLAN validation could not start because the WSL1 Node shim reported
+  that WSL1 is unsupported and could not determine the Node.js install
+  directory. ABAP Unit was not run.
+
+- Added `SCRAP_EXPIRED_BATCH_STOCK`, which validates selected batches against an
+  expiry exposure snapshot and posts movement 551 from reported available
+  unrestricted stock to a caller-supplied cost center. It rejects upcoming
+  batches, quantities above the snapshot, duplicate selections, an as-of date
+  after the posting date, and a base-unit mapping that differs from the
+  material's UOM master before posting. Added success and rejection fixtures,
+  README and anomaly notes, and PLAN guards. SAP Help confirms movement 551 is
+  for scrapping unrestricted stock.
+
+- Added `SCRAP_EXPIRED_BATCH_UOM` for selected expiry quantities in alternative
+  units. It checks report dates and unique batch selections before UOM reads,
+  requires a cost center, converts each quantity to the material base unit, and
+  reuses the guarded movement 551 path. Both input forms can pass a configured
+  movement reason through the BAPI adapter. Added successful EA-to-BOX conversion
+  and unknown-unit rejection fixtures, README coverage, BAPI adapter mapping,
+  and PLAN guards. Abaplint found 0 issues across 247 files; transpilation
+  created 0 outputs, updated 5, and left 1180 unchanged. A line-ending-aware
+  diff check passed.
+  ABAP Unit was not run. `validate:plan` cannot start because the Windows Node
+  shim reports WSL 1.
+
+- Added `SCRAP_EXPIRED_BATCH_RECHECKED`, which accepts the original and fresh
+  expiry reports, verifies selected batch identity, expiry and stock-category
+  balances remain unchanged, and posts only against the second report. Added
+  matching-snapshot and changed-availability fixtures plus README, anomaly, and
+  PLAN guard updates. Abaplint found 0 issues across 247 files; transpilation
+  created 0 outputs, updated 3, and left 1182 unchanged. The line-ending-aware
+  diff check passed. ABAP Unit was not run. `validate:plan` remains unavailable
+  because the Windows Node shim reports WSL 1.
+
+- Added `SCRAP_EXPIRED_RECHECKED_UOM` to convert requested-unit quantities before
+  applying the same original-versus-rechecked batch comparison. Added an EA to
+  BOX posting fixture and an unknown-unit rejection fixture. Abaplint found 0
+  issues across 247 files; transpilation created 0 outputs, updated 3, and left
+  1182 unchanged. The line-ending-aware diff check passed. ABAP Unit was not
+  run; `validate:plan` cannot start because the Windows Node shim reports WSL 1.
+
+- Added `GET_EXPIRY_EXPOSURE_UOM_BULK`, converting each expiry balance and the
+  expired/upcoming totals into a requested material unit while retaining their
+  base-unit quantities and batch identity. It validates dates and unique IDs
+  before ratio reads, caches each material/unit ratio, then uses one bulk batch
+  read. Added conversion and pre-read rejection fixtures plus README, anomaly,
+  and PLAN guard updates. Abaplint found 0 issues across 247 files;
+  transpilation updated 3 outputs and left 1182 unchanged. ABAP Unit was not
+  run; `validate:plan` cannot start because the Windows Node shim reports WSL 1.
+
+- Added bulk batch expiry exposure reporting with per-request as-of and cutoff
+  dates. It separates expired and upcoming balances, preserves storage location,
+  valuation type, and all stock categories, and uses checked positive totals.
+  Same-day expiry remains upcoming; undated and non-batch split-valuation rows
+  are excluded. Added ABAP Unit fixtures, README guidance, an anomaly note, and
+  PLAN source guards. Abaplint found 0 issues across 247 files; transpilation
+  updated 8 outputs and left 1177 unchanged. A line-ending-aware diff check
+  passed. `validate:plan` cannot start because the Windows Node shim reports
+  WSL 1; ABAP Unit was not run.
+
+- Extended standard stock-reservation UOM rows to return required, withdrawn,
+  and open quantities in both base and requested units. The repository now
+  preserves the original RESB amounts, and an EA-to-BOX ABAP Unit fixture
+  covers all six values. README and PLAN guards cover the row contract.
+  Abaplint found 0 issues across 247 files; transpilation updated 21 outputs.
+  Focused flow checks, all 92 SAP stub XML parses, consistent line endings,
+  and `git diff --check` passed. `validate:plan` cannot start because the
+  Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added requested-unit `required_quantity` and `withdrawn_quantity` to
+  sales-order reservation UOM rows, alongside the converted open quantity and
+  corresponding base-unit values. Extended the UOM fixture with EA-to-BOX
+  assertions for each amount. README and PLAN guards cover the paired unit
+  fields. Abaplint found 0 issues across 247 files; transpilation updated 6
+  outputs. Focused source checks, all 92 SAP stub XML parses, and
+  `git diff --check` passed. `validate:plan` cannot start because the Windows
+  Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added base-unit required and withdrawn quantities to sales-order reservation
+  results, alongside the open amount. The UOM result echoes them as
+  `base_required_quantity` and `base_withdrawn_quantity`, allowing callers to
+  reconcile the net reservation. Updated the repository contract, README,
+  PLAN guard, and ABAP Unit assertions. Abaplint found 0 issues across 247
+  files; transpilation updated 21 outputs. Focused flow checks, all 92 SAP
+  stub XML parses, and `git diff --check` passed. `validate:plan` cannot start
+  because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Carried RESB storage location (`LGORT`) and batch (`CHARG`) through the
+  sales-order reservation repository and unit-aware result rows, preserving
+  physical reservation scope with each converted quantity. The repository
+  query, result mapping, README, and PLAN guard now cover both fields. Extended
+  the UOM ABAP Unit fixture to assert their propagation. Abaplint found 0
+  issues across 247 files; transpilation updated 21 outputs. Focused flow
+  checks, all 92 SAP stub XML parses, consistent line endings, and
+  `git diff --check` passed. `validate:plan` cannot start because the Windows
+  Node shim reports WSL 1; ABAP Unit was not run.
+
+- Hardened sales-order reservation results: the scalar reader now delegates
+  through the validated bulk path, which rejects missing or duplicate RESB
+  reservation keys, rows outside the requested documents, and nonpositive
+  quantities. Added ABAP Unit coverage for missing and duplicate keys; the
+  existing UOM fixture now carries real-shaped reservation keys. README and
+  PLAN guards cover the contract. Abaplint found 0 issues across 247 files;
+  transpilation updated 4 outputs. Focused source-flow checks, all 92 SAP stub
+  XML parses, and `git diff --check` passed. `validate:plan` cannot start
+  because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Carried RESB `reservation_number` and `reservation_item` through the sales-
+  order reservation repository contract and unit-aware result rows. The
+  repository orders equal rows by those keys for stable traceability. README
+  and PLAN guards cover key propagation. Abaplint found 0 issues across 247
+  files; transpilation updated 21 outputs. Focused source-flow checks, all 92
+  SAP stub XML parses, and `git diff --check` passed. `validate:plan` cannot
+  start because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added optional call-wide `iv_required_through_date` to scalar and bulk
+  sales-order reservation reads. The repository pushes the cutoff into the
+  RESB query; the service validates it before reads and reapplies the filter,
+  retaining undated rows. The scalar repository reader forwards to the same
+  bulk query. README and PLAN guards cover the behavior. Abaplint found 0
+  issues across 247 files; transpilation updated 17 outputs. Focused flow
+  checks, all 92 SAP stub XML parses, and `git diff --check` passed.
+  `validate:plan` cannot start because the Windows Node shim reports WSL 1;
+  ABAP Unit was not run.
+
+- Extended sales-order reservation UOM rows with `base_open_quantity` alongside
+  the converted `open_quantity`. The base field uses `RESB-BDMNG`; converted
+  quantities use `MARD-LABST`, matching the unit-conversion helper's return
+  type. The validator checks both fields and their documentation. Abaplint
+  found 0 issues across 247 files; transpilation updated 3 outputs. Focused
+  source-flow checks, all 92 SAP stub XML parses, line-ending preservation, and
+  `git diff --check` passed. `validate:plan` cannot start because the Windows
+  Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added per-request `required_through_date` to keyed and scalar sales-order
+  reservation UOM reads. The bulk path validates every cutoff before the
+  shared reservation read, applies each cutoff independently, retains undated
+  rows, and echoes the cutoff with each result. Each row now exposes both
+  `base_open_quantity` and converted `open_quantity`. README and PLAN guards
+  cover the contract. Abaplint found 0 issues across 247 files; transpilation
+  updated 6 outputs. Focused source-flow checks, all 92 SAP stub XML parses,
+  line-ending preservation, and `git diff --check` passed. `validate:plan`
+  cannot start because the Windows Node shim reports WSL 1; ABAP Unit was not
+  run.
+
+- Added scalar `GET_ORDER_RES_UOM` for a sales document, material, plant, and
+  caller-selected unit. It delegates through the existing keyed bulk reader so
+  blank keys, unknown units, open-row filtering, ratio handling, and converted
+  quantities follow one implementation. README and PLAN guards cover the
+  scalar contract. Abaplint found 0 issues across 247 files; transpilation
+  updated 5 outputs. Focused source-flow checks, all 92 SAP stub XML parses,
+  line-ending preservation, and `git diff --check` passed. `validate:plan`
+  cannot start because the Windows Node shim reports WSL 1; ABAP Unit was not
+  run.
+
+- Added `GET_OPEN_STOCK_RES_UOM_BULK` for request-keyed, dated reservation
+  reads in caller-selected units, plus scalar `GET_OPEN_STOCK_RES_UOM` for the
+  same result shape. The bulk method validates all requests and distinct
+  material/unit ratios before reading reservation rows, caches each ratio,
+  returns both base and converted open quantities, and preserves request and
+  reservation ordering. The scalar method delegates to the bulk path. README
+  and PLAN guards describe the contract.
+  Abaplint found 0 issues across 247 files; transpilation updated 5 outputs.
+  Focused source-flow checks, all 92 SAP stub XML parses, line-ending
+  preservation, and `git diff --check` passed. `validate:plan` cannot start
+  because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added `GET_OPEN_STOCK_RES_REQ_BULK` for independently dated material/plant
+  reservation requests. It validates all IDs, keys, and dates before reading,
+  groups the repository calls by cutoff, and echoes each cutoff with results in
+  input order. README and PLAN guards protect the request contract. Abaplint
+  found 0 issues across 247 files; transpilation updated 3 outputs. Focused
+  validation/grouping/order checks, all 92 SAP stub XML parses, line-ending
+  preservation, and `git diff --check` passed. `validate:plan` cannot start
+  because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added optional `iv_required_through_date` to bulk stock-reservation reads.
+  The stock service validates the date before any repository access, forwards
+  it to scalar and bulk RESB queries, retains undated reservations, and filters
+  later dated rows again in the service. README and PLAN guards cover the
+  contract. Abaplint found 0 issues across 247 files; transpilation updated 3
+  outputs. Focused source-flow checks, all 92 SAP stub XML parses, line-ending
+  preservation, and `git diff --check` passed. `validate:plan` cannot start
+  because the Windows Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added `READ_CC_RESV_REQUESTS_BULK` with one cost center and required-date
+  cutoff per unique request ID. It validates all requests before reads, groups
+  distinct centers by cutoff, reuses the existing bulk reader once per date,
+  and restores each result and request ID in input order. Duplicate centers are
+  supported across cutoffs. README and PLAN guards describe the contract.
+  Abaplint found 0 issues across 247 files; transpilation updated 8 outputs.
+  Focused grouping/order checks, 92 SAP stub XML parses, CRLF preservation, and
+  `git diff --check` passed. `validate:plan` cannot start because the Windows
+  Node shim reports WSL 1; ABAP Unit was not run.
+
+- Added optional required-through-date cutoffs to scalar and bulk cost-center
+  reservation reads. The cutoff is validated before reads, pushed into the
+  RESB query, and reapplied in the service while retaining undated rows; bulk
+  scope validation still runs before service filtering. README and PLAN guards
+  now cover the contract. Abaplint found 0 issues across 247 files;
+  transpilation updated 5 outputs. Focused flow checks, all 92 SAP stub XML
+  parses, CRLF preservation, and `git diff --check` passed. `validate:plan`
+  cannot start because the Windows Node shim reports WSL 1; ABAP Unit was not
+  run.
+
+- Replaced the remaining scalar RESB required-minus-withdrawn calculations in
+  production components, returnable component previews, cost-center and
+  sales-order reservation reads, issue previews/posting, and plant stock
+  reservation reads with `CALCULATE_OPEN_RES_QTY`. Added PLAN source guards for
+  all eight methods and documented zero-clamping in the returnable-component
+  view. Abaplint found 0 issues across 247 files; transpilation updated 12
+  generated outputs. Focused guards, all 92 SAP stub XML parses, CRLF
+  preservation, and `git diff --check` passed. `validate:plan` could not start
+  because the Windows Node shim reported WSL 1; ABAP Unit was not run.
+
+- Keyed project coverage now uses exact-key MSPR/RESB reads grouped by cutoff
+  and identical request exclusions, with validated base units reused through
+  the keyed and grouped cores. Coverage, available-stock, FEFO, and location
+  paths push reservation cutoffs into RESB queries while retaining undated
+  rows; service-side filtering remains in place. Open-item reads and reservation
+  netting use the shared open-quantity calculator; full-item open quantities
+  clamp at zero. Abaplint found 0 issues across 247 files; transpilation
+  confirmed 1185 generated outputs unchanged. Focused source-flow, documentation,
+  and validator-guard-content checks, all 92 SAP stub XML parses, CRLF
+  preservation, and `git diff --check` passed.
+  `validate:plan` cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+- Updated `READ_RESV_COVERAGE_BULK_UOM` to validate and cache each distinct
+  material/unit ratio, then reuse `READ_RESV_COVERAGE_KEYS_BULK` for exact
+  material/plant/WBS results. It forwards call-wide and per-request exclusions,
+  returns zero coverage with the material base unit, and preserves request
+  order. Abaplint found 0 issues across 247 files; transpilation updated 4
+  outputs. Focused source-flow, documentation, and PLAN guard content checks,
+  all 92 SAP stub XML parses, CRLF preservation, and `git diff --check` passed.
+  `validate:plan` cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+- Added sorted `stock_reservation_deductions` to base and UOM coverage rows.
+  Each trace row names the reservation/item and the stock location/batch that
+  absorbed its quantity. Coverage verifies base trace sums against each stock
+  detail's applied deduction; UOM traces retain base quantities and convert
+  each applied row. Each included `open_reservations` row now reports covered
+  and uncovered quantities after local allocation; base values reconcile to
+  its reserved quantity and summary shortfall. The shared subtraction routine
+  returns net stocks plus an opt-in trace and orders equal-specificity
+  reservations by key for stable attribution. Abaplint found 0 issues across
+  247 files; transpilation updated
+  6 outputs. Focused source-flow, documentation, and PLAN guard content checks,
+  all 92 SAP stub XML parses, CRLF preservation, and `git diff --check` passed.
+  `validate:plan` cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+- Added sorted `stock_details` to base and UOM reservation coverage, grouped by
+  storage location and batch. Detail rows reconcile gross project stock to the
+  deduction applied by reservation distribution and net available stock; UOM
+  rows retain base quantities, while any excess reservation remains summary
+  shortfall. README, anomaly notes, and PLAN source guards now describe and
+  protect this contract. Abaplint found 0 issues across 247 files;
+  transpilation succeeded with 1185 outputs unchanged. Focused source-flow,
+  documentation, and PLAN guard content checks, all 92 SAP stub XML parses,
+  CRLF preservation, and `git diff --check` passed. `validate:plan` cannot
+  start in this WSL 1
+  environment; ABAP Unit was not run.
+
+- Added `READ_RESV_COVERAGE_FOR_KEY` and
+  `READ_RESV_COVERAGE_KEYS_BULK` for explicit material/plant/WBS requests.
+  They return one row per requested key, including zero-quantity coverage with
+  its material base unit when no balance exists. Bulk reads resolve each
+  material's base unit once, reuse the existing date/exclusion-grouped coverage
+  reader, and preserve per-request exclusions and input order. Abaplint found
+  0 issues across 247 files; transpilation updated 4 outputs. Focused flow and
+  documentation checks, PLAN guard syntax parsing, all 92 SAP stub XML parses,
+  CRLF preservation, and `git diff --check` passed. `validate:plan` cannot
+  start in this WSL 1 environment; ABAP Unit was not run.
+
+- Added `READ_RESERVATION_ITEMS_UOM` and `READ_RESV_ITEMS_BULK_UOM` for
+  full active Q reservation details. They retain final-issue and fully
+  withdrawn rows with the complete source row and expose required, withdrawn,
+  and open quantities in requested and base units. Converted required quantity
+  derives from converted withdrawn plus open quantities to retain reconciliation
+  after rounding. Bulk reads cache ratios
+  before reusing WBS reads and preserve shared and per-request exclusions.
+  Abaplint found 0 issues across 247 files; transpilation succeeded. Focused
+  flow and documentation checks, PLAN guard syntax parsing, all 92 SAP stub
+  XML parses, CRLF preservation, and `git diff --check` passed.
+  `validate:plan` cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+- Added `READ_OPEN_RESERVATIONS_UOM` and `READ_OPEN_RESV_BULK_UOM`. Both
+  return converted required, withdrawn, and open quantities while retaining the
+  source RESB row and base quantities. Bulk requests cache material/unit ratios
+  before reusing date-grouped reads and preserve shared and per-request
+  exclusions. Abaplint found 0 issues across 247 files; transpilation updated
+  4 outputs. Focused flow and documentation checks, PLAN guard syntax parsing,
+  all 92 SAP stub XML parses, CRLF preservation, and `git diff --check` passed.
+  `validate:plan` cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+- Extended excluded RESB reservation keys to undated same-plant and
+  cross-plant base, unit-aware, priority, single, and ATP allocation. The
+  repository omits matching open standard-stock rows before computing
+  unrestricted or location-level availability; shared demands use the
+  released balance. Keys must be complete and unique, and unit entry points
+  validate them before conversion. README and structural validator guards were
+  updated. Focused Python forwarding/repository/docs checks passed, all 92 stub
+  XML files parsed, and CRLF-aware diff checks passed. ABAP lint and
+  transpilation remain unavailable because this WSL 1 shell cannot launch the
+  Windows Node runtime; ABAP Unit was not run.
+
+- Extended call-wide excluded reservation keys through cross-plant dated base,
+  UOM, and ATP allocation, including location-aware methods. The ordinary date
+  repository applies exclusions with its existing required-date cutoff; the
+  location-status repository omits matching rows before location-level RESB
+  netting. Keys are complete and unique and are validated before UOM lookups.
+  This preview option does not update SAP reservations. Focused Python
+  forwarding/repository/docs checks
+  passed and all 92 stub XML files parsed. CRLF-aware diff checks passed. ABAP lint and
+  transpilation could not run because this WSL 1 environment cannot launch its
+  Windows Node runtime; ABAP Unit was not run.
+
+- Closed a dated-allocation forwarding gap: `ALLOCATE_REQUEST_BY_DATE` now
+  accepts complete, unique excluded-reservation keys and forwards them to the
+  date-availability repository. The bulk ATP and single ATP wrappers now pass
+  the same call-wide option to their unit-aware/base estimators; the existing
+  bulk and unit allocators retain their key validation. This aligns the code
+  with the documented single-request behavior and does not modify RESB. Lint
+  found 0 issues across 247 files; transpilation updated 5 outputs. Focused
+  forwarding/docs/validator guards, all 92 SAP stub XML parses, and CRLF-aware
+  diff checks passed. `validate:plan` is still unavailable under the WSL 1
+  Windows Node launcher; ABAP Unit was not run.
+
+- Valuation-type previews now accept call-wide excluded reservation keys.
+  Complete, unique keys must match an open RESB row for a material/plant in
+  the demand set; matched open quantities are omitted from batch reservation
+  netting and shared by the preview's demands. Base and UOM results echo the
+  keys, and ATP carries them in its local estimate. This is preview behavior
+  only and does not update SAP reservations. Lint found 0 issues across 247
+  files; transpilation updated 3 outputs. Focused API, service, repository,
+  README, and validator guard checks passed; all 92 stub XML files parsed, and
+  CRLF-aware diff checks passed. `validate:plan` remains unavailable because
+  its Windows Node launcher rejects WSL 1; ABAP Unit was not run.
+
+- Expiry-excluded projected quantity now has a base-unit breakdown: batches
+  without expiry dates rejected by the effective policy contribute to
+  `undated_proj_excl_qty`, while dated batches that are expired or fail the
+  minimum shelf life contribute to `dated_expiry_excl_qty`. The two components
+  reconcile to the existing `proj_expiry_excluded_qty` total, and UOM results
+  expose converted components. Lint found 0 issues across 247 files;
+  transpilation updated 4 outputs. Focused service/docs guards, all 92 SAP stub
+  XML parses, and CRLF-aware diff checks passed. `validate:plan` remains
+  unavailable because its Windows Node launcher rejects WSL 1; ABAP Unit was
+  not run.
+
+- Valuation allocation summaries now distinguish projected receipts dated
+  after the effective `as_of_date` (`future_projected_quantity`) from
+  projected batch balances that fail expiry or shelf-life rules
+  (`proj_expiry_excluded_qty`). Both are counted after request location and
+  batch-candidate scope; only the first failed availability check is reported
+  for each projected receipt. UOM summaries expose converted quantities as
+  `source_future_projected_qty` and `source_expiry_excluded_qty`. Lint found 0
+  issues across 247 files; transpilation updated 4 outputs. Focused service and
+  README guards passed, all 92 SAP stub XML files parsed, and CRLF-aware diff
+  checks passed. `validate:plan` could not start because the Windows Node
+  launcher rejects WSL 1; ABAP Unit was not run.
+
+- Base valuation summaries now report `excluded_projected_quantity` for
+  otherwise-eligible projected balances filtered by request source selectors.
+  The count is taken after location, batch, date, and shelf-life checks and
+  reflects quantities remaining when each demand is evaluated. UOM summaries
+  return `source_excluded_projected_qty` in the requested unit. Lint found 0
+  issues across 247 files; transpilation updated 4 outputs. All 129 service
+  guards, 88 README guards, 92 stub XML parses, and CRLF-aware diff checks
+  passed. `validate:plan` remains unable to start because the Windows Node
+  launcher reports WSL 1; ABAP Unit was not run.
+
+- Valuation previews now accept `it_req_projected_exclusions` to remove
+  projected source receipts per request without enumerating all allowed
+  sources. Exclusion selectors use the same validation and wildcard matching as
+  the inclusion list; when both are supplied, receipts must match an inclusion
+  row and no exclusion row. Exclusions affect projected receipts only, and
+  current stock remains eligible. Base and UOM results echo exclusions; UOM
+  validates them before conversion, and ATP forwards them. Lint found 0 issues
+  across 247 files; transpilation updated 5 outputs. All 126 service guards,
+  85 README guards, 92 stub XML parses, and CRLF-aware diff checks passed.
+  `validate:plan` remains unable to start because the Windows Node launcher
+  reports WSL 1; ABAP Unit was not run.
+
+- Valuation previews now accept `it_req_projected_priorities` to order a
+  request's projected receipts. Rows reuse the source selectors, require a
+  known request and positive rank, and must match a receipt for that request's
+  material, plant, and valuation type. Overlapping rows use the lowest rank;
+  source ranks order projected receipts within each location, ahead of batch
+  priority and FEFO ordering, while current stock remains first. Base and UOM
+  results echo the rows, and each split exposes its applied
+  `source_priority_rank`; ATP forwards the option. Lint found 0 issues across
+  247 files; transpilation updated 5 outputs. All 119 service guards, 80 README
+  guards, 92 stub XML parses, and CRLF-aware diff checks passed.
+  `validate:plan` remains unable to start because the Windows Node launcher
+  reports WSL 1; ABAP Unit was not run.
+
+- Projected-source filters can select by `source_type` or `source_document`,
+  then optionally refine by `source_item`, `source_plant`, and
+  `source_schedule_line`; blank selectors act as wildcards. At least one of
+  source type or document is required. Exact request/source tuples are rejected
+  as duplicates, while overlapping filters form a union. Base and UOM
+  validation require every specified selector to match a receipt for the
+  request's material, plant, and valuation type, and both availability and
+  split passes apply the same wildcard rules. Lint found 0 issues across 247
+  files; transpilation updated 4 outputs. All 106 service guards, 72 README
+  guards, 92 stub XML parses, and CRLF-aware diff checks passed.
+  `validate:plan` remains unable to start because the Windows Node launcher
+  reports WSL 1; ABAP Unit was not run.
+
+- Valuation-type previews now accept request-level projected-source filters
+  by `source_type` and `source_document`. Each filter must be unique, name a
+  known request, and match a supplied receipt for that request's material,
+  plant, and valuation type. It restricts projected availability and splits;
+  current stock remains available. UOM validates before conversion, and ATP
+  forwards the filter. Lint found 0 issues across 247 files; transpilation
+  updated 5 outputs. All 134 source guards, 75 README guards, 92 stub XML
+  parses, and CRLF-aware diff checks passed. `validate:plan` remains unable to
+  start because the Windows Node launcher reports WSL 1; ABAP Unit was not run.
+
+- Valuation-type split rows now echo each request's `allocation_sequence` in
+  addition to their within-demand `split_sequence`. Sorting by the former
+  reconstructs cross-demand consumption order; the latter orders source rows
+  within a request, while final output remains in caller order. UOM results
+  preserve both fields in each nested split. Lint found 0 issues across 247
+  files; transpilation updated 4 outputs. All 116 source guards, 66 README
+  guards, 92 stub XML parses, and CRLF-aware diff checks passed. The PLAN
+  launcher still reports WSL 1 and prevents `validate:plan` from starting;
+  ABAP Unit was not run.
+
+- Valuation-type splits now report source availability immediately before and
+  after each allocation. Base results expose both values in base units; UOM
+  wrappers convert the before-value and derive the after-value as a residual
+  after converted allocation, preserving the source-unit partition. Lint found
+  0 issues across 247 files; transpilation updated 4 outputs. All 115 source
+  guards, 65 README guards, 92 stub XML parses, and CRLF-aware diff checks
+  passed. `validate:plan` still cannot start because the Windows Node launcher
+  reports WSL 1; ABAP Unit was not run.
+
+- Valuation-type split traces now show each source balance's base-unit
+  `available_before_qty` and `available_after_qty` around the allocation.
+  UOM split wrappers report the before-quantity converted to the requested
+  unit, then derive the after-quantity as the residual after converted
+  allocation so the values reconcile. The nested split retains base-unit
+  quantities. The after-value is point-in-time; later demands may consume it.
+  Lint found 0 issues across 247 files; transpilation updated 4 outputs. All
+  113 source guards, 64 README guards, 92 stub XML parses, and CRLF-aware diff
+  checks passed. `validate:plan` cannot start because the Windows Node launcher
+  reports WSL 1; ABAP Unit was not run.
+
+- Valuation-type split rows now echo `batch_priority_rank`. Positive values
+  identify explicit request-ranked source keys, while zero indicates an
+  unranked balance; nested UOM splits retain the field. This complements
+  `split_sequence` so callers can audit the chosen source order and rank.
+  Lint found 0 issues across 247 files; transpilation updated 4 outputs. All
+  focused source/docs guards, 92 stub XML parses, and CRLF-aware diff checks
+  passed. `validate:plan` remains unable to start because the Windows Node
+  launcher reports WSL 1; ABAP Unit was not run.
+
+- Valuation-type preview split rows now include one-based `split_sequence`,
+  recording the order each request consumes locations, batches, and projected
+  receipts. Final rows still group by caller demand; UOM splits retain the
+  sequence in their nested split. Lint found 0 issues across 247 files and
+  transpilation updated 4 outputs. All 108 source guards, 58 README guards,
+  92 stub XML parses, and CRLF-aware diff checks passed. The PLAN runner remains
+  unavailable because the Windows Node launcher reports WSL 1; ABAP Unit was
+  not run.
+
+- Valuation-type base, UOM, and ATP previews now accept `iv_fefo`, defaulting
+  to the existing allocation order. Enabled FEFO keeps location sequence,
+  current-before-projected ordering within each location, and explicit request
+  batch ranks. It orders unranked physical batches by expiry, then non-batch
+  split valuation keys, with undated physical batches last. Static
+  safety-stock withholding retains its deterministic ordering before request
+  allocation. Demand rows may opt into FEFO independently; a true shared flag
+  enables it for every row, and each allocation reports its effective setting.
+  `abaplint` found 0 issues across 247
+  files and transpilation updated 4 outputs. All focused source/docs guards,
+  92 stub XML parses, and CRLF-aware `git diff --check` passed.
+  `validate:plan` could not start because the Windows Node launcher reports
+  WSL 1; ABAP Unit was not run. Target SAP batch-determination behavior remains
+  unverified.
+
+- Project-reservation bulk deletion, item deletion, reschedule, quantity, final
+  issue, and stock-key changes now expose top-level `is_committed` when any row
+  commits. Simulations and failed rows do not raise the aggregate. Lint and
+  transpilation are being run; ABAP Unit was not run.
+
+- Independent bulk goods-movement results now summarize `is_committed` across
+  cost-center, sales-order, WBS, production-order, and PO operations. Test runs
+  remain uncommitted, and partial commits remain visible after later failures.
+  Lint, transpilation, and local PLAN guard checks passed; ABAP Unit was not
+  run. `validate:plan` cannot start because the Windows Node launcher rejects
+  WSL 1.
+
+- Production-order independent bulk create, release, completion, change,
+  confirmation, close, and deletion actions now expose top-level
+  `is_committed`, including ATP-gated release. Partial successes remain visible
+  when later rows fail. Lint, transpilation, and local PLAN guard checks passed;
+  ABAP Unit was not run. `validate:plan` cannot start because the Windows Node
+  launcher rejects WSL 1.
+
+- Planned-order bulk create, delete, change, and convert summaries now expose
+  `is_committed` when at least one row commits, preserving visibility of partial
+  completion alongside per-row status and counts. Lint, transpilation, and local
+  PLAN guard checks passed; ABAP Unit was not run. `validate:plan` cannot start
+  because the Windows Node launcher rejects WSL 1.
+
+- STO pair deletion and delivery-completion results now expose aggregate
+  `is_deleted` and `is_completed` flags. They report partial non-atomic commits,
+  stay false for simulations, and become true for atomic groups only after the
+  shared commit. Lint, transpilation, and local PLAN guard checks passed; ABAP
+  Unit was not run. `validate:plan` cannot start because the Windows Node
+  launcher rejects WSL 1.
+
+- Cross-plant stock-transfer creation summaries now expose `is_committed`.
+  It is true when at least one order committed, including a partial non-atomic
+  run, and stays false for test runs and failed atomic groups. Lint,
+  transpilation, and local PLAN guard checks passed; ABAP Unit was not run.
+  `validate:plan` cannot
+  start because the Windows Node launcher rejects WSL 1.
+
+- Production component ATP rows now expose `is_fully_confirmed` for each
+  component's incremental confirmed quantity; disabled or not-relevant checks
+  remain false. The existing order summary retains its group-level status.
+  Lint, transpilation, and local PLAN guard checks passed; ABAP Unit was not
+  run. `validate:plan` cannot start because the Windows Node launcher rejects
+  WSL 1.
+
+- Cost-center ATP results now expose `is_fully_confirmed` across single-demand,
+  shared, dated, location, batch, FEFO, atomic, and independent bulk flows.
+  Reservation gates consume the same confirmed-versus-required status returned
+  to callers. Lint, transpilation, and local PLAN guard checks passed;
+  `validate:plan` cannot start under the current WSL 1 Node launcher. ABAP Unit
+  was not run.
+
+- Generic stock-service ATP results now expose `is_fully_confirmed` across
+  per-demand, local, plant, dated-plant, and dated-batch results. The flag compares
+  confirmed quantity with the complete requested/cumulative quantity, so a
+  not-relevant SAP check is not treated as confirmed. Lint, transpilation, and
+  local PLAN guard checks passed; `validate:plan` remains unavailable because
+  the Windows Node launcher rejects WSL 1. ABAP Unit was not run.
+
+- Sales-order allocation requirements now include per-item and per-schedule
+  `require_atp_confirmation`. Reservation methods gate flagged lines against
+  cumulative ATP confirmation before writes, with exact schedule-line
+  requirements overriding item-wide settings. Bulk reservation skips an order
+  whose row-level ATP requirement fails and continues with later orders; its
+  global ATP gate still stops the whole batch before writes. Preview rows echo
+  the effective flag, and each ATP check reports `is_fully_confirmed` for its
+  cumulative request. Lint, transpilation, and the local PLAN guard review
+  passed; `validate:plan` could not start because the npm Windows Node launcher
+  reports WSL 1 unsupported. ABAP Unit was not run.
+
+- Sales-order preview and reservation APIs now accept per-item all-or-nothing
+  requirements. Exact schedule-line settings override item-wide defaults, and
+  strict short demands leave shared stock for later demands. Lint and
+  transpilation passed. `validate:plan` could not start because the npm Windows
+  Node launcher reports WSL 1 unsupported; the new guard conditions were
+  checked locally. ABAP Unit was not run.
+
+- Single-order and shared multi-order reservation results now distinguish
+  simulation, successful no-op, and committed outcomes with `is_test_run` and
+  `is_committed`. Invalid test-run and all-allocation flags are rejected before
+  preview or reservation work. Lint and transpilation passed; `validate:plan`
+  could not start because npm's Windows Node launcher reports WSL 1 unsupported.
+  ABAP Unit was not run.
+
+- Sales-order allocation entrypoints now reject malformed `abap_bool` options
+  before order or stock reads, including dated receipts, date modes, ATP, and
+  safety-stock protection. FEFO also validates its caller-supplied as-of date
+  before reading the order. Lint and transpilation passed. `validate:plan` could
+  not start because the npm Windows Node launcher reports WSL 1 unsupported;
+  the new input guards were checked locally. ABAP Unit was not run.
+
+- Batch and location selection rows now reject missing keys, duplicate
+  item/schedule-line keys, mixed item-wide and schedule-line modes, and batch
+  fallback without a preferred location before order or reservation reads.
+  Lint and transpilation passed, and the local PLAN guard checks passed;
+  `validate:plan` could not start because the npm Windows Node launcher reports
+  WSL 1 unsupported. ABAP Unit was not run.
+
+- Sales-order preview and reservation results now return
+  order/material/plant/base-unit summaries with demand-line counts and checked
+  requested, allocated, and shortfall totals. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+
+- Sales-order preview and reservation methods now accept a validated required
+  date per unscheduled item. Per-item dates override the scalar fallback, while
+  schedule-line dates and MBDAT rules remain in force.
+  PLAN validation, lint, and transpilation passed; ABAP Unit was not run.
+
+- Sales-order preview and reservation methods now accept an optional required
+  date for open items without schedule lines. It is validated before reads and
+  drives date allocation, ATP, and reservation requirements; existing schedule
+  dates and MBDAT mode remain in control. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+
+- Production readiness summaries now include order-level requested,
+  allocated, and shortfall base quantities in addition to component counts.
+  Totals use checked arithmetic and reject values outside `MARD-LABST`.
+  PLAN validation, lint, and transpilation passed; ABAP Unit was not run.
+
+- Production allocation policies can override a component's open quantity
+  for local allocation and ATP while preserving the source RESB component.
+  Results expose the effective source-unit quantity, and the override must be
+  nonnegative; zero removes demand while keeping the result row and is counted
+  separately from stock-covered components in readiness summaries. Disabled
+  quantity overrides must be blank. PLAN validation, lint,
+  and transpilation passed; ABAP Unit was not run.
+
+- Production allocation policies can override each component's required date.
+  The effective date drives local allocation, shelf-life eligibility, projected
+  receipt horizons, ATP grouping, and summary dates; results retain the source
+  component date and expose `effective_required_date`. Invalid enabled dates and
+  nonblank dates on disabled overrides are rejected. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+
+- Reservation-keyed production allocation policies now expose priority,
+  all-or-nothing allocation, shelf-life requirements, and storage-location or
+  batch overrides plus preferred-location fallback through single and bulk
+  stock, ATP, and scoped previews. Callers can order fallback locations with a
+  shared list or component-keyed ranks; local ranks override the shared order,
+  preferred locations stay first, and batch FEFO order remains primary.
+  Overrides only affect local previews; a blank value clears that reservation
+  scope when its override flag is true. Higher priority wins within a
+  required-date and scope-rank group; short all-or-nothing demands leave stock
+  for later components. Component results echo the matching input policy and
+  report the effective storage location and batch after overrides, plus whether
+  allocated splits used a nonpreferred location. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+- Scoped production demands and reservation-keyed policies now support an
+  opt-in preferred-batch fallback. The assigned batch stays first, alternates
+  follow FEFO, shelf-life rules filter both, and results report when an
+  alternate batch was allocated. Exact-batch behavior remains the default.
+  PLAN validation, lint, and transpilation passed; ABAP Unit was not run.
+- Production callers can rank alternate batches per component. Expiry remains
+  primary; ranks order batches with equal expiry, and unranked batches follow
+  ranked ones by batch code. The preferred batch remains first. PLAN validation,
+  lint, and transpilation passed; ABAP Unit was not run.
+- Production callers can restrict location fallback with
+  `it_comp_location_candidates`. The preferred location stays eligible, while
+  supplied rows limit alternates; absent rows preserve unrestricted fallback.
+  Local location ranks must refer to listed candidates. PLAN validation, lint,
+  and transpilation passed; ABAP Unit was not run.
+- Production callers can restrict batch fallback with
+  `it_comp_batch_candidates`. For components with candidate rows, only those
+  alternates and the preferred batch can allocate; absent rows preserve
+  unrestricted fallback. Candidate rows and batch priorities are validated
+  together. PLAN validation, lint, and transpilation passed; ABAP Unit was not
+  run.
+- The scoped allocator now indexes validated per-request fallback ranks by
+  request and storage location in a hashed table, keeping candidate lookups
+  keyed inside location and batch loops. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+- Reservation-keyed shelf-life policies now flow through single and bulk stock,
+  ATP, and scoped production component previews. ATP applies them only to the
+  local estimate. Unsupported unissued-STO subtraction or locationless
+  automatic receipts for a policy group are rejected. PLAN validation, lint,
+  and transpilation passed; ABAP Unit was not run.
+- Production `PREVIEW_SCOPED_COMPONENTS` methods now accept optional
+  reservation-keyed shelf-life policies and route matching material/plant
+  groups through the scoped allocator. Duplicate and unmatched keys are
+  rejected. PLAN validation, lint, and transpilation passed; ABAP Unit was not
+  run.
+- Scoped component demands now support minimum shelf life and a known-expiry
+  requirement. The same expiry filter drives group availability, per-demand
+  availability, and allocated batch splits; existing defaults preserve the use
+  of undated batches. PLAN validation, lint, and transpilation passed; ABAP
+  Unit was not run.
+- Scoped component allocation now supports per-demand all-or-nothing
+  allocation. A short demand receives zero and leaves its eligible stock for
+  later demands; production previews keep the option false. PLAN validation,
+  lint, and transpilation passed; ABAP Unit was not run.
+- Component-scoped allocation now accepts per-demand integer priority. Higher
+  priority wins within the same required date and scope rank; input order breaks
+  ties, while constrained scopes keep precedence. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+- Scoped component allocation now selects eligible batch stock by FEFO across
+  matching locations for batchless demands and unscoped competing reservations.
+  Undated batches follow known expiries. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+- Component-scoped allocations now retain projected batch and location receipt
+  date and source identity in separate balances, return per-demand splits, and
+  forward caller-supplied and SAP-derived identities through production
+  component checks. PLAN validation, lint, and transpilation passed; ABAP Unit
+  was not run.
+- Cross-plant exact-batch and standard FEFO allocators now preserve projected
+  receipt source metadata through base and date-first splits. Cross-plant output
+  uses `receipt_source_plant` to distinguish receipt origin from the supplying
+  stock plant; priority, UOM, and ATP adapters retain it. PLAN validation, lint,
+  and transpilation passed; ABAP Unit was not run.
+- Single-plant exact-batch, standard FEFO, and quality FEFO allocations now
+  preserve optional projected batch receipt source identity in separate
+  balances and returned splits. PLAN validation, lint, and transpilation
+  passed; ABAP Unit was not run.
+- Single-plant and cross-plant date allocators now add cumulative allocated
+  counters through the checked quantity helper. Totals outside MARD-LABST range
+  raise `ZCX_INVALID_STOCK_REQUEST`. PLAN validation, lint, and transpilation
+  passed; ABAP Unit was not run.
+- Cross-plant standard/date-first FEFO and exact-batch cores now use checked
+  high-precision sums for merged receipts, eligible availability, and source
+  allocation totals. Out-of-range totals raise
+  `ZCX_INVALID_STOCK_REQUEST`. PLAN validation, lint, and transpilation passed;
+  ABAP Unit was not run.
+- Single-plant location allocators now use checked high-precision sums for
+  available totals, allocated summaries, and matching projected receipt
+  balances. Totals outside MARD-LABST range raise
+  `ZCX_INVALID_STOCK_REQUEST`. PLAN validation, lint, and transpilation passed;
+  ABAP Unit was not run.
+- Single-plant exact-batch, standard FEFO, and quality FEFO allocators now use
+  checked high-precision sums for merged projected receipts, available totals,
+  and allocation summaries. Out-of-range totals raise
+  `ZCX_INVALID_STOCK_REQUEST`. PLAN validation, lint, and transpilation passed;
+  ABAP Unit was not run.
+- Date-first unrestricted-location splits now expose `available_from_date`.
+  Projected balances remain separate by receipt date, posted stock keeps the
+  field initial, and the UOM and dated ATP adapters preserve the date. PLAN
+  validation, lint, and transpilation passed; ABAP Unit was not run.
+- Cross-plant location splits now keep projected receipt dates separate from
+  posted source-plant stock and report `available_from_date` through base,
+  priority, dated, unit-aware, and ATP results. PLAN validation, lint, and
+  transpilation passed; ABAP Unit was not run.
+- Location receipt inputs now accept optional source type, document, item,
+  source plant, and schedule line metadata. Date-first and cross-plant location
+  splits preserve different source identities separately and echo the metadata.
+  PLAN validation, lint, and transpilation passed; ABAP Unit was not run.
+- Batchless WBS location previews now accept caller-resolved projected
+  location receipts through base, priority, date-first, and ATP variants.
+  Receipts are scoped to WBS/material/plant and gated by each demand's
+  effective location date; duplicate receipt totals use checked high-precision
+  addition. Tests cover date gating, WBS isolation, adapter forwarding,
+  unmatched input, and overflow.
+- WBS FEFO and transfer previews now accept caller-resolved projected batch
+  receipts through base, priority, date-first, and ATP variants. Receipts are
+  scoped to WBS/material/plant and become eligible when the demand's effective
+  FEFO date reaches the receipt date; expiry, location, and quantity-overflow
+  checks still apply. Regressions cover future-date gating, WBS isolation,
+  adapter forwarding, and invalid WBS/expiry rejection before stock reads. The
+  caller-resolved supply boundary is documented in `README.md` and
+  `ANOMALIES.md`. Full `npm test` passed: PLAN validation, 0 lint issues across
+  247 files, transpilation, and ABAP Unit.
+- Stock-transfer-order pair validators now accumulate demand, plant, batch,
+  location, and dated ATP totals in `decfloat34`. This prevents malformed split
+  groups from overflowing while checking them against bounded preview or ATP
+  quantities. Added a dated-batch ATP overflow regression and PLAN guards.
+- The plant-transfer overflow regression now covers both one-step and
+  two-step posting entry points, confirming that neither reaches the movement
+  adapter with a split total that exceeds its allocation summary.
+
 ## 2026-10-17
+
+- WBS FEFO transfer previews now support per-demand `require_full_quantity`
+  across base, priority, and dated demands. Fresh transfer posting checks keep
+  strict rows all-or-none while allowing other rows to transfer partial stock;
+  they compare allocation summaries as well as batch splits, including zero-
+  split rows. Direct transfer validation rejects forged partial strict
+  allocations. Added preview, mixed posting, changed-snapshot, and invalid
+  allocation regressions plus PLAN guards and README guidance.
+- WBS location transfer previews and posting adapters now preserve per-demand
+  `require_full_quantity` across base, priority, and date-first flows. A short
+  strict row gets no location splits while partial rows may proceed when the
+  shared option is false; posting validation rejects forged partial strict
+  summaries, and both allocation summaries and location splits are compared
+  across the fresh stock snapshots. Added mixed-row, stale-snapshot, and forged
+  allocation regressions plus PLAN guards and README guidance.
+- WBS batchless location issue now preserves per-demand `require_full_quantity`
+  through base, priority, and date-first posting rechecks. With global partial
+  issue enabled, short strict rows leave stock for eligible partial rows; the
+  returned summaries echo each effective rule. Updated mixed-row issue
+  regressions, PLAN guards, README, and anomaly notes.
+- WBS batchless location reservations now preserve per-demand
+  `require_full_quantity` across base, priority, and date-first flows. Short
+  strict rows leave stock available to partial rows; fresh checks compare full
+  allocation summaries and splits so zero-split rows still detect changed
+  availability. Added mixed-row and stale-summary regressions, plus PLAN and
+  documentation updates.
+- WBS FEFO reservations now preserve per-demand `require_full_quantity` in
+  base, priority, and date-first flows. Strict short rows leave eligible stock
+  for partial rows; fresh checks compare full allocation summaries and batch
+  splits so changed availability on zero-split rows blocks writes. Added mixed
+  row and stale-summary regressions, plus PLAN guards and documentation.
+- Direct WBS batch and location preview reservations now validate summary
+  quantity identities and per-row `require_full_quantity`, rejecting malformed
+  or partially allocated strict rows before writes. Added adapter regressions
+  and PLAN guards for the shared validator.
+- Direct WBS reservation split totals and WBS/date/material stock-key totals
+  now accumulate in `decfloat34`. The shared adapter rejects totals above the
+  `MARD-LABST` range before unit conversion or reservation writes; regressions
+  cover overflow within a request and across requests sharing one stock key.
+- Goods-movement allocation validators now sum batch and location splits in
+  `decfloat34` across cost-center, WBS, sales-order, and quality-stock issue
+  paths. Forged overfull split sets now reach the controlled mismatch rejection
+  before any movement API call. Added cost-center and WBS overflow regressions
+  and PLAN guards.
+- Dated location and FEFO ATP transfer rechecks now accumulate grouped demand
+  and split totals in `decfloat34`. Overfull supplied source or batch/location
+  quantities fail through the movement validation exception before posting;
+  regressions cover both transfer paths and PLAN guards protect the totals.
+- One-step and two-step plant transfer validators also accumulate their
+  per-request location and batch totals in `decfloat34`; an overfull caller
+  split set now reaches the normal mismatch rejection before movement creation.
+  Added a 12-billion split regression and a PLAN guard.
+
+- Cost-center location, exact-batch, and FEFO issue adapters now enforce each
+  preview row's `require_full_quantity` setting when global partial issue is
+  enabled. A valid strict row with zero allocation can coexist with rows that
+  have issueable splits. Added partial-forgery and mixed-row regressions plus
+  PLAN guards and README guidance.
+- Added `issue_cc_locations_by_date` to post dated cost-center location preview
+  splits. It verifies every split repeats the preview's required date and
+  priority, preserves request scopes and row-level full-quantity handling, and
+  delegates item and split validation to the shared location issue adapter.
+  Regressions cover posting, stale date/priority metadata, and strict partial
+  rejection with global partial issue enabled.
+- Date-first exact-batch previews now have regression coverage for grouped ATP
+  checks at each effective required date alongside row-level strict allocation.
+  README and PLAN guards document and protect the forwarding behavior. The full
+  `npm test` pipeline passed: PLAN validation, 0 abaplint issues across 247
+  files, transpilation, and ABAP Unit.
+
+- Added `preview_cc_batches_by_date` to allocate exact-batch demand by earliest
+  required date, then descending priority on the same date, while returning
+  rows in caller order. Projected batch receipts respect their receipt date;
+  invalid dates fail before stock reads. Strengthened regressions for date and
+  priority ordering and no-read validation. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added `reserve_cc_atomic_by_date` to preallocate and create a cost-center
+  reservation group by ascending required date and descending same-date
+  priority. Reservation API calls follow that order while result items return
+  in caller order; invalid dates are rejected before stock reads. Tests verify
+  request order, output order, group commit, and no-read rejection. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and ABAP Unit.
+- Added `reserve_cc_bulk_by_date` with independent commits in ascending
+  required-date order and descending priority for same-date requests. The
+  wrapper returns per-request results in caller order and rejects malformed
+  dates before reads. Regressions verify API call order, independent commits,
+  result ordering, and no-read validation. Full `npm test` passed with PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Exact-batch cost-center issues now carry required date, minimum shelf life,
+  and undated-batch policy from previews into the posting check. The movement
+  adapter rejects splits that are ineligible by the later required or posting
+  date.
+  Added a required-date expiry regression and explicit known-good issue cases;
+  full `npm test` passed with PLAN validation, 0 abaplint issues across 247
+  files, transpilation, and ABAP Unit.
+- Extended project WBS batchless transfer previews and 415/Q posting flows with request-specific location ranks across base, priority, and dated variants. ATP adapters forward the ranks; posting methods map ranks through internal IDs and preserve them in the fresh stock recheck. Added conflicting shared-order regressions for previews, ATP, duplicate caller IDs, and movement items, plus README/ANOMALIES updates and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended project WBS FEFO transfer previews with request-specific location ranks after expiry and batch ordering, including priority, dated, and ATP variants. The three 415/Q posting flows map caller ranks to internal IDs and repeat them for the fresh stock snapshot. Added ATP split, duplicate-ID base transfer, priority transfer, and dated transfer regressions; updated README, ANOMALIES, and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Carried request-specific FEFO location ranks through all four quality posting rechecks. Fresh recomputation now uses the same rank rows as the caller's preview for release/send, including priority and UOM paths. Added location-split regressions using identical batch/expiry ties, README/ANOMALIES notes, and PLAN validation coverage. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific location ranks to the base WBS project FEFO preview, ATP adapter, and `RESERVE_WBS_FEFO` fresh check. Matching batch/expiry locations use local rank, while invalid IDs and duplicate request/location rows fail before UOM or stock reads. Added preview, pre-read rejection, and end-to-end reservation split regressions, README/ANOMALIES notes, and a PLAN guard. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended WBS FEFO request-specific location ranks through the priority preview, ATP wrapper, and priority reservation recheck. The wrappers map each caller rank row to internal IDs, preserving the same local order for repeated request IDs; regressions cover duplicate-ID splits across locations through reservation. Updated README, ANOMALIES, and PLAN guard. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific location ranks to dated WBS FEFO preview and ATP adapter, and preserved them across `RESERVE_WBS_FEFO_BY_DATE` preview/recheck. Caller ranks are mapped to internal rows when request IDs repeat. Added dated preview and end-to-end reservation split regressions, README/ANOMALIES notes, and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific storage-location ranks to batchless WBS location previews, dated previews, ATP adapters, and dated reservations. The dated wrappers remap repeated caller IDs to internal rows; ranks override shared order, and unranked locations remain deterministic. Added split-order, duplicate-ID ATP/reservation, and pre-read unknown-ID regressions, plus docs and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended per-request location ranks through priority ordered batchless WBS previews, ATP, and `RESERVE_WBS_LOCATION_PRIORITY` rechecks. The priority wrapper maps each caller rank to internal rows for repeated IDs; tests cover rank order changes and duplicate-ID reservations. Updated README, ANOMALIES, and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Carried request-specific location ranks through `ISSUE_PROJECT_WBS_LOCATION`, priority, and dated issue flows. Each adapter maps caller rows to internal IDs, then uses those ranks for both previews before movement posting. Added duplicate-ID split and posting assertions for each flow, documentation, and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific location ranks to unrestricted cross-plant allocation and dated location allocation. Local ranks choose locations within each source plant, retaining caller plant order; rank checks run before stock reads or UOM conversion and flow through priority and ATP adapters. Added wrapper and invalid-ID regressions, documentation, and PLAN guard coverage. Full `npm test` passed: PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended request-specific location ranks to cross-plant FEFO and exact-batch allocation. FEFO ranks break ties within source plant, expiry, and batch; exact-batch ranks order locations within each source plant while preserving caller plant order. Added validation before stock or UOM reads, forwarding through dated/UOM/priority/ATP variants, regression coverage, README/ANOMALIES notes, and PLAN guard checks.
+- Extended request-specific location ranks to exact-batch and single-plant unrestricted and quality FEFO allocation. FEFO still sorts expiry and batch first, then uses per-request ranks within matching lots; UOM, priority, and ATP wrappers forward or remap the rows. Added base/UOM/priority/ATP split coverage and invalid-ID no-read coverage, plus README, anomaly, and PLAN guard updates. Full `npm test` passed: PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended request-specific location ranks through priority-ordered, dated, and ATP location allocation. Dated UOM validates ranks before conversion reads; dated ATP wrappers forward the same rows, and projected-receipt allocation applies ranks only to locations available by each request date. Added priority/base/UOM/ATP forwarding coverage, invalid-ID/no-read coverage, docs, and PLAN guard checks. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific location ranks to general base-unit and UOM location allocation. The local order overrides the shared order per request; selected-location fallback stays first, then ranked and unranked locations sort deterministically. UOM validation happens before conversion reads and maps ranks through internal request IDs. Added distinct-order and invalid-input/no-read regressions, docs, and PLAN guard coverage. Full `npm test` passed: PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added request-specific storage-location ranks to both sales-order FEFO preview forms and the base/UOM issue rechecks. Local rows override the shared tie order for their request; selected-location fallback remains first, then ranked and unranked locations sort deterministically. Added distinct per-request and unranked-location allocation coverage, invalid-rank/duplicate/unknown-ID checks, and docs/PLAN guard updates. Full `npm test` passed: PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Carried shared and request-specific location order through direct base/UOM sales-order FEFO reservations and both fresh reservation rechecks. Added split-order assertions for both direct and rechecked reservation paths; full `npm test` passed again with PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Added caller-defined storage-location tie priority to both sales-order FEFO preview forms and the rechecking issue service. Expiry and batch order remain primary; listed locations choose the split order for matching lots, then unlisted locations use ascending code. A posting regression caught and fixed an index collision between the priority lookup and the stock-balance row index. Added base, UOM, and posting-path regressions, duplicate-priority validation, README, anomaly, and PLAN guard coverage. Full `npm test` passed: PLAN validation, zero abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Extended `TRANSFER_WBS_FEFO` to preserve repeated caller IDs through unique internal row IDs, both expiry-aware previews, and 415/Q movement validation. Added a duplicate-ID batch-transfer regression and updated README, anomaly, and PLAN guard coverage.
+- Extended `TRANSFER_WBS_BY_LOCATION` to preserve repeated caller request IDs with unique internal row IDs through both location previews and 415/Q validation. Added a duplicate-ID transfer regression and updated README, anomaly, and PLAN guard coverage.
+- Extended `ISSUE_PROJECT_WBS_LOCATION` to preserve repeated caller request IDs through unique internal row IDs, both location snapshots, and WBS movement validation. Added a duplicate-ID posting regression and updated README, anomaly, and PLAN guard coverage.
+- Extended `ISSUE_PROJECT_WBS_FEFO` to preserve repeated caller IDs with unique internal row IDs through both batch previews and 221/Q movement validation. Added a duplicate-ID FEFO posting regression and updated README, anomaly, and PLAN guard coverage.
+- Added `ISSUE_PROJECT_WBS_LOC_DATE` for batchless project WBS issue, ordering demands by required date and same-date priority. It rechecks date, priority, allocation and location splits, preserves duplicate caller IDs through internal row IDs, and posts 221/Q only when the snapshots match. Added ordered posting and stale-snapshot regressions, docs, and a PLAN guard.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,025 ABAP Unit methods.
+- Added `ISSUE_PROJECT_WBS_LOC_PRIORITY` to issue project WBS stock by descending demand priority and preferred storage location. It validates two ordered previews, preserves duplicate caller IDs through internal row IDs, and posts 221/Q only when snapshots match. Added priority, duplicate-ID, and stale-snapshot regressions plus README, anomaly, and PLAN guard coverage.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,019 ABAP Unit methods.
+- Added ISSUE_PROJECT_WBS_LOCATION to issue batchless project WBS stock
+  from the location preview. It forwards location ordering, scope, and
+  reservation cutoff, compares a fresh second snapshot, and posts 221/Q only
+  when allocations and location splits still match. Added prioritized posting
+  and stale-location regressions, docs, and a PLAN guard. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  2,017 ABAP Unit methods.
+
+
+- Cost-center FEFO issue carries the shared undated setting from its preview
+  and validates each split against its effective date, shelf life, and row
+  policy before posting. Strict rows reject undated splits. Added opt-in and
+  strict-rejection regressions plus README, anomaly, and PLAN guard coverage.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and the ABAP Unit runner.
+
+- Added `ISSUE_PROJECT_WBS_FEFO_PRIO` to post priority-ordered project WBS
+  FEFO issues, including the existing optional date-first ordering mode. The
+  adapter rechecks the priority allocation, preserves repeated caller IDs with
+  internal row IDs, and posts 221/Q only when both snapshots match. Added
+  priority, date-order, duplicate-ID, and stale-snapshot regressions plus docs
+  and a PLAN guard. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 2,015 ABAP Unit methods.
+
+- Added `ISSUE_PROJECT_WBS_FEFO_BY_DATE` for date-first project WBS goods
+  issue. It preserves required date and priority during snapshot comparison,
+  supports repeated caller request IDs through internal IDs, and restores the
+  caller values in the returned preview. Added ordering and stale-snapshot
+  regressions, README and anomaly documentation, and a PLAN guard. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 2,013 ABAP Unit methods.
+
+- Added `ISSUE_PROJECT_WBS_FEFO` for WBS goods issue. It previews twice and
+  compares allocation summaries, expiry-aware batch splits, and WBS assignment
+  before posting 221/Q; changed snapshots return a warning without calling the
+  movement API. Added posting and stale-snapshot regressions, README and anomaly
+  documentation, and a PLAN guard. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 2,011 ABAP Unit
+  methods.
+
+- FEFO STO creation now rechecks each selected split's echoed as-of date,
+  effective undated-stock setting, minimum shelf life, and demand row policy
+  before any PO write. Stock previews now carry the effective expiry inputs
+  through base, priority, dated, and unit conversion paths. Added regressions
+  for strict undated rejection and insufficient shelf life, plus README,
+  anomaly, and PLAN guard coverage.
+
+- Added per-demand known-expiry and undated-batch overrides to WBS FEFO base,
+  priority, and date requests, including ATP and reservation wrappers. Row flags
+  flow through internal request IDs and allocation summaries/batch splits;
+  reservations verify the effective undated policy during their fresh preview.
+  Positive shelf-life minimums still exclude undated stock, and conflicting row
+  flags fail before conversion or stock reads. Added mixed-policy, priority,
+  dated, and reservation regressions, docs, and a PLAN guard. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and the ABAP Unit runner.
+
+- Extended WBS FEFO row policies to project-stock transfer previews and
+  movement posting. Base, priority, dated, and ATP paths preserve the row
+  flags through internal request IDs; fresh transfer snapshots compare the
+  echoed policy before posting. Added undated opt-in, conflict-before-read,
+  and priority/date echo regressions plus README, anomaly, and PLAN guards.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247
+  files, transpilation, and the ABAP Unit runner.
+
+- Added per-demand undated-stock policy overrides to sales-order FEFO previews
+  and reservations. Base-unit and UOM requests can opt in to undated batches
+  when the shared option is false, while `require_known_expiry` keeps a row
+  strict when the shared option is true. Conflicting flags fail before stock
+  reads; summaries and splits echo the policy, and reservation, goods-issue,
+  and recheck paths validate or compare it. Added direct, UOM, reservation, and
+  goods-issue regressions, documentation, and PLAN guards. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and the ABAP Unit runner.
+
+- Added per-demand `require_known_expiry` and `allow_undated_batches` overrides
+  to cost-center exact-batch and FEFO allocation. Multi-demand previews, dated
+  FEFO, atomic and bulk reservations, and single-request preview/reservation
+  paths forward the settings and echo them in summaries and batch splits.
+  Conflicting or inapplicable flags fail before UOM conversion or stock reads.
+  Added mixed-policy, wrapper, and early-rejection regressions, documentation,
+  and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 2,008 ABAP Unit methods.
+
+- Added per-demand `allow_undated_batches` as an override for cross-plant
+  exact-batch allocation. Rows can use undated current or projected stock when
+  the shared option excludes it; contradictory row flags fail before UOM or
+  stock reads. Summaries and batch/location splits echo the policy across base,
+  dated, unit, priority, and ATP paths. Added wrapper, ATP, and early-rejection
+  regressions, README/ANOMALIES documentation, and PLAN guards. Full `npm test`
+  exited successfully: PLAN validation, abaplint, transpilation, and the ABAP
+  Unit runner.
+
+- Added `allow_undated_batches` as a per-demand override to single-plant
+  exact-batch allocation. Rows can opt into undated current or projected stock
+  when the shared option excludes it; contradictory row flags fail before UOM
+  or stock reads. Summaries and batch splits echo the setting across base, UOM,
+  priority, and ATP paths. Added wrapper and early-rejection regressions,
+  README/ANOMALIES documentation, and PLAN guards. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  2,008 ABAP Unit methods.
+
+- Added per-demand known-expiry and undated-stock overrides to single-plant
+  FEFO and quality FEFO. Row policies flow through base, unit, priority, and ATP
+  methods, are echoed in summaries and batch splits, and constrain safety-stock
+  eligibility to stock some compatible demand can use. Added mixed-policy,
+  quality-stock, wrapper, and early-rejection regressions, README/ANOMALIES notes,
+  and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 2,008 ABAP Unit methods.
+
+- Added per-demand `require_known_expiry` to single- and cross-plant exact-batch
+  allocation across base, date, unit, priority, and ATP variants. Strict rows
+  skip undated current or projected stock while inclusive rows can still use
+  it; summaries and successful location splits echo the policy. Added mixed
+  policy and wrapper regressions, README/ANOMALIES notes, and PLAN guards. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 2,008 ABAP Unit methods.
+
+- Added per-demand `allow_undated_batches` across cross-plant FEFO base,
+  dated, unit, priority, and ATP variants. A row can opt into undated stock
+  when the call-wide setting excludes it; contradictory row flags are rejected.
+  Shared safety-stock protection now considers undated stock only when an
+  eligible demand can use it. Ordinary allocators reject FEFO-only expiry flags
+  before stock reads or UOM conversion. Added mixed-policy and early-rejection
+  regressions, README/ANOMALIES documentation, and PLAN guards. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 2,008 ABAP Unit methods.
+
+- Added per-demand known-expiry filtering across cross-plant FEFO base, date,
+  unit, priority, and ATP variants. Result summaries and batch splits echo the
+  policy, so mixed requests can exclude undated stock selectively.
+- Added direct STO adapters for base, priority, unit-aware, UOM, ATP, batch,
+  FEFO, and dated cross-plant allocation results, including the base dated
+  FEFO adapter for `ALLOCATE_PLANTS_FEFO_BY_DATE`, plus the unit-aware FEFO
+  adapter for undated `ALLOCATE_PLANTS_FEFO_IN_UNITS` results. Base-only results use a
+  caller material/base-unit map; the adapters preserve exact batches,
+  source locations, priorities, and allocation dates through the existing
+  validated pair-order workflows. Added order-mapping and missing/duplicate
+  unit-map regressions, README/anomaly documentation, and PLAN guards. Full
+  `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 2,008 ABAP Unit methods.
+
+- Added `CREATE_FOR_UOM_ATP_PLANT_PAIRS` for direct STO creation from
+  `ALLOCATE_PLANTS_UOM_ATP_PRIO` output. It requires full current-date
+  confirmation by material/source plant/base unit, preserves issuing location
+  splits, and assigns a caller-supplied delivery date. Test coverage includes
+  base-unit order mapping and rejection of short ATP before writes. Added README
+  and anomaly notes plus a PLAN guard. Full `npm test` passed: PLAN validation,
+  0 abaplint issues across 247 files, transpilation, and all 2,007 ABAP Unit
+  methods.
+
+- Added `CREATE_FOR_UOM_FEFO_PAIRS` for direct STO creation from
+  `ALLOCATE_PLANTS_FEFO_UOM_PRIO` results. It applies the caller's delivery
+  date and carries priority metadata, FEFO batches, issuing locations, and
+  source-unit quantities into the validated pair workflow. Added an end-to-end
+  BOX item regression, documentation, and a PLAN guard. Full `npm test` passed:
+  PLAN validation, 0 abaplint issues across 247 files, transpilation, and all
+  2,006 ABAP Unit methods.
+
+- Added `CREATE_FOR_UOM_BATCH_PAIRS` for direct STO creation from
+  `ALLOCATE_PLANTS_BATCH_UOM_PRIO` results. It unwraps priority metadata while
+  retaining exact batches, issuing locations, and alternative-unit quantities.
+  The BOX item regression checks the order quantity and unit after mapping.
+  README and anomaly notes plus a PLAN guard cover the adapter. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 2,005 ABAP Unit methods.
+
+- Added `CREATE_FOR_UOM_FEFO_ATP_PAIRS` for direct STO creation from
+  `ALLOCATE_PLANTS_FEFO_UOM_ATP` results. It unwraps priority metadata while
+  retaining exact FEFO batches, issuing locations, and source-unit quantities,
+  then delegates to the existing ATP validation and atomic pair creation path.
+  Added a BOX item regression, README and anomaly documentation, and a PLAN
+  guard. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247
+  files, transpilation, and all 2,004 ABAP Unit methods.
+
+- Added `CREATE_FOR_UOM_ATP_BATCH_PAIRS` for direct STO creation from
+  `ALLOCATE_PLANTS_BATCH_UOM_ATP` results. It unwraps priority metadata while
+  retaining exact batch, source location, base quantities, and source-unit
+  quantities, then reuses the same per-date ATP checks and pre-write validation.
+  The regression verifies an alternative-unit item remains in BOX through
+  order creation. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 2,003 ABAP Unit methods.
+
+- Updated `CREATE_FOR_ATP_BATCH_PAIRS` to validate exact-batch ATP groups by
+  each demand's `as_of_date`, matching the cross-plant allocator. Blank dates
+  default to today; malformed dates, missing groups, and mismatched confirmations
+  are rejected before order writes. Added successful multi-date handoff and
+  mismatch regressions, documented the behavior, and guarded it in PLAN
+  validation. Full `npm test` passed: PLAN validation, 0 abaplint issues across
+  247 files, transpilation, and all 2,002 ABAP Unit methods.
+
+- Aligned base-unit cross-plant exact-batch ATP with the UOM ATP path: checks
+  now group by each demand's `as_of_date`, with blank dates defaulting to today.
+  Added a regression for separate date groups and invalid-date rejection before
+  reads, and updated the ATP contract docs and PLAN guard. Full `npm test`
+  passed: PLAN validation, 0 abaplint issues across 247 files, transpilation,
+  and all 2,000 ABAP Unit methods.
+
+
+- Added per-demand `as_of_date` to cross-plant exact-batch UOM demands. The
+  priority allocator now retains caller dates through base-unit conversion,
+  validates bad dates before UOM reads, and its ATP wrapper groups checks by
+  the demand date. Tests cover date-over-priority consumption, same-date
+  priority, caller-order results, bad-date rejection, and separate ATP groups.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,999 ABAP Unit methods.
+
+
+- Added opt-in date-first ordering to exact-batch priority allocation for base
+  and UOM demands, plus the UOM ATP wrapper. Earlier per-demand `as_of_date`
+  values now allocate first, priority breaks same-date ties, and output remains
+  in caller order; ATP uses its shared date for rows without one. Tests cover
+  scarce batch splits, missing-date rejection before reads, and grouped ATP.
+  Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files,
+  transpilation, and all 1,998 ABAP Unit methods.
+
+
+- Extended opt-in date-first ordering to WBS project-stock FEFO previews and source-WBS transfer previews, including ATP wrappers and TRANSFER_WBS_FEFO_PRIORITY posting rechecks. Tests cover date-over-priority ordering, same-date priority, caller-order results, missing-date rejection before repository reads, and movement posting with the same order on both snapshots. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,997 ABAP Unit methods.
+
+- Added opt-in date-first ordering to priority FEFO allocation, ATP, and quality posting rechecks. Earlier per-demand FEFO dates now take precedence, priority breaks same-date ties, and returned rows remain in caller order; date mode rejects missing dates before stock reads. Added base and UOM allocation, ATP, and movement-posting regressions, documented the option, and guarded the feature in PLAN validation. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,995 ABAP Unit methods.
+
+- Added `ALLOCATE_QUALITY_UOM_ATP_PRIO` to combine priority-ordered quality FEFO allocation with grouped plant ATP diagnostics. It forwards location scopes, projected quality receipts, expiry filters, and full-quantity policy; the regression verifies that the higher-priority request consumes scarce quality stock first while results return in caller order. Documented that ATP remains diagnostic and may not cover quality-inspection stock. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,992 ABAP Unit methods.
 
 - Checked packed totals in non-dated cross-plant allocation: source-location sums, same-location stock plus projected receipts, qualifying receipt totals, and per-plant availability now use the checked quantity helper. Added two maximum-value regressions and PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,989 ABAP Unit methods.
 
@@ -6437,3 +9149,1171 @@
   PLAN guard and README/`ANOMALIES.md` notes. Full `npm test` passed: PLAN
   validation, 0 abaplint issues across 247 files, transpilation, and all 1,992
   ABAP Unit methods.
+
+- Extended project WBS FEFO goods issue with request-specific storage-location ranks across base, priority, and date-first demand APIs. Ranks are validated against caller IDs, remapped for repeated IDs, and reused for both fresh stock snapshots before posting. Regression cases prove that ranked locations override shared order while preserving FEFO and caller-order movement splits. README and `ANOMALIES.md` document the behavior. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,992 ABAP Unit methods.
+
+- Added per-demand preferred-location fallback to batchless WBS location
+  allocation. `allow_location_fallback` consumes the requested location first,
+  then uses other eligible locations for any remainder. Base, priority, and
+  date-first previews carry it through ATP, reservation, and goods-issue
+  rechecks; FEFO demands continue to reject the batchless-only option. Tests
+  cover rank precedence, partial preferred stock, fallback when the preferred
+  location is empty, issue splits, and reservations. README and `ANOMALIES.md`
+  document the behavior. Full `npm test` passed: PLAN validation, 0 abaplint
+  issues across 247 files, transpilation, and all 1,992 ABAP Unit methods.
+
+- Extended preferred-location fallback to batch-managed WBS FEFO demands. A
+  preferred location now leads eligible locations with the same expiry date;
+  FEFO eligibility, allowlists, request ranks, and batch/location splits remain
+  enforced. Base, priority, date-first, reservation, and goods-issue adapters
+  preserve the option through fresh previews. Regression coverage checks
+  partial preferred stock, rank precedence, reservation and movement splits,
+  and rejection when fallback has no preferred location. Added PLAN guards and
+  documented the behavior and SAP snapshot limitation in README and
+  `ANOMALIES.md`. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,992 ABAP Unit methods.
+
+- Extended preferred-location fallback through batch-managed WBS FEFO transfer
+  previews and posting rechecks. Base, priority, and date-first transfer demand
+  types and goods-movement adapters carry the preference into both snapshots.
+  Tests cover fallback from an unavailable preferred location and a partial
+  preferred-location allocation that overrides per-request ranks. Added PLAN
+  guards and updated README/`ANOMALIES.md`. Full `npm test` passed: PLAN
+  validation, 0 abaplint issues across 247 files, transpilation, and all 1,992
+  ABAP Unit methods.
+
+- Extended preferred-location fallback through batchless WBS transfer previews
+  and posting rechecks. Base, priority, and date-first transfer demands retain
+  the flag through request-ID remapping and both stock snapshots. Tests cover
+  duplicate request IDs, preferred-stock splits that override location ranks,
+  fallback from an empty preferred location, and 415/Q posting. Added PLAN
+  guards and clarified the batchless and FEFO behavior in README and
+  `ANOMALIES.md`. Full `npm test` passed: PLAN validation, 0 abaplint issues
+  across 247 files, transpilation, and all 1,992 ABAP Unit methods.
+
+- Added priority- and date-first WBS reservation tests for partial preferred-location fallback; both verify that the reservation API receives the preferred and fallback splits.
+- Added request-specific location ranks to cost-center location previews. Different demands can now apply different warehouse orders while sharing the stock snapshot. README and `ANOMALIES.md` describe the rank rules.
+- Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 1,995 ABAP Unit methods.
+
+- Added integration coverage for priority- and date-first WBS reservations that use partial preferred-location fallback.
+- Added request-specific location ranks to cost-center location, exact-batch, FEFO, and date-first FEFO previews. Atomic and bulk reservations, including date-first FEFO wrappers, now preserve those ranks; bulk validates the complete rank table before writes and filters it per demand. README and `ANOMALIES.md` describe the behavior, and PLAN validation guards each adapter.
+- Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,002 ABAP Unit methods.
+
+- Added a bulk-reservation regression proving an unknown request-specific location rank is rejected before stock reads or reservation writes. PLAN validation checks the guard. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,003 ABAP Unit methods.
+
+- Strengthened cost-center reservation rank validation: atomic reservations now reject unknown request IDs, nonpositive ranks, and duplicate request/location pairs before stock reads or API writes, matching bulk behavior. Added a no-read/no-write regression and PLAN guard. Date-first atomic and bulk FEFO tests now reverse demand dates to verify rank rows remain attached through sorting. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,004 ABAP Unit methods.
+
+- Added factory-backed SQLite coverage for project WBS FEFO allocation. The production project-stock service now runs through real local `MSPR`/`PRPS`/`MCHA`/`RESB` queries; the regression verifies an open exact-batch reservation reduces the early lot and FEFO allocates the remaining 4 + 6 units. Added PLAN coverage and README/`ANOMALIES.md` notes. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,005 ABAP Unit methods.
+
+- Hardened project-stock location and FEFO previews against packed-quantity overflow. Duplicate-key balances, per-demand availability, grouped ATP demand, cumulative ATP demand, and confirmation totals now accumulate in `DECFLOAT34` and are checked against `MARD-LABST` before conversion or API calls. Added three regressions for location, FEFO, and ATP overflow, including a no-ATP-call assertion. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,008 ABAP Unit methods.
+
+- Added request-specific storage-location scopes to base WBS FEFO and batchless location previews. Each request's locations intersect the shared allowlist; invalid, duplicate, or unknown scope rows fail before UOM/stock reads, and preferred locations must be inside the request scope. Results echo the validated scopes, and both ATP preview adapters preserve them. Added FEFO/location split, allowlist intersection, ATP-forwarding, and no-read validation regressions plus PLAN guards and README/`ANOMALIES.md` documentation. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,012 ABAP Unit methods.
+
+- Extended request-specific WBS storage-location scopes through priority and per-request-date FEFO/location previews, all four ATP adapters, and the matching reservation flows. Wrappers validate and remap caller scopes across internal request IDs, return caller-facing scope rows, and use the same mapped scope in initial and fresh reservation checks. Added scoped split, no-read invalid-scope, four-adapter ATP, and four reservation-posting regressions; documented the contract and added PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,082 ABAP Unit methods.
+
+- Extended WBS request-specific storage-location scopes to project-stock transfer previews: FEFO and batchless location transfers now support base, priority, and per-request-date forms plus their ATP adapters. Scope rows map through internal transfer IDs, invalid rows fail before stock reads, results preserve the caller-facing rows, and source/destination assignments remain intact. Added regressions across all six preview and ATP variants plus invalid-scope no-read coverage; documented the contract and added PLAN guards. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,085 ABAP Unit methods.
+
+- Added request-specific storage-location scopes to all six WBS goods-movement transfer wrappers: base, priority, and date-first FEFO and batchless location posting. Wrappers reject blank, unknown, and duplicate scope rows before reads, map caller IDs through internal preview IDs, reuse the mapped scopes for the fresh-stock recheck, and return caller-facing scopes. Added posting coverage across all six paths, a competing-location FEFO case, a no-read unknown-scope regression, PLAN guards, and README/`ANOMALIES.md` documentation. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,086 ABAP Unit methods.
+
+- Extended request-specific storage-location scopes through all six WBS goods-issue posting wrappers: base, priority, and date-first FEFO and batchless location issue. The wrappers reject invalid scopes before reads, map caller IDs through internal rows, reuse scopes for fresh-stock checks, and return the caller-facing scope in their preview. Added scoped posting regressions for each variant and an unknown-scope no-read test; updated PLAN guards and README/`ANOMALIES.md`. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,087 ABAP Unit methods.
+
+- Added per-request storage-location scopes to the core unrestricted-stock base, unit-aware, and ATP allocators. The adapters remap scopes through internal demand IDs, echo caller rows, intersect with shared allowlists, and reject invalid scopes before stock or UOM reads. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Priority unrestricted-stock location previews now accept request-specific storage-location scopes. The priority wrappers validate and remap caller IDs, preserve scope echoes, and forward restrictions through UOM and ATP forms. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Date-first unrestricted-stock location allocation now supports request-specific scopes through base, UOM, and ATP methods. Scopes constrain on-hand balances and projected receipts, validate before UOM reads, and echo the caller rows. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Exact-batch unrestricted-stock previews now accept request-specific scopes through base, unit-aware, priority, and ATP methods. Scope filters apply to on-hand balances and projected receipts, priority adapters remap IDs, and invalid scopes fail before stock or UOM reads. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Unrestricted-stock FEFO now applies request-specific location scopes across base, unit, priority, and ATP variants. Scopes constrain on-hand batches and projected receipts, unit/priority adapters preserve caller IDs, and invalid scope/preferred-location rows fail before stock or UOM reads. The new regression covers all six adapters and excludes an out-of-scope projected receipt. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Quality-stock FEFO now supports request-specific location scopes across base, unit, priority, and ATP variants. Scopes constrain quality stock and projected receipts; adapters remap and echo caller rows, and invalid/preferred-outside-scope inputs fail before stock or UOM reads. Regressions cover all six methods and an excluded projected receipt. PLAN validation, lint, transpilation, and all 2,090 ABAP Unit methods passed.
+
+- Quality FEFO release and send wrappers now accept request-specific scopes and forward them into the fresh allocation check. All four posting paths preserve the preview restriction; empty-demand calls reject nonempty scopes, and invalid scopes stop before stock/UOM reads or movement creation. PLAN validation, lint, transpilation, and all 2,091 ABAP Unit methods passed.
+
+- Cost-center FEFO previews and reservation APIs now accept request-specific storage-location scopes. Date-first wrappers preserve scope IDs, atomic and bulk result items echo scopes, and bulk inputs validate all scope rows before processing. Invalid preview scopes fail before stock reads or UOM conversion; non-FEFO reservation modes reject FEFO scopes. PLAN validation, lint, transpilation, and all 2,091 ABAP Unit methods passed.
+
+- Cost-center FEFO issue posting now carries request-location scopes from previews and rejects malformed scope rows or out-of-scope batch splits before the movement API call. PLAN guards and regressions cover out-of-scope and duplicate scope rows. Full npm pipeline passed with 0 lint issues across 247 files and 2,091 ABAP Unit methods.
+
+- Cost-center location-only, exact-batch, and FEFO paths now share request-specific location scopes through previews, atomic/bulk reservations, and posting validators. Result rows echo scopes; issue methods reject out-of-scope splits before movement creation. PLAN validation, lint, transpilation, and all 2,091 ABAP Unit methods passed.
+
+- Added grouped SAP ATP diagnostics to plant-level bulk and location-aware cost-center previews. Each path validates the ATP flag and rule before stock reads, returns grouped cumulative and confirmation quantities beside the existing local allocation, and preserves location splits. Added cross-unit grouped-check and no-read validation coverage, README guidance, and PLAN guards. Full npm pipeline passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,091 ABAP Unit methods.
+- WBS FEFO priority, required-date, and goods-issue flows now preserve per-demand full-quantity rules. Strict rows allocate all or none when shared partial allocation is enabled, allocation summaries echo the effective rule, and mixed WBS issues post only eligible partial rows. Added priority/date preview regressions and mixed issue tests; PLAN guards and README guidance are updated.
+- Cost-center exact-batch and FEFO previews now attach grouped SAP ATP diagnostics to their existing local batch splits, using each split's effective check date and base unit. Cross-unit grouped checks and missing-rule no-read regressions are covered by PLAN guards and README guidance. Full npm pipeline passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,091 ABAP Unit methods.
+- Date-first cost-center FEFO previews now forward grouped ATP checks through the required-date and priority ordering while returning rows in caller order. Added mixed-unit grouping and missing-rule no-read regressions, README guidance, and PLAN guards. Full npm pipeline passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,091 ABAP Unit methods.
+- Cost-center exact-batch and FEFO previews now accept caller-resolved projected batch receipts. The existing allocator gates receipts by each demand's effective date, expiry, selected batch, and location scope; date-first FEFO preserves those cutoffs through priority ordering. Added scoped exact-batch, FEFO, and date-gating regressions, README guidance, and PLAN guards. Full npm pipeline passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and all 2,091 ABAP Unit methods.
+- Added `preview_cc_locations_by_date` for cost-center location allocation with date and priority ordering, caller-resolved projected location receipts, location scopes/ranks, full-quantity handling, and grouped ATP checks. Regressions cover separate date groups, receipt cutoffs, caller-order output, and missing-rule/invalid-date rejection before reads. README and PLAN guards are updated. Full npm pipeline passed with 0 lint issues across 247 files and 2,091 ABAP Unit methods.
+- Cost-center location previews now support opt-in priority allocation. Higher-priority requests consume shared location stock first while results remain in caller order; grouped ATP diagnostics follow the priority allocation. Invalid priority flags fail before stock reads. Full PLAN validation, lint, transpilation, and ABAP Unit pipeline passed.
+- Plant-level and location-only cost-center previews now support opt-in priority allocation in both local and ATP paths. Higher-priority requests consume shared stock first, results remain in caller order, and output rows echo priority. Full npm pipeline passed.
+- Cost-center plant-level and location-only previews now accept an explicit ATP check date, defaulting to today when omitted. Both standard and priority allocation branches forward the date; malformed dates fail before stock reads. Dated plant-level preview rows now echo priority directly. Full npm pipeline passed.
+- Plant-level cost-center preview demands can now require full quantity per row, alongside the existing global setting. An unfillable strict request consumes no stock, so following rows can still allocate; malformed row flags fail before reads. README and PLAN guards cover the behavior. Full npm pipeline passed.
+- Undated cost-center location demands now support per-request full-quantity requirements, and each result reports the effective setting including the global override. Strict unfillable requests leave locations available for later rows. Invalid flags fail before stock reads. Full npm pipeline passed.
+- Exact-batch cost-center preview demands now support row-level full-quantity requirements alongside the global setting, and results echo the effective value. Unfilled strict requests leave selected-batch stock available to later rows; malformed flags are rejected. Full npm pipeline passed.
+- Dated plant-level cost-center preview demands now support row-level full-quantity requirements, echoing the effective setting alongside priority. A strict unfillable request leaves stock for later requests on the same date, including priority-ordered runs. Full npm pipeline passed.
+- Dated location-only cost-center previews now echo the effective per-request full-quantity requirement, including the global override, alongside each date-first allocation. Existing per-row strictness and full npm validation pass.
+- Preview outputs now consistently report the effective full-quantity rule, including when the global option applies across plant, dated plant, location, dated location, batch, and FEFO paths. Regression coverage checks the shared setting across these result types. Full npm pipeline passed.
+- Batchless WBS location previews now accept caller-resolved projected receipts. Shared and per-demand cutoffs gate receipt dates, receipts stay isolated by WBS/material/plant/location, and base, priority, date-first, and ATP adapters preserve the forecast rows. Regression coverage checks date gating, WBS isolation, all adapters, unmatched rows, and overflow. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Batchless WBS transfer previews now accept caller-resolved projected location receipts, matched to each transfer's source WBS. Demand and date-first cutoffs preserve receipt timing through base, priority, and ATP adapters; posting rechecks remain based on posted stock. Tests cover all six transfer preview adapters. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- WBS FEFO batch splits and batchless location splits now expose `available_from_date`; posted balances leave it initial and projected receipts report their receipt date. The field flows through priority, date-first, ATP, and WBS transfer previews. README and `ANOMALIES.md` document the output. Full `npm test` passed: PLAN validation, 0 abaplint issues across 247 files, transpilation, and ABAP Unit.
+- Batch allocation output now carries projected receipt dates in the shared `ty_batch_allocation` row. Exact-batch, standard FEFO, quality FEFO, unit-aware, cost-center, and WBS outputs preserve the date; posted stock leaves it initial. Updated README, anomaly notes, and PLAN guards. PLAN validation passed, abaplint found 0 issues across 247 files, and transpilation completed. ABAP Unit was not run.
+- Cross-plant FEFO now keeps projected balances separate by receipt date, reports `available_from_date` on its FEFO-specific split type, and preserves it through priority, date-first, unit-aware, and ATP outputs. Updated README, `ANOMALIES.md`, and PLAN guards. PLAN validation passed, abaplint found 0 issues across 247 files, and transpilation completed. ABAP Unit was not run.
+- Cross-plant exact-batch allocations now retain posted and projected quantities in separate date-keyed balances and expose `available_from_date` on location splits, including dated, priority, UOM, and ATP adapters. Updated README and `ANOMALIES.md`. PLAN validation passed, abaplint found 0 issues across 247 files, and transpilation completed. ABAP Unit was not run.
+
+- Project-reservation independent bulk deletion, item deletion, rescheduling, quantity changes, final-issue marking/reset, and stock-key changes now aggregate child `is_committed` flags. Partial persistence and test runs are represented accurately. Lint passed with 0 issues across 247 files and transpilation passed; ABAP Unit was not run. Target SAP reservation-update behavior remains unverified.
+- Reservation-issue bulk posting now exposes top-level `is_committed` when any independently committed reservation group succeeds. Simulated and failed groups leave the aggregate false; per-group statuses remain authoritative.
+- Production-component remaining bulk issues and returns now expose top-level `is_committed` when any reservation group commits. Simulated runs and failed groups stay false, and the existing per-reservation rows retain individual outcomes.
+- Sales-order reservation release bulk now exposes top-level `is_committed` when any independent order release commits. Failed later orders do not erase earlier persistence; simulations and successful no-op orders remain uncommitted.
+- Purchase-requisition bulk creation and deletion now aggregate child commit status across per-document operations. Partial successes remain visible after later failures; test runs and batches without commits stay false.
+- Sales-order bulk create, change, rejection, and rejection-clear results now expose top-level `is_committed` whenever any child order commits. The aggregate preserves partial writes after later failures and stays false for simulations or failed batches.
+- Purchase-order bulk create, delete, delivery-complete, schedule-change, and quantity-change results now aggregate child `is_committed` flags. Partial document commits remain visible after later failures; simulations and all-failed batches stay false.
+- Cost-center reservation bulk creation and deletion now expose top-level `is_committed` when any demand or reservation commits. Per-row commit state remains authoritative; simulations and no-commit batches stay false.
+- Sales-order reservation deletion now reports shared-transaction `is_committed` on single-order and combined bulk results, propagating the flag only after a successful live commit. Preview and simulation results remain uncommitted.
+- Multi-sales-order dated bulk reservations now expose top-level `is_committed` when any sales order reservation commits. The aggregate preserves earlier commits after later failures and remains false for simulations and successful no-op orders.
+- Sales-order reservation deletion wrappers now reject malformed `iv_test_run` values before order lookup, including successful no-match paths; the lower-level combined delete also validates before the API call.
+- Cost-center reservation issue and reversal methods now validate `iv_test_run` before reading reservation scope. This prevents malformed flags from triggering repository reads across single, bulk, and unit-aware entry points.
+- Production-component bulk issue and return entry points now reject malformed `iv_test_run` values before reading component reservations, including unit-aware requests.
+- WBS FEFO and location transfer wrappers now reject malformed `iv_test_run` values before their first stock snapshot; single cost-center reservations reject them before allocation or optional ATP reads.
+- Single cost-center reservation and preview paths now reject malformed ATP-check flags before stock reads; shared preparation validates fallback, FEFO, safety-stock, and full-allocation booleans before unit conversion or allocation.
+- Added sales-order item deletion through the sales-order BAPI adapter, with single-document, independently committed bulk, and shared-commit atomic service flows. All document and item keys validate before writes; results preserve per-document messages and aggregate commit status.
+
+- Quality-stock and sales-order FEFO posting services now validate boolean
+  options before successful empty-demand returns, including `iv_test_run`,
+  allocation policy, and FEFO selection flags. Local source guards, lint, and
+  transpilation passed. `validate:plan` could not start in WSL 1; ABAP Unit was
+  not run.
+
+- Direct cost-center and sales-order movements carry optional valuation types
+  through base-unit, UOM, bulk, atomic, and sales-stock paths. Material-to-
+  material 309/310 transfers now carry source and receiving valuation types
+  through base-unit and UOM paths to `BAPI_GOODSMVT_CREATE`. Local valuation-
+  type stock allocation remains unsupported. Local source guards passed, lint
+  found 0 issues across 247 files, and transpilation updated 22 outputs.
+  `validate:plan` could not start in WSL 1. Target SAP DDIC and posting behavior
+  need verification; ABAP Unit was not run.
+
+- Batch-stock snapshots now expose split valuation by resolving non-batch-managed
+  stock from `MCHB-CHARG` and batch-managed stock from `MCHA-BWTAR`. Reservation
+  deductions use `RESB-BWTAR` as an additional stock scope. Added single and bulk
+  valuation-type status previews grouped by storage location. Added
+  `PREVIEW_BY_VALTYPE`, which consumes ordered demand against the typed stock
+  balances and returns location/batch splits with full-quantity shortfalls. Its
+  UOM form converts demand and detail quantities through the existing material
+  unit converter while retaining base-unit values. Split rows expose `XCHAR`
+  state so callers can distinguish physical batches from dummy `CHARG` keys.
+  Lint and transpilation passed; `validate:plan` could not start in WSL 1.
+  Target SAP mapping remains to verify; ABAP Unit was not run.
+
+- Valuation-type previews now accept global and per-request storage-location
+  priorities plus an optional allowed-location list. Per-request priorities
+  override the global order; unlisted allowed locations follow alphabetically.
+  The allowed set restricts both availability totals and allocation splits;
+  the UOM wrapper passes these options through to the base-unit allocator.
+  Added single and bulk UOM forms for grouped valuation-type status, converting
+  all four per-location quantities and returning both unit codes. Corrected a
+  mismatched `INTTYPE` tag in the AUFK stub; all 92 stub XML files
+  now parse. Local source guards, lint (0 issues across 247 files), and
+  transpilation (5 outputs updated) passed. `validate:plan` could not start in
+  WSL 1; target SAP mapping remains to verify. ABAP Unit was not run.
+
+- Valuation-type allocation now filters physical batches by the demand's
+  `as_of_date` (current date by default), minimum shelf life, and known-expiry
+  requirement. Expiration on the effective date remains eligible; non-batch
+  split-valuated stock is not date-filtered. Summaries expose the effective
+  date and expiry controls, and detail splits return each batch expiration.
+  `abaplint` found 0 issues across 247 files; transpilation updated 3 outputs.
+  Focused source guards passed. `validate:plan` could not start in WSL 1, and
+  ABAP Unit was not run; verify batch expiry mapping in the target SAP system.
+
+- `PREVIEW_BY_VALTYPE` and its UOM form now accept caller-resolved projected
+  receipts in base units. Receipts enter demand availability only on/after their
+  receipt date. The summary separates current/projected balances; splits include
+  availability date and projected marker. Receipt rows explicitly identify
+  batch-managed materials; managed rows require a physical batch, while
+  non-managed split valuation keeps batch and expiry blank. Repeated physical-
+  batch identity and expiry are checked against existing balances when present;
+  receipt rows also agree on the material/plant management marker.
+  Projected splits now preserve caller source type/document/item/plant/schedule
+  line identity through the UOM wrapper; posted stock leaves those fields blank.
+  The undated-batch option defaults inclusive, can be disabled globally, and
+  supports a per-demand opt-in; `require_known_expiry` takes precedence. The
+  result echoes the effective policy. `abaplint` found 0 issues in 247 files;
+  transpilation updated 5 outputs and focused source/XML guards passed. PLAN
+  validation remains unable to start in WSL 1; ABAP Unit was not run. Avoid
+  double-counting posted receipts.
+
+- `PREVIEW_BY_VALTYPE` and its UOM form now accept request-specific location
+  scopes. Scopes constrain available totals and splits, intersect the global
+  allowlist, reject duplicate or unknown request/location rows, and require an
+  explicitly requested location to be in scope. Results echo the scope rows;
+  the UOM form validates them before conversion. `abaplint` found 0 issues
+  across 247 files, transpilation updated 5 outputs, focused source/XML guards
+  passed, and `git diff --check` passed. The PLAN runner still cannot start in
+  WSL 1; ABAP Unit was not run.
+- Fixed `GET_PROJ_RECEIPTS_BULK_UOM` to reject duplicate request IDs before
+  unit conversion, matching its keyed result contract and existing regression
+  coverage.
+
+- `PREVIEW_BY_VALTYPE` and its UOM form now accept per-request batch-key
+  candidates. Candidates filter availability summaries and allocation splits,
+  are validated before UOM conversion, and are echoed in results. The key is
+  the physical batch for batch-managed stock and the dummy `CHARG` valuation
+  key for non-batch split stock. `abaplint` found 0 issues across 247 files;
+  transpilation updated 3 outputs. Focused source/docs guards, all 92 stub XML
+  parses, and `git diff --check` passed. `validate:plan` cannot start in WSL 1;
+  ABAP Unit was not run.
+
+- `PREVIEW_BY_VALTYPE` and its UOM form now accept positive per-request batch
+  ranks. Ranked batches are allocated before unranked batches within each
+  location and posted/projected group; posted stock remains ahead of projected
+  receipts, and batch code breaks rank ties. When candidates are supplied,
+  every ranked key must be among them. Both result forms echo validated ranks.
+  `abaplint` found 0 issues across 247 files; transpilation updated 5 outputs.
+  Focused source/docs guards, all 92 stub XML parses, and `git diff --check`
+  passed. `validate:plan` cannot start in WSL 1; ABAP Unit was not run.
+
+- Valuation-type demand rows now accept an integer priority, echoed in base and
+  UOM allocation summaries. Earlier effective `as_of_date` values consume
+  shared balances first; higher priorities order requests on the same date,
+  with input order breaking ties. Omitted dates use today and omitted
+  priorities default to zero. Allocation and split results remain in caller
+  order after priority-based consumption; summaries expose the one-based
+  allocation sequence for traceability.
+  `abaplint` found 0 issues across 247 files and transpilation updated 4
+  outputs. Focused source/docs guards, all 92 stub XML parses, and
+  `git diff --check` passed. `validate:plan` cannot start in WSL 1; ABAP Unit
+  was not run.
+
+- Valuation-type previews now optionally protect static plant-level
+  `MARC-EISBE` safety stock once per material/plant across all valuation
+  balances. The deterministic reserve order takes current stock first, then
+  projected receipts by date. Base and UOM summaries echo the protection and
+  safety-stock quantities. `abaplint` found 0 issues across 247 files and
+  transpilation updated 5 outputs. Focused source/docs guards, all 92 stub XML
+  parses, and `git diff --check` passed. `validate:plan` cannot start in WSL 1;
+  ABAP Unit was not run.
+
+- Added `PREVIEW_BY_VALTYPE_UOM_ATP`, which attaches cumulative SAP ATP
+  diagnostics to local UOM allocations grouped by material, plant, base unit,
+  and effective date. The check summarizes quantity allocated on each date,
+  cumulative quantity through the date, and confirmed/unconfirmed totals. SAP
+  ATP remains plant-level and does not see local valuation, batch, location,
+  or caller-projected receipt assignments. `abaplint` found 0 issues across
+  247 files; transpilation updated 5 outputs. Focused source/docs guards, all
+  92 stub XML parses, and `git diff --check` passed. `validate:plan` cannot
+  start in WSL 1; ABAP Unit was not run.
+
+- Extended `PREVIEW_BY_VALTYPE_UOM_ATP` with `request_atp_checks`, one row per
+  positive allocation in allocation-sequence order. Each row reports the
+  incremental confirmed/unconfirmed quantities attributed from its date's
+  grouped ATP result and retains that raw result; no request-specific SAP call
+  is made. The validator and README now guard/document this mapping. Target
+  checking-rule confirmation behavior remains unverified. Lint passed with 0
+  issues across 247 files and transpilation updated 5 outputs; focused source
+  and docs guards, all 92 stub XML parses, and `git diff --check` passed.
+  `validate:plan` cannot start in WSL 1; ABAP Unit was not run.
+
+- Valuation-type allocation summaries now report projected receipt quantity
+  actually allocated, separately from eligible projected availability. The
+  UOM summary exposes the consumed amount in the requested unit as
+  `source_projected_allocated_qty`. `abaplint` found 0 issues across 247 files;
+  transpilation updated 4 outputs. Focused source/docs guards, all 92 stub XML
+  parses, and `git diff --check` passed. `validate:plan` cannot start in WSL 1;
+  ABAP Unit was not run. Target receipt execution remains external to this
+  preview.
+
+- Request-level valuation ATP checks now also expose allocated, confirmed,
+  and unconfirmed quantities in each demand's requested UOM while retaining
+  base-unit quantities for SAP diagnostics. The row returns `source_unit` to
+  identify those converted quantities; SAP is still checked in the base unit.
+  `abaplint` found 0 issues across 247 files and transpilation updated 5
+  outputs. Focused source/docs guards, all 92 stub XML parses, and CRLF-aware
+  `git diff --check` passed. `validate:plan` cannot start in WSL 1; ABAP Unit
+  was not run.
+
+- Request-level valuation ATP rows now echo the local valuation type and
+  request priority alongside the allocation sequence. These fields explain
+  local allocation context only; SAP ATP remains plant-level and does not
+  filter by them. `abaplint` found 0 issues across 247 files and transpilation
+  updated 4 outputs. Focused source/docs guards, all 92 stub XML parses, and
+  CRLF-aware `git diff --check` passed. `validate:plan` cannot start in WSL 1;
+  ABAP Unit was not run.
+
+- Valuation-type allocation summaries now expose current and projected
+  consumption separately. The UOM result reports both in source units and
+  derives current consumption as the residual after projected conversion so
+  the two amounts reconcile to total source allocation. `abaplint` found 0
+  issues across 247 files and transpilation updated 4 outputs. Focused
+  source/docs guards matched all 62 service and 36 README checks; all 92 stub
+  XML parses and CRLF-aware `git diff --check` passed. The README guard now
+  normalizes whitespace, so ordinary wrapping does not invalidate phrases.
+  `validate:plan` cannot start in WSL 1; ABAP Unit was not run.
+
+- Base and UOM valuation previews now echo validated request-specific location
+  priorities in `request_location_priorities`, sorted by request, rank, and
+  storage location. This makes the chosen location sequence auditable from
+  the result. `abaplint` found 0 issues across 247 files and transpilation
+  updated 4 outputs. All 64 service guards and 37 README guards passed, along
+  with 92 stub XML parses and CRLF-aware `git diff --check`.
+  `validate:plan` cannot start in WSL 1; ABAP Unit was not run.
+
+- Valuation preview results now also echo the global fallback location order
+  and the allowed-location list as `storage_location_priority` and
+  `allowed_storage_locations`. The list and ordering rules can be inspected
+  with the request-specific priorities in the same result. `abaplint` found 0
+  issues across 247 files and transpilation updated 4 outputs. All 68 service
+  guards and 39 README guards passed, along with 92 stub XML parses and
+  CRLF-aware `git diff --check`. `validate:plan` cannot start in WSL 1; ABAP
+  Unit was not run.
+
+- Base and UOM valuation preview results now echo all validated projected
+  receipt inputs, including receipts that were unused by the allocation. The
+  result preserves input order; split rows show the receipt quantities that
+  were actually allocated. `abaplint` found 0 issues across 247 files and
+  transpilation updated 4 outputs. All 70 service guards and 40 README guards
+  passed, along with 92 stub XML parses and CRLF-aware `git diff --check`.
+  `validate:plan` cannot start in WSL 1; ABAP Unit was not run.
+
+
+- Extended call-wide reservation exclusions through the public single-plant
+  and cross-plant unrestricted-stock exact-batch, FEFO, and storage-location
+  allocation families, including cross-plant batch ATP. Base, date, priority,
+  UOM, and ATP wrappers validate and forward the same unique reservation keys
+  into stock netting. UOM paths validate before conversion. The README and PLAN
+  validator now cover these 40 public methods. Focused source-flow checks, all
+  92 SAP stub XML parses, and CRLF-aware `git diff --check` passed. The validator and
+  abaplint/transpilation could not run because Node is absent in WSL and the
+  Windows runtime launch failed with `UtilBindVsockAnyPort:307: socket failed 1`;
+  ANOMALIES.md records the runtime issue. Target SAP batch reservation
+  semantics remain to be verified.
+
+- Call-wide reservation exclusions now flow through all six production
+  component preview APIs and the direct `ALLOCATE_COMPONENT_STOCK` helper.
+  Complete, unique keys are validated before stock reads; selected component
+  reservations are merged once with caller exclusions while duplicate demand
+  keys remain invalid. This affects local stock netting only, including the
+  local estimate in ATP previews. README and PLAN validator guards cover the
+  API forwarding and merge behavior. Focused source-flow checks and all 92 SAP
+  stub XML parses passed. Node is unavailable in WSL, and the Windows runtime
+  launch for `validate:plan`, abaplint, and transpilation failed with
+  `UtilBindVsockAnyPort:307: socket failed 1`; ABAP Unit was not run.
+
+- Project-stock reads and all 24 project-stock preview variants now accept
+  call-wide reservation keys. Matching WBS RESB rows are skipped during local
+  reservation deductions; the FEFO, location, dated, priority, transfer, and
+  ATP wrapper chains all forward the same keys. The single and bulk UOM readers
+  validate exclusions before conversion. Added source and README guards plus
+  docs describing local-only ATP impact. Focused interface/forwarding checks,
+  all 92 SAP stub XML parses, and CRLF-aware `git diff --check` passed. Node is
+  unavailable in WSL, and the Windows runtime launch for `validate:plan`,
+  abaplint, and transpilation failed with
+  `UtilBindVsockAnyPort:307: socket failed 1`; ABAP Unit was not run.
+
+
+- Reservation coverage now accepts the same call-wide RESB exclusions across
+  single, bulk, and UOM APIs. Selected open reservations are removed from
+  reserved quantities, item counts, and free-stock netting. The PLAN validator
+  now guards declarations, forwarding, filtering, and validation order. Focused
+  source checks, all 92 SAP stub XML parses, CRLF preservation, and
+  `git diff --check` passed.
+  PLAN validation, abaplint, and transpilation could not launch: Node is absent
+  in WSL and Windows runtime startup failed with
+  `UtilBindVsockAnyPort:307: socket failed 1`. ABAP Unit was not run.
+
+
+- Reservation-coverage results now report `excluded_open_resv_items`
+  per WBS/material/plant balance and preserve the count in UOM results. Only
+  matching open rows count; unknown, closed, or out-of-scope keys remain zero.
+  Focused source-flow checks, all 92 SAP stub XML parses, type alignment,
+  CRLF preservation, and `git diff --check` passed. `validate:plan`, abaplint,
+  and transpilation still cannot launch because Windows runtime startup fails
+  with `UtilBindVsockAnyPort:307: socket failed 1`; ABAP Unit was not run.
+
+
+- Bulk reservation coverage now accepts exclusions per request as well as
+  call-wide. It validates request IDs and unique reservation keys before reads
+  or UOM conversion, combines overlapping global and request keys once, and
+  groups reads by date and identical exclusion sets. The PLAN validator checks
+  validation, grouping, forwarding, and docs. Focused source-flow and ordering
+  checks, all 92 stub XML parses, CRLF and field alignment, and
+  `git diff --check` passed. `validate:plan`, abaplint, and transpilation still
+  cannot launch because Windows runtime startup fails with
+  `UtilBindVsockAnyPort:307: socket failed 1`; ABAP Unit was not run.
+
+
+- Bulk project-stock reads now accept exclusions per request, including the UOM
+  form. They validate request IDs and unique complete keys before stock reads
+  or UOM conversion, merge request keys with call-wide keys once, and group
+  shared reads by cutoff date and identical exclusion sets. The PLAN validator
+  guards declarations, validation order, grouping, forwarding, and docs.
+  Focused source-flow checks, all 92 SAP stub XML parses, line and field
+  alignment, CRLF preservation, JavaScript guard parsing, and
+  `git diff --check` passed. `validate:plan`, abaplint, and transpilation could
+  not launch: Windows runtime startup fails with
+  `UtilBindVsockAnyPort:307: socket failed 1`; ABAP Unit was not run.
+
+
+- Reservation coverage results now include the exact excluded reservation and
+  item keys alongside the excluded item count. Base-unit, UOM, and bulk result
+  structures carry the same matching keys, allowing callers to reconcile each
+  count; unknown and closed keys remain absent. The public count field uses
+  `excluded_open_resv_items` to stay within ABAP's 30-character identifier
+  limit. The PLAN validator and README cover this output.
+
+
+- Single and bulk open-reservation reads now accept shared exclusions, and the
+  bulk form also supports per-request keys. It validates complete unique keys
+  and request references before repository reads, applies shared exclusions
+  during reads and request keys when mapping results, and preserves request
+  ordering. The PLAN validator covers the API, flow, and
+  documentation. Focused source checks, JavaScript guard parsing, all 92 SAP
+  stub XML parses, CRLF preservation, and `git diff --check` passed. Abaplint
+  reports 0 issues across 247 files and transpilation succeeds. The PLAN
+  validator cannot start in this WSL 1 environment (`WSL 1 is not supported`);
+  ABAP Unit was not run.
+
+
+- Full reservation-item reads now accept call-wide RESB exclusions, and their
+  bulk API also filters per request after reusing shared WBS reads. Both forms
+  validate complete unique keys and request IDs before repository access. The
+  README, PLAN source guards, and ANOMALIES document the local-only behavior.
+  Focused source-flow checks, PLAN guard JavaScript syntax parsing, all 92 SAP
+  stub XML parses, CRLF preservation, and `git diff --check` passed. Abaplint
+  reports 0 issues across 247 files and transpilation succeeds. `validate:plan`
+  still cannot start in this WSL 1 environment; ABAP Unit was not run.
+
+
+- Reservation coverage now returns per-item included quantities in the result
+  and base units, plus source RESB required, withdrawn, and open quantities,
+  material and entry units, requirement date, storage location, and batch.
+  Excluded open rows retain their original RESB details. Included base quantities
+  reconcile to base summary quantities; both detail sets carry through UOM and
+  bulk results. README and PLAN source guards cover conversion and traceability.
+  Focused source-flow checks, validator JavaScript syntax parsing, all 92 SAP
+  stub XML parses, CRLF preservation, and `git diff --check` passed. Abaplint
+  reports 0 issues across 247 files and transpilation succeeds. `validate:plan`
+  cannot start in this WSL 1 environment (`WSL 1 is not supported`); ABAP Unit
+  was not run.
+
+
+- Corrected the scoped component preview's grouped available balance so eligible
+  batch quantities contribute alongside residual location stock. The focused
+  preview regression now passes: grouped availability is 8, allocation is 8,
+  and shortfall is 4. Updated stale PLAN guard expectations for bulk lifecycle
+  summaries whose result types now include count fields after commit status.
+
+- Production confirmation window reads now accept a suboperation filter,
+  requiring its parent operation. Unfiltered operation reads include both the
+  base step's initial suboperation value and numbered suboperations, while
+  page summaries keep those suboperations separate. Repository and service
+  regression tests cover filtering, metadata, blank suboperations, and summary
+  grouping. The full ABAP Unit suite passes, abaplint reports 0 issues across
+  252 files, transpilation succeeds, and PLAN validation passes.
+
+- Confirmation window searches can now filter by routing sequence while still
+  allowing a sequence-only scope across operations. Repository OSQL fixtures
+  and service tests cover orders with the same operation number in distinct
+  sequences. The filter is checked against repository results and is described
+  in README.md and PLAN.md. The full ABAP Unit suite passes, abaplint reports
+  0 issues across 252 files, transpilation succeeds, and PLAN validation passes.
+
+- Page-local operation summaries now include the first and last posting dates
+  represented by returned confirmations. The regression fixture places a
+  same-group confirmation in the lookahead slot and verifies it does not widen
+  the summary date span or quantity totals. The full ABAP Unit suite passes,
+  abaplint reports 0 issues across 252 files, transpilation succeeds, and PLAN
+  validation passes.
+
+- Operation summaries now also carry the AFVC description and control key
+  already present on their confirmations, keeping the grouped result
+  self-describing without another repository read. Tests verify routing
+  metadata for separate production orders.
+
+
+- Production confirmation window searches now filter for positive yield,
+  rework, or scrap quantities, with multiple flags combined as an AND. SQL
+  filters the repository reads and the service rejects rows that violate the
+  selected quantity filters. Service and OSQL regression cases, README and
+  PLAN guidance, and PLAN source guards were updated. Abaplint reports 0
+  issues across 252 files, transpilation succeeds, PLAN validation passes, and
+  the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Production confirmation operation summaries now echo `order_category`,
+  preserving production/process context in aggregates without another read.
+  Added regression assertions for summaries from both orders and updated the
+  README, PLAN, and PLAN source guards. Abaplint reports 0 issues across 252
+  files, transpilation succeeds, PLAN validation passes, and the CRLF-aware
+  diff check is clean. ABAP Unit was not run.
+
+
+- Added `SEARCH_CONF_WINDOW_BASE_UNIT`, which preserves the existing paged
+  confirmation response and appends base-unit yield, rework, and scrap values
+  per returned row. Material-unit ratios are read once per confirmation unit;
+  unknown units, overflow, and nonzero quantities rounded to zero reject the
+  conversion without returning partial results. The factory injects the UOM
+  converter, and the README, PLAN, ANOMALIES, and PLAN source guards document
+  the behavior and target-system assumption. Abaplint reports 0 issues across
+  252 files, transpilation succeeds, PLAN validation passes, and the
+  CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Extended the confirmation base-unit result with `base_operation_summaries`,
+  which merges source-unit groups for the same operation and reports base-unit
+  yield, rework, and scrap totals, including separate non-reversed totals,
+  counts, and date spans. The source-unit summaries remain available inside
+  `raw_result`. Regression coverage checks mixed EA/BOX aggregation and
+  reversal accounting; PLAN guards now enforce all three quantity totals.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Confirmation window results now expose a UTC `snapshot_timestamp`, captured
+  immediately after the repository read and preserved by the base-unit wrapper.
+  Added result assertions and documented that this marks query completion,
+  while pages remain independent reads. Updated ANOMALIES and PLAN source
+  guards. Abaplint reports 0 issues across 252 files, transpilation succeeds,
+  PLAN validation passes, and the CRLF-aware diff check is clean. ABAP Unit
+  was not run.
+
+
+- Planned-order reads return `PLAF-PAART`; finish-window searches can match
+  a nonblank type or select blank explicitly with `filter_order_type`. The
+  repository filters before pagination, and the service checks returned scope.
+  Added blank-match, invalid-flag, and scope-drift regressions. Abaplint
+  reports 0 issues across 252 files, transpilation succeeds, PLAN validation
+  passes, and the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order bulk and finish-window headers now include `PLAF-LGORT`.
+  Finish-window callers can filter an exact location, including blank, by
+  enabling `filter_storage_location`; supplying a location without the flag or
+  an invalid flag fails before reading. Returned rows are checked against the
+  selected location. Added assigned/unassigned selection, invalid-input, and
+  scope-drift regression cases, plus PLAN validator coverage. Abaplint reports
+  0 issues across 252 files, transpilation succeeds, PLAN validation passes,
+  and the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order bulk and finish-window headers now include `PLAF-BESKZ`.
+  Finish-window callers can filter its exact procurement indicator, including
+  blank, with `filter_procurement_indicator`. Invalid enable flags or a value
+  without the flag fail before the read, and returned rows must stay in scope.
+  Added regression cases for indicator values, blank selection, invalid input,
+  and repository scope drift. SAP's field mapping identifies `PLAF-BESKZ` as
+  the procurement indicator; verify target DDIC and customizing values before
+  integration. Abaplint reports 0 issues across 252 files, transpilation
+  succeeds, PLAN validation passes, and the CRLF-aware diff check is clean.
+  ABAP Unit was not run.
+
+
+- Planned-order finish-window reads now accept an inclusive scheduled-finish
+  date range on `PLAF-GLTRS`, in addition to the existing basic-finish range.
+  Both valid bounds are required and returned scheduled dates are checked
+  before pagination; cursor ordering remains based on basic finish date and
+  planned-order number. Added assigned/out-of-range, partial, invalid-date,
+  and scope-drift regression cases, with PLAN, README, ANOMALIES, and validator
+  updates. Abaplint reports 0 issues across 252 files, transpilation succeeds,
+  PLAN validation passes, and the CRLF-aware diff check is clean. ABAP Unit
+  was not run.
+
+
+- `READ_ORDERS_BY_FINISH_WINDOW` now supports `positive_quantity_only` to keep
+  zero and negative planned-order quantities out of candidate supply when
+  requested. The repository filters before pagination, and the service checks
+  returned quantities against the same rule. Added positive/zero/negative,
+  invalid-flag, and repository scope-drift regression cases and updated the
+  PLAN validator. Abaplint reports 0 issues across 252 files, transpilation
+  succeeds, PLAN validation passes, and the CRLF-aware diff check is clean.
+  ABAP Unit was not run.
+
+
+- Planned-order reads now include `PLAF-DISPO` and can filter by exact MRP
+  controller, including blank through an explicit flag. SAP's planned-order
+  field mapping identifies `DISPO` as the MRP controller. Added scope, blank,
+  and invalid-flag regression cases; updated the PLAF stub and source guards.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Planned-order reads now include `PLAF-PLGRP` and can filter by exact
+  production supervisor, including blank through an explicit flag. Added
+  assigned/unassigned selection, invalid-flag, and scope-drift regression
+  cases, plus stub and PLAN validator checks. Abaplint reports 0 issues across
+  252 files, transpilation succeeds, PLAN validation passes, and the
+  CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order reads now return `PLAF-VERID` and can filter by exact
+  production version, including blank through an explicit flag. Added
+  assigned/unassigned selection, invalid-flag, and repository scope-drift
+  regression cases. SAP documents `VERID` as the four-character production
+  version on planned-order data. Abaplint reports 0 issues across 252 files,
+  transpilation succeeds, PLAN validation passes, and the CRLF-aware diff
+  check is clean. ABAP Unit was not run.
+
+
+- Planned-order reads now return `PLAF-BERID` and can filter by exact MRP area,
+  including blank through an explicit flag. Added assigned/unassigned,
+  invalid-flag, and repository scope-drift regression cases, and extended the
+  local PLAF stub and PLAN validator. SAP field mapping identifies `BERID` as
+  the planned-order MRP area; target area assignment behavior still needs
+  system validation. Abaplint reports 0 issues across 252 files, transpilation
+  succeeds, PLAN validation passes, and the CRLF-aware diff check is clean.
+  ABAP Unit was not run.
+
+
+- Planned-order finish-window reads now accept an inclusive scheduled-start
+  date range on `PLAF-GSTRS`, paired with the existing scheduled-finish range
+  on `PLAF-GLTRS`. Both bounds must be valid and supplied together; the service
+  validates returned rows, while pagination continues by basic finish date and
+  planned-order number. Added match, partial/invalid-range, and scope-drift
+  regression cases, and updated PLAN, README, ANOMALIES, and validator guards.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Planned-order finish-window searches now support opt-in scheduled start and
+  finish time-of-day ranges on `PLAF-GSUZS` and `PLAF-GLUZS`. The ranges support
+  midnight, validate HHMMSS bounds, can combine with scheduled-date ranges, and
+  apply before pagination. Returned times are validated before range checks.
+  Added shared time validation and regression cases for filtering,
+  malformed/reversed bounds, malformed returned values, and returned-scope
+  drift. PLAN, README, ANOMALIES, and validator guards are updated. Abaplint
+  reports 0 issues across 252 files, transpilation succeeds, PLAN validation
+  passes, and the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order finish-window searches now accept an inclusive range on the raw
+  `PLAF-PSTMP` last-change timestamp. Either inclusive lower or upper bound can
+  be used alone; supplied values must be positive, and two bounds must be
+  ascending. Returned values are checked against every supplied bound. PLAN,
+  README, ANOMALIES, and validator guards document the field semantics and
+  SAP's warning that it may differ from apparent change time. Abaplint reports
+  0 issues across 252 files, transpilation succeeds, PLAN validation passes,
+  and the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order finish-window searches now support exact scheduled-start and
+  scheduled-finish date filters, including explicit selection of blank dates.
+  Nonblank values filter by default, malformed flags and dates fail validation,
+  returned rows are checked against exact selections, and exact filters compose
+  with existing inclusive date ranges. PLAN, README, ANOMALIES, and validator
+  guards are updated. Abaplint reports 0 issues across 252 files, transpilation
+  succeeds, PLAN validation passes, and the CRLF-aware diff check is clean.
+  ABAP Unit was not run.
+
+
+- Planned-order finish-window searches now support an exact basic start-date
+  filter on `PLAF-PSTTR`, including explicit blank-date matching. Nonblank values
+  filter by default, returned rows are checked against the exact selection, and
+  exact filters intersect with the existing inclusive start-date range. PLAN,
+  README, ANOMALIES, and validator guards are updated. Abaplint reports 0 issues
+  across 252 files, transpilation succeeds, PLAN validation passes, and the
+  CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- The planned-order read fake repository now mirrors the production filters for
+  independent `PLAF-PSTMP` bounds and exact basic/scheduled-date selections.
+  Validator guards check that the service fake remains in sync. Abaplint reports
+  0 issues across 252 files, transpilation succeeds, PLAN validation passes,
+  and the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Planned-order finish-window reads now accept independent inclusive lower and
+  upper bounds on `PLAF-GSMNG` in the order unit, plus exact order-unit selection
+  with blank matching. Either quantity bound can be used alone; zero is valid
+  when enabled, and both bounds must be ascending. All filters apply before
+  pagination. The service rejects invalid flags, reversed bounds, disabled
+  bounds, and returned quantity/unit scope drift. The fake repository mirrors
+  both filters. PLAN, README, ANOMALIES, and validator guards are updated.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Production confirmation-window rows now carry `scope_material` and
+  `scope_plant` from their matching AFPO item. The service rejects returned
+  confirmations whose material or plant does not match the request; bulk
+  confirmation rows leave these window-scope fields initial. The fake
+  repository, PLAN, README, ANOMALIES, and validator guards are updated.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Production confirmation-window searches can now select an exact blank
+  `AFRU-MEINH` value with `filter_quantity_unit`. Nonblank units continue to
+  filter by default; invalid flag values and returned unit-scope drift are
+  rejected. The repository and fake apply the filter before pagination. PLAN,
+  README, ANOMALIES, and validator guards are updated. Abaplint reports 0 issues
+  across 252 files, transpilation succeeds, PLAN validation passes, and the
+  CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Production confirmation-window searches can now select an exact blank
+  `AFVC-STEUS` value with `filter_control_key`. Nonblank control keys continue
+  to filter by default; invalid flag values and returned control-key scope drift
+  are rejected. The repository and fake apply the filter before pagination.
+  PLAN, README, ANOMALIES, and validator guards are updated. Abaplint reports 0
+  issues across 252 files, transpilation succeeds, PLAN validation passes, and
+  the CRLF-aware diff check is clean. ABAP Unit was not run.
+
+
+- Production confirmation-window searches can now select the exact initial
+  `AFVC-PLNFL` operation sequence with `filter_operation_sequence`. Noninitial
+  values continue to filter by default; invalid flags and returned sequence
+  scope drift are rejected. The repository and fake apply the filter before
+  pagination. PLAN, README, ANOMALIES, and validator guards are updated.
+  Abaplint reports 0 issues across 252 files, transpilation succeeds, PLAN
+  validation passes, and the CRLF-aware diff check is clean. ABAP Unit was not
+  run.
+
+
+- Production confirmation-window searches can now select the initial
+  `AFVC-UVORN` base step alone with `filter_operation_suboperation`. By default,
+  an initial suboperation still includes the base step and all suboperations;
+  exact blank matching requires an operation number. Invalid flags and returned
+  suboperation scope drift are rejected. The repository and fake apply the
+  filter before pagination. PLAN, README, ANOMALIES, and validator guards are
+  updated. Abaplint reports 0 issues across 252 files, transpilation succeeds,
+  PLAN validation passes, and the CRLF-aware diff check is clean. ABAP Unit was
+  not run.
+
+- Production confirmation-window reads now filter and return the AFRU entered-by
+  user. `filter_entered_by` enables exact blank matching; nonblank users filter
+  by default. The repository applies the selector before pagination and the
+  service validates returned user scope. PLAN, README, ANOMALIES, and validator
+  guards are updated. Static gates pass; ABAP Unit was not run.
+
+- Production confirmation-window reads can now filter by the inclusive
+  AFRU-ERSDA entry-date range. Both valid ascending bounds are required;
+  repository selection occurs before pagination, and service validation checks
+  returned dates. Confirmation rows expose entry date separately from posting
+  date. PLAN, README, ANOMALIES, and validator guards are updated. Static gates
+  pass; ABAP Unit was not run.
+
+- Production confirmation results now expose AFRU last-change date and user,
+  filter by an optional inclusive last-change-date range, and support exact
+  blank matching for `changed_by`. The repository applies both filters before
+  pagination; the service validates date bounds and returned scope. PLAN,
+  README, ANOMALIES, and validator guards are updated. Static gates pass; ABAP
+  Unit was not run.
+
+- Production confirmation-window searches now support inclusive AFRU-ERZET
+  time-of-day bounds through `filter_entry_time`. Midnight is valid, enabled
+  bounds must be valid and ascending, disabled bounds must be initial, and the
+  range applies per entry date without wrapping midnight. Repository filtering
+  precedes pagination and returned times are validated. PLAN, README, ANOMALIES,
+  and source guards are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window results now report `finish_filter_lost` when
+  the later detail read has no item matching the selected material, plant,
+  order category, and date ranges. A group-level count is included; rows remain
+  visible for reconciliation and status drift stays separate. PLAN, README,
+  ANOMALIES, and validator guards are updated. Static gates pass; ABAP Unit was
+  not run.
+
+- Production-order finish-window search now accepts `unreceived_quantity_only`
+  to select matching AFPO items with positive order quantity remaining after
+  receipts. The repository applies it before pagination, and `finish_filter_lost`
+  detects when the later detail read no longer has a qualifying item. PLAN,
+  README, ANOMALIES, and validator guards are updated. Static gates pass; ABAP
+  Unit was not run.
+
+- Production-order finish-window search now accepts optional inclusive lower
+  and upper bounds for positive unreceived quantity in the AFPO order unit.
+  Enabled bounds must be positive, disabled values must be initial, and lower
+  cannot exceed upper. Bounds apply before pagination and participate in
+  `finish_filter_lost` drift detection. PLAN, README, ANOMALIES, and validator
+  guards are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now filters by exact nonblank
+  `AUFK-AUART` order type before pagination, returns order type on each detail
+  item, and includes it in `finish_filter_lost` drift checks. PLAN, README,
+  ANOMALIES, the AUFK stub, and validator guards are updated. Static gates pass;
+  ABAP Unit was not run.
+
+- Production-order finish-window search now supports `exclude_deleted`, which
+  requires blank AUFK-LOEKZ and AFPO-XLOEK on the matching order/item before
+  pagination. Detail-read drift checks both indicators. PLAN, README, ANOMALIES,
+  and validator guards are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now filters matching items by the
+  AFPO-WEPOS receipt-expected indicator and AFPO-ELIKZ delivery-complete
+  indicator. The selectors compose, run before pagination, and participate in
+  `finish_filter_lost`. PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now accepts `required_phase` values
+  `1`, `2`, or `3` to filter by the matching AUFK phase indicator. Invalid
+  values fail before reads; the repository filters before pagination and the
+  detail read checks phase drift. PLAN, README, ANOMALIES, and validator guards
+  are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now filters by inclusive AUFK-ERDAT
+  bounds through `created_date_from` and `created_date_to`. Both valid ascending
+  dates are required; detail rows expose `created_date`, which participates in
+  selection-drift detection. PLAN, README, ANOMALIES, the AUFK stub, and
+  validator guards are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now filters on nonblank AUFK-ERNAM
+  through `order_created_by` and returns the creator on each detail item. The
+  repository applies the selector before pagination and detail-read drift
+  includes it. PLAN, README, ANOMALIES, the AUFK stub, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now returns AUFK-AENAM/AEDAT and can
+  filter by the last changer plus an inclusive last-change-date range. Both
+  filters apply before pagination and participate in detail-read drift checks;
+  date bounds must be valid, paired, and ascending. PLAN, README, ANOMALIES,
+  the AUFK stub, and validator guards are updated. Static gates pass; ABAP Unit
+  was not run.
+
+- Production-order finish-window search now filters both marked and unmarked
+  AFPO-WEPOS and AFPO-ELIKZ states. Opposite selectors for the same indicator
+  are rejected, and selected states participate in pre-pagination filtering
+  and detail-read drift checks. PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window results now expose AUFK-KTEXT as
+  `order_description`, with an optional exact nonblank description filter
+  applied before pagination and during drift checks. PLAN, README, ANOMALIES,
+  the AUFK stub, and validator guards are updated. Static gates pass; ABAP Unit
+  was not run.
+
+- Production-order finish-window search now supports inclusive order-quantity
+  bounds on AFPO-PSMNG in the AFPO order unit. Enabled bounds must be positive,
+  disabled values must be initial, and selected bounds run before pagination
+  and participate in drift checks. PLAN, README, ANOMALIES, and validator guards
+  are updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now accepts an exact optional
+  `production_item` filter on AFPO-POSNR. Matching orders retain all their items;
+  the query applies the selector before pagination and the detail read checks
+  item-scope drift. PLAN, README, ANOMALIES, and validator guards are updated.
+  Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now accepts an exact optional
+  `order_unit` filter on AFPO-AMEIN. It applies before pagination, participates
+  in detail-read drift checks, and identifies the unit used by order-quantity
+  bounds. PLAN, README, ANOMALIES, and validator guards are updated. Static
+  gates pass; ABAP Unit was not run.
+
+- Production-order detail results now expose AFKO scheduled start and finish
+  dates (`GSTRS` and `GLTRS`) and times (`GSUZS` and `GLUZS`) beside the existing
+  basic dates. Finish-window selection and continuation still use the basic
+  finish date. The AFKO stub, PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now accepts paired inclusive
+  `scheduled_finish_date_from` and `scheduled_finish_date_to` bounds on
+  AFKO-GLTRS. Repository selection, key validation, and detail drift checks
+  enforce the schedule range while sorting and cursors remain based on basic
+  finish date. PLAN, README, ANOMALIES, and validator guards are updated. Static
+  gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now also accepts paired inclusive
+  `scheduled_start_date_from` and `scheduled_start_date_to` bounds on AFKO-GSTRS.
+  The query, returned-key validation, and detail drift checks enforce the range;
+  ordering and cursors remain based on basic finish date. PLAN, README,
+  ANOMALIES, and validator guards are updated. Static gates pass; ABAP Unit was
+  not run.
+
+- Production-order finish-window search now supports opt-in inclusive scheduled
+  start and finish time-of-day ranges on AFKO-GSUZS and AFKO-GLUZS. Enabled
+  ranges require valid ascending pairs, allow midnight, and apply before
+  pagination; returned keys and detail items are checked. Basic-finish-date
+  ordering remains unchanged. PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now supports exact scheduled start and
+  finish dates on AFKO-GSTRS and AFKO-GLTRS, including explicit blank matching.
+  Nonblank values still filter by default, and exact selectors intersect with
+  date ranges. Query keys and detail items check the selections. PLAN, README,
+  ANOMALIES, and validator guards are updated. Static gates pass; ABAP Unit was
+  not run.
+
+- Production-order finish-window search now supports an exact AFKO-GSTRP basic
+  start-date selector, including blank matching. Nonblank values filter by
+  default and intersect with the optional date range. Key and detail reads check
+  the selection. PLAN, README, ANOMALIES, and validator guards are updated.
+  Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now supports `filter_order_description`
+  to match an exact AUFK-KTEXT description, including blank. Nonblank values
+  filter by default; the repository applies the selector before pagination and
+  detail reads check for drift. PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order finish-window search now supports `filter_order_changed_by`
+  to match an exact AUFK-AENAM value, including blank. Nonblank values filter by
+  default, and the detail read checks the selected value for drift. PLAN, README,
+  ANOMALIES, and validator guards are updated. Static gates pass; ABAP Unit was
+  not run.
+
+- Production-order finish-window search now supports `filter_order_created_by`
+  to match an exact AUFK-ERNAM value, including blank. Nonblank values filter by
+  default, and the detail read checks the selected value for drift. PLAN, README,
+  ANOMALIES, and validator guards are updated. Static gates pass; ABAP Unit was
+  not run.
+
+- Production-order items now expose AFPO-KDAUF as `sales_order`. Finish-window
+  search can select an exact assignment, including blank with `filter_sales_order`;
+  it applies before pagination and is checked during detail drift detection.
+  PLAN, README, ANOMALIES, and validator guards are updated. Static gates pass;
+  ABAP Unit was not run.
+
+- Production-order items now expose AFPO-LGORT as `storage_location`. Finish-window
+  search can select an exact location, including blank with
+  `filter_storage_location`; the repository filters before pagination and the
+  detail read checks for drift. PLAN, README, ANOMALIES, and validator guards are
+  updated. Static gates pass; ABAP Unit was not run.
+
+- Production-order items now expose AFPO-CHARG as `batch`. Finish-window search
+  can select an exact batch, including blank with `filter_batch`; the repository
+  filters before pagination and detail reads check the selection for drift.
+  PLAN, README, ANOMALIES, and validator guards are updated. Static gates pass;
+  ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-KNTTP as
+  `account_assignment_category`. Finish-window search selects an exact category,
+  including blank with `filter_assignment_category`; repository filtering runs
+  before pagination and detail reads check for drift. PLAN, README, ANOMALIES,
+  and validator guards are updated. PLAN validation passed, abaplint found 0
+  issues across 252 files, and transpilation updated 14 outputs. The scoped
+  whitespace check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-KDPOS as `sales_order_item`.
+  Finish-window search selects an exact sales-order item, including blank with
+  `filter_sales_order_item`; repository filtering runs before pagination and
+  detail reads check for drift. Added the KDPOS DDIC stub and validator shape
+  guard. PLAN validation passed, abaplint found 0 issues across 252 files, and
+  transpilation updated 14 outputs. `git diff --check` passed; ABAP Unit was
+  not run.
+
+- Production-order item reads now expose AFPO-BERID as `mrp_area`.
+  Finish-window search selects an exact MRP area before pagination, including
+  blank with `filter_mrp_area`; detail reads validate the selected area for
+  drift. PLAN, README, ANOMALIES, validator guards, and the AFPO stub shape are
+  updated. PLAN validation passed, abaplint found 0 issues across 252 files,
+  and transpilation updated 14 outputs. `git diff --check` passed; ABAP Unit
+  was not run.
+
+- Production-order item reads resolve AFPO-PROJN to external `wbs_element`
+  through PRPS-POSID and retain the internal ID. Finish-window queries filter by
+  exact external WBS element before pagination; blank selects items with no
+  AFPO-PROJN assignment, and orphaned IDs remain visible in the internal field.
+  Detail reads check the assignment for drift. PLAN validation passed, abaplint
+  found 0 issues across 252 files, transpilation updated 8 outputs, and the
+  scoped whitespace check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-PLNUM as `planned_order`.
+  Finish-window search filters the exact planned-order reference before
+  pagination, including blank with `filter_planned_order`; detail reads check
+  the reference for drift. The AFPO stub, PLAN, README, ANOMALIES, and validator
+  guards are updated. PLAN validation passed, abaplint found 0 issues across
+  252 files, transpilation updated 14 outputs, and the scoped whitespace check
+  passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-PWERK as `planning_plant`, distinct
+  from the production `plant` in AFPO-WERKS. Finish-window search filters an
+  exact planning plant before pagination, including blank with
+  `filter_planning_plant`; detail reads check the value for drift. The AFPO stub,
+  PLAN, README, ANOMALIES, and validator guards are updated. PLAN validation
+  passed, abaplint found 0 issues across 252 files, transpilation updated 14
+  outputs, and the scoped whitespace check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-VERID as `production_version`.
+  Finish-window search filters the exact production version before pagination,
+  including blank with `filter_production_version`; detail reads check the value
+  for drift. The AFPO stub, PLAN, README, ANOMALIES, and validator guards are
+  updated. PLAN validation passed, abaplint found 0 issues across 252 files,
+  transpilation updated 14 outputs, and the scoped whitespace check passed.
+  ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-STRMP as
+  `planned_order_start_date`. Finish-window search filters the exact source
+  planned-order start date before pagination, including blank with
+  `filter_plan_start_date`; nonblank dates must be valid, and detail
+  reads check the value for drift. The AFPO stub, PLAN, README, ANOMALIES, and
+  validator guards are updated. PLAN validation passed, abaplint found 0 issues
+  across 252 files, transpilation updated 14 outputs, and the scoped whitespace
+  check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-DWERK as `delivery_plant` and
+  distinguish it from the production and planning plants. Finish-window search
+  filters the exact delivery plant before pagination, including blank with
+  `filter_delivery_plant`; detail reads check the value for drift. The AFPO stub,
+  PLAN, README, ANOMALIES, and validator guards are updated. PLAN validation
+  passed, abaplint found 0 issues across 252 files, transpilation updated 14
+  outputs, and the scoped whitespace check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-SOBKZ as
+  `special_stock_indicator`. Finish-window search filters the exact special
+  stock indicator before pagination, including blank with `filter_special_stock`;
+  detail reads check the value for drift. The AFPO stub, PLAN, README, ANOMALIES,
+  and validator guards are updated. PLAN validation passed, abaplint found 0
+  issues across 252 files, transpilation updated 14 outputs, and the scoped
+  whitespace check passed. ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-INSMK as `stock_type`. Finish-
+  window search filters the exact stock type before pagination, including blank
+  with `filter_stock_type`; detail reads check the value for drift. The AFPO
+  stub, PLAN, README, ANOMALIES, and validator guards are updated. PLAN
+  validation passed, abaplint found 0 issues across 252 files, transpilation
+  updated 14 outputs, and the scoped whitespace check passed. ABAP Unit was not
+  run.
+
+- Production-order item reads now expose AFPO-WEMPF as `goods_recipient` and
+  AFPO-ABLAD as `unloading_point`. Finish-window search can select either exact
+  value before pagination, including blank with its selector flag; detail reads
+  check both values for drift. The AFPO stub, PLAN, README, ANOMALIES, and
+  validator guards are updated. PLAN validation passed, abaplint found 0 issues
+  across 252 files, and transpilation updated 14 outputs. The scoped whitespace
+  check passed; ABAP Unit was not run.
+
+- Production-order item reads now expose AFPO-KDEIN as
+  `sales_order_schedule_line`. Finish-window search selects the exact schedule
+  line before pagination, including blank with `filter_sales_schedule_line`;
+  detail reads check the value for drift. The AFPO stub, PLAN, README, ANOMALIES,
+  and validator guards are updated. PLAN validation passed, abaplint found 0
+  issues across 252 files, and transpilation updated 14 outputs. The scoped
+  whitespace check passed; ABAP Unit was not run.
+
+- Batch-expiry detail rows now report `days_to_expiration`, the signed calendar
+  day difference between expiration and the request's as-of date: negative for
+  expired batches, zero for expiry on that date, and positive for upcoming
+  batches. Unit-aware rows preserve it in their nested base row. PLAN, README,
+  ANOMALIES, and validator guards are updated. PLAN validation passed, abaplint
+  found 0 issues across 252 files, transpilation updated 13 outputs, and the
+  scoped whitespace check passed. ABAP Unit was not run.
+
+
+- Batch-expiry exposure requests now accept an optional storage-location scope.
+  Nonblank locations select that location by default; setting
+  `filter_storage_location` selects an exact value, including blank. The filter
+  scopes returned batch rows and stock totals after whole material/plant stock
+  is used for reservation netting, and base/UOM results echo the scope. PLAN,
+  README, ANOMALIES, and validator guards are updated. PLAN validation passed,
+  abaplint found 0 issues across 252 files, transpilation updated 3 outputs,
+  and the scoped whitespace check passed. ABAP Unit was not run.
+
+- Batch-expiry exposure now accepts an exact batch scope. A nonblank batch filters
+  by default; `filter_batch` selects an exact value including blank. This scope
+  intersects with the optional storage-location filter, is applied after whole
+  material/plant reservation netting, and is echoed and checked through the UOM
+  wrapper. PLAN validation passed, abaplint found 0 issues across 252 files,
+  transpilation updated 3 outputs, and the scoped whitespace check passed.
+  ABAP Unit was not run.
+
+- Batch-expiry exposure now accepts an exact valuation-type scope, including
+  blank with `filter_valuation_type`. It intersects with storage-location and
+  batch scopes, applies after whole material/plant reservation netting, and is
+  echoed and checked by the UOM wrapper. PLAN validation passed, abaplint found
+  0 issues across 252 files, transpilation updated 3 outputs, and the scoped
+  whitespace check passed. ABAP Unit was not run.
+
+- Batch-expiry exposure now filters by expiry-date source: `P` for plant-level
+  dates or `G` for the global fallback. `filter_expiry_source` selects rows with
+  no resolved source when `expiry_source` is blank; nonblank values are validated.
+  The scope intersects with location, batch, and valuation filters and is echoed
+  and checked by the UOM wrapper. PLAN validation passed, abaplint found 0 issues
+  across 252 files, transpilation updated 13 outputs, and the scoped whitespace
+  check passed. ABAP Unit was not run.
+
+- Batch-expiry exposure now accepts optional inclusive `expiration_date_from`
+  and `expiration_date_to` bounds. It validates both dates and their order before
+  reads, filters every expiry cohort after reservation netting, omits undated rows
+  while a bound is active, and echoes both bounds through the UOM wrapper. PLAN,
+  README, ANOMALIES, and validator guards are updated. PLAN validation passed,
+  abaplint found 0 issues across 252 files, transpilation updated 13 outputs, and
+  the scoped whitespace check passed. ABAP Unit was not run.
+
+- Batch-expiry exposure now includes `within_30d_batch_row_count` and four
+  reservation-net category totals for positive-stock upcoming rows expiring from
+  `as_of_date` through 30 calendar days later, inclusive, within the requested
+  window. The UOM result carries base and requested-unit totals and preserves the
+  count. PLAN, README, ANOMALIES, and validator guards are updated. PLAN validation
+  passed, abaplint found 0 issues across 252 files, transpilation updated 13
+  outputs, and the scoped whitespace check passed. ABAP Unit was not run.
+
+- Batch-expiry exposure now reports cumulative 7-, 30-, and 90-day upcoming
+  horizons. Each horizon counts positive-stock batch/location/valuation rows and
+  totals unrestricted, reservation-net available, QI, and blocked quantities for
+  expiry dates from as_of_date through the inclusive horizon within the request
+  window. The shorter horizons are subsets of the longer ones; UOM results carry
+  base and requested-unit totals and preserve counts. PLAN, README, ANOMALIES, and
+  validator guards are updated. PLAN validation passed, abaplint found 0 issues
+  across 252 files, transpilation updated 13 outputs, and the scoped whitespace
+  check passed. ABAP Unit was not run.
+
+
+- Batch-expiry risk reporting now includes disjoint 0–7, 8–30, 31–90, and
+  91+ day buckets alongside the existing cumulative horizons. Each bucket
+  reports positive-stock row counts and unrestricted, reservation-net available,
+  quality-inspection, and blocked quantities; together they reconcile to the
+  in-window upcoming totals. UOM results include base and requested-unit
+  quantities and preserve counts. Boundary and conversion coverage is included
+  in the stock-service ABAP Unit cases. PLAN, README, ANOMALIES, and validator
+  guards are updated. PLAN validation and abaplint passed, transpilation passed,
+  and the focused `reports_expiry_risk_buckets` ABAP Unit case passed. The full
+  ABAP Unit run stopped at `reads_bulk_prod_receipts` on an AFPO duplicate-key
+  insert; ANOMALIES records the issue.
+
+
+- Batch-expiry exposure now aggregates all positive-stock rows sharing the
+  earliest upcoming expiration date, in addition to identifying the first
+  sorted batch row. Base and UOM results report the cohort count and four stock
+  categories across locations, batches, and valuation types. Regressions cover
+  a shared earliest date and converted totals. PLAN validation passed, abaplint
+  found 0 issues across 252 files, transpilation passed, and the scoped
+  whitespace check passed. The focused exposure, UOM, and risk-bucket ABAP Unit
+  cases passed.
+
+
+- Batch-expiry exposure now aggregates all positive-stock rows sharing the
+  earliest expired date, alongside the existing first-row identity. Base and
+  UOM results report the cohort count and four stock categories across batches,
+  locations, and valuation types. Regression fixtures cover multiple batches
+  on the same expired date and converted quantities. PLAN validation passed,
+  abaplint found 0 issues across 252 files, transpilation passed, and the
+  focused exposure, UOM, and risk-bucket ABAP Unit cases passed.
+
+- The full transpiled ABAP Unit suite now passes. Updated the runner's AFPO,
+  AFKO, AUFK, AFRU, and PLAF SQLite schemas to match their SAP stubs, added the
+  missing PRPS OSQL test dependency, and repaired planned-order and
+  production-order test fixtures that were masking service validation or
+  omitting required base-unit context. Corrected confirmation conversion-call
+  and reversed-scrap total expectations. ANOMALIES records the root causes and
+  resolution.
+
+- Batch-expiry exposure now splits the earliest expired-date cohort into plant,
+  global fallback, and other/blank source counts. The three source counts
+  partition `first_expiry_batch_count`; UOM results echo them unchanged. Regressions
+  cover mixed plant/global sources in the same cohort for base and converted
+  requests. PLAN validation passed, abaplint found 0 issues across 252 files,
+  transpilation passed, and the full transpiled ABAP Unit suite passed.
+
+- The earliest upcoming-date cohort now carries the same resolved-source split as
+  the earliest expired cohort: plant, global fallback, and other/blank counts
+  partition `next_expiry_batch_count`, with UOM results echoing each count.
+  Regression fixtures cover same-date plant/global cohorts in base and UOM
+  results. PLAN validation passed, abaplint found 0 issues across 252 files,
+  transpilation passed, and the full transpiled ABAP Unit suite passed.
+
+- Batch-expiry exposure now rolls up every positive-stock row sharing the earliest
+  after-window expiry date. The base result returns the cohort count and four
+  category totals; UOM results echo the count and convert each total. Regressions
+  cover multiple rows on the same after-window date and converted totals. PLAN
+  validation passed, abaplint found 0 issues across 252 files, transpilation
+  passed, and the full transpiled ABAP Unit suite passed.
+
+- The earliest after-window expiry cohort also reports plant, global fallback,
+  and other/blank source counts. Those counts partition its cohort count and
+  remain unchanged in UOM results. Base and converted tests use same-date rows
+  from plant and global sources. PLAN validation passed, abaplint found 0 issues
+  across 252 files, transpilation passed, and the full transpiled ABAP Unit
+  suite passed.

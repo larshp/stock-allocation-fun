@@ -36,6 +36,11 @@ CLASS lcl_order_api_double IMPLEMENTATION.
   METHOD zif_sales_order_api~change_order.
   ENDMETHOD.
 
+  METHOD zif_sales_order_api~delete_order_items.
+    rs_result-sales_document = iv_sales_document.
+    rs_result-is_successful = abap_true.
+  ENDMETHOD.
+
   METHOD zif_sales_order_api~reject_order_items.
   ENDMETHOD.
 
@@ -1185,25 +1190,59 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserves_fefo_demands_direct.
+    mo_sales_stock_repository->stock_rows[ 1 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 1 ]-expiration_date =
+      '20261231'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-expiration_date =
+      '20261231'.
+    APPEND VALUE #(
+      sales_document   = '0000001000'
+      item_number      = '000010'
+      material         = 'MAT-1'
+      plant            = '1000'
+      storage_location = '0003'
+      batch            = 'B-UNKNOWN'
+      base_unit        = 'EA'
+      quantity         = '2.000' )
+      TO mo_sales_stock_repository->stock_rows.
     DATA(ls_result) = mo_cut->reserve_so_fefo_demands(
-      it_requests      = VALUE #(
-        ( request_id         = 'SO-DIRECT-1'
-          sales_document     = '0000001000'
-          item_number        = '000010'
-          requested_quantity = '3.000' ) )
-      iv_as_of_date    = '20261014'
-      iv_required_date = '20261020' ).
+      it_requests                    = VALUE #(
+        ( request_id            = 'SO-DIRECT-1'
+          sales_document        = '0000001000'
+          item_number           = '000010'
+          requested_quantity    = '4.000'
+          allow_undated_batches = abap_true ) )
+      iv_as_of_date                  = '20261014'
+      iv_include_undated_batches     = abap_false
+      iv_required_date               = '20261020'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id = 'SO-DIRECT-1' storage_location = '0002'
+          priority_rank = 1 ) ) ).
     DATA(lt_requests) = mo_reservation_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 3
       act = lines( ls_result-preview-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-OLD'
+      exp = '0002'
+      act = ls_result-preview-batch_allocations[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-SAME'
       act = ls_result-preview-batch_allocations[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UNKNOWN'
+      act = ls_result-preview-batch_allocations[ 3 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-preview-allocations[ 1 ]-allow_undated_batches ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-preview-allocations[ 1 ]-include_undated_batches ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261020'
       act = lt_requests[ 1 ]-required_date ).
@@ -1293,6 +1332,12 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserves_fefo_demands_uom.
+    mo_sales_stock_repository->stock_rows[ 1 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 1 ]-expiration_date =
+      '20261231'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-expiration_date =
+      '20261231'.
     DATA(lo_uom_stock_service) = NEW zcl_so_stock_service(
       io_repository     = mo_sales_stock_repository
       io_uom_repository = NEW lcl_sales_uom_repo_double( ) ).
@@ -1303,13 +1348,17 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       io_sales_stock_service       = lo_uom_stock_service
       io_material_availability_api = mo_availability_api ).
     DATA(ls_result) = lo_uom_cut->reserve_so_fefo_demands_uom(
-      it_requests   = VALUE #(
+      it_requests                    = VALUE #(
         ( request_id         = 'SO-DIRECT-UOM'
           sales_document     = '0000001000'
           item_number        = '000010'
           requested_quantity = '1.500'
           requested_unit     = 'BOX' ) )
-      iv_as_of_date = '20261014' ).
+      iv_as_of_date                  = '20261014'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id = 'SO-DIRECT-UOM' storage_location = '0002'
+          priority_rank = 1 ) ) ).
     DATA(lt_requests) = mo_reservation_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -1322,11 +1371,14 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = 'EA'
       act = lt_requests[ 1 ]-unit ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '1.000'
+      exp = '2.000'
       act = lt_requests[ 1 ]-quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '2.000'
+      exp = '1.000'
       act = lt_requests[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_requests[ 1 ]-storage_location ).
   ENDMETHOD.
 
   METHOD rejects_short_fefo_demands.
@@ -1347,21 +1399,36 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserves_demand_fefo_recheck.
+    mo_sales_stock_repository->stock_rows[ 1 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 1 ]-expiration_date =
+      '20261231'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-expiration_date =
+      '20261231'.
     DATA(lt_demands) = VALUE zcl_so_stock_service=>ty_fefo_issue_requests(
       ( request_id         = 'SO-RECHECK-1'
         sales_document     = '0000001000'
         item_number        = '000010'
         requested_quantity = '3.000' ) ).
+    DATA(lt_location_priorities) = VALUE
+      zcl_so_stock_service=>ty_fefo_request_location_priorities(
+        ( request_id = 'SO-RECHECK-1' storage_location = '0002'
+          priority_rank = 1 ) ).
     DATA(lo_preview_service) = NEW zcl_so_stock_service(
       io_repository = mo_sales_stock_repository ).
     DATA(ls_preview) = lo_preview_service->preview_issue_demands_by_fefo(
-      it_requests   = lt_demands
-      iv_as_of_date = '20261014' ).
+      it_requests                    = lt_demands
+      iv_as_of_date                  = '20261014'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
     DATA(ls_result) = mo_cut->reserve_so_fefo_recheck(
-      is_allocation    = ls_preview
-      it_requests      = lt_demands
-      iv_as_of_date    = '20261014'
-      iv_required_date = '20261020' ).
+      is_allocation                  = ls_preview
+      it_requests                    = lt_demands
+      iv_as_of_date                  = '20261014'
+      iv_required_date               = '20261020'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
+    DATA(lt_reservation_requests) = mo_reservation_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1369,6 +1436,12 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_reservation_requests[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_reservation_requests[ 2 ]-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_reservation_api->get_commit_count( ) ).
@@ -1444,6 +1517,12 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD reserves_uom_fefo_recheck.
+    mo_sales_stock_repository->stock_rows[ 1 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 1 ]-expiration_date =
+      '20261231'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-batch = 'B-SAME'.
+    mo_sales_stock_repository->stock_rows[ 2 ]-expiration_date =
+      '20261231'.
     DATA(lt_demands) = VALUE
       zcl_so_stock_service=>ty_fefo_issue_unit_requests(
         ( request_id         = 'SO-RECHECK-UOM'
@@ -1451,12 +1530,18 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
           item_number        = '000010'
           requested_quantity = '1.500'
           requested_unit     = 'BOX' ) ).
+    DATA(lt_location_priorities) = VALUE
+      zcl_so_stock_service=>ty_fefo_request_location_priorities(
+        ( request_id = 'SO-RECHECK-UOM' storage_location = '0002'
+          priority_rank = 1 ) ).
     DATA(lo_uom_service) = NEW zcl_so_stock_service(
       io_repository     = mo_sales_stock_repository
       io_uom_repository = NEW lcl_sales_uom_repo_double( ) ).
     DATA(ls_preview) = lo_uom_service->preview_issue_fefo_uom(
-      it_requests   = lt_demands
-      iv_as_of_date = '20261014' ).
+      it_requests                    = lt_demands
+      iv_as_of_date                  = '20261014'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
     DATA(lo_uom_cut) = NEW zcl_sales_order_alloc_service(
       io_sales_order_api           = mo_order_api
       io_stock_repository          = mo_stock_repository
@@ -1464,9 +1549,11 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       io_sales_stock_service       = lo_uom_service
       io_material_availability_api = mo_availability_api ).
     DATA(ls_result) = lo_uom_cut->reserve_so_fefo_uom_recheck(
-      is_allocation = ls_preview
-      it_requests   = lt_demands
-      iv_as_of_date = '20261014' ).
+      is_allocation                  = ls_preview
+      it_requests                    = lt_demands
+      iv_as_of_date                  = '20261014'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
     DATA(lt_reservation_requests) = mo_reservation_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -1476,8 +1563,11 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = 'EA'
       act = lt_reservation_requests[ 1 ]-unit ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '2.000'
+      exp = '1.000'
       act = lt_reservation_requests[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_reservation_requests[ 1 ]-storage_location ).
   ENDMETHOD.
 
   METHOD releases_fefo_reservations.
@@ -2484,13 +2574,15 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     mo_stock_repository->set_stock( iv_quantity = '6.000' ).
     mo_stock_repository->set_sales_order_reservations(
       it_reservations = VALUE #(
-        ( sales_document   = '0000004711'
-          material         = 'MAT-1'
-          plant            = '1000'
-          item_number      = '000010'
-          schedule_line    = '0001'
-          requirement_date = '20261005'
-          open_quantity    = '4.000' ) ) ).
+        ( reservation_number = '0000008001'
+          reservation_item   = '0001'
+          sales_document     = '0000004711'
+          material           = 'MAT-1'
+          plant              = '1000'
+          item_number        = '000010'
+          schedule_line      = '0001'
+          requirement_date   = '20261005'
+          open_quantity      = '4.000' ) ) ).
     mo_order_api->set_read_result(
       is_result = VALUE #(
         is_successful = abap_true
@@ -4358,17 +4450,23 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     mo_stock_repository->set_stock( iv_quantity = '10.000' ).
     mo_stock_repository->set_sales_order_reservations(
       it_reservations = VALUE #(
-        ( material         = 'MAT-1'
-          plant            = '1000'
-          item_number      = '000010'
-          schedule_line    = '0001'
-          requirement_date = '20261001'
-          open_quantity    = '1.000' )
-        ( material         = 'MAT-1'
-          plant            = '1000'
-          item_number      = '000010'
-          requirement_date = '20261008'
-          open_quantity    = '2.000' ) ) ).
+        ( reservation_number = '0000008101'
+          reservation_item   = '0001'
+          sales_document     = '0000004711'
+          material           = 'MAT-1'
+          plant              = '1000'
+          item_number        = '000010'
+          schedule_line      = '0001'
+          requirement_date   = '20261001'
+          open_quantity      = '1.000' )
+        ( reservation_number = '0000008102'
+          reservation_item   = '0002'
+          sales_document     = '0000004711'
+          material           = 'MAT-1'
+          plant              = '1000'
+          item_number        = '000010'
+          requirement_date   = '20261008'
+          open_quantity      = '2.000' ) ) ).
     mo_order_api->set_read_result(
       is_result = VALUE #(
         is_successful = abap_true
@@ -4412,11 +4510,14 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     mo_stock_repository->set_stock( iv_quantity = '10.000' ).
     mo_stock_repository->set_sales_order_reservations(
       it_reservations = VALUE #(
-        ( material         = 'MAT-1'
-          plant            = '1000'
-          item_number      = '000010'
-          requirement_date = '20261001'
-          open_quantity    = '5.000' ) ) ).
+        ( reservation_number = '0000008201'
+          reservation_item   = '0001'
+          sales_document     = '0000004711'
+          material           = 'MAT-1'
+          plant              = '1000'
+          item_number        = '000010'
+          requirement_date   = '20261001'
+          open_quantity      = '5.000' ) ) ).
     mo_order_api->set_read_result(
       is_result = VALUE #(
         is_successful = abap_true
@@ -6038,7 +6139,7 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = abap_false
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 1
+      exp = 0
       act = mo_stock_repository->get_read_count( ) ).
   ENDMETHOD.
 

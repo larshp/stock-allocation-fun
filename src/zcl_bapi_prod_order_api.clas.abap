@@ -64,6 +64,7 @@ CLASS zcl_bapi_prod_order_api DEFINITION
           zif_prod_order_api=>ty_confirmation_create_request
         it_detail_returns TYPE ty_confirmation_create_detail_returns
         is_return         TYPE bapiret1
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)  TYPE
           zif_prod_order_api=>ty_confirmation_create_result.
@@ -246,6 +247,7 @@ CLASS zcl_bapi_prod_order_api IMPLEMENTATION.
     DATA lt_timetickets TYPE STANDARD TABLE OF bapi_pp_timeticket
       WITH EMPTY KEY.
     DATA lt_detail_returns TYPE ty_confirmation_create_detail_returns.
+    DATA lv_test_run TYPE c LENGTH 1.
 
     ls_timeticket-orderid = is_request-production_order.
     ls_timeticket-operation = is_request-operation_number.
@@ -261,14 +263,38 @@ CLASS zcl_bapi_prod_order_api IMPLEMENTATION.
     ENDIF.
     APPEND ls_timeticket TO lt_timetickets.
 
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
+
     CALL FUNCTION 'BAPI_PRODORDCONF_CREATE_TT'
+      EXPORTING
+        testrun       = lv_test_run
       IMPORTING
         return        = ls_return
       TABLES
         timetickets   = lt_timetickets
         detail_return = lt_detail_returns.
 
-    IF iv_commit = abap_true.
+    DATA(ls_create_result) = map_confirmation_create_result(
+      is_request        = is_request
+      it_detail_returns = lt_detail_returns
+      is_return         = ls_return
+      iv_test_run       = iv_test_run ).
+    rs_result-production_order = ls_create_result-production_order.
+    rs_result-operation_number = ls_create_result-operation_number.
+    rs_result-operation_sequence = ls_create_result-operation_sequence.
+    rs_result-confirmation = ls_create_result-confirmation.
+    rs_result-confirmation_counter = ls_create_result-confirmation_counter.
+    rs_result-message = ls_create_result-message.
+    rs_result-is_successful = ls_create_result-is_successful.
+
+    IF iv_commit = abap_true AND iv_test_run <> abap_true.
+      IF rs_result-is_successful <> abap_true.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+        RETURN.
+      ENDIF.
+
       CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
         EXPORTING
           wait   = abap_true
@@ -282,21 +308,10 @@ CLASS zcl_bapi_prod_order_api IMPLEMENTATION.
           OR ls_commit_return-type = 'E'
           OR ls_commit_return-type = 'X'.
         rs_result-commit_result-is_successful = abap_false.
+        rs_result-is_successful = abap_false.
         CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
       ENDIF.
     ENDIF.
-
-    DATA(ls_create_result) = map_confirmation_create_result(
-      is_request        = is_request
-      it_detail_returns = lt_detail_returns
-      is_return         = ls_return ).
-    rs_result-production_order = ls_create_result-production_order.
-    rs_result-operation_number = ls_create_result-operation_number.
-    rs_result-operation_sequence = ls_create_result-operation_sequence.
-    rs_result-confirmation = ls_create_result-confirmation.
-    rs_result-confirmation_counter = ls_create_result-confirmation_counter.
-    rs_result-message = ls_create_result-message.
-    rs_result-is_successful = ls_create_result-is_successful.
   ENDMETHOD.
 
   METHOD zif_prod_order_api~change_order.
@@ -489,6 +504,16 @@ CLASS zcl_bapi_prod_order_api IMPLEMENTATION.
         rs_result-message-type = ls_detail_return-type.
         rs_result-message-message = ls_detail_return-message.
       ENDIF.
+    ENDIF.
+
+    IF rs_result-is_successful = abap_true
+        AND iv_test_run <> abap_true
+        AND ( rs_result-confirmation IS INITIAL
+          OR rs_result-confirmation_counter IS INITIAL ).
+      rs_result-is_successful = abap_false.
+      rs_result-message-type = 'E'.
+      rs_result-message-message =
+        'Production confirmation BAPI returned no confirmation key'.
     ENDIF.
   ENDMETHOD.
 

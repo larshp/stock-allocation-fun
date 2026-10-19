@@ -151,6 +151,7 @@ INTERFACE zif_prod_order_api PUBLIC.
   METHODS create_confirmation
     IMPORTING
       is_request       TYPE ty_confirmation_create_request
+      iv_test_run      TYPE abap_bool DEFAULT abap_false
       iv_commit        TYPE abap_bool DEFAULT abap_true
     RETURNING
       VALUE(rs_result) TYPE ty_confirmation_create_result.

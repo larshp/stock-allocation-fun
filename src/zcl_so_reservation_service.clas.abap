@@ -11,6 +11,7 @@ CLASS zcl_so_reservation_service DEFINITION
         reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
         messages            TYPE zif_so_reservation_api=>ty_messages,
         is_successful       TYPE abap_bool,
+        is_committed        TYPE abap_bool,
       END OF ty_order_delete_result.
     TYPES:
       BEGIN OF ty_order_release_scope,
@@ -26,6 +27,7 @@ CLASS zcl_so_reservation_service DEFINITION
         reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
         messages            TYPE zif_so_reservation_api=>ty_messages,
         is_successful       TYPE abap_bool,
+        is_committed        TYPE abap_bool,
       END OF ty_bulk_order_delete_result.
     TYPES:
       BEGIN OF ty_order_delete_bulk_row,
@@ -35,6 +37,7 @@ CLASS zcl_so_reservation_service DEFINITION
         is_successful       TYPE abap_bool,
         is_test_run         TYPE abap_bool,
         is_committed        TYPE abap_bool,
+        is_skipped          TYPE abap_bool,
       END OF ty_order_delete_bulk_row.
     TYPES ty_order_delete_bulk_rows TYPE STANDARD TABLE OF
       ty_order_delete_bulk_row WITH EMPTY KEY.
@@ -43,8 +46,13 @@ CLASS zcl_so_reservation_service DEFINITION
         order_results       TYPE ty_order_delete_bulk_rows,
         reservation_numbers TYPE zif_so_reservation_api=>ty_reservation_numbers,
         messages            TYPE zif_so_reservation_api=>ty_messages,
+        successful_count    TYPE i,
+        failed_count        TYPE i,
+        skipped_count       TYPE i,
         is_successful       TYPE abap_bool,
         is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
+        stopped_on_failure  TYPE abap_bool,
       END OF ty_orders_delete_bulk_result.
 
     METHODS constructor
@@ -84,6 +92,7 @@ CLASS zcl_so_reservation_service DEFINITION
       IMPORTING
         it_sales_documents TYPE zif_so_reservation_finder=>ty_sales_documents
         iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)   TYPE ty_orders_delete_bulk_result
       RAISING
@@ -145,6 +154,10 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_order_reservations.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
     rs_result = preview_order_release(
       iv_sales_document = iv_sales_document
       iv_item_number    = iv_item_number ).
@@ -158,9 +171,14 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
       iv_test_run            = iv_test_run ).
     rs_result-messages = ls_delete_result-messages.
     rs_result-is_successful = ls_delete_result-is_successful.
+    rs_result-is_committed = ls_delete_result-is_committed.
   ENDMETHOD.
 
   METHOD delete_orders_reservations.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
     rs_result = preview_orders_release(
       it_sales_documents = it_sales_documents ).
 
@@ -173,10 +191,15 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
       iv_test_run            = iv_test_run ).
     rs_result-messages = ls_delete_result-messages.
     rs_result-is_successful = ls_delete_result-is_successful.
+    rs_result-is_committed = ls_delete_result-is_committed.
   ENDMETHOD.
 
   METHOD delete_orders_release_bulk.
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    DATA lv_stop_processing TYPE abap_bool.
+
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -189,8 +212,15 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
       DATA(ls_order_result) = VALUE ty_order_delete_bulk_row(
         sales_document = ls_scope-sales_document
         is_test_run    = iv_test_run ).
+      IF lv_stop_processing = abap_true.
+        ls_order_result-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        APPEND ls_order_result TO rs_result-order_results.
+        CONTINUE.
+      ENDIF.
       IF ls_scope-reservation_numbers IS INITIAL.
         ls_order_result-is_successful = abap_true.
+        rs_result-successful_count = rs_result-successful_count + 1.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
       ENDIF.
@@ -220,6 +250,11 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
         ENDIF.
         ls_order_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
+        rs_result-failed_count = rs_result-failed_count + 1.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
       ENDIF.
@@ -243,14 +278,21 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
           ENDIF.
           ls_order_result-is_successful = abap_false.
           rs_result-is_successful = abap_false.
+          rs_result-failed_count = rs_result-failed_count + 1.
+          IF iv_stop_on_failure = abap_true.
+            lv_stop_processing = abap_true.
+            rs_result-stopped_on_failure = abap_true.
+          ENDIF.
           APPEND ls_order_result TO rs_result-order_results.
           CONTINUE.
         ENDIF.
         ls_order_result-is_successful = abap_true.
         ls_order_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
       ENDIF.
 
       ls_order_result-reservation_numbers = ls_scope-reservation_numbers.
+      rs_result-successful_count = rs_result-successful_count + 1.
       APPEND LINES OF ls_order_result-reservation_numbers
         TO rs_result-reservation_numbers.
       APPEND ls_order_result TO rs_result-order_results.
@@ -331,6 +373,10 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_items_reservations.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
     rs_result = preview_order_items_release(
       it_sales_order_items = it_sales_order_items ).
 
@@ -343,6 +389,7 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
       iv_test_run            = iv_test_run ).
     rs_result-messages = ls_delete_result-messages.
     rs_result-is_successful = ls_delete_result-is_successful.
+    rs_result-is_committed = ls_delete_result-is_committed.
   ENDMETHOD.
 
   METHOD preview_order_items_release.
@@ -443,7 +490,8 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_reservations.
-    IF it_reservation_numbers IS INITIAL.
+    IF it_reservation_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -493,6 +541,7 @@ CLASS zcl_so_reservation_service IMPLEMENTATION.
     ENDIF.
 
     rs_result-is_successful = abap_true.
+    rs_result-is_committed = abap_true.
   ENDMETHOD.
 
 ENDCLASS.

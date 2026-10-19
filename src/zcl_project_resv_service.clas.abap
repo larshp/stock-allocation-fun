@@ -53,16 +53,20 @@ CLASS zcl_project_resv_service DEFINITION
         is_deleted         TYPE abap_bool,
         is_committed       TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_bulk_delete_item.
     TYPES ty_bulk_delete_items TYPE STANDARD TABLE OF ty_bulk_delete_item
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_delete_result,
-        items            TYPE ty_bulk_delete_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_bulk_delete_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_delete_result.
     TYPES:
       BEGIN OF ty_atomic_delete_result,
@@ -88,6 +92,7 @@ CLASS zcl_project_resv_service DEFINITION
         is_committed       TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_item_delete_result.
     TYPES ty_item_delete_results TYPE STANDARD TABLE OF
       ty_item_delete_result WITH EMPTY KEY.
@@ -103,11 +108,14 @@ CLASS zcl_project_resv_service DEFINITION
       ty_item_delete_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_item_delete_result,
-        items            TYPE ty_item_delete_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_item_delete_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_item_delete_result.
     TYPES:
       BEGIN OF ty_atomic_item_delete_result,
@@ -134,6 +142,7 @@ CLASS zcl_project_resv_service DEFINITION
         is_committed       TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_reschedule_result.
     TYPES ty_reschedule_results TYPE STANDARD TABLE OF
       ty_reschedule_result WITH EMPTY KEY.
@@ -150,11 +159,14 @@ CLASS zcl_project_resv_service DEFINITION
       ty_reschedule_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_reschedule_result,
-        items            TYPE ty_reschedule_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_reschedule_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_reschedule_result.
     TYPES:
       BEGIN OF ty_atomic_reschedule_result,
@@ -188,6 +200,7 @@ CLASS zcl_project_resv_service DEFINITION
         is_committed       TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_quantity_change_result.
     TYPES ty_quantity_change_results TYPE STANDARD TABLE OF
       ty_quantity_change_result WITH EMPTY KEY.
@@ -202,11 +215,14 @@ CLASS zcl_project_resv_service DEFINITION
       ty_quantity_change_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_quantity_change_result,
-        items            TYPE ty_quantity_change_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_quantity_change_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_quantity_change_result.
     TYPES:
       BEGIN OF ty_atomic_qty_result,
@@ -233,6 +249,7 @@ CLASS zcl_project_resv_service DEFINITION
         is_committed       TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_final_issue_result.
     TYPES ty_final_issue_results TYPE STANDARD TABLE OF
       ty_final_issue_result WITH EMPTY KEY.
@@ -248,11 +265,14 @@ CLASS zcl_project_resv_service DEFINITION
       ty_final_issue_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_final_issue_result,
-        items            TYPE ty_final_issue_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_final_issue_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_final_issue_result.
     TYPES:
       BEGIN OF ty_atomic_final_result,
@@ -278,6 +298,7 @@ CLASS zcl_project_resv_service DEFINITION
         is_committed       TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_stock_change_result.
     TYPES ty_stock_change_results TYPE STANDARD TABLE OF
       ty_stock_change_result WITH EMPTY KEY.
@@ -293,11 +314,14 @@ CLASS zcl_project_resv_service DEFINITION
       ty_stock_change_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_stock_change_result,
-        items            TYPE ty_stock_change_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_stock_change_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_stock_change_result.
     TYPES:
       BEGIN OF ty_atomic_stock_change_result,
@@ -318,6 +342,7 @@ CLASS zcl_project_resv_service DEFINITION
         messages           TYPE zif_project_reservation_api=>ty_messages,
         is_successful      TYPE abap_bool,
         is_committed       TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
         is_test_run        TYPE abap_bool,
         was_rolled_back    TYPE abap_bool,
       END OF ty_wbs_reservation.
@@ -334,14 +359,16 @@ CLASS zcl_project_resv_service DEFINITION
       ty_wbs_required_date WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_allocation_result,
-        reservations     TYPE ty_wbs_reservations,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        messages         TYPE zif_project_reservation_api=>ty_messages,
-        is_successful    TYPE abap_bool,
-        is_committed     TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
-        was_rolled_back  TYPE abap_bool,
+        reservations       TYPE ty_wbs_reservations,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        messages           TYPE zif_project_reservation_api=>ty_messages,
+        is_successful      TYPE abap_bool,
+        stopped_on_failure TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        was_rolled_back    TYPE abap_bool,
       END OF ty_allocation_result.
     TYPES:
       BEGIN OF ty_fefo_reservation_result,
@@ -398,11 +425,12 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS reserve_wbs_bulk
       IMPORTING
-        it_requests      TYPE ty_wbs_reservation_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_wbs_reservation_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_allocation_result
+        VALUE(rs_result)   TYPE ty_allocation_result
       RAISING
         zcx_invalid_reservation.
 
@@ -423,11 +451,12 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS issue_reserved_wbs_items_bulk
       IMPORTING
-        it_requests      TYPE ty_reserved_wbs_issue_requests
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_reserved_wbs_issue_requests
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE
+        VALUE(rs_result)   TYPE
           zcl_reservation_issue_service=>ty_bulk_issue_result
       RAISING
         zcx_invalid_reservation
@@ -450,11 +479,12 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS return_reserved_wbs_items_bulk
       IMPORTING
-        it_requests      TYPE ty_reserved_wbs_return_requests
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_reserved_wbs_return_requests
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE
+        VALUE(rs_result)   TYPE
           zcl_reservation_issue_service=>ty_bulk_issue_result
       RAISING
         zcx_invalid_reservation
@@ -499,6 +529,7 @@ CLASS zcl_project_resv_service DEFINITION
         it_reservation_numbers TYPE
           zif_project_reservation_api=>ty_reservation_numbers
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_delete_result
       RAISING
@@ -530,10 +561,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS delete_reservation_items_bulk
       IMPORTING
-        it_requests      TYPE ty_item_delete_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_item_delete_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_item_delete_result
+        VALUE(rs_result)   TYPE ty_bulk_item_delete_result
       RAISING
         zcx_invalid_reservation.
 
@@ -563,10 +595,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS reschedule_items_bulk
       IMPORTING
-        it_requests      TYPE ty_reschedule_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_reschedule_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_reschedule_result
+        VALUE(rs_result)   TYPE ty_bulk_reschedule_result
       RAISING
         zcx_invalid_reservation.
 
@@ -594,10 +627,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS change_reservation_qty_bulk
       IMPORTING
-        it_requests      TYPE ty_quantity_change_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_quantity_change_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_quantity_change_result
+        VALUE(rs_result)   TYPE ty_bulk_quantity_change_result
       RAISING
         zcx_invalid_reservation.
 
@@ -626,10 +660,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS mark_reservation_final_bulk
       IMPORTING
-        it_requests      TYPE ty_final_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_final_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_final_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_final_issue_result
       RAISING
         zcx_invalid_reservation.
 
@@ -649,10 +684,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS reset_reservation_final_bulk
       IMPORTING
-        it_requests      TYPE ty_final_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_final_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_final_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_final_issue_result
       RAISING
         zcx_invalid_reservation.
 
@@ -682,10 +718,11 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS change_reservation_stock_bulk
       IMPORTING
-        it_requests      TYPE ty_stock_change_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_stock_change_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_stock_change_result
+        VALUE(rs_result)   TYPE ty_bulk_stock_change_result
       RAISING
         zcx_invalid_reservation.
 
@@ -707,6 +744,7 @@ CLASS zcl_project_resv_service DEFINITION
         iv_test_run                TYPE abap_bool DEFAULT abap_false
         iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
         iv_atomic                  TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure         TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)           TYPE ty_allocation_result
       RAISING
@@ -720,6 +758,7 @@ CLASS zcl_project_resv_service DEFINITION
         iv_test_run                TYPE abap_bool DEFAULT abap_false
         iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
         iv_atomic                  TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure         TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)           TYPE ty_allocation_result
       RAISING
@@ -727,82 +766,102 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS reserve_wbs_fefo
       IMPORTING
-        it_demands                   TYPE zcl_project_stock_service=>ty_demands
-        it_storage_location_priority TYPE
+        it_demands                     TYPE zcl_project_stock_service=>ty_demands
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_required_date             TYPE d OPTIONAL
-        it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
-        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_required_date               TYPE d OPTIONAL
+        it_wbs_required_dates          TYPE ty_wbs_required_dates OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_atomic                      TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure             TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_fefo_reservation_result
+        VALUE(rs_result)               TYPE ty_fefo_reservation_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
 
     METHODS reserve_wbs_fefo_priority
       IMPORTING
-        it_demands                   TYPE
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_priority_fefo_demands
-        it_storage_location_priority TYPE
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_required_date             TYPE d OPTIONAL
-        it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
-        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_required_date               TYPE d OPTIONAL
+        it_wbs_required_dates          TYPE ty_wbs_required_dates OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_atomic                      TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure             TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_prio_fefo_resv_result
+        VALUE(rs_result)               TYPE ty_prio_fefo_resv_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
 
     METHODS reserve_wbs_fefo_by_date
       IMPORTING
-        it_demands                   TYPE zcl_project_stock_service=>ty_dated_fefo_demands
-        it_storage_location_priority TYPE
+        it_demands                     TYPE zcl_project_stock_service=>ty_dated_fefo_demands
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
-        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_atomic                      TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure             TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_dated_fefo_reservation_result
+        VALUE(rs_result)               TYPE ty_dated_fefo_reservation_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
 
     METHODS reserve_wbs_by_location_date
       IMPORTING
-        it_demands                   TYPE zcl_project_stock_service=>ty_dated_location_demands
-        it_storage_location_priority TYPE
+        it_demands                     TYPE zcl_project_stock_service=>ty_dated_location_demands
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
-        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_atomic                      TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure             TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_dated_location_reservation_result
+        VALUE(rs_result)               TYPE ty_dated_location_reservation_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
@@ -814,12 +873,15 @@ CLASS zcl_project_resv_service DEFINITION
           zcl_stock_service=>ty_storage_locations OPTIONAL
         it_allowed_storage_locations TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations         TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
         iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
         iv_reservation_through_date  TYPE d OPTIONAL
         iv_required_date             TYPE d OPTIONAL
         it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure           TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)             TYPE ty_location_reservation_result
       RAISING
@@ -828,20 +890,25 @@ CLASS zcl_project_resv_service DEFINITION
 
     METHODS reserve_wbs_location_priority
       IMPORTING
-        it_demands                   TYPE
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_priority_location_demands
-        it_storage_location_priority TYPE
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_required_date             TYPE d OPTIONAL
-        it_wbs_required_dates        TYPE ty_wbs_required_dates OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
-        iv_atomic                    TYPE abap_bool DEFAULT abap_false
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_required_date               TYPE d OPTIONAL
+        it_wbs_required_dates          TYPE ty_wbs_required_dates OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_atomic                      TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure             TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_prio_location_resv_result
+        VALUE(rs_result)               TYPE ty_prio_location_resv_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_reservation.
@@ -876,7 +943,7 @@ CLASS zcl_project_resv_service DEFINITION
         WITH UNIQUE KEY request_id,
       BEGIN OF ty_allocated_total,
         request_id TYPE c LENGTH 30,
-        quantity   TYPE mard-labst,
+        quantity   TYPE decfloat34,
       END OF ty_allocated_total,
       ty_allocated_totals TYPE HASHED TABLE OF ty_allocated_total
         WITH UNIQUE KEY request_id,
@@ -888,6 +955,8 @@ CLASS zcl_project_resv_service DEFINITION
         batch                   TYPE mchb-charg,
         expiration_date         TYPE mcha-vfdat,
         minimum_shelf_life_days TYPE i,
+        require_known_expiry    TYPE abap_bool,
+        allow_undated_batches   TYPE abap_bool,
         quantity                TYPE mard-labst,
         base_unit               TYPE mara-meins,
       END OF ty_allocation_split,
@@ -900,7 +969,7 @@ CLASS zcl_project_resv_service DEFINITION
         plant            TYPE mard-werks,
         storage_location TYPE mard-lgort,
         batch            TYPE mchb-charg,
-        quantity         TYPE mard-labst,
+        quantity         TYPE decfloat34,
         unit             TYPE mara-meins,
       END OF ty_allocated_item,
       ty_allocated_items TYPE HASHED TABLE OF ty_allocated_item
@@ -941,14 +1010,23 @@ CLASS zcl_project_resv_service DEFINITION
         it_wbs_required_dates      TYPE ty_wbs_required_dates OPTIONAL
         it_request_required_dates  TYPE ty_request_required_dates OPTIONAL
         iv_minimum_shelf_life_days TYPE i DEFAULT 0
+        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
         iv_test_run                TYPE abap_bool
         iv_require_full_allocation TYPE abap_bool
         iv_require_batch           TYPE abap_bool
         iv_atomic                  TYPE abap_bool
+        iv_stop_on_failure         TYPE abap_bool
       RETURNING
         VALUE(rs_result)           TYPE ty_allocation_result
       RAISING
         zcx_invalid_reservation.
+
+    METHODS same_unit_allocation_summaries
+      IMPORTING
+        it_expected    TYPE zcl_stock_service=>ty_unit_allocation_summaries
+        it_actual      TYPE zcl_stock_service=>ty_unit_allocation_summaries
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
 
     METHODS same_allocation_splits
       IMPORTING
@@ -1122,10 +1200,13 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lv_has_failure TYPE abap_bool.
     DATA lv_has_error_message TYPE abap_bool.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_reservation> TYPE ty_wbs_reservation.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
-        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false ).
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -1196,6 +1277,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       <ls_reservation>-wbs_element = ls_api_request-wbs_element.
       <ls_reservation>-required_date = ls_api_request-required_date.
       <ls_reservation>-is_test_run = iv_test_run.
+      IF lv_stop_processing = abap_true.
+        <ls_reservation>-is_skipped = abap_true.
+        CONTINUE.
+      ENDIF.
+
       CLEAR lv_has_error_message.
       DATA(ls_create_result) = mo_api->create_reservation(
         is_request  = ls_api_request
@@ -1249,6 +1335,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           mo_api->rollback( ).
           <ls_reservation>-was_rolled_back = abap_true.
         ENDIF.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -1279,6 +1369,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
             TO <ls_reservation>-messages.
         ENDIF.
         lv_has_failure = abap_true.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ELSE.
         <ls_reservation>-is_committed = abap_true.
       ENDIF.
@@ -1288,13 +1382,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       IF lv_has_failure = abap_true.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
-        rs_result-failed_count = lines( rs_result-reservations ).
         rs_result-was_rolled_back = abap_true.
         LOOP AT rs_result-reservations ASSIGNING <ls_reservation>.
           CLEAR <ls_reservation>-reservation_number.
           <ls_reservation>-is_successful = abap_false.
           <ls_reservation>-is_committed = abap_false.
-          <ls_reservation>-was_rolled_back = abap_true.
+          IF <ls_reservation>-is_skipped = abap_true.
+            rs_result-skipped_count = rs_result-skipped_count + 1.
+            CLEAR <ls_reservation>-was_rolled_back.
+          ELSE.
+            rs_result-failed_count = rs_result-failed_count + 1.
+            <ls_reservation>-was_rolled_back = abap_true.
+          ENDIF.
         ENDLOOP.
       ELSE.
         DATA(ls_atomic_commit_result) = mo_api->commit( ).
@@ -1337,7 +1436,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       ENDIF.
     ELSE.
       LOOP AT rs_result-reservations ASSIGNING <ls_reservation>.
-        IF <ls_reservation>-is_successful = abap_true.
+        IF <ls_reservation>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
+        IF <ls_reservation>-is_skipped = abap_true.
+          rs_result-skipped_count = rs_result-skipped_count + 1.
+        ELSEIF <ls_reservation>-is_successful = abap_true.
           ADD 1 TO rs_result-successful_count.
         ELSE.
           ADD 1 TO rs_result-failed_count.
@@ -1373,15 +1477,21 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD issue_reserved_wbs_items_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_issue_requests) = prepare_reserved_wbs_movements(
       it_requests    = it_requests
       iv_test_run    = iv_test_run
       iv_is_reversal = abap_false ).
 
     rs_result = mo_issue_service->post_goods_issue_bulk_unit(
-      is_header   = is_header
-      it_requests = lt_issue_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_issue_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_reserved_wbs_items.
@@ -1402,15 +1512,21 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD return_reserved_wbs_items_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_issue_requests) = prepare_reserved_wbs_movements(
       it_requests    = it_requests
       iv_test_run    = iv_test_run
       iv_is_reversal = abap_true ).
 
     rs_result = mo_issue_service->post_goods_issue_rev_bulk_unit(
-      is_header   = is_header
-      it_requests = lt_issue_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_issue_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD issue_reserved_wbs_atomic.
@@ -1602,8 +1718,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       zif_project_reservation_api=>ty_reservation_number.
     DATA lt_seen_reservations TYPE HASHED TABLE OF ty_seen_reservation
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
+    FIELD-SYMBOLS <ls_item> TYPE ty_bulk_delete_item.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -1617,21 +1737,34 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_reservation_numbers INTO lv_reservation_number.
+      APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_item>.
+      <ls_item>-reservation_number = lv_reservation_number.
+      IF lv_stop_processing = abap_true.
+        <ls_item>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       DATA(ls_delete_result) = delete_reservation(
         iv_reservation_number = lv_reservation_number
         iv_test_run           = iv_test_run ).
-      APPEND VALUE #(
-        reservation_number = ls_delete_result-reservation_number
-        messages           = ls_delete_result-messages
-        is_successful      = ls_delete_result-is_successful
-        is_deleted         = ls_delete_result-is_deleted
-        is_committed       = ls_delete_result-is_committed
-        was_rolled_back    = ls_delete_result-was_rolled_back )
-        TO rs_result-items.
+      <ls_item>-reservation_number = ls_delete_result-reservation_number.
+      <ls_item>-messages = ls_delete_result-messages.
+      <ls_item>-is_successful = ls_delete_result-is_successful.
+      <ls_item>-is_deleted = ls_delete_result-is_deleted.
+      <ls_item>-is_committed = ls_delete_result-is_committed.
+      <ls_item>-was_rolled_back = ls_delete_result-was_rolled_back.
+      IF ls_delete_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_delete_result-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
 
@@ -1855,9 +1988,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_item_delete_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -1885,6 +2021,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_numbers = ls_request-item_numbers.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = delete_reservation_items(
             iv_wbs_element        = ls_request-wbs_element
@@ -1901,11 +2048,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items are not open under this WBS and reservation' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -2179,9 +2333,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_reschedule_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -2211,6 +2368,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_numbers = ls_request-item_numbers.
+      <ls_result>-required_date = ls_request-required_date.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = reschedule_reservation_items(
             iv_wbs_element        = ls_request-wbs_element
@@ -2229,11 +2398,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items are not open under this WBS and reservation' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -2528,9 +2704,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_quantity_change_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -2561,6 +2740,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_quantities = ls_request-item_quantities.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = change_reservation_item_qty(
             iv_wbs_element        = ls_request-wbs_element
@@ -2577,11 +2767,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items or quantities are invalid for this WBS' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -2877,9 +3074,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_final_issue_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -2907,6 +3107,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_numbers = ls_request-item_numbers.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = mark_reservation_items_final(
             iv_wbs_element        = ls_request-wbs_element
@@ -2923,11 +3134,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items are not open under this WBS and reservation' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -3032,9 +3250,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_final_issue_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -3062,6 +3283,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_numbers = ls_request-item_numbers.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = reset_reservation_items_final(
             iv_wbs_element        = ls_request-wbs_element
@@ -3078,11 +3310,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items are not final under this WBS and reservation' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -3382,9 +3621,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       WITH UNIQUE KEY table_line.
     DATA lt_seen_items TYPE HASHED TABLE OF ty_seen_item
       WITH UNIQUE KEY table_line.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_result> TYPE ty_stock_change_result.
 
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -3419,6 +3661,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT it_requests INTO ls_request.
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_result>.
+      <ls_result>-wbs_element = ls_request-wbs_element.
+      <ls_result>-reservation_number = ls_request-reservation_number.
+      <ls_result>-item_changes = ls_request-item_changes.
+      <ls_result>-is_test_run = iv_test_run.
+
+      IF lv_stop_processing = abap_true.
+        <ls_result>-is_skipped = abap_true.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
+
       TRY.
           <ls_result> = change_reservation_item_stock(
             iv_wbs_element        = ls_request-wbs_element
@@ -3435,11 +3688,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               message = 'Reservation items are not open under this WBS and reservation' ) ).
       ENDTRY.
 
+      IF <ls_result>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF <ls_result>-is_successful = abap_true.
         rs_result-successful_count = rs_result-successful_count + 1.
       ELSE.
         rs_result-failed_count = rs_result-failed_count + 1.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -3621,6 +3881,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
   METHOD reserve_batch_allocation.
     DATA lt_splits TYPE ty_allocation_splits.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
+
     LOOP AT is_allocation-allocation-batch_allocations
       INTO DATA(ls_batch_split).
       APPEND VALUE #(
@@ -3633,6 +3899,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           ls_batch_split-batch_allocation-expiration_date
         minimum_shelf_life_days =
           ls_batch_split-batch_allocation-minimum_shelf_life_days
+        require_known_expiry    =
+          ls_batch_split-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_batch_split-batch_allocation-allow_undated_batches
         quantity                = ls_batch_split-batch_allocation-allocated_quantity
         base_unit               = ls_batch_split-base_unit ) TO lt_splits.
     ENDLOOP.
@@ -3647,11 +3917,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_allocation
       iv_require_batch           = abap_true
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD reserve_location_allocation.
     DATA lt_splits TYPE ty_allocation_splits.
+
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_reservation.
+    ENDIF.
+
 
     LOOP AT is_allocation-allocation-storage_allocations
       INTO DATA(ls_location_split).
@@ -3678,7 +3955,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_allocation
       iv_require_batch           = abap_false
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD reserve_wbs_fefo.
@@ -3691,6 +3969,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
         OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR ( iv_include_undated_batches <> abap_true
           AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
@@ -3726,14 +4006,16 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     ENDIF.
 
     rs_result-preview = mo_project_stock_service->preview_fefo(
-      it_demands                   = lt_fefo_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = lv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_fefo_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = it_request_location_priorities
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = it_request_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = lv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
 
     IF iv_require_full_quantity = abap_true.
       LOOP AT rs_result-preview-allocation-allocations INTO
@@ -3766,20 +4048,26 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           ls_selected_batch-batch_allocation-expiration_date
         minimum_shelf_life_days =
           ls_selected_batch-batch_allocation-minimum_shelf_life_days
+        require_known_expiry    =
+          ls_selected_batch-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_selected_batch-batch_allocation-allow_undated_batches
         quantity                =
           ls_selected_batch-batch_allocation-allocated_quantity
         base_unit               = ls_selected_batch-base_unit ) TO lt_splits.
     ENDLOOP.
 
     DATA(ls_rechecked_fefo) = mo_project_stock_service->preview_fefo(
-      it_demands                   = lt_fefo_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = lv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_fefo_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = it_request_location_priorities
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = it_request_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = lv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
     LOOP AT ls_rechecked_fefo-allocation-batch_allocations
       INTO DATA(ls_rechecked_batch).
       APPEND VALUE #(
@@ -3794,6 +4082,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           ls_rechecked_batch-batch_allocation-expiration_date
         minimum_shelf_life_days =
           ls_rechecked_batch-batch_allocation-minimum_shelf_life_days
+        require_known_expiry    =
+          ls_rechecked_batch-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_batch-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_batch-batch_allocation-allocated_quantity
         base_unit               = ls_rechecked_batch-base_unit )
@@ -3802,7 +4094,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = rs_result-preview-allocation-allocations
+          it_actual   = ls_rechecked_fefo-allocation-allocations )
+          <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -3821,10 +4117,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_required_date           = iv_required_date
       it_wbs_required_dates      = it_wbs_required_dates
       iv_minimum_shelf_life_days = iv_minimum_shelf_life_days
+      iv_include_undated_batches = lv_include_undated_batches
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_true
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD reserve_wbs_fefo_priority.
@@ -3840,8 +4138,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_reservation_contexts.
     DATA lt_priority_demands TYPE
       zcl_project_stock_service=>ty_priority_fefo_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_validation_demands TYPE zcl_project_stock_service=>ty_demands.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_rechecked_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
@@ -3853,6 +4160,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
         OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR ( iv_include_undated_batches <> abap_true
           AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
@@ -3894,22 +4203,30 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         batch                   = ls_demand-batch
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
         fefo_as_of_date         = lv_fefo_as_of_date
         minimum_shelf_life_days =
-          ls_demand-minimum_shelf_life_days )
+          ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
         TO lt_priority_demands.
       APPEND VALUE #(
-        request_id         = ls_demand-request_id
-        wbs_element        = ls_demand-wbs_element
-        material           = ls_demand-material
-        plant              = ls_demand-plant
-        storage_location   = ls_demand-storage_location
-        batch              = ls_demand-batch
-        requested_quantity = ls_demand-requested_quantity
-        unit               = ls_demand-unit )
+        request_id              = ls_demand-request_id
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        batch                   = ls_demand-batch
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
         TO lt_validation_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -3924,20 +4241,74 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_required_date      = iv_required_date
       it_wbs_required_dates = it_wbs_required_dates ).
 
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    =
+            ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
     lv_include_undated_batches = iv_include_undated_batches.
     IF iv_minimum_shelf_life_days > 0.
       lv_include_undated_batches = abap_false.
     ENDIF.
 
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      DATA(lv_scope_found) = abap_false.
+      LOOP AT lt_contexts INTO DATA(ls_location_scope_context)
+          WHERE request_id = ls_request_location-request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_location_scope_context-internal_request_id
+          storage_location =
+            ls_request_location-storage_location )
+          TO lt_int_request_locations.
+        lv_scope_found = abap_true.
+      ENDLOOP.
+      IF lv_scope_found <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
     DATA(ls_first_preview) = mo_project_stock_service->preview_fefo_priority(
-      it_demands                   = lt_priority_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = lv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_priority_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = lt_int_request_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = lv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    rs_result-preview-request_locations = it_request_locations.
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -3981,6 +4352,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
             ls_first_split-split-batch_allocation-expiration_date
           minimum_shelf_life_days =
             ls_first_split-split-batch_allocation-minimum_shelf_life_days
+          require_known_expiry    =
+            ls_first_split-split-batch_allocation-require_known_expiry
+          allow_undated_batches   =
+            ls_first_split-split-batch_allocation-allow_undated_batches
           quantity                =
             ls_first_split-split-batch_allocation-allocated_quantity
           base_unit               = ls_first_split-split-base_unit )
@@ -4010,14 +4385,22 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     DATA(ls_rechecked_preview) =
       mo_project_stock_service->preview_fefo_priority(
-        it_demands                   = lt_priority_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_as_of_date                = iv_as_of_date
-        iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-        iv_include_undated_batches   = lv_include_undated_batches
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
+        it_demands                     = lt_priority_demands
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = lt_int_loc_prios
+        it_allowed_storage_locations   = it_allowed_storage_locations
+        it_request_locations           = lt_int_request_locations
+        iv_as_of_date                  = iv_as_of_date
+        iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+        iv_include_undated_batches     = lv_include_undated_batches
+        iv_require_full_quantity       = iv_require_full_quantity
+        iv_reservation_through_date    = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_preview-allocations
+        INTO DATA(ls_rechecked_allocation).
+      APPEND ls_rechecked_allocation-allocation TO
+        lt_rechecked_allocations.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_preview-batch_allocations
         INTO DATA(ls_rechecked_split).
       APPEND VALUE #(
@@ -4035,6 +4418,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           ls_rechecked_split-split-batch_allocation-expiration_date
         minimum_shelf_life_days =
           ls_rechecked_split-split-batch_allocation-minimum_shelf_life_days
+        require_known_expiry    =
+          ls_rechecked_split-split-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_split-split-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_split-split-batch_allocation-allocated_quantity
         base_unit               = ls_rechecked_split-split-base_unit )
@@ -4043,7 +4430,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = lt_allocations
+          it_actual   = lt_rechecked_allocations ) <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -4061,10 +4451,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_required_date           = iv_required_date
       it_wbs_required_dates      = it_wbs_required_dates
       iv_minimum_shelf_life_days = iv_minimum_shelf_life_days
+      iv_include_undated_batches = lv_include_undated_batches
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_true
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD reserve_wbs_fefo_by_date.
@@ -4081,7 +4473,16 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_dated_reservation_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_dated_fefo_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_rechecked_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
@@ -4093,6 +4494,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
         OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR ( iv_include_undated_batches <> abap_true
           AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
@@ -4116,11 +4519,15 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         batch                   = ls_demand-batch
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
         fefo_as_of_date         = ls_demand-fefo_as_of_date
-        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days )
+        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
         TO lt_internal_demands.
       INSERT VALUE #(
         request_id    = lv_internal_request_id
@@ -4137,15 +4544,69 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         priority            = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    =
+            ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      DATA(lv_scope_found) = abap_false.
+      LOOP AT lt_contexts INTO DATA(ls_location_scope_context)
+          WHERE request_id = ls_request_location-request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_location_scope_context-internal_request_id
+          storage_location =
+            ls_request_location-storage_location )
+          TO lt_int_request_locations.
+        lv_scope_found = abap_true.
+      ENDLOOP.
+      IF lv_scope_found <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
     DATA(ls_first_preview) = mo_project_stock_service->preview_fefo_by_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = lt_int_request_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    rs_result-preview-request_locations = it_request_locations.
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -4191,6 +4652,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
             ls_first_split-split-batch_allocation-expiration_date
           minimum_shelf_life_days =
             ls_first_split-split-batch_allocation-minimum_shelf_life_days
+          require_known_expiry    =
+            ls_first_split-split-batch_allocation-require_known_expiry
+          allow_undated_batches   =
+            ls_first_split-split-batch_allocation-allow_undated_batches
           quantity                =
             ls_first_split-split-batch_allocation-allocated_quantity
           base_unit               = ls_first_split-split-base_unit )
@@ -4218,14 +4683,22 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     ENDIF.
 
     DATA(ls_rechecked_fefo) = mo_project_stock_service->preview_fefo_by_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = lt_int_request_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_fefo-allocations
+        INTO DATA(ls_rechecked_allocation).
+      APPEND ls_rechecked_allocation-allocation TO
+        lt_rechecked_allocations.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_fefo-batch_allocations INTO DATA(ls_rechecked_batch).
       APPEND VALUE #(
         request_id              =
@@ -4242,6 +4715,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           ls_rechecked_batch-split-batch_allocation-expiration_date
         minimum_shelf_life_days =
           ls_rechecked_batch-split-batch_allocation-minimum_shelf_life_days
+        require_known_expiry    =
+          ls_rechecked_batch-split-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_batch-split-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_batch-split-batch_allocation-allocated_quantity
         base_unit               = ls_rechecked_batch-split-base_unit )
@@ -4250,7 +4727,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = lt_allocations
+          it_actual   = lt_rechecked_allocations ) <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -4267,10 +4747,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       it_splits                  = lt_splits
       it_request_required_dates  = lt_request_required_dates
       iv_minimum_shelf_life_days = iv_minimum_shelf_life_days
+      iv_include_undated_batches = iv_include_undated_batches
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_true
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
   METHOD reserve_wbs_by_location_date.
     TYPES:
@@ -4286,7 +4768,16 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_dated_reservation_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_dated_location_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_rechecked_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
@@ -4297,7 +4788,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
-        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false ).
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -4312,15 +4805,17 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       CLEAR lv_internal_request_id.
       lv_internal_request_id = lv_internal_index.
       APPEND VALUE #(
-        request_id         = lv_internal_request_id
-        required_date      = ls_demand-required_date
-        priority           = ls_demand-priority
-        wbs_element        = ls_demand-wbs_element
-        material           = ls_demand-material
-        plant              = ls_demand-plant
-        storage_location   = ls_demand-storage_location
-        requested_quantity = ls_demand-requested_quantity
-        unit               = ls_demand-unit )
+        request_id              = lv_internal_request_id
+        required_date           = ls_demand-required_date
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit )
         TO lt_internal_demands.
       INSERT VALUE #(
         request_id    = lv_internal_request_id
@@ -4337,13 +4832,66 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         priority            = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      DATA(lv_scope_found) = abap_false.
+      LOOP AT lt_contexts INTO DATA(ls_location_scope_context)
+          WHERE request_id = ls_request_location-request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_location_scope_context-internal_request_id
+          storage_location =
+            ls_request_location-storage_location )
+          TO lt_int_request_locations.
+        lv_scope_found = abap_true.
+      ENDLOOP.
+      IF lv_scope_found <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
     DATA(ls_first_preview) =
       mo_project_stock_service->preview_by_location_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      it_request_locations           = lt_int_request_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    rs_result-preview-request_locations = it_request_locations.
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -4411,11 +4959,19 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     DATA(ls_rechecked_location) =
       mo_project_stock_service->preview_by_location_date(
-        it_demands                   = lt_internal_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
+        it_demands                     = lt_internal_demands
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = lt_int_loc_prios
+        it_allowed_storage_locations   = it_allowed_storage_locations
+        it_request_locations           = lt_int_request_locations
+        iv_require_full_quantity       = iv_require_full_quantity
+        iv_reservation_through_date    = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_location-allocations
+        INTO DATA(ls_rechecked_allocation).
+      APPEND ls_rechecked_allocation-allocation TO
+        lt_rechecked_allocations.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_location-storage_allocations
         INTO DATA(ls_rechecked_location_split).
       DATA(ls_rechecked_split) = ls_rechecked_location_split-split.
@@ -4436,7 +4992,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = lt_allocations
+          it_actual   = lt_rechecked_allocations ) <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -4455,7 +5014,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_false
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
   METHOD reserve_wbs_by_location.
     DATA lt_splits TYPE ty_allocation_splits.
@@ -4464,7 +5024,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
-        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false ).
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
     validate_wbs_date_inputs(
@@ -4476,6 +5038,7 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       it_demands                   = it_demands
       it_storage_location_priority = it_storage_location_priority
       it_allowed_storage_locations = it_allowed_storage_locations
+      it_request_locations         = it_request_locations
       iv_require_full_quantity     = iv_require_full_quantity
       iv_reservation_through_date  = iv_reservation_through_date ).
 
@@ -4517,6 +5080,7 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         it_demands                   = it_demands
         it_storage_location_priority = it_storage_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
+        it_request_locations         = it_request_locations
         iv_require_full_quantity     = iv_require_full_quantity
         iv_reservation_through_date  = iv_reservation_through_date ).
     LOOP AT ls_rechecked_location-allocation-storage_allocations
@@ -4538,7 +5102,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = rs_result-preview-allocation-allocations
+          it_actual   = ls_rechecked_location-allocation-allocations )
+          <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -4559,7 +5127,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_false
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD reserve_wbs_location_priority.
@@ -4576,7 +5145,16 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     DATA lt_priority_demands TYPE
       zcl_project_stock_service=>ty_priority_location_demands.
     DATA lt_validation_demands TYPE zcl_project_stock_service=>ty_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_allocations TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_rechecked_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
     DATA lt_assignments TYPE zcl_project_stock_service=>ty_wbs_assignments.
     DATA lt_splits TYPE ty_allocation_splits.
     DATA lt_rechecked_splits TYPE ty_allocation_splits.
@@ -4586,7 +5164,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
-        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false ).
+        OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -4598,23 +5178,27 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       CLEAR lv_internal_request_id.
       lv_internal_request_id = lv_internal_index.
       APPEND VALUE #(
-        request_id         = lv_internal_request_id
-        priority           = ls_demand-priority
-        wbs_element        = ls_demand-wbs_element
-        material           = ls_demand-material
-        plant              = ls_demand-plant
-        storage_location   = ls_demand-storage_location
-        requested_quantity = ls_demand-requested_quantity
-        unit               = ls_demand-unit )
+        request_id              = lv_internal_request_id
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit )
         TO lt_priority_demands.
       APPEND VALUE #(
-        request_id         = ls_demand-request_id
-        wbs_element        = ls_demand-wbs_element
-        material           = ls_demand-material
-        plant              = ls_demand-plant
-        storage_location   = ls_demand-storage_location
-        requested_quantity = ls_demand-requested_quantity
-        unit               = ls_demand-unit )
+        request_id              = ls_demand-request_id
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit )
         TO lt_validation_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -4628,13 +5212,66 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_required_date      = iv_required_date
       it_wbs_required_dates = it_wbs_required_dates ).
 
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      DATA(lv_scope_found) = abap_false.
+      LOOP AT lt_contexts INTO DATA(ls_location_scope_context)
+          WHERE request_id = ls_request_location-request_id.
+        APPEND VALUE #(
+          request_id       =
+            ls_location_scope_context-internal_request_id
+          storage_location =
+            ls_request_location-storage_location )
+          TO lt_int_request_locations.
+        lv_scope_found = abap_true.
+      ENDLOOP.
+      IF lv_scope_found <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+    ENDLOOP.
+
     DATA(ls_first_preview) =
       mo_project_stock_service->preview_by_location_priority(
-        it_demands                   = lt_priority_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
+        it_demands                     = lt_priority_demands
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = lt_int_loc_prios
+        it_allowed_storage_locations   = it_allowed_storage_locations
+        it_request_locations           = lt_int_request_locations
+        iv_require_full_quantity       = iv_require_full_quantity
+        iv_reservation_through_date    = iv_reservation_through_date ).
+    rs_result-preview-request_locations = it_request_locations.
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -4701,11 +5338,19 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     DATA(ls_rechecked_preview) =
       mo_project_stock_service->preview_by_location_priority(
-        it_demands                   = lt_priority_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
+        it_demands                     = lt_priority_demands
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = lt_int_loc_prios
+        it_allowed_storage_locations   = it_allowed_storage_locations
+        it_request_locations           = lt_int_request_locations
+        iv_require_full_quantity       = iv_require_full_quantity
+        iv_reservation_through_date    = iv_reservation_through_date ).
+    LOOP AT ls_rechecked_preview-allocations
+        INTO DATA(ls_rechecked_allocation).
+      APPEND ls_rechecked_allocation-allocation TO
+        lt_rechecked_allocations.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_preview-storage_allocations
         INTO DATA(ls_rechecked_split).
       APPEND VALUE #(
@@ -4725,7 +5370,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     IF same_allocation_splits(
         it_expected = lt_splits
-        it_actual   = lt_rechecked_splits ) <> abap_true.
+        it_actual   = lt_rechecked_splits ) <> abap_true
+        OR same_unit_allocation_summaries(
+          it_expected = lt_allocations
+          it_actual   = lt_rechecked_allocations ) <> abap_true.
       rs_result-reservation-is_successful = abap_false.
       rs_result-reservation-is_test_run = iv_test_run.
       rs_result-reservation-failed_count = 1.
@@ -4745,7 +5393,57 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity
       iv_require_batch           = abap_false
-      iv_atomic                  = iv_atomic ).
+      iv_atomic                  = iv_atomic
+      iv_stop_on_failure         = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD same_unit_allocation_summaries.
+    DATA lt_expected TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_actual TYPE zcl_stock_service=>ty_unit_allocation_summaries.
+
+    rv_same = abap_false.
+    IF lines( it_expected ) <> lines( it_actual ).
+      RETURN.
+    ENDIF.
+    lt_expected = it_expected.
+    lt_actual = it_actual.
+    SORT lt_expected BY allocation-request_id.
+    SORT lt_actual BY allocation-request_id.
+
+    LOOP AT lt_expected INTO DATA(ls_expected).
+      READ TABLE lt_actual INDEX sy-tabix INTO DATA(ls_actual).
+      IF sy-subrc <> 0
+          OR ls_expected-allocation-request_id
+            <> ls_actual-allocation-request_id
+          OR ls_expected-allocation-material
+            <> ls_actual-allocation-material
+          OR ls_expected-allocation-plant
+            <> ls_actual-allocation-plant
+          OR ls_expected-allocation-priority
+            <> ls_actual-allocation-priority
+          OR ls_expected-allocation-requested_quantity
+            <> ls_actual-allocation-requested_quantity
+          OR ls_expected-allocation-available_quantity
+            <> ls_actual-allocation-available_quantity
+          OR ls_expected-allocation-allocated_quantity
+            <> ls_actual-allocation-allocated_quantity
+          OR ls_expected-allocation-shortfall_quantity
+            <> ls_actual-allocation-shortfall_quantity
+          OR ls_expected-allocation-require_full_quantity
+            <> ls_actual-allocation-require_full_quantity
+          OR ls_expected-source_quantity <> ls_actual-source_quantity
+          OR ls_expected-source_unit <> ls_actual-source_unit
+          OR ls_expected-base_quantity <> ls_actual-base_quantity
+          OR ls_expected-base_unit <> ls_actual-base_unit
+          OR ls_expected-allocated_source_quantity
+            <> ls_actual-allocated_source_quantity
+          OR ls_expected-shortfall_source_quantity
+            <> ls_actual-shortfall_source_quantity.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
   ENDMETHOD.
 
   METHOD same_allocation_splits.
@@ -4760,9 +5458,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     lt_expected = it_expected.
     lt_actual = it_actual.
     SORT lt_expected BY request_id material plant storage_location
-      batch expiration_date minimum_shelf_life_days quantity base_unit.
+      batch expiration_date minimum_shelf_life_days require_known_expiry
+      allow_undated_batches quantity base_unit.
     SORT lt_actual BY request_id material plant storage_location
-      batch expiration_date minimum_shelf_life_days quantity base_unit.
+      batch expiration_date minimum_shelf_life_days require_known_expiry
+      allow_undated_batches quantity base_unit.
 
     LOOP AT lt_expected INTO DATA(ls_expected).
       READ TABLE lt_actual INDEX sy-tabix INTO DATA(ls_actual).
@@ -4775,6 +5475,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           OR ls_expected-expiration_date <> ls_actual-expiration_date
           OR ls_expected-minimum_shelf_life_days
             <> ls_actual-minimum_shelf_life_days
+          OR ls_expected-require_known_expiry
+            <> ls_actual-require_known_expiry
+          OR ls_expected-allow_undated_batches
+            <> ls_actual-allow_undated_batches
           OR ls_expected-quantity <> ls_actual-quantity
           OR ls_expected-base_unit <> ls_actual-base_unit.
         RETURN.
@@ -4806,7 +5510,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       ty_seen_reservation WITH UNIQUE KEY table_line.
     DATA lv_has_failure TYPE abap_bool.
     DATA lv_has_error_message TYPE abap_bool.
+    DATA lv_stop_processing TYPE abap_bool.
     DATA lv_effective_shelf_life TYPE i.
+    DATA lv_effective_include_undated TYPE abap_bool.
     DATA lv_item_required_date TYPE d.
     FIELD-SYMBOLS <ls_reservation> TYPE ty_wbs_reservation.
 
@@ -4816,7 +5522,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         OR ( iv_require_batch <> abap_true
           AND iv_require_batch <> abap_false )
         OR ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
-        OR iv_minimum_shelf_life_days < 0.
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
+        OR iv_minimum_shelf_life_days < 0
+        OR ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_reservation.
     ENDIF.
 
@@ -4900,15 +5610,33 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       IF ls_summary-request_id IS INITIAL
           OR ls_summary-material IS INITIAL
           OR ls_summary-plant IS INITIAL
+          OR ls_allocation-source_quantity <= 0
+          OR ls_allocation-source_unit IS INITIAL
           OR ls_allocation-base_unit IS INITIAL
           OR ls_allocation-base_quantity <= 0
+          OR ls_allocation-base_quantity <> ls_summary-requested_quantity
           OR ls_summary-allocated_quantity < 0
           OR ls_summary-shortfall_quantity < 0
+          OR ls_summary-available_quantity < 0
           OR ls_summary-allocated_quantity > ls_allocation-base_quantity
+          OR CONV decfloat34( ls_summary-allocated_quantity )
+            + CONV decfloat34( ls_summary-shortfall_quantity )
+            <> CONV decfloat34( ls_summary-requested_quantity )
           OR ls_summary-shortfall_quantity
             <> ls_allocation-base_quantity
               - ls_summary-allocated_quantity
-          OR ls_summary-allocated_quantity > ls_summary-available_quantity.
+          OR ls_summary-allocated_quantity > ls_summary-available_quantity
+          OR ( ls_summary-require_full_quantity <> abap_true
+            AND ls_summary-require_full_quantity <> abap_false )
+          OR ( ls_summary-require_full_quantity = abap_true
+            AND ls_summary-allocated_quantity > 0
+            AND ls_summary-shortfall_quantity > 0 )
+          OR ( ls_summary-require_known_expiry <> abap_true
+            AND ls_summary-require_known_expiry <> abap_false )
+          OR ( ls_summary-allow_undated_batches <> abap_true
+            AND ls_summary-allow_undated_batches <> abap_false )
+          OR ( ls_summary-require_known_expiry = abap_true
+            AND ls_summary-allow_undated_batches = abap_true ).
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
       IF iv_require_full_allocation = abap_true
@@ -4951,7 +5679,11 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           OR ls_split_summary-allocation-allocation-material
             <> ls_split-material
           OR ls_split_summary-allocation-allocation-plant <> ls_split-plant
-          OR ls_split_summary-allocation-base_unit <> ls_split-base_unit.
+          OR ls_split_summary-allocation-base_unit <> ls_split-base_unit
+          OR ls_split-require_known_expiry
+            <> ls_split_summary-allocation-allocation-require_known_expiry
+          OR ls_split-allow_undated_batches
+            <> ls_split_summary-allocation-allocation-allow_undated_batches.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
 
@@ -4978,8 +5710,16 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         IF ls_split-minimum_shelf_life_days > lv_effective_shelf_life.
           lv_effective_shelf_life = ls_split-minimum_shelf_life_days.
         ENDIF.
+        lv_effective_include_undated = iv_include_undated_batches.
+        IF ls_split-allow_undated_batches = abap_true.
+          lv_effective_include_undated = abap_true.
+        ENDIF.
+        IF ls_split-require_known_expiry = abap_true.
+          lv_effective_include_undated = abap_false.
+        ENDIF.
         IF ls_split-expiration_date IS INITIAL.
-          IF lv_effective_shelf_life > 0.
+          IF lv_effective_shelf_life > 0
+              OR lv_effective_include_undated <> abap_true.
             RAISE EXCEPTION TYPE zcx_invalid_reservation.
           ENDIF.
         ELSE.
@@ -4997,11 +5737,14 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         FIELD-SYMBOL(<ls_allocated_total>)
         WITH TABLE KEY request_id = ls_split-request_id.
       IF sy-subrc = 0.
-        ADD ls_split-quantity TO <ls_allocated_total>-quantity.
+        <ls_allocated_total>-quantity =
+          <ls_allocated_total>-quantity + CONV decfloat34(
+            ls_split-quantity ).
       ELSE.
         INSERT VALUE #(
           request_id = ls_split-request_id
-          quantity   = ls_split-quantity ) INTO TABLE lt_allocated_totals.
+          quantity   = CONV decfloat34( ls_split-quantity ) )
+          INTO TABLE lt_allocated_totals.
       ENDIF.
 
       READ TABLE lt_allocated_items ASSIGNING
@@ -5016,7 +5759,9 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         IF <ls_allocated_item>-unit <> ls_split-base_unit.
           RAISE EXCEPTION TYPE zcx_invalid_reservation.
         ENDIF.
-        ADD ls_split-quantity TO <ls_allocated_item>-quantity.
+        <ls_allocated_item>-quantity =
+          <ls_allocated_item>-quantity + CONV decfloat34(
+            ls_split-quantity ).
       ELSE.
         INSERT VALUE #(
           wbs_element      = ls_item_assignment-wbs_element
@@ -5025,36 +5770,45 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
           plant            = ls_split-plant
           storage_location = ls_split-storage_location
           batch            = ls_split-batch
-          quantity         = ls_split-quantity
+          quantity         = CONV decfloat34( ls_split-quantity )
           unit             = ls_split-base_unit ) INTO TABLE lt_allocated_items.
       ENDIF.
     ENDLOOP.
 
     LOOP AT it_allocations INTO ls_allocation.
-      DATA(lv_split_quantity) = CONV mard-labst( 0 ).
+      DATA(lv_split_quantity) = CONV decfloat34( 0 ).
       READ TABLE lt_allocated_totals
         WITH TABLE KEY request_id = ls_allocation-allocation-request_id
         INTO DATA(ls_allocated_total).
       IF sy-subrc = 0.
         lv_split_quantity = ls_allocated_total-quantity.
       ENDIF.
-      IF lv_split_quantity
-          <> ls_allocation-allocation-allocated_quantity.
+      IF lv_split_quantity <> CONV decfloat34(
+          ls_allocation-allocation-allocated_quantity ).
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
     ENDLOOP.
 
+    DATA(lv_max_reservation_quantity) = CONV decfloat34(
+      CONV mard-labst( '9999999999.999' ) ).
     LOOP AT lt_allocated_items INTO DATA(ls_allocated_item).
+      IF ls_allocated_item-quantity <= 0
+          OR ls_allocated_item-quantity > lv_max_reservation_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_reservation.
+      ENDIF.
+      DATA(lv_reservation_quantity) = CONV mard-labst(
+        ls_allocated_item-quantity ).
       DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
         iv_material    = ls_allocated_item-material
-        iv_quantity    = ls_allocated_item-quantity
+        iv_quantity    = lv_reservation_quantity
         iv_source_unit = ls_allocated_item-unit ).
       IF ls_conversion-is_successful <> abap_true
           OR ls_conversion-base_unit <> ls_allocated_item-unit
-          OR ls_conversion-base_quantity <> ls_allocated_item-quantity.
+          OR ls_conversion-base_quantity <> lv_reservation_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_reservation.
       ENDIF.
-      APPEND ls_allocated_item TO lt_ordered_items.
+      APPEND VALUE #( BASE ls_allocated_item
+        quantity = lv_reservation_quantity ) TO lt_ordered_items.
     ENDLOOP.
     SORT lt_ordered_items BY wbs_element required_date material plant
                              storage_location batch.
@@ -5077,7 +5831,7 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         plant            = ls_allocated_item-plant
         storage_location = ls_allocated_item-storage_location
         batch            = ls_allocated_item-batch
-        quantity         = ls_allocated_item-quantity
+        quantity         = CONV mard-labst( ls_allocated_item-quantity )
         unit             = ls_allocated_item-unit ) TO <ls_group>-items.
     ENDLOOP.
 
@@ -5092,6 +5846,15 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
 
     LOOP AT lt_groups INTO DATA(ls_group).
       DATA(lv_group_required_date) = ls_group-required_date.
+      IF lv_stop_processing = abap_true.
+        APPEND VALUE #(
+          wbs_element   = ls_group-wbs_element
+          required_date = lv_group_required_date
+          is_test_run   = iv_test_run
+          is_skipped    = abap_true ) TO rs_result-reservations.
+        rs_result-skipped_count = rs_result-skipped_count + 1.
+        CONTINUE.
+      ENDIF.
       IF iv_atomic = abap_true AND iv_test_run = abap_false.
         APPEND INITIAL LINE TO rs_result-reservations
           ASSIGNING <ls_reservation>.
@@ -5146,6 +5909,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
               TO <ls_reservation>-messages.
           ENDIF.
           lv_has_failure = abap_true.
+          IF iv_stop_on_failure = abap_true.
+            lv_stop_processing = abap_true.
+            rs_result-stopped_on_failure = abap_true.
+          ENDIF.
         ENDIF.
         CONTINUE.
       ENDIF.
@@ -5170,6 +5937,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
             rs_result-successful_count = rs_result-successful_count + 1.
           ELSE.
             rs_result-failed_count = rs_result-failed_count + 1.
+            IF iv_stop_on_failure = abap_true.
+              lv_stop_processing = abap_true.
+              rs_result-stopped_on_failure = abap_true.
+            ENDIF.
           ENDIF.
         CATCH zcx_invalid_reservation.
           APPEND VALUE #(
@@ -5180,6 +5951,10 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
                 message = 'Project reservation request failed validation' ) )
             is_test_run   = iv_test_run ) TO rs_result-reservations.
           rs_result-failed_count = rs_result-failed_count + 1.
+          IF iv_stop_on_failure = abap_true.
+            lv_stop_processing = abap_true.
+            rs_result-stopped_on_failure = abap_true.
+          ENDIF.
       ENDTRY.
     ENDLOOP.
 
@@ -5192,13 +5967,18 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
       IF lv_has_failure = abap_true.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
-        rs_result-failed_count = lines( rs_result-reservations ).
+        rs_result-failed_count = lines( rs_result-reservations )
+          - rs_result-skipped_count.
         rs_result-was_rolled_back = abap_true.
         LOOP AT rs_result-reservations ASSIGNING <ls_reservation>.
           CLEAR <ls_reservation>-reservation_number.
           <ls_reservation>-is_successful = abap_false.
           <ls_reservation>-is_committed = abap_false.
-          <ls_reservation>-was_rolled_back = abap_true.
+          IF <ls_reservation>-is_skipped = abap_true.
+            CLEAR <ls_reservation>-was_rolled_back.
+          ELSE.
+            <ls_reservation>-was_rolled_back = abap_true.
+          ENDIF.
         ENDLOOP.
         RETURN.
       ENDIF.
@@ -5245,11 +6025,12 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
     ENDIF.
 
     rs_result-is_successful = xsdbool( rs_result-failed_count = 0 ).
-    IF rs_result-is_successful = abap_true
-        AND iv_test_run = abap_false
-        AND rs_result-reservations IS NOT INITIAL.
-      rs_result-is_committed = abap_true.
-    ENDIF.
+    LOOP AT rs_result-reservations ASSIGNING <ls_reservation>.
+      IF <ls_reservation>-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD validate_required_date.

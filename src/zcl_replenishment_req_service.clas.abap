@@ -61,8 +61,13 @@ CLASS zcl_replenishment_req_service DEFINITION
     TYPES:
       BEGIN OF ty_bulk_delete_result,
         requisition_results TYPE ty_delete_results,
+        successful_count    TYPE i,
+        failed_count        TYPE i,
+        skipped_count       TYPE i,
+        stopped_on_failure  TYPE abap_bool,
         is_successful       TYPE abap_bool,
         is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
       END OF ty_bulk_delete_result.
     TYPES:
       BEGIN OF ty_requisition_create_request,
@@ -85,8 +90,13 @@ CLASS zcl_replenishment_req_service DEFINITION
     TYPES:
       BEGIN OF ty_bulk_create_result,
         requisition_results TYPE ty_create_results,
+        successful_count    TYPE i,
+        failed_count        TYPE i,
+        skipped_count       TYPE i,
+        stopped_on_failure  TYPE abap_bool,
         is_successful       TYPE abap_bool,
         is_test_run         TYPE abap_bool,
+        is_committed        TYPE abap_bool,
       END OF ty_bulk_create_result.
     TYPES:
       BEGIN OF ty_pr_update_request,
@@ -108,6 +118,10 @@ CLASS zcl_replenishment_req_service DEFINITION
       BEGIN OF ty_pr_bulk_update_result,
         requisition_results TYPE ty_pr_update_results,
         commit_result       TYPE zif_purchase_requisition_api=>ty_commit_result,
+        successful_count    TYPE i,
+        failed_count        TYPE i,
+        skipped_count       TYPE i,
+        stopped_on_failure  TYPE abap_bool,
         is_successful       TYPE abap_bool,
         is_test_run         TYPE abap_bool,
         is_committed        TYPE abap_bool,
@@ -147,6 +161,7 @@ CLASS zcl_replenishment_req_service DEFINITION
       IMPORTING
         it_requisition_numbers TYPE zif_purchase_requisition_api=>ty_requisition_numbers
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_delete_result
       RAISING
@@ -174,11 +189,12 @@ CLASS zcl_replenishment_req_service DEFINITION
 
     METHODS update_pr_items_bulk
       IMPORTING
-        it_requests      TYPE ty_pr_update_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_pr_update_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_pr_bulk_update_result
+        VALUE(rs_result)   TYPE ty_pr_bulk_update_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -193,10 +209,11 @@ CLASS zcl_replenishment_req_service DEFINITION
 
     METHODS delete_pr_items_bulk
       IMPORTING
-        it_requests      TYPE ty_requisition_delete_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_requisition_delete_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_delete_result
+        VALUE(rs_result)   TYPE ty_bulk_delete_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -211,10 +228,11 @@ CLASS zcl_replenishment_req_service DEFINITION
 
     METHODS create_requisitions_bulk
       IMPORTING
-        it_requests      TYPE ty_requisition_create_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_requisition_create_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_create_result
+        VALUE(rs_result)   TYPE ty_bulk_create_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -372,6 +390,12 @@ CLASS zcl_replenishment_req_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS validate_stop_on_failure
+      IMPORTING
+        iv_stop_on_failure TYPE abap_bool
+      RAISING
+        zcx_invalid_stock_request.
+
     DATA mo_api TYPE REF TO zif_purchase_requisition_api.
 ENDCLASS.
 
@@ -379,6 +403,13 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
 
   METHOD constructor.
     mo_api = io_api.
+  ENDMETHOD.
+
+  METHOD validate_stop_on_failure.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
   ENDMETHOD.
 
   METHOD read_pr_items.
@@ -461,7 +492,10 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
       zif_purchase_requisition_api=>ty_requisition_number.
     DATA lt_seen_requisitions TYPE HASHED TABLE OF ty_requisition_number
       WITH UNIQUE KEY table_line.
+    DATA lv_request_index TYPE i.
+    DATA lv_pending_index TYPE i.
 
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     IF it_requisition_numbers IS INITIAL
         OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -477,14 +511,42 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     rs_result-is_successful = abap_true.
     rs_result-is_test_run = iv_test_run.
     LOOP AT it_requisition_numbers INTO lv_requisition_number.
+      lv_request_index = sy-tabix.
       DATA(ls_delete_result) = delete_all_pr_items(
         iv_requisition_number = lv_requisition_number
         iv_test_run           = iv_test_run ).
       APPEND ls_delete_result TO rs_result-requisition_results.
+      ls_delete_result-is_skipped = abap_false.
+      IF ls_delete_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_delete_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
+        ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+        CONTINUE.
       ENDIF.
+      ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      lv_pending_index = lv_request_index + 1.
+      LOOP AT it_requisition_numbers INTO lv_requisition_number
+          FROM lv_pending_index.
+        APPEND VALUE #(
+          requisition_number = lv_requisition_number
+          is_test_run        = iv_test_run
+          is_skipped         = abap_true
+          messages           = VALUE #(
+            ( type    = 'I'
+              message = 'Not attempted because an earlier requisition failed' ) ) )
+          TO rs_result-requisition_results.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD mark_pr_items_deleted.
@@ -551,6 +613,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     DATA lv_pending_index TYPE i.
     DATA lv_has_failure TYPE abap_bool.
 
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_pr_update_requests(
       it_requests = it_requests
       iv_test_run = iv_test_run
@@ -560,18 +623,40 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     IF iv_atomic = abap_false.
       rs_result-is_successful = abap_true.
       LOOP AT it_requests INTO DATA(ls_update_request).
+        lv_request_index = sy-tabix.
         DATA(ls_item_result) = update_pr_items(
           iv_requisition_number = ls_update_request-requisition_number
           it_item_updates       = ls_update_request-item_updates
           iv_test_run           = iv_test_run ).
         APPEND ls_item_result TO rs_result-requisition_results.
+        IF ls_item_result-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
         IF ls_item_result-is_successful = abap_false.
           rs_result-is_successful = abap_false.
+          ADD 1 TO rs_result-failed_count.
+          IF iv_stop_on_failure = abap_true.
+            rs_result-stopped_on_failure = abap_true.
+            EXIT.
+          ENDIF.
+          CONTINUE.
         ENDIF.
+        ADD 1 TO rs_result-successful_count.
       ENDLOOP.
-      IF rs_result-is_successful = abap_true
-          AND iv_test_run = abap_false.
-        rs_result-is_committed = abap_true.
+      IF rs_result-stopped_on_failure = abap_true.
+        lv_pending_index = lv_request_index + 1.
+        LOOP AT it_requests INTO ls_update_request FROM lv_pending_index.
+          APPEND VALUE #(
+            requisition_number     = ls_update_request-requisition_number
+            submitted_item_updates = ls_update_request-item_updates
+            is_test_run            = iv_test_run
+            is_skipped             = abap_true
+            messages               = VALUE #(
+              ( type    = 'I'
+                message = 'Not attempted because an earlier requisition failed' ) ) )
+            TO rs_result-requisition_results.
+          ADD 1 TO rs_result-skipped_count.
+        ENDLOOP.
       ENDIF.
       RETURN.
     ENDIF.
@@ -588,6 +673,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         ls_update_request-item_updates.
       ls_atomic_item_result-is_test_run = iv_test_run.
       ls_atomic_item_result-is_committed = abap_false.
+      ls_atomic_item_result-is_skipped = abap_false.
       ls_atomic_item_result-bapi_was_called = abap_true.
 
       DATA(lv_has_error_message) = abap_false.
@@ -631,16 +717,23 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
             requisition_number     = ls_pending_request-requisition_number
             submitted_item_updates = ls_pending_request-item_updates
             is_test_run            = iv_test_run
+            is_skipped             = abap_true
             messages               = VALUE #(
               ( type    = 'I'
                 message = 'Not attempted because an earlier requisition failed' ) ) )
             TO rs_result-requisition_results.
+          ADD 1 TO rs_result-skipped_count.
         ENDLOOP.
         LOOP AT rs_result-requisition_results
             ASSIGNING FIELD-SYMBOL(<ls_update_result>).
-          <ls_update_result>-is_successful = abap_false.
+          IF <ls_update_result>-is_skipped = abap_false.
+            <ls_update_result>-is_successful = abap_false.
+            ADD 1 TO rs_result-failed_count.
+          ENDIF.
           <ls_update_result>-is_committed = abap_false.
         ENDLOOP.
+        rs_result-is_successful = abap_false.
+        rs_result-stopped_on_failure = abap_true.
         mo_api->rollback( ).
         rs_result-is_rolled_back = abap_true.
         RETURN.
@@ -649,6 +742,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
 
     IF iv_test_run = abap_true.
       rs_result-is_successful = abap_true.
+      rs_result-successful_count = lines( rs_result-requisition_results ).
       LOOP AT rs_result-requisition_results
           ASSIGNING <ls_update_result>.
         <ls_update_result>-is_successful = abap_true.
@@ -670,6 +764,8 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         rs_result-commit_result-message-message =
           'Purchase requisition item update commit failed'.
       ENDIF.
+      rs_result-is_successful = abap_false.
+      rs_result-failed_count = lines( rs_result-requisition_results ).
       LOOP AT rs_result-requisition_results
           ASSIGNING <ls_update_result>.
         <ls_update_result>-is_successful = abap_false.
@@ -682,6 +778,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
 
     rs_result-is_successful = abap_true.
     rs_result-is_committed = abap_true.
+    rs_result-successful_count = lines( rs_result-requisition_results ).
     LOOP AT rs_result-requisition_results
         ASSIGNING <ls_update_result>.
       <ls_update_result>-is_successful = abap_true.
@@ -711,6 +808,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         ls_delete_request-item_numbers.
       ls_item_result-is_test_run = iv_test_run.
       ls_item_result-is_committed = abap_false.
+      ls_item_result-is_skipped = abap_false.
       ls_item_result-bapi_was_called = abap_true.
 
       DATA(lv_has_error_message) = abap_false.
@@ -749,6 +847,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
             requisition_number     = ls_pending_request-requisition_number
             submitted_item_numbers = ls_pending_request-item_numbers
             is_test_run            = iv_test_run
+            is_skipped             = abap_true
             messages               = VALUE #(
               ( type    = 'I'
                 message = 'Not attempted because an earlier requisition failed' ) ) )
@@ -808,6 +907,10 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_pr_items_bulk.
+    DATA lv_request_index TYPE i.
+    DATA lv_pending_index TYPE i.
+
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_delete_requests(
       it_requests = it_requests
       iv_test_run = iv_test_run ).
@@ -815,6 +918,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     rs_result-is_test_run = iv_test_run.
     rs_result-is_successful = abap_true.
     LOOP AT it_requests INTO DATA(ls_delete_request).
+      lv_request_index = sy-tabix.
       DATA ls_request TYPE zif_purchase_requisition_api=>ty_request.
       CLEAR ls_request.
       ls_request-is_test_run = iv_test_run.
@@ -835,10 +939,37 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         is_request = ls_request
         is_result  = ls_write_result ).
       APPEND ls_result TO rs_result-requisition_results.
+      IF ls_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
+        ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+        CONTINUE.
       ENDIF.
+      ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      lv_pending_index = lv_request_index + 1.
+      LOOP AT it_requests INTO DATA(ls_pending_delete_request)
+          FROM lv_pending_index.
+        APPEND VALUE #(
+          requisition_number     = ls_pending_delete_request-requisition_number
+          submitted_item_numbers = ls_pending_delete_request-item_numbers
+          is_test_run            = iv_test_run
+          is_skipped             = abap_true
+          messages               = VALUE #(
+            ( type    = 'I'
+              message = 'Not attempted because an earlier requisition failed' ) ) )
+          TO rs_result-requisition_results.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD create_requisitions_atomic.
@@ -862,6 +993,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
       ls_create_result-submitted_items = ls_request-items.
       ls_create_result-is_test_run = iv_test_run.
       ls_create_result-is_committed = abap_false.
+      ls_create_result-is_skipped = abap_false.
       ls_create_result-bapi_was_called = abap_true.
 
       DATA(lv_has_error_message) = abap_false.
@@ -914,6 +1046,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
           APPEND VALUE #(
             submitted_items = ls_pending_request-items
             is_test_run     = iv_test_run
+            is_skipped      = abap_true
             messages        = VALUE #(
               ( type    = 'I'
                 message = 'Not attempted because an earlier requisition failed' ) ) )
@@ -975,6 +1108,10 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_requisitions_bulk.
+    DATA lv_request_index TYPE i.
+    DATA lv_pending_index TYPE i.
+
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_create_requests(
       it_requests = it_requests
       iv_test_run = iv_test_run ).
@@ -982,6 +1119,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
     rs_result-is_test_run = iv_test_run.
     rs_result-is_successful = abap_true.
     LOOP AT it_requests INTO DATA(ls_create_request).
+      lv_request_index = sy-tabix.
       DATA(ls_request) = VALUE zif_purchase_requisition_api=>ty_request(
         requisition_type = ls_create_request-requisition_type
         is_test_run      = iv_test_run
@@ -994,10 +1132,36 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
         is_request = ls_request
         is_result  = ls_write_result ).
       APPEND ls_result TO rs_result-requisition_results.
+      IF ls_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
+        ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+        CONTINUE.
       ENDIF.
+      ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      lv_pending_index = lv_request_index + 1.
+      LOOP AT it_requests INTO DATA(ls_pending_create_request)
+          FROM lv_pending_index.
+        APPEND VALUE #(
+          submitted_items = ls_pending_create_request-items
+          is_test_run     = iv_test_run
+          is_skipped      = abap_true
+          messages        = VALUE #(
+            ( type    = 'I'
+              message = 'Not attempted because an earlier requisition failed' ) ) )
+          TO rs_result-requisition_results.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD prepare_from_suggestions.
@@ -1806,6 +1970,7 @@ CLASS zcl_replenishment_req_service IMPLEMENTATION.
   METHOD complete_write.
     rs_result = is_result.
     rs_result-is_test_run = is_request-is_test_run.
+    rs_result-is_skipped = abap_false.
     rs_result-bapi_was_called = abap_true.
     rs_result-is_committed = abap_false.
     LOOP AT rs_result-messages ASSIGNING FIELD-SYMBOL(<ls_message>).

@@ -18,6 +18,7 @@ CLASS lcl_sales_order_uom_repo IMPLEMENTATION.
       rs_ratio-denominator = mv_denominator.
     ENDIF.
   ENDMETHOD.
+
 ENDCLASS.
 
 CLASS ltcl_bapi_sales_order_api DEFINITION FINAL

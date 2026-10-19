@@ -110,9 +110,13 @@ CLASS zcl_stock_allocation_factory IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_goods_movement_service.
+    DATA(lo_stock_service) = create_stock_service( ).
+    DATA(lo_expiry_reader) = NEW zcl_stock_expiry_reader(
+      io_stock_service = lo_stock_service ).
     ro_service = NEW zcl_goods_movement_service(
       io_api            = NEW zcl_bapi_goods_movement_api( )
-      io_uom_repository = NEW zcl_material_uom_repository( ) ).
+      io_uom_repository = NEW zcl_material_uom_repository( )
+      io_expiry_reader  = lo_expiry_reader ).
   ENDMETHOD.
 
   METHOD create_quality_stock_service.
@@ -245,8 +249,11 @@ CLASS zcl_stock_allocation_factory IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_prod_order_read_service.
+    DATA(lo_uom_converter) = NEW zcl_material_uom_converter(
+      io_repository = NEW zcl_material_uom_repository( ) ).
     ro_service = NEW zcl_prod_order_read_service(
-      io_repository = NEW zcl_prod_order_read_repo( ) ).
+      io_repository    = NEW zcl_prod_order_read_repo( )
+      io_uom_converter = lo_uom_converter ).
   ENDMETHOD.
 
   METHOD create_preq_service.

@@ -1,4 +1,9 @@
 INTERFACE zif_stock_repository PUBLIC.
+  CONSTANTS c_expiry_source_plant  TYPE c LENGTH 1 VALUE 'P'.
+  CONSTANTS c_expiry_source_global TYPE c LENGTH 1 VALUE 'G'.
+  CONSTANTS c_allocation_pass_match TYPE c LENGTH 1 VALUE 'M'.
+  CONSTANTS c_allocation_pass_fallback TYPE c LENGTH 1 VALUE 'F'.
+
 
   TYPES:
     BEGIN OF ty_reservation_key,
@@ -8,12 +13,51 @@ INTERFACE zif_stock_repository PUBLIC.
   TYPES ty_reservation_keys TYPE STANDARD TABLE OF
     ty_reservation_key WITH EMPTY KEY.
   TYPES:
+    BEGIN OF ty_uncovered_reservation,
+      reservation_number  TYPE resb-rsnum,
+      reservation_item    TYPE resb-rspos,
+      allocation_sequence TYPE i,
+      required_date       TYPE resb-bdter,
+      storage_location    TYPE resb-lgort,
+      batch               TYPE resb-charg,
+      valuation_type      TYPE resb-bwtar,
+      required_quantity   TYPE resb-bdmng,
+      withdrawn_quantity  TYPE resb-enmng,
+      open_quantity       TYPE resb-bdmng,
+      allocated_quantity  TYPE resb-bdmng,
+      matched_quantity    TYPE resb-bdmng,
+      fallback_quantity   TYPE resb-bdmng,
+      uncovered_quantity  TYPE resb-bdmng,
+    END OF ty_uncovered_reservation.
+  TYPES ty_uncovered_reservations TYPE STANDARD TABLE OF
+    ty_uncovered_reservation WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_batch_allocation_detail,
+      reservation_number         TYPE resb-rsnum,
+      reservation_item           TYPE resb-rspos,
+      allocation_sequence        TYPE i,
+      required_date              TYPE resb-bdter,
+      allocation_pass            TYPE c LENGTH 1,
+      requested_storage_location TYPE resb-lgort,
+      requested_batch            TYPE resb-charg,
+      requested_valuation_type   TYPE resb-bwtar,
+      storage_location           TYPE mard-lgort,
+      batch                      TYPE mchb-charg,
+      valuation_type             TYPE mcha-bwtar,
+      expiration_date            TYPE mcha-vfdat,
+      quantity                   TYPE mchb-clabs,
+    END OF ty_batch_allocation_detail.
+  TYPES ty_batch_allocation_details TYPE STANDARD TABLE OF
+    ty_batch_allocation_detail WITH EMPTY KEY.
+  TYPES:
     BEGIN OF ty_stock_allocation_reservation,
       reservation_number TYPE resb-rsnum,
       reservation_item   TYPE resb-rspos,
       required_date      TYPE resb-bdter,
       storage_location   TYPE resb-lgort,
       batch              TYPE resb-charg,
+      required_quantity  TYPE resb-bdmng,
+      withdrawn_quantity TYPE resb-enmng,
       open_quantity      TYPE resb-bdmng,
     END OF ty_stock_allocation_reservation.
   TYPES ty_stock_allocation_reservations TYPE STANDARD TABLE OF
@@ -92,13 +136,19 @@ INTERFACE zif_stock_repository PUBLIC.
     ty_stock_location_bulk_result WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_sales_order_reservation,
-      sales_document   TYPE resb-kdauf,
-      material         TYPE resb-matnr,
-      plant            TYPE resb-werks,
-      item_number      TYPE resb-kdpos,
-      schedule_line    TYPE resb-kdein,
-      requirement_date TYPE resb-bdter,
-      open_quantity    TYPE resb-bdmng,
+      reservation_number TYPE resb-rsnum,
+      reservation_item   TYPE resb-rspos,
+      sales_document     TYPE resb-kdauf,
+      material           TYPE resb-matnr,
+      plant              TYPE resb-werks,
+      item_number        TYPE resb-kdpos,
+      schedule_line      TYPE resb-kdein,
+      requirement_date   TYPE resb-bdter,
+      storage_location   TYPE resb-lgort,
+      batch              TYPE resb-charg,
+      required_quantity  TYPE resb-bdmng,
+      withdrawn_quantity TYPE resb-enmng,
+      open_quantity      TYPE resb-bdmng,
     END OF ty_sales_order_reservation.
   TYPES ty_sales_order_reservations TYPE STANDARD TABLE OF
     ty_sales_order_reservation WITH EMPTY KEY.
@@ -108,6 +158,7 @@ INTERFACE zif_stock_repository PUBLIC.
     BEGIN OF ty_batch_stock,
       storage_location   TYPE mard-lgort,
       batch              TYPE mchb-charg,
+      valuation_type     TYPE mcha-bwtar,
       expiration_date    TYPE mcha-vfdat,
       available_quantity TYPE mchb-clabs,
     END OF ty_batch_stock.
@@ -117,7 +168,10 @@ INTERFACE zif_stock_repository PUBLIC.
     BEGIN OF ty_batch_stock_status,
       storage_location            TYPE mard-lgort,
       batch                       TYPE mchb-charg,
+      valuation_type              TYPE mcha-bwtar,
+      batch_managed               TYPE marc-xchar,
       expiration_date             TYPE mcha-vfdat,
+      expiration_date_source      TYPE c LENGTH 1,
       unrestricted_quantity       TYPE mchb-clabs,
       available_quantity          TYPE mchb-clabs,
       quality_inspection_quantity TYPE mchb-cinsm,
@@ -127,10 +181,32 @@ INTERFACE zif_stock_repository PUBLIC.
     ty_batch_stock_status WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_batch_status_bulk_result,
-      request_id TYPE c LENGTH 30,
-      material   TYPE mard-matnr,
-      plant      TYPE mard-werks,
-      batches    TYPE ty_batch_stock_statuses,
+      request_id                     TYPE c LENGTH 30,
+      material                       TYPE mard-matnr,
+      plant                          TYPE mard-werks,
+      snapshot_timestamp             TYPE timestampl,
+      open_reservation_quantity      TYPE resb-bdmng,
+      excluded_open_resv_quantity    TYPE resb-bdmng,
+      matched_allocation_quantity    TYPE resb-bdmng,
+      fallback_allocation_quantity   TYPE resb-bdmng,
+      matched_allocation_row_count   TYPE i,
+      fallback_allocation_row_count  TYPE i,
+      fully_allocated_resv_count     TYPE i,
+      partially_allocated_resv_count TYPE i,
+      unallocated_resv_count         TYPE i,
+      uncovered_open_resv_quantity   TYPE resb-bdmng,
+      uncovered_open_resv_row_count  TYPE i,
+      first_uncovered_required_date  TYPE resb-bdter,
+      first_uncovered_resv_number    TYPE resb-rsnum,
+      first_uncovered_resv_item      TYPE resb-rspos,
+      uncovered_open_resv_keys       TYPE ty_reservation_keys,
+      uncovered_open_reservations    TYPE ty_uncovered_reservations,
+      allocation_details             TYPE ty_batch_allocation_details,
+      open_reservation_row_count     TYPE i,
+      excluded_open_resv_row_count   TYPE i,
+      unmatched_open_resv_excl_count TYPE i,
+      unmatched_excl_reservations    TYPE ty_reservation_keys,
+      batches                        TYPE ty_batch_stock_statuses,
     END OF ty_batch_status_bulk_result.
   TYPES ty_batch_status_bulk_results TYPE STANDARD TABLE OF
     ty_batch_status_bulk_result WITH EMPTY KEY.
@@ -192,10 +268,11 @@ INTERFACE zif_stock_repository PUBLIC.
 
   METHODS get_unrestricted_stock
     IMPORTING
-      iv_material        TYPE mard-matnr
-      iv_plant           TYPE mard-werks
+      iv_material              TYPE mard-matnr
+      iv_plant                 TYPE mard-werks
+      it_excluded_reservations TYPE ty_reservation_keys OPTIONAL
     RETURNING
-      VALUE(rv_quantity) TYPE mard-labst
+      VALUE(rv_quantity)       TYPE mard-labst
     RAISING
       zcx_invalid_stock_request.
 
@@ -309,16 +386,18 @@ INTERFACE zif_stock_repository PUBLIC.
 
   METHODS get_sales_order_reservations
     IMPORTING
-      iv_sales_document      TYPE resb-kdauf
+      iv_sales_document        TYPE resb-kdauf
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_sales_order_reservations.
+      VALUE(rt_reservations)   TYPE ty_sales_order_reservations.
 
   " Each positive open RESB row is returned separately.
   METHODS get_order_reservations_bulk
     IMPORTING
-      it_sales_documents     TYPE ty_sales_order_documents
+      it_sales_documents       TYPE ty_sales_order_documents
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_sales_order_reservations.
+      VALUE(rt_reservations)   TYPE ty_sales_order_reservations.
 
   METHODS get_stock_status
     IMPORTING
@@ -346,9 +425,10 @@ INTERFACE zif_stock_repository PUBLIC.
 
   METHODS get_location_stock_status_bulk
     IMPORTING
-      it_requests      TYPE ty_stock_status_requests
+      it_requests              TYPE ty_stock_status_requests
+      it_excluded_reservations TYPE ty_reservation_keys OPTIONAL
     RETURNING
-      VALUE(rt_status) TYPE ty_stock_location_bulk_results.
+      VALUE(rt_status)         TYPE ty_stock_location_bulk_results.
 
   METHODS get_stock_status_by_batch
     IMPORTING
@@ -359,22 +439,25 @@ INTERFACE zif_stock_repository PUBLIC.
 
   METHODS get_open_stock_reservations
     IMPORTING
-      iv_material            TYPE mard-matnr
-      iv_plant               TYPE mard-werks
+      iv_material              TYPE mard-matnr
+      iv_plant                 TYPE mard-werks
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_stock_allocation_reservations.
+      VALUE(rt_reservations)   TYPE ty_stock_allocation_reservations.
 
   METHODS get_open_stock_res_bulk
     IMPORTING
-      it_requests      TYPE ty_stock_status_requests
+      it_requests              TYPE ty_stock_status_requests
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_status) TYPE ty_stock_reservation_bulk_results.
+      VALUE(rt_status)         TYPE ty_stock_reservation_bulk_results.
 
   METHODS get_batch_stock_status_bulk
     IMPORTING
-      it_requests      TYPE ty_stock_status_requests
+      it_requests              TYPE ty_stock_status_requests
+      it_excluded_reservations TYPE ty_reservation_keys OPTIONAL
     RETURNING
-      VALUE(rt_status) TYPE ty_batch_status_bulk_results.
+      VALUE(rt_status)         TYPE ty_batch_status_bulk_results.
 
   METHODS get_stock_by_location
     IMPORTING

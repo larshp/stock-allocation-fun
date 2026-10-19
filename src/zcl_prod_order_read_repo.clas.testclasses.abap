@@ -9,6 +9,8 @@ CLASS ltcl_prod_order_read_repo DEFINITION FINAL
     METHODS reads_order_items FOR TESTING RAISING cx_static_check.
     METHODS reads_active_order_statuses FOR TESTING RAISING cx_static_check.
     METHODS reads_confirmations FOR TESTING RAISING cx_static_check.
+    METHODS searches_confirmation_window FOR TESTING
+      RAISING cx_static_check.
     METHODS reads_operations FOR TESTING RAISING cx_static_check.
     METHODS skips_empty_requests FOR TESTING RAISING cx_static_check.
 ENDCLASS.
@@ -30,6 +32,7 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
     APPEND 'AUFK' TO lt_tables.
     APPEND 'AFVC' TO lt_tables.
     APPEND 'AFRU' TO lt_tables.
+    APPEND 'PRPS' TO lt_tables.
     APPEND 'JEST' TO lt_tables.
     APPEND 'TJ02T' TO lt_tables.
     APPEND 'TJ30T' TO lt_tables.
@@ -140,6 +143,20 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
       ltxa1 = 'Inspect suboperation'
       steus = 'QM01' ) TO lt_afvc.
     APPEND VALUE #(
+      aufpl = '0000000001'
+      aplzl = '00000004'
+      plnfl = '000002'
+      vornr = '0020'
+      ltxa1 = 'Inspect alternate sequence'
+      steus = 'QM02' ) TO lt_afvc.
+    APPEND VALUE #(
+      aufpl = '0000000001'
+      aplzl = '00000005'
+      plnfl = '000002'
+      vornr = '0030'
+      ltxa1 = 'Pack alternate sequence'
+      steus = 'PP03' ) TO lt_afvc.
+    APPEND VALUE #(
       aufpl = '0000000002'
       aplzl = '00000001'
       plnfl = '000002'
@@ -204,6 +221,43 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
       aplzl = '00000001'
       budat = '20260115'
       lmnga = '3.000'
+      meinh = 'EA' ) TO lt_afru.
+    APPEND VALUE #(
+      rueck = '0000000007'
+      rmzhl = '00000001'
+      aufnr = '1001'
+      aufpl = '0000000001'
+      aplzl = '00000003'
+      budat = '20260112'
+      lmnga = '4.000'
+      meinh = 'EA' ) TO lt_afru.
+    APPEND VALUE #(
+      rueck = '0000000008'
+      rmzhl = '00000001'
+      aufnr = '1001'
+      aufpl = '0000000001'
+      aplzl = '00000003'
+      budat = '20260112'
+      aueru = 'X'
+      lmnga = '5.000'
+      meinh = 'EA' ) TO lt_afru.
+    APPEND VALUE #(
+      rueck = '0000000010'
+      rmzhl = '00000001'
+      aufnr = '1001'
+      aufpl = '0000000001'
+      aplzl = '00000005'
+      budat = '20260112'
+      lmnga = '1.000'
+      meinh = 'BOX' ) TO lt_afru.
+    APPEND VALUE #(
+      rueck = '0000000009'
+      rmzhl = '00000001'
+      aufnr = '1001'
+      aufpl = '0000000001'
+      aplzl = '00000004'
+      budat = '20260112'
+      lmnga = '2.000'
       meinh = 'EA' ) TO lt_afru.
 
     APPEND VALUE #(
@@ -356,26 +410,343 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
           ( '1001' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 8
       act = lines( lt_confirmations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0000000003'
-      act = lt_confirmations[ 1 ]-confirmation ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-confirmation ).
     cl_abap_unit_assert=>assert_equals(
       exp = '00000002'
-      act = lt_confirmations[ 1 ]-confirmation_counter ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-confirmation_counter ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '10'
+      act = lt_confirmations[ confirmation = '0000000003' ]-order_category ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000002'
+      act = lt_confirmations[ confirmation = '0000000003' ]-operation_counter ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV afru-lmnga( '9.000' )
-      act = lt_confirmations[ 1 ]-yield_quantity ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-yield_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
-      act = lt_confirmations[ 1 ]-is_final ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-is_final ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
-      act = lt_confirmations[ 1 ]-is_reversed ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-is_reversed ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0020'
-      act = lt_confirmations[ 1 ]-operation_number ).
+      act = lt_confirmations[ confirmation = '0000000003' ]-operation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Inspect component'
+      act = lt_confirmations[ confirmation = '0000000003' ]-operation_description ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'QM01'
+      act = lt_confirmations[ confirmation = '0000000003' ]-control_key ).
+  ENDMETHOD.
+
+  METHOD searches_confirmation_window.
+    DATA(lo_cut) = NEW zcl_prod_order_read_repo( ).
+    DATA(ls_selection) = VALUE
+      zif_prod_order_read_repo=>ty_confirmation_window_selection(
+        material          = 'MAT-1'
+        plant             = '1000'
+        posting_date_from = '20260110'
+        posting_date_to   = '20260112'
+        maximum_results   = 2 ).
+
+    DATA(lt_first_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_first_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000001'
+      act = lt_first_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Make component'
+      act = lt_first_page[ 1 ]-operation_description ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000001'
+      act = lt_first_page[ 1 ]-operation_counter ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PP01'
+      act = lt_first_page[ 1 ]-control_key ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000002'
+      act = lt_first_page[ 2 ]-confirmation ).
+
+    ls_selection-maximum_results = 10.
+    ls_selection-after_posting_date = '20260112'.
+    ls_selection-after_production_order = '1001'.
+    ls_selection-after_confirmation = '0000000002'.
+    ls_selection-after_confirmation_counter = '00000001'.
+    ls_selection-reversed_only = abap_true.
+    DATA(lt_reversed_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_reversed_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000003'
+      act = lt_reversed_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_true(
+      lt_reversed_page[ 1 ]-is_reversed ).
+    CLEAR ls_selection-reversed_only.
+    CLEAR ls_selection-after_posting_date.
+    CLEAR ls_selection-after_production_order.
+    CLEAR ls_selection-after_confirmation.
+    CLEAR ls_selection-after_confirmation_counter.
+    ls_selection-positive_rework_only = abap_true.
+    ls_selection-positive_scrap_only = abap_true.
+    ls_selection-maximum_results = 10.
+    DATA(lt_quality_confirmation_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_quality_confirmation_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000003'
+      act = lt_quality_confirmation_page[ 1 ]-confirmation ).
+    CLEAR ls_selection-positive_rework_only.
+    CLEAR ls_selection-positive_scrap_only.
+    ls_selection-positive_yield_only = abap_true.
+    DATA(lt_yield_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = xsdbool( lines( lt_yield_page ) > 0 ) ).
+    LOOP AT lt_yield_page INTO DATA(ls_yield_confirmation).
+      cl_abap_unit_assert=>assert_equals(
+        exp = abap_true
+        act = xsdbool( ls_yield_confirmation-yield_quantity > 0 ) ).
+    ENDLOOP.
+    CLEAR ls_selection-positive_yield_only.
+    ls_selection-maximum_results = 2.
+
+    DATA lt_additional_afpo TYPE STANDARD TABLE OF afpo WITH EMPTY KEY.
+    DATA lt_additional_afru TYPE STANDARD TABLE OF afru WITH EMPTY KEY.
+    lt_additional_afpo = VALUE #(
+      ( aufnr = '1002'
+        posnr = '0002'
+        matnr = 'MAT-1'
+        werks = '1000' ) ).
+    lt_additional_afru = VALUE #(
+      ( rueck = '0000000011'
+        rmzhl = '00000001'
+        aufnr = '1002'
+        aufpl = '0000000002'
+        aplzl = '00000001'
+        budat = '20260111'
+        meinh = 'EA' ) ).
+    mo_environment->insert_test_data( lt_additional_afpo ).
+    mo_environment->insert_test_data( lt_additional_afru ).
+    ls_selection-production_order = '1002'.
+    ls_selection-maximum_results = 10.
+    DATA(lt_order_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000011'
+      act = lt_order_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1002'
+      act = lt_order_page[ 1 ]-production_order ).
+
+    CLEAR ls_selection-production_order.
+    ls_selection-confirmation_number = '0000000003'.
+    ls_selection-confirmation_counter = '00000002'.
+    DATA(lt_exact_confirmation_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_exact_confirmation_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000003'
+      act = lt_exact_confirmation_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000002'
+      act = lt_exact_confirmation_page[ 1 ]-confirmation_counter ).
+
+    CLEAR ls_selection-confirmation_number.
+    CLEAR ls_selection-confirmation_counter.
+    ls_selection-order_category = '40'.
+    DATA(lt_process_order_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_process_order_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '40'
+      act = lt_process_order_page[ 1 ]-order_category ).
+    CLEAR ls_selection-order_category.
+
+    ls_selection-production_order = '1001'.
+    ls_selection-operation_counter = '00000002'.
+    DATA(lt_internal_operation_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_internal_operation_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000003'
+      act = lt_internal_operation_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000002'
+      act = lt_internal_operation_page[ 1 ]-operation_counter ).
+    CLEAR ls_selection-operation_counter.
+    CLEAR ls_selection-production_order.
+    CLEAR ls_selection-confirmation_number.
+    CLEAR ls_selection-confirmation_counter.
+    ls_selection-maximum_results = 2.
+    ls_selection-operation_number = '0020'.
+    ls_selection-after_posting_date = '20260112'.
+    ls_selection-after_production_order = '1001'.
+    ls_selection-after_confirmation = '0000000002'.
+    ls_selection-after_confirmation_counter = '00000001'.
+    DATA(lt_second_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_second_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000003'
+      act = lt_second_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Inspect component'
+      act = lt_second_page[ 1 ]-operation_description ).
+    cl_abap_unit_assert=>assert_true(
+      lt_second_page[ 1 ]-is_reversed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_second_page[ 2 ]-operation_suboperation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Inspect suboperation'
+      act = lt_second_page[ 2 ]-operation_description ).
+
+    CLEAR ls_selection-after_posting_date.
+    CLEAR ls_selection-after_production_order.
+    CLEAR ls_selection-after_confirmation.
+    CLEAR ls_selection-after_confirmation_counter.
+    ls_selection-operation_sequence = '000002'.
+    DATA(lt_sequence_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_sequence_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000009'
+      act = lt_sequence_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000002'
+      act = lt_sequence_page[ 1 ]-operation_sequence ).
+    CLEAR ls_selection-operation_number.
+    ls_selection-production_order = '1001'.
+    DATA(lt_sequence_only_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_sequence_only_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000010'
+      act = lt_sequence_only_page[ 2 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0030'
+      act = lt_sequence_only_page[ 2 ]-operation_number ).
+
+    CLEAR ls_selection-production_order.
+    CLEAR ls_selection-operation_number.
+    CLEAR ls_selection-operation_sequence.
+    CLEAR ls_selection-operation_suboperation.
+    ls_selection-control_key = 'PP03'.
+    ls_selection-maximum_results = 10.
+    DATA(lt_control_key_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_control_key_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000010'
+      act = lt_control_key_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PP03'
+      act = lt_control_key_page[ 1 ]-control_key ).
+
+    CLEAR ls_selection-control_key.
+    ls_selection-quantity_unit = 'BOX'.
+    DATA(lt_unit_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_unit_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000010'
+      act = lt_unit_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BOX'
+      act = lt_unit_page[ 1 ]-quantity_unit ).
+
+    CLEAR ls_selection-quantity_unit.
+    ls_selection-operation_number = '0020'.
+    ls_selection-operation_suboperation = '0001'.
+    ls_selection-maximum_results = 1.
+    DATA(lt_suboperation_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_suboperation_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000007'
+      act = lt_suboperation_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_suboperation_page[ 2 ]-operation_suboperation ).
+
+    ls_selection-final_only = abap_true.
+    ls_selection-exclude_reversed = abap_true.
+    DATA(lt_final_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_final_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000008'
+      act = lt_final_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_true(
+      lt_final_page[ 1 ]-is_final ).
+
+    CLEAR ls_selection-final_only.
+    CLEAR ls_selection-exclude_reversed.
+    ls_selection-partial_only = abap_true.
+    DATA(lt_partial_page) =
+      lo_cut->zif_prod_order_read_repo~search_confirmations_by_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_partial_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000007'
+      act = lt_partial_page[ 1 ]-confirmation ).
+    cl_abap_unit_assert=>assert_initial(
+      lt_partial_page[ 1 ]-is_final ).
   ENDMETHOD.
 
   METHOD reads_operations.
@@ -387,7 +758,7 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
         ( '1001' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 4
+      exp = 6
       act = lines( lt_operations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0010'

@@ -6,6 +6,13 @@ CLASS zcl_goods_movement_service DEFINITION
   PUBLIC SECTION.
     TYPES ty_wbs_element TYPE c LENGTH 24.
     TYPES ty_special_stock TYPE c LENGTH 1.
+    TYPES ty_scrap_stock_category TYPE c LENGTH 1.
+    CONSTANTS c_scrap_stock_unrestricted TYPE ty_scrap_stock_category
+      VALUE 'U'.
+    CONSTANTS c_scrap_stock_quality TYPE ty_scrap_stock_category
+      VALUE 'Q'.
+    CONSTANTS c_scrap_stock_blocked TYPE ty_scrap_stock_category
+      VALUE 'B'.
     TYPES:
       BEGIN OF ty_transfer_destination,
         request_id                 TYPE c LENGTH 30,
@@ -22,7 +29,9 @@ CLASS zcl_goods_movement_service DEFINITION
         receiving_plant            TYPE mard-werks,
         receiving_storage_location TYPE mard-lgort,
         batch                      TYPE mchb-charg,
+        valuation_type             TYPE c LENGTH 10,
         receiving_batch            TYPE mchb-charg,
+        receiving_valuation_type   TYPE c LENGTH 10,
         quantity                   TYPE mard-labst,
         entry_unit                 TYPE mara-meins,
         entry_unit_iso             TYPE c LENGTH 3,
@@ -38,7 +47,9 @@ CLASS zcl_goods_movement_service DEFINITION
         receiving_plant            TYPE mard-werks,
         receiving_storage_location TYPE mard-lgort,
         batch                      TYPE mchb-charg,
+        valuation_type             TYPE c LENGTH 10,
         receiving_batch            TYPE mchb-charg,
+        receiving_valuation_type   TYPE c LENGTH 10,
         quantity                   TYPE mard-labst,
         unit                       TYPE mara-meins,
       END OF ty_material_transfer_line_in_unit.
@@ -50,6 +61,7 @@ CLASS zcl_goods_movement_service DEFINITION
         plant            TYPE mard-werks,
         storage_location TYPE mard-lgort,
         batch            TYPE mchb-charg,
+        valuation_type   TYPE c LENGTH 10,
         quantity         TYPE mard-labst,
         entry_unit       TYPE mara-meins,
         entry_unit_iso   TYPE c LENGTH 3,
@@ -62,6 +74,7 @@ CLASS zcl_goods_movement_service DEFINITION
         plant            TYPE mard-werks,
         storage_location TYPE mard-lgort,
         batch            TYPE mchb-charg,
+        valuation_type   TYPE c LENGTH 10,
         quantity         TYPE mard-labst,
         unit             TYPE mara-meins,
       END OF ty_cc_issue_line_in_unit.
@@ -106,16 +119,20 @@ CLASS zcl_goods_movement_service DEFINITION
         issue_result  TYPE zif_goods_movement_api=>ty_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_cc_issue_row_result.
     TYPES ty_cc_issue_row_results TYPE STANDARD TABLE OF
       ty_cc_issue_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_cc_issues_bulk_result,
-        issues           TYPE ty_cc_issue_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        issues             TYPE ty_cc_issue_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_cc_issues_bulk_result.
     TYPES:
       BEGIN OF ty_cc_issues_atomic_result,
@@ -133,16 +150,20 @@ CLASS zcl_goods_movement_service DEFINITION
         return_result TYPE zif_goods_movement_api=>ty_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_cc_return_row_result.
     TYPES ty_cc_return_row_results TYPE STANDARD TABLE OF
       ty_cc_return_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_cc_returns_bulk_result,
-        returns          TYPE ty_cc_return_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        returns            TYPE ty_cc_return_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_cc_returns_bulk_result.
     TYPES:
       BEGIN OF ty_cc_returns_atomic_result,
@@ -161,6 +182,258 @@ CLASS zcl_goods_movement_service DEFINITION
       END OF ty_material_unit_mapping.
     TYPES ty_material_unit_mappings TYPE STANDARD TABLE OF
       ty_material_unit_mapping WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_expired_scrap_quantity,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+        cost_center      TYPE rkpf-kostl,
+        movement_reason  TYPE bapi2017_gm_item_create-move_reas,
+        quantity         TYPE mard-labst,
+      END OF ty_expired_scrap_quantity.
+    TYPES ty_expired_scrap_quantities TYPE STANDARD TABLE OF
+      ty_expired_scrap_quantity WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_expired_scrap_preview_selection,
+        storage_location        TYPE mard-lgort,
+        location_priority_rank  TYPE i,
+        category_balance        TYPE mard-labst,
+        batch                   TYPE mchb-charg,
+        valuation_type          TYPE mcha-bwtar,
+        expiration_date         TYPE mcha-vfdat,
+        expiration_date_source  TYPE c LENGTH 1,
+        days_expired_at_posting TYPE i,
+        cost_center             TYPE rkpf-kostl,
+        movement_reason         TYPE bapi2017_gm_item_create-move_reas,
+        quantity                TYPE mard-labst,
+      END OF ty_expired_scrap_preview_selection.
+    TYPES ty_expired_scrap_preview_selections TYPE STANDARD TABLE OF
+      ty_expired_scrap_preview_selection WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_expired_scrap_preview_result,
+        request_id            TYPE c LENGTH 30,
+        material              TYPE mard-matnr,
+        plant                 TYPE mard-werks,
+        as_of_date            TYPE d,
+        through_date          TYPE d,
+        posting_date          TYPE d,
+        stock_category        TYPE c LENGTH 1,
+        movement_type         TYPE c LENGTH 3,
+        requested_quantity    TYPE mard-labst,
+        allocated_quantity    TYPE mard-labst,
+        remaining_quantity    TYPE mard-labst,
+        is_fully_allocated    TYPE abap_bool,
+        snapshot_timestamp    TYPE timestampl,
+        excluded_reservations TYPE
+          zif_stock_repository=>ty_reservation_keys,
+        selections            TYPE ty_expired_scrap_quantities,
+        selection_details     TYPE ty_expired_scrap_preview_selections,
+      END OF ty_expired_scrap_preview_result.
+    TYPES ty_expired_blocked_scrap_preview_result TYPE
+      ty_expired_scrap_preview_result.
+    TYPES:
+      BEGIN OF ty_expired_scrap_uom_preview_result,
+        source_requested_quantity TYPE mard-labst,
+        source_requested_unit     TYPE mara-meins,
+        base_requested_quantity   TYPE mard-labst,
+        base_unit                 TYPE mara-meins,
+        preview                   TYPE ty_expired_scrap_preview_result,
+      END OF ty_expired_scrap_uom_preview_result.
+    TYPES ty_expired_blocked_scrap_uom_preview_result TYPE
+      ty_expired_scrap_uom_preview_result.
+    TYPES:
+      BEGIN OF ty_expired_scrap_fefo_result,
+        source_requested_quantity    TYPE mard-labst,
+        source_requested_unit        TYPE mara-meins,
+        require_full_quantity        TYPE abap_bool,
+        base_requested_quantity      TYPE mard-labst,
+        base_unit                    TYPE mara-meins,
+        preview                      TYPE ty_expired_scrap_preview_result,
+        posting_result               TYPE zif_goods_movement_api=>ty_result,
+        is_posting_attempted         TYPE abap_bool,
+        is_rechecked                 TYPE abap_bool,
+        rechecked_snapshot_timestamp TYPE timestampl,
+      END OF ty_expired_scrap_fefo_result.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_request,
+        exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result,
+        rechecked_exposure        TYPE zcl_stock_service=>ty_batch_expiry_result,
+        requested_quantity        TYPE mard-labst,
+        cost_center               TYPE rkpf-kostl,
+        material_unit             TYPE ty_material_unit_mapping,
+        stock_category            TYPE ty_scrap_stock_category,
+        movement_reason           TYPE bapi2017_gm_item_create-move_reas,
+        storage_location_priority TYPE zcl_stock_service=>ty_storage_locations,
+      END OF ty_scrap_fefo_request.
+    TYPES ty_scrap_fefo_requests TYPE STANDARD TABLE OF
+      ty_scrap_fefo_request WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_uom_request,
+        exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result,
+        rechecked_exposure        TYPE zcl_stock_service=>ty_batch_expiry_result,
+        requested_quantity        TYPE mard-labst,
+        requested_unit            TYPE mara-meins,
+        cost_center               TYPE rkpf-kostl,
+        material_unit             TYPE ty_material_unit_mapping,
+        stock_category            TYPE ty_scrap_stock_category,
+        movement_reason           TYPE bapi2017_gm_item_create-move_reas,
+        storage_location_priority TYPE zcl_stock_service=>ty_storage_locations,
+      END OF ty_scrap_fefo_uom_request.
+    TYPES ty_scrap_fefo_uom_requests TYPE STANDARD TABLE OF
+      ty_scrap_fefo_uom_request WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_stock_request,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        as_of_date                TYPE d,
+        through_date              TYPE d,
+        requested_quantity        TYPE mard-labst,
+        requested_unit            TYPE mara-meins,
+        cost_center               TYPE rkpf-kostl,
+        material_unit             TYPE ty_material_unit_mapping,
+        stock_category            TYPE ty_scrap_stock_category,
+        movement_reason           TYPE bapi2017_gm_item_create-move_reas,
+        storage_location_priority TYPE zcl_stock_service=>ty_storage_locations,
+        excluded_reservations     TYPE
+          zif_stock_repository=>ty_reservation_keys,
+      END OF ty_scrap_fefo_stock_request.
+    TYPES ty_scrap_fefo_stock_requests TYPE STANDARD TABLE OF
+      ty_scrap_fefo_stock_request WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_fefo_preview_priority,
+        request_id    TYPE c LENGTH 30,
+        priority_rank TYPE i,
+      END OF ty_fefo_preview_priority.
+    TYPES ty_fefo_preview_priorities TYPE STANDARD TABLE OF
+      ty_fefo_preview_priority WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_row_result,
+        request_index       TYPE i,
+        request_id          TYPE c LENGTH 30,
+        priority_rank       TYPE i,
+        allocation_sequence TYPE i,
+        is_priority_ranked  TYPE abap_bool,
+        fefo_result         TYPE ty_expired_scrap_fefo_result,
+        is_attempted        TYPE abap_bool,
+        is_exception        TYPE abap_bool,
+        is_skipped          TYPE abap_bool,
+        is_successful       TYPE abap_bool,
+        is_committed        TYPE abap_bool,
+      END OF ty_scrap_fefo_row_result.
+    TYPES ty_scrap_fefo_row_results TYPE STANDARD TABLE OF
+      ty_scrap_fefo_row_result WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_exp_scrap_capacity,
+        material                     TYPE mard-matnr,
+        plant                        TYPE mard-werks,
+        base_unit                    TYPE mara-meins,
+        storage_location             TYPE mard-lgort,
+        batch                        TYPE mchb-charg,
+        valuation_type               TYPE mcha-bwtar,
+        stock_category               TYPE ty_scrap_stock_category,
+        available_quantity           TYPE mard-labst,
+        minimum_exposure_count       TYPE i,
+        maximum_reported_quantity    TYPE mard-labst,
+        maximum_reported_request_id  TYPE c LENGTH 30,
+        maximum_exposure_count       TYPE i,
+        capacity_spread_quantity     TYPE mard-labst,
+        limiting_request_id          TYPE c LENGTH 30,
+        reported_exposure_count      TYPE i,
+        contributing_request_count   TYPE i,
+        rechecked_exposure_count     TYPE i,
+        positive_exposure_count      TYPE i,
+        earliest_snapshot_timestamp  TYPE timestampl,
+        latest_snapshot_timestamp    TYPE timestampl,
+        untimestamped_exposure_count TYPE i,
+        allocated_quantity           TYPE mard-labst,
+        allocation_row_count         TYPE i,
+        remaining_quantity           TYPE mard-labst,
+      END OF ty_exp_scrap_capacity.
+    TYPES ty_exp_scrap_capacities TYPE STANDARD TABLE OF
+      ty_exp_scrap_capacity WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_bulk_result,
+        requests              TYPE ty_scrap_fefo_row_results,
+        require_full_quantity TYPE abap_bool,
+        successful_count      TYPE i,
+        failed_count          TYPE i,
+        skipped_count         TYPE i,
+        exception_count       TYPE i,
+        stopped_on_failure    TYPE abap_bool,
+        is_successful         TYPE abap_bool,
+        is_test_run           TYPE abap_bool,
+        is_committed          TYPE abap_bool,
+      END OF ty_scrap_fefo_bulk_result.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_atomic_result,
+        requests              TYPE ty_scrap_fefo_row_results,
+        require_full_quantity TYPE abap_bool,
+        shared_capacities     TYPE ty_exp_scrap_capacities,
+        commit_result         TYPE zif_goods_movement_api=>ty_commit_result,
+        successful_count      TYPE i,
+        failed_count          TYPE i,
+        exception_count       TYPE i,
+        is_successful         TYPE abap_bool,
+        is_test_run           TYPE abap_bool,
+        is_committed          TYPE abap_bool,
+        is_rolled_back        TYPE abap_bool,
+      END OF ty_scrap_fefo_atomic_result.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_stock_atomic_result,
+        exposures           TYPE zcl_stock_service=>ty_batch_expiry_results,
+        rechecked_exposures TYPE zcl_stock_service=>ty_batch_expiry_results,
+        posting_result      TYPE ty_scrap_fefo_atomic_result,
+      END OF ty_scrap_fefo_stock_atomic_result.
+    TYPES:
+      BEGIN OF ty_scrap_fefo_stock_bulk_result,
+        exposures           TYPE zcl_stock_service=>ty_batch_expiry_results,
+        rechecked_exposures TYPE zcl_stock_service=>ty_batch_expiry_results,
+        posting_result      TYPE ty_scrap_fefo_bulk_result,
+      END OF ty_scrap_fefo_stock_bulk_result.
+    TYPES:
+      BEGIN OF ty_expired_stock_preview_row,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        as_of_date                TYPE d,
+        through_date              TYPE d,
+        stock_category            TYPE ty_scrap_stock_category,
+        cost_center               TYPE rkpf-kostl,
+        movement_reason           TYPE bapi2017_gm_item_create-move_reas,
+        storage_location_priority TYPE zcl_stock_service=>ty_storage_locations,
+        priority_rank             TYPE i,
+        is_priority_ranked        TYPE abap_bool,
+        allocation_sequence       TYPE i,
+        snapshot_timestamp        TYPE timestampl,
+        excluded_reservations     TYPE zif_stock_repository=>ty_reservation_keys,
+        preview_result            TYPE ty_expired_scrap_uom_preview_result,
+      END OF ty_expired_stock_preview_row.
+    TYPES ty_expired_stock_preview_rows TYPE STANDARD TABLE OF
+      ty_expired_stock_preview_row WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_expired_stock_preview_result,
+        exposures             TYPE zcl_stock_service=>ty_batch_expiry_results,
+        requests              TYPE ty_expired_stock_preview_rows,
+        shared_capacities     TYPE ty_exp_scrap_capacities,
+        request_count         TYPE i,
+        fully_allocated_count TYPE i,
+        shortfall_count       TYPE i,
+        require_full_quantity TYPE abap_bool,
+        is_fully_allocated    TYPE abap_bool,
+      END OF ty_expired_stock_preview_result.
+    TYPES:
+      BEGIN OF ty_scrap_qty_uom,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+        cost_center      TYPE rkpf-kostl,
+        movement_reason  TYPE bapi2017_gm_item_create-move_reas,
+        quantity         TYPE mard-labst,
+        unit             TYPE mara-meins,
+      END OF ty_scrap_qty_uom.
+    TYPES ty_scrap_qty_uoms TYPE STANDARD TABLE OF ty_scrap_qty_uom
+      WITH EMPTY KEY.
     TYPES ty_so_fefo_request_id TYPE c LENGTH 30.
     TYPES ty_so_fefo_request_ids TYPE STANDARD TABLE OF
       ty_so_fefo_request_id WITH EMPTY KEY.
@@ -174,6 +447,7 @@ CLASS zcl_goods_movement_service DEFINITION
         plant            TYPE mard-werks,
         storage_location TYPE mard-lgort,
         batch            TYPE mchb-charg,
+        valuation_type   TYPE c LENGTH 10,
         quantity         TYPE mard-labst,
         entry_unit       TYPE mara-meins,
         entry_unit_iso   TYPE c LENGTH 3,
@@ -187,6 +461,7 @@ CLASS zcl_goods_movement_service DEFINITION
         plant            TYPE mard-werks,
         storage_location TYPE mard-lgort,
         batch            TYPE mchb-charg,
+        valuation_type   TYPE c LENGTH 10,
         quantity         TYPE mard-labst,
         unit             TYPE mara-meins,
       END OF ty_sales_issue_line_in_unit.
@@ -220,16 +495,20 @@ CLASS zcl_goods_movement_service DEFINITION
         movement_result TYPE zif_goods_movement_api=>ty_result,
         is_attempted    TYPE abap_bool,
         is_committed    TYPE abap_bool,
+        is_skipped      TYPE abap_bool,
       END OF ty_sales_stock_transfer_row_result.
     TYPES ty_sales_stock_transfer_row_results TYPE STANDARD TABLE OF
       ty_sales_stock_transfer_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sales_stock_transfers_bulk_result,
-        movements        TYPE ty_sales_stock_transfer_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        movements          TYPE ty_sales_stock_transfer_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_sales_stock_transfers_bulk_result.
     TYPES:
       BEGIN OF ty_sales_stock_transfers_atomic_result,
@@ -247,16 +526,20 @@ CLASS zcl_goods_movement_service DEFINITION
         issue_result   TYPE zif_goods_movement_api=>ty_result,
         is_attempted   TYPE abap_bool,
         is_committed   TYPE abap_bool,
+        is_skipped     TYPE abap_bool,
       END OF ty_sales_order_issue_row_result.
     TYPES ty_sales_order_issue_row_results TYPE STANDARD TABLE OF
       ty_sales_order_issue_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sales_orders_bulk_issue_result,
-        issues           TYPE ty_sales_order_issue_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        issues             TYPE ty_sales_order_issue_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_sales_orders_bulk_issue_result.
     TYPES:
       BEGIN OF ty_sales_orders_atomic_issue_result,
@@ -294,16 +577,20 @@ CLASS zcl_goods_movement_service DEFINITION
         movement_result TYPE zif_goods_movement_api=>ty_result,
         is_attempted    TYPE abap_bool,
         is_committed    TYPE abap_bool,
+        is_skipped      TYPE abap_bool,
       END OF ty_sales_return_row_result.
     TYPES ty_sales_return_row_results TYPE STANDARD TABLE OF
       ty_sales_return_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sales_returns_bulk_result,
-        returns          TYPE ty_sales_return_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        returns            TYPE ty_sales_return_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_sales_returns_bulk_result.
     TYPES:
       BEGIN OF ty_sales_returns_atomic_result,
@@ -349,6 +636,7 @@ CLASS zcl_goods_movement_service DEFINITION
         issue_result  TYPE zif_goods_movement_api=>ty_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_project_wbs_issue_row_result.
     TYPES ty_project_wbs_issue_row_results TYPE STANDARD TABLE OF
       ty_project_wbs_issue_row_result WITH EMPTY KEY.
@@ -359,24 +647,31 @@ CLASS zcl_goods_movement_service DEFINITION
         return_result TYPE zif_goods_movement_api=>ty_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_project_wbs_return_row_result.
     TYPES ty_project_wbs_return_row_results TYPE STANDARD TABLE OF
       ty_project_wbs_return_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_project_wbs_issues_bulk_result,
-        issues           TYPE ty_project_wbs_issue_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        issues             TYPE ty_project_wbs_issue_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_project_wbs_issues_bulk_result.
     TYPES:
       BEGIN OF ty_project_wbs_returns_bulk_result,
-        returns          TYPE ty_project_wbs_return_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        returns            TYPE ty_project_wbs_return_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_project_wbs_returns_bulk_result.
     TYPES:
       BEGIN OF ty_project_wbs_atomic_row_result,
@@ -433,6 +728,8 @@ CLASS zcl_goods_movement_service DEFINITION
         storage_location        TYPE mard-lgort,
         batch                   TYPE mchb-charg,
         expiration_date         TYPE mcha-vfdat,
+        require_known_expiry    TYPE abap_bool,
+        allow_undated_batches   TYPE abap_bool,
         quantity                TYPE mard-labst,
         unit                    TYPE mara-meins,
       END OF ty_project_wbs_transfer_line.
@@ -451,6 +748,30 @@ CLASS zcl_goods_movement_service DEFINITION
         preview  TYPE zcl_project_stock_service=>ty_transfer_result,
         movement TYPE zif_goods_movement_api=>ty_result,
       END OF ty_wbs_fefo_xfer_result,
+      BEGIN OF ty_wbs_location_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_location_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_location_issue_result,
+      BEGIN OF ty_wbs_loc_prio_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_priority_location_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_loc_prio_issue_result,
+      BEGIN OF ty_wbs_dated_loc_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_dated_location_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_dated_loc_issue_result,
+      BEGIN OF ty_wbs_fefo_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_fefo_issue_result,
+      BEGIN OF ty_wbs_dated_fefo_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_dated_fefo_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_dated_fefo_issue_result,
+      BEGIN OF ty_wbs_priority_fefo_issue_result,
+        preview  TYPE zcl_project_stock_service=>ty_priority_fefo_result,
+        movement TYPE zif_goods_movement_api=>ty_result,
+      END OF ty_wbs_priority_fefo_issue_result,
       BEGIN OF ty_wbs_dated_fefo_xfer_result,
         preview  TYPE zcl_project_stock_service=>ty_dated_transfer_result,
         movement TYPE zif_goods_movement_api=>ty_result,
@@ -546,16 +867,20 @@ CLASS zcl_goods_movement_service DEFINITION
         issue_result     TYPE zif_goods_movement_api=>ty_result,
         is_attempted     TYPE abap_bool,
         is_committed     TYPE abap_bool,
+        is_skipped       TYPE abap_bool,
       END OF ty_prod_issue_row_result.
     TYPES ty_prod_issue_row_results TYPE STANDARD TABLE OF
       ty_prod_issue_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_prod_issues_bulk_result,
-        issues           TYPE ty_prod_issue_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        issues             TYPE ty_prod_issue_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_prod_issues_bulk_result.
     TYPES:
       BEGIN OF ty_prod_issues_atomic_result,
@@ -573,16 +898,20 @@ CLASS zcl_goods_movement_service DEFINITION
         return_result    TYPE zif_goods_movement_api=>ty_result,
         is_attempted     TYPE abap_bool,
         is_committed     TYPE abap_bool,
+        is_skipped       TYPE abap_bool,
       END OF ty_prod_return_row_result.
     TYPES ty_prod_return_row_results TYPE STANDARD TABLE OF
       ty_prod_return_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_prod_returns_bulk_result,
-        returns          TYPE ty_prod_return_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        returns            TYPE ty_prod_return_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_prod_returns_bulk_result.
     TYPES:
       BEGIN OF ty_prod_returns_atomic_result,
@@ -666,14 +995,19 @@ CLASS zcl_goods_movement_service DEFINITION
         goods_issue_result TYPE zif_goods_movement_api=>ty_result,
         is_issue_attempted TYPE abap_bool,
         is_in_transit      TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_sto_issue_pair_result.
     TYPES ty_sto_issue_pair_results TYPE STANDARD TABLE OF
       ty_sto_issue_pair_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_issue_pairs_result,
-        orders        TYPE ty_sto_issue_pair_results,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        orders             TYPE ty_sto_issue_pair_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
       END OF ty_sto_issue_pairs_result.
     TYPES:
       BEGIN OF ty_sto_receipt_pair_result,
@@ -685,14 +1019,19 @@ CLASS zcl_goods_movement_service DEFINITION
         is_receipt_attempted TYPE abap_bool,
         is_in_transit        TYPE abap_bool,
         is_received          TYPE abap_bool,
+        is_skipped           TYPE abap_bool,
       END OF ty_sto_receipt_pair_result.
     TYPES ty_sto_receipt_pair_results TYPE STANDARD TABLE OF
       ty_sto_receipt_pair_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_receipt_pairs_result,
-        orders        TYPE ty_sto_receipt_pair_results,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        orders             TYPE ty_sto_receipt_pair_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
       END OF ty_sto_receipt_pairs_result.
     TYPES:
       BEGIN OF ty_sto_cancel_pair_result,
@@ -704,13 +1043,18 @@ CLASS zcl_goods_movement_service DEFINITION
         is_cancel_attempted TYPE abap_bool,
         is_in_transit       TYPE abap_bool,
         is_cancelled        TYPE abap_bool,
+        is_skipped          TYPE abap_bool,
       END OF ty_sto_cancel_pair_result.
     TYPES ty_sto_cancel_pair_results TYPE STANDARD TABLE OF
       ty_sto_cancel_pair_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_cancel_pairs_result,
-        orders        TYPE ty_sto_cancel_pair_results,
-        is_successful TYPE abap_bool,
+        orders             TYPE ty_sto_cancel_pair_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
       END OF ty_sto_cancel_pairs_result.
     TYPES:
       BEGIN OF ty_sto_receipt_cancel_pair_result,
@@ -729,13 +1073,18 @@ CLASS zcl_goods_movement_service DEFINITION
         is_received                 TYPE abap_bool,
         is_cancelled                TYPE abap_bool,
         is_fully_cancelled          TYPE abap_bool,
+        is_skipped                  TYPE abap_bool,
       END OF ty_sto_receipt_cancel_pair_result.
     TYPES ty_sto_receipt_cancel_pair_results TYPE STANDARD TABLE OF
       ty_sto_receipt_cancel_pair_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_receipt_cancel_pairs_result,
-        orders        TYPE ty_sto_receipt_cancel_pair_results,
-        is_successful TYPE abap_bool,
+        orders             TYPE ty_sto_receipt_cancel_pair_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
       END OF ty_sto_receipt_cancel_pairs_result.
     TYPES:
       BEGIN OF ty_two_step_transfer_result,
@@ -803,16 +1152,20 @@ CLASS zcl_goods_movement_service DEFINITION
         receipt_result        TYPE zif_goods_movement_api=>ty_result,
         is_attempted          TYPE abap_bool,
         is_committed          TYPE abap_bool,
+        is_skipped            TYPE abap_bool,
       END OF ty_po_receipt_row_result.
     TYPES ty_po_receipt_row_results TYPE STANDARD TABLE OF
       ty_po_receipt_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_po_receipts_bulk_result,
-        receipts         TYPE ty_po_receipt_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        receipts           TYPE ty_po_receipt_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_po_receipts_bulk_result.
     TYPES:
       BEGIN OF ty_po_receipts_atomic_result,
@@ -842,16 +1195,20 @@ CLASS zcl_goods_movement_service DEFINITION
         return_result         TYPE zif_goods_movement_api=>ty_result,
         is_attempted          TYPE abap_bool,
         is_committed          TYPE abap_bool,
+        is_skipped            TYPE abap_bool,
       END OF ty_po_return_row_result.
     TYPES ty_po_return_row_results TYPE STANDARD TABLE OF
       ty_po_return_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_po_returns_bulk_result,
-        returns          TYPE ty_po_return_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        returns            TYPE ty_po_return_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_po_returns_bulk_result.
     TYPES:
       BEGIN OF ty_po_returns_atomic_result,
@@ -908,16 +1265,20 @@ CLASS zcl_goods_movement_service DEFINITION
         receipt_result   TYPE zif_goods_movement_api=>ty_result,
         is_attempted     TYPE abap_bool,
         is_committed     TYPE abap_bool,
+        is_skipped       TYPE abap_bool,
       END OF ty_prod_receipt_row_result.
     TYPES ty_prod_receipt_row_results TYPE STANDARD TABLE OF
       ty_prod_receipt_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_prod_receipts_bulk_result,
-        receipts         TYPE ty_prod_receipt_row_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        receipts           TYPE ty_prod_receipt_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_prod_receipts_bulk_result.
     TYPES:
       BEGIN OF ty_prod_receipts_atomic_result,
@@ -936,21 +1297,27 @@ CLASS zcl_goods_movement_service DEFINITION
         reversal_result   TYPE zif_goods_movement_api=>ty_result,
         is_attempted      TYPE abap_bool,
         is_cancelled      TYPE abap_bool,
+        is_skipped        TYPE abap_bool,
       END OF ty_cancel_document_row_result.
     TYPES ty_cancel_document_row_results TYPE STANDARD TABLE OF
       ty_cancel_document_row_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_cancel_documents_result,
-        documents     TYPE ty_cancel_document_row_results,
-        is_successful TYPE abap_bool,
-        is_atomic     TYPE abap_bool,
+        documents          TYPE ty_cancel_document_row_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_atomic          TYPE abap_bool,
       END OF ty_cancel_documents_result.
 
     METHODS constructor
       IMPORTING
         io_api            TYPE REF TO zif_goods_movement_api
         io_uom_repository TYPE REF TO zif_material_uom_repository
-          OPTIONAL.
+          OPTIONAL
+        io_expiry_reader  TYPE REF TO zif_batch_expiry_reader OPTIONAL.
 
     METHODS issue_to_cost_center
       IMPORTING
@@ -1000,22 +1367,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS issue_cost_centers_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_cc_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_cc_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_cc_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_cc_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS issue_cost_centers_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_cc_issue_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_cc_issue_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_cc_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_cc_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1042,22 +1411,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS return_cost_centers_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_cc_return_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_cc_return_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_cc_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_cc_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_cost_centers_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_cc_return_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_cc_return_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_cc_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_cc_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1098,6 +1469,18 @@ CLASS zcl_goods_movement_service DEFINITION
       IMPORTING
         is_header                  TYPE zif_goods_movement_api=>ty_header
         it_previews                TYPE zcl_cc_reservation_service=>ty_location_demand_previews
+        it_material_units          TYPE ty_material_unit_mappings
+        iv_test_run                TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
+      RETURNING
+        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS issue_cc_locations_by_date
+      IMPORTING
+        is_header                  TYPE zif_goods_movement_api=>ty_header
+        it_previews                TYPE zcl_cc_reservation_service=>ty_dated_location_demand_previews
         it_material_units          TYPE ty_material_unit_mappings
         iv_test_run                TYPE abap_bool DEFAULT abap_false
         iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
@@ -1157,24 +1540,26 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS issue_sales_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_sales_order_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
-        iv_special_stock TYPE ty_special_stock DEFAULT space
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_order_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_special_stock   TYPE ty_special_stock DEFAULT space
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sales_orders_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_sales_orders_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS issue_sales_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_sales_order_issue_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
-        iv_special_stock  TYPE ty_special_stock DEFAULT space
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_order_issue_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_special_stock   TYPE ty_special_stock DEFAULT space
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_sales_orders_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_sales_orders_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1282,24 +1667,26 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS return_sales_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_sales_return_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
-        iv_special_stock TYPE ty_special_stock DEFAULT space
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_return_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_special_stock   TYPE ty_special_stock DEFAULT space
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sales_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_sales_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_sales_return_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
-        iv_special_stock  TYPE ty_special_stock DEFAULT space
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_return_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_special_stock   TYPE ty_special_stock DEFAULT space
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_sales_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1351,22 +1738,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS transfer_sales_stock_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_sales_stock_transfer_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_stock_transfer_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sales_stock_transfers_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_stock_transfers_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS transfer_sales_stock_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_sales_stock_transfer_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_stock_transfer_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_sales_stock_transfers_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_stock_transfers_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1416,22 +1805,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS transfer_to_sales_stock_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_sales_stock_transfer_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_stock_transfer_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sales_stock_transfers_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_stock_transfers_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS transfer_to_so_stock_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_sales_stock_transfer_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_sales_stock_transfer_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_sales_stock_transfers_bulk_result
+        VALUE(rs_result)   TYPE ty_sales_stock_transfers_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1470,43 +1861,47 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS issue_project_wbs_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_project_wbs_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_project_wbs_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_project_wbs_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_project_wbs_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS issue_project_wbs_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_project_wbs_issue_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_project_wbs_issue_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_project_wbs_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_project_wbs_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_project_wbs_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_project_wbs_return_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_project_wbs_return_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_project_wbs_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_project_wbs_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_project_wbs_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_project_wbs_return_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_project_wbs_return_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_project_wbs_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_project_wbs_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1629,129 +2024,154 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS transfer_wbs_fefo
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_transfer_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_fefo_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_fefo_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS transfer_wbs_fefo_priority
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_priority_transfer_fefo_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_prioritize_by_date          TYPE abap_bool DEFAULT abap_false
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_prio_fefo_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_prio_fefo_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS transfer_wbs_fefo_by_date
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_dated_transfer_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_as_of_date                TYPE d DEFAULT sy-datum
-        iv_minimum_shelf_life_days   TYPE i DEFAULT 0
-        iv_include_undated_batches   TYPE abap_bool DEFAULT abap_true
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_dated_fefo_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_dated_fefo_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS transfer_wbs_by_location
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_transfer_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_loc_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_loc_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS transfer_wbs_loc_priority
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_priority_location_transfer_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_prio_loc_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_prio_loc_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS transfer_wbs_by_location_date
       IMPORTING
-        io_stock_service             TYPE REF TO zcl_project_stock_service
-        is_header                    TYPE zif_goods_movement_api=>ty_header
-        it_demands                   TYPE
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
           zcl_project_stock_service=>ty_dated_location_transfer_demands
-        it_material_units            TYPE ty_material_unit_mappings
-        it_storage_location_priority TYPE
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_allowed_storage_locations TYPE
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
-        iv_reservation_through_date  TYPE d OPTIONAL
-        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)             TYPE ty_wbs_dated_loc_xfer_result
+        VALUE(rs_result)               TYPE ty_wbs_dated_loc_xfer_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
@@ -1770,6 +2190,77 @@ CLASS zcl_goods_movement_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS issue_project_wbs_location
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE zcl_project_stock_service=>ty_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_location_issue_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_goods_movement.
+
+    METHODS issue_project_wbs_loc_priority
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
+          zcl_project_stock_service=>ty_priority_location_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_loc_prio_issue_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_goods_movement.
+
+    METHODS issue_project_wbs_loc_date
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
+          zcl_project_stock_service=>ty_dated_location_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_dated_loc_issue_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_goods_movement.
+
     METHODS issue_project_wbs_batch_alloc
       IMPORTING
         is_header                  TYPE zif_goods_movement_api=>ty_header
@@ -1782,6 +2273,87 @@ CLASS zcl_goods_movement_service DEFINITION
       RETURNING
         VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
       RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS issue_project_wbs_fefo
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE zcl_project_stock_service=>ty_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_fefo_issue_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_goods_movement.
+
+    METHODS issue_project_wbs_fefo_prio
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
+          zcl_project_stock_service=>ty_priority_fefo_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_prioritize_by_date          TYPE abap_bool DEFAULT abap_false
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_priority_fefo_issue_result
+      RAISING
+        zcx_invalid_stock_request
+        zcx_invalid_goods_movement.
+
+    METHODS issue_project_wbs_fefo_by_date
+      IMPORTING
+        io_stock_service               TYPE REF TO zcl_project_stock_service
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_demands                     TYPE
+          zcl_project_stock_service=>ty_dated_fefo_demands
+        it_material_units              TYPE ty_material_unit_mappings
+        it_storage_location_priority   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_location_priorities TYPE
+          zcl_stock_service=>ty_request_location_priorities OPTIONAL
+        it_request_locations           TYPE
+          zcl_project_stock_service=>ty_request_locations OPTIONAL
+        it_allowed_storage_locations   TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_minimum_shelf_life_days     TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_require_full_quantity       TYPE abap_bool DEFAULT abap_true
+        iv_reservation_through_date    TYPE d OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)               TYPE ty_wbs_dated_fefo_issue_result
+      RAISING
+        zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS issue_sales_order_allocation
@@ -1882,22 +2454,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS return_prod_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_prod_return_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_return_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_prod_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_prod_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_prod_return_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_return_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_prod_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1924,22 +2498,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS issue_unplanned_prod_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_prod_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_prod_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS issue_unplanned_prod_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_prod_issue_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_issue_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_prod_issues_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_issues_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -1976,6 +2552,464 @@ CLASS zcl_goods_movement_service DEFINITION
       RAISING
         zcx_invalid_goods_movement.
 
+    METHODS post_expired_fefo_bulk_atomic
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_requests
+        iv_require_full_quantity TYPE abap_bool
+        it_request_priorities    TYPE ty_fefo_preview_priorities
+        iv_test_run              TYPE abap_bool
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_atomic_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS validate_scrap_recheck
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_expired_scrap_quantities
+        iv_stock_category     TYPE ty_scrap_stock_category
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_batch_stock
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_expired_scrap_quantities
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_qi_batch_stock
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_expired_scrap_quantities
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_blocked_stock
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_expired_scrap_quantities
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_scrap
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_expired_scrap_quantities
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_stock_category   TYPE ty_scrap_stock_category
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_expired_blocked_scrap
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_expired_scrap
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        iv_stock_category            TYPE ty_scrap_stock_category
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_expired_qi_scrap
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_exp_unrestricted_scrap
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_exp_blocked_scrap_uom
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_requested_unit            TYPE mara-meins
+        iv_cost_center               TYPE rkpf-kostl
+        is_material_unit             TYPE ty_material_unit_mapping
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_blocked_scrap_uom_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_expired_scrap_uom
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_requested_unit            TYPE mara-meins
+        iv_cost_center               TYPE rkpf-kostl
+        is_material_unit             TYPE ty_material_unit_mapping
+        iv_stock_category            TYPE ty_scrap_stock_category
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_uom_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_exp_scrap_from_stock
+      IMPORTING
+        iv_posting_date          TYPE d
+        it_requests              TYPE ty_scrap_fefo_stock_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        it_excluded_reservations TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+      RETURNING
+        VALUE(rs_result)         TYPE ty_expired_stock_preview_result
+      RAISING
+        zcx_invalid_goods_movement
+        zcx_invalid_stock_request.
+
+    METHODS scrap_expired_fefo
+      IMPORTING
+        is_header                    TYPE zif_goods_movement_api=>ty_header
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        is_material_unit             TYPE ty_material_unit_mapping
+        iv_stock_category            TYPE ty_scrap_stock_category
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
+        is_rechecked_exposure        TYPE zcl_stock_service=>ty_batch_expiry_result OPTIONAL
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_fefo_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_fefo_uom
+      IMPORTING
+        is_header                    TYPE zif_goods_movement_api=>ty_header
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_requested_quantity        TYPE mard-labst
+        iv_requested_unit            TYPE mara-meins
+        iv_cost_center               TYPE rkpf-kostl
+        is_material_unit             TYPE ty_material_unit_mapping
+        iv_stock_category            TYPE ty_scrap_stock_category
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas OPTIONAL
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        iv_require_full_quantity     TYPE abap_bool DEFAULT abap_true
+        is_rechecked_exposure        TYPE zcl_stock_service=>ty_batch_expiry_result OPTIONAL
+        iv_test_run                  TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_fefo_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_fefo_bulk
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_stop_on_failure       TYPE abap_bool DEFAULT abap_false
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_bulk_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_fefo_bulk_uom
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_uom_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_stop_on_failure       TYPE abap_bool DEFAULT abap_false
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_bulk_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_exp_fefo_bulk_atomic
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_atomic_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_exp_fefo_bulk_atomic_uom
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_uom_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_atomic_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_fefo_atomic_from_stock
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_stock_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        iv_recheck_exposure      TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+        it_excluded_reservations TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_stock_atomic_result
+      RAISING
+        zcx_invalid_goods_movement
+        zcx_invalid_stock_request.
+
+    METHODS scrap_fefo_bulk_from_stock
+      IMPORTING
+        is_header                TYPE zif_goods_movement_api=>ty_header
+        it_requests              TYPE ty_scrap_fefo_stock_requests
+        iv_require_full_quantity TYPE abap_bool DEFAULT abap_true
+        iv_recheck_exposure      TYPE abap_bool DEFAULT abap_true
+        it_request_priorities    TYPE ty_fefo_preview_priorities OPTIONAL
+        iv_stop_on_failure       TYPE abap_bool DEFAULT abap_false
+        iv_test_run              TYPE abap_bool DEFAULT abap_false
+        it_excluded_reservations TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+      RETURNING
+        VALUE(rs_result)         TYPE ty_scrap_fefo_stock_bulk_result
+      RAISING
+        zcx_invalid_goods_movement
+        zcx_invalid_stock_request.
+
+    METHODS scrap_expired_scrap_uom
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_scrap_qty_uoms
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_stock_category   TYPE ty_scrap_stock_category
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_blocked_uom
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_scrap_qty_uoms
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_blk_rechecked
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_expired_scrap_quantities
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_blk_recheck_uom
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_scrap_qty_uoms
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_qi_batch_uom
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_scrap_qty_uoms
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_qi_rechecked
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_expired_scrap_quantities
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_qi_rechecked_uom
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_scrap_qty_uoms
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_batch_rechecked
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_expired_scrap_quantities
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_batch_uom
+      IMPORTING
+        is_header           TYPE zif_goods_movement_api=>ty_header
+        is_exposure         TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities TYPE ty_scrap_qty_uoms
+        is_material_unit    TYPE ty_material_unit_mapping
+        iv_test_run         TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)    TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_rechecked_uom
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_scrap_qty_uoms
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_expired_cat_rechecked
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_expired_scrap_quantities
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_stock_category     TYPE ty_scrap_stock_category
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS scrap_exp_cat_recheck_uom
+      IMPORTING
+        is_header             TYPE zif_goods_movement_api=>ty_header
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_scrap_quantities   TYPE ty_scrap_qty_uoms
+        is_material_unit      TYPE ty_material_unit_mapping
+        iv_stock_category     TYPE ty_scrap_stock_category
+        iv_test_run           TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)      TYPE zif_goods_movement_api=>ty_result
+      RAISING
+        zcx_invalid_goods_movement.
+
     METHODS receive_purchase_order
       IMPORTING
         is_header        TYPE zif_goods_movement_api=>ty_header
@@ -1999,22 +3033,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS receive_purchase_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_po_receipt_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_po_receipt_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_po_receipts_bulk_result
+        VALUE(rs_result)   TYPE ty_po_receipts_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS receive_po_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_po_receipt_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_po_receipt_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_po_receipts_bulk_result
+        VALUE(rs_result)   TYPE ty_po_receipts_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -2062,22 +3098,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS return_purchase_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_po_return_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_po_return_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_po_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_po_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS return_po_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_po_return_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_po_return_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_po_returns_bulk_result
+        VALUE(rs_result)   TYPE ty_po_returns_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -2125,22 +3163,24 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS receive_prod_orders_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_prod_receipt_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_receipt_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_prod_receipts_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_receipts_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS receive_prod_orders_bulk_uom
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_prod_receipt_requests_in_unit
-        it_material_units TYPE ty_material_unit_mappings
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_prod_receipt_requests_in_unit
+        it_material_units  TYPE ty_material_unit_mappings
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_prod_receipts_bulk_result
+        VALUE(rs_result)   TYPE ty_prod_receipts_bulk_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -2208,6 +3248,7 @@ CLASS zcl_goods_movement_service DEFINITION
         it_unit_iso_mappings TYPE ty_unit_iso_mappings
         iv_test_run          TYPE abap_bool DEFAULT abap_false
         iv_atomic            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_sto_issue_pairs_result
       RAISING
@@ -2231,6 +3272,7 @@ CLASS zcl_goods_movement_service DEFINITION
         it_unit_iso_mappings TYPE ty_unit_iso_mappings
         iv_test_run          TYPE abap_bool DEFAULT abap_false
         iv_atomic            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure   TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)     TYPE ty_sto_receipt_pairs_result
       RAISING
@@ -2247,11 +3289,12 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS cancel_issued_sto_pairs
       IMPORTING
-        is_issues        TYPE ty_sto_issue_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_issues          TYPE ty_sto_issue_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -2266,91 +3309,100 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS cancel_received_sto_pairs
       IMPORTING
-        is_receipts      TYPE ty_sto_receipt_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_receipts        TYPE ty_sto_receipt_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS cancel_sto_receipt_chain
       IMPORTING
-        is_receipt       TYPE ty_sto_receipt_pair_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_receipt         TYPE ty_sto_receipt_pair_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS cancel_sto_receipt_chain_pairs
       IMPORTING
-        is_receipts      TYPE ty_sto_receipt_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_receipts        TYPE ty_sto_receipt_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain_issue
       IMPORTING
-        is_pair          TYPE ty_sto_receipt_cancel_pair_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_pair            TYPE ty_sto_receipt_cancel_pair_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain_issue_pairs
       IMPORTING
-        is_result        TYPE ty_sto_receipt_cancel_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_result          TYPE ty_sto_receipt_cancel_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain_receipt
       IMPORTING
-        is_pair          TYPE ty_sto_receipt_cancel_pair_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_pair            TYPE ty_sto_receipt_cancel_pair_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain_receipt_pairs
       IMPORTING
-        is_result        TYPE ty_sto_receipt_cancel_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_result          TYPE ty_sto_receipt_cancel_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain
       IMPORTING
-        is_pair          TYPE ty_sto_receipt_cancel_pair_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_pair            TYPE ty_sto_receipt_cancel_pair_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS retry_sto_chain_pairs
       IMPORTING
-        is_result        TYPE ty_sto_receipt_cancel_pairs_result
-        iv_posting_date  TYPE d OPTIONAL
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        is_result          TYPE ty_sto_receipt_cancel_pairs_result
+        iv_posting_date    TYPE d OPTIONAL
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_receipt_cancel_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_receipt_cancel_pairs_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -2991,10 +4043,11 @@ CLASS zcl_goods_movement_service DEFINITION
 
     METHODS cancel_material_documents_bulk
       IMPORTING
-        it_requests      TYPE ty_cancel_document_requests
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
+        it_requests        TYPE ty_cancel_document_requests
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_cancel_documents_result
+        VALUE(rs_result)   TYPE ty_cancel_documents_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -3019,6 +4072,126 @@ CLASS zcl_goods_movement_service DEFINITION
 
   PRIVATE SECTION.
     TYPES ty_movement_type TYPE c LENGTH 3.
+    TYPES ty_exp_scrap_request_id TYPE c LENGTH 30.
+    TYPES ty_exp_scrap_capacity_map TYPE HASHED TABLE OF
+      ty_exp_scrap_capacity WITH UNIQUE KEY material plant storage_location
+        batch valuation_type stock_category.
+    TYPES:
+      BEGIN OF ty_exp_scrap_capacity_request,
+        material         TYPE mard-matnr,
+        plant            TYPE mard-werks,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+        stock_category   TYPE ty_scrap_stock_category,
+        request_id       TYPE ty_exp_scrap_request_id,
+      END OF ty_exp_scrap_capacity_request.
+    TYPES ty_exp_scrap_capacity_requests TYPE HASHED TABLE OF
+      ty_exp_scrap_capacity_request WITH UNIQUE KEY material plant
+        storage_location batch valuation_type stock_category request_id.
+
+    METHODS add_exp_scrap_capacity
+      IMPORTING
+        iv_material           TYPE mard-matnr
+        iv_plant              TYPE mard-werks
+        iv_base_unit          TYPE mara-meins
+        iv_storage_location   TYPE mard-lgort
+        iv_batch              TYPE mchb-charg
+        iv_valuation_type     TYPE mcha-bwtar
+        iv_stock_category     TYPE ty_scrap_stock_category
+        iv_quantity           TYPE mard-labst
+        iv_request_id         TYPE ty_exp_scrap_request_id
+        iv_is_rechecked       TYPE abap_bool
+        iv_snapshot_timestamp TYPE timestampl
+      CHANGING
+        ct_capacities         TYPE ty_exp_scrap_capacity_map
+        ct_capacity_requests  TYPE ty_exp_scrap_capacity_requests
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS is_scrap_expired_at_posting
+      IMPORTING
+        iv_status          TYPE c
+        iv_expiration_date TYPE mcha-vfdat
+        iv_as_of_date      TYPE d
+        iv_through_date    TYPE d
+        iv_posting_date    TYPE d
+      RETURNING
+        VALUE(rv_expired)  TYPE abap_bool
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS is_valid_scrap_res_keys
+      IMPORTING
+        it_keys         TYPE zif_stock_repository=>ty_reservation_keys
+      RETURNING
+        VALUE(rv_valid) TYPE abap_bool.
+
+    METHODS validate_scrap_stock_request
+      IMPORTING
+        is_request      TYPE ty_scrap_fefo_stock_request
+        iv_posting_date TYPE d
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS same_scrap_reservation_keys
+      IMPORTING
+        it_first       TYPE zif_stock_repository=>ty_reservation_keys
+        it_second      TYPE zif_stock_repository=>ty_reservation_keys
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS validate_scrap_stock_exposure
+      IMPORTING
+        is_exposure              TYPE zcl_stock_service=>ty_batch_expiry_result
+        it_excluded_reservations TYPE
+          zif_stock_repository=>ty_reservation_keys
+        it_request_exclusions    TYPE
+          zif_stock_repository=>ty_reservation_keys
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS validate_scrap_recheck_full
+      IMPORTING
+        is_original_exposure  TYPE zcl_stock_service=>ty_batch_expiry_result
+        is_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_stock_category     TYPE ty_scrap_stock_category
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_exp_scrap_category
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_cost_center               TYPE rkpf-kostl
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations
+        iv_require_full_quantity     TYPE abap_bool
+        iv_stock_category            TYPE ty_scrap_stock_category
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
+
+    METHODS preview_exp_scrap_category_uom
+      IMPORTING
+        is_exposure                  TYPE zcl_stock_service=>ty_batch_expiry_result
+        iv_posting_date              TYPE d
+        iv_requested_quantity        TYPE mard-labst
+        iv_requested_unit            TYPE mara-meins
+        iv_cost_center               TYPE rkpf-kostl
+        is_material_unit             TYPE ty_material_unit_mapping
+        iv_stock_category            TYPE ty_scrap_stock_category
+        iv_movement_reason           TYPE bapi2017_gm_item_create-move_reas
+        it_storage_location_priority TYPE
+          zcl_stock_service=>ty_storage_locations
+        iv_require_full_quantity     TYPE abap_bool
+      RETURNING
+        VALUE(rs_result)             TYPE ty_expired_scrap_uom_preview_result
+      RAISING
+        zcx_invalid_goods_movement.
 
     METHODS post_stock_status_transfer
       IMPORTING
@@ -3210,7 +4383,7 @@ CLASS zcl_goods_movement_service DEFINITION
     TYPES:
       BEGIN OF ty_transfer_quantity,
         request_id TYPE c LENGTH 30,
-        quantity   TYPE mard-labst,
+        quantity   TYPE decfloat34,
       END OF ty_transfer_quantity.
     TYPES ty_transfer_quantities TYPE HASHED TABLE OF
       ty_transfer_quantity WITH UNIQUE KEY request_id.
@@ -3218,17 +4391,24 @@ CLASS zcl_goods_movement_service DEFINITION
       BEGIN OF ty_transfer_batch_quantity,
         request_id TYPE c LENGTH 30,
         batch      TYPE mchb-charg,
-        quantity   TYPE mard-labst,
+        quantity   TYPE decfloat34,
       END OF ty_transfer_batch_quantity.
     TYPES ty_transfer_batch_quantities TYPE STANDARD TABLE OF
       ty_transfer_batch_quantity WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_cc_batch_issue_preview,
-        request_id        TYPE c LENGTH 30,
-        cost_center       TYPE rkpf-kostl,
-        selected_batch    TYPE mchb-charg,
-        allocation        TYPE zcl_stock_service=>ty_unit_allocation_summary,
-        batch_allocations TYPE zcl_stock_service=>ty_unit_batch_splits,
+        request_id              TYPE c LENGTH 30,
+        cost_center             TYPE rkpf-kostl,
+        selected_batch          TYPE mchb-charg,
+        required_date           TYPE d,
+        is_fefo_preview         TYPE abap_bool,
+        as_of_date              TYPE d,
+        minimum_shelf_life_days TYPE i,
+        include_undated_batches TYPE abap_bool,
+        require_full_quantity   TYPE abap_bool,
+        allocation              TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        batch_allocations       TYPE zcl_stock_service=>ty_unit_batch_splits,
+        request_locations       TYPE zcl_stock_service=>ty_request_locations,
       END OF ty_cc_batch_issue_preview.
     TYPES ty_cc_batch_issue_previews TYPE STANDARD TABLE OF
       ty_cc_batch_issue_preview WITH EMPTY KEY.
@@ -3376,11 +4556,54 @@ CLASS zcl_goods_movement_service DEFINITION
 
     DATA mo_api TYPE REF TO zif_goods_movement_api.
     DATA mo_uom_converter TYPE REF TO zif_material_uom_converter.
+    DATA mo_expiry_reader TYPE REF TO zif_batch_expiry_reader.
 
     METHODS same_wbs_xfer_lines
       IMPORTING
         it_first       TYPE ty_project_wbs_transfer_lines
         it_second      TYPE ty_project_wbs_transfer_lines
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_project_wbs_location
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_location_result
+        is_second      TYPE zcl_project_stock_service=>ty_location_result
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_project_wbs_loc_prio
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_priority_location_result
+        is_second      TYPE zcl_project_stock_service=>ty_priority_location_result
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_project_wbs_location_date
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_dated_location_result
+        is_second      TYPE zcl_project_stock_service=>ty_dated_location_result
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_project_wbs_fefo_result
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_result
+        is_second      TYPE zcl_project_stock_service=>ty_result
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_priority_wbs_fefo_result
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_priority_fefo_result
+        is_second      TYPE zcl_project_stock_service=>ty_priority_fefo_result
+      RETURNING
+        VALUE(rv_same) TYPE abap_bool.
+
+    METHODS same_dated_wbs_fefo_result
+      IMPORTING
+        is_first       TYPE zcl_project_stock_service=>ty_dated_fefo_result
+        is_second      TYPE zcl_project_stock_service=>ty_dated_fefo_result
       RETURNING
         VALUE(rv_same) TYPE abap_bool.
 
@@ -3456,12 +4679,4504 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
   METHOD constructor.
     mo_api = io_api.
+    mo_expiry_reader = io_expiry_reader.
     DATA(lo_uom_repository) = io_uom_repository.
     IF lo_uom_repository IS NOT BOUND.
       lo_uom_repository = NEW zcl_material_uom_repository( ).
     ENDIF.
     mo_uom_converter = NEW zcl_material_uom_converter(
       io_repository = lo_uom_repository ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_batch_stock.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_items TYPE zif_goods_movement_api=>ty_items.
+    DATA ls_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    ls_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_unit_check-is_successful <> abap_true
+        OR ls_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(lv_matching_rows) = 0.
+      LOOP AT is_exposure-batches INTO DATA(ls_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_matching_rows.
+        IF is_scrap_expired_at_posting(
+            iv_status          = ls_batch-status
+            iv_expiration_date = ls_batch-expiration_date
+            iv_as_of_date      = is_exposure-as_of_date
+            iv_through_date    = is_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+            OR ls_batch-available_quantity <= 0
+            OR ls_batch-available_quantity > ls_batch-unrestricted_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_batch-expiration_date ) <> abap_true
+            OR ls_batch-expiration_date >= is_header-posting_date
+            OR ls_scrap_quantity-quantity > ls_batch-available_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDLOOP.
+      IF lv_matching_rows <> 1.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        material         = is_exposure-material
+        plant            = is_exposure-plant
+        storage_location = ls_scrap_quantity-storage_location
+        movement_type    = '551'
+        quantity         = ls_scrap_quantity-quantity
+        entry_unit       = is_material_unit-base_unit
+        entry_unit_iso   = is_material_unit-base_unit_iso
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        TO lt_items.
+    ENDLOOP.
+
+    rs_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '03'
+      it_items    = lt_items
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_qi_batch_stock.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_items TYPE zif_goods_movement_api=>ty_items.
+    DATA ls_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    ls_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_unit_check-is_successful <> abap_true
+        OR ls_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO ls_scrap_quantity.
+      DATA(lv_matching_rows) = 0.
+      LOOP AT is_exposure-batches INTO DATA(ls_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_matching_rows.
+        IF is_scrap_expired_at_posting(
+            iv_status          = ls_batch-status
+            iv_expiration_date = ls_batch-expiration_date
+            iv_as_of_date      = is_exposure-as_of_date
+            iv_through_date    = is_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+            OR ls_batch-quality_inspection_quantity <= 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_batch-expiration_date ) <> abap_true
+            OR ls_batch-expiration_date >= is_header-posting_date
+            OR ls_scrap_quantity-quantity
+              > ls_batch-quality_inspection_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDLOOP.
+      IF lv_matching_rows <> 1.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        material         = is_exposure-material
+        plant            = is_exposure-plant
+        storage_location = ls_scrap_quantity-storage_location
+        movement_type    = '553'
+        quantity         = ls_scrap_quantity-quantity
+        entry_unit       = is_material_unit-base_unit
+        entry_unit_iso   = is_material_unit-base_unit_iso
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        TO lt_items.
+    ENDLOOP.
+
+    rs_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '03'
+      it_items    = lt_items
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_blocked_stock.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_items TYPE zif_goods_movement_api=>ty_items.
+    DATA ls_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    ls_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_unit_check-is_successful <> abap_true
+        OR ls_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO ls_scrap_quantity.
+      DATA(lv_matching_rows) = 0.
+      LOOP AT is_exposure-batches INTO DATA(ls_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_matching_rows.
+        IF is_scrap_expired_at_posting(
+            iv_status          = ls_batch-status
+            iv_expiration_date = ls_batch-expiration_date
+            iv_as_of_date      = is_exposure-as_of_date
+            iv_through_date    = is_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+            OR ls_batch-blocked_quantity <= 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF zcl_date_validation=>is_valid_gregorian_date(
+              iv_date = ls_batch-expiration_date ) <> abap_true
+            OR ls_batch-expiration_date >= is_header-posting_date
+            OR ls_scrap_quantity-quantity > ls_batch-blocked_quantity.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDLOOP.
+      IF lv_matching_rows <> 1.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        material         = is_exposure-material
+        plant            = is_exposure-plant
+        storage_location = ls_scrap_quantity-storage_location
+        movement_type    = '555'
+        quantity         = ls_scrap_quantity-quantity
+        entry_unit       = is_material_unit-base_unit
+        entry_unit_iso   = is_material_unit-base_unit_iso
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        TO lt_items.
+    ENDLOOP.
+
+    rs_result = execute(
+      is_header   = is_header
+      iv_gm_code  = '03'
+      it_items    = lt_items
+      iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_scrap.
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted.
+        rs_result = scrap_expired_batch_stock(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN c_scrap_stock_quality.
+        rs_result = scrap_expired_qi_batch_stock(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN c_scrap_stock_blocked.
+        rs_result = scrap_expired_blocked_stock(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD scrap_expired_cat_rechecked.
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted.
+        rs_result = scrap_expired_batch_rechecked(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN c_scrap_stock_quality.
+        rs_result = scrap_expired_qi_rechecked(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN c_scrap_stock_blocked.
+        rs_result = scrap_expired_blk_rechecked(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD preview_expired_scrap.
+    rs_result = preview_exp_scrap_category(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_cost_center               = iv_cost_center
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_stock_category            = iv_stock_category ).
+  ENDMETHOD.
+
+  METHOD preview_expired_blocked_scrap.
+    rs_result = preview_exp_scrap_category(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_cost_center               = iv_cost_center
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_stock_category            = c_scrap_stock_blocked ).
+  ENDMETHOD.
+
+  METHOD preview_expired_qi_scrap.
+    rs_result = preview_expired_scrap(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_cost_center               = iv_cost_center
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_stock_category            = c_scrap_stock_quality ).
+  ENDMETHOD.
+
+  METHOD preview_exp_unrestricted_scrap.
+    rs_result = preview_expired_scrap(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_cost_center               = iv_cost_center
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity
+      iv_stock_category            = c_scrap_stock_unrestricted ).
+  ENDMETHOD.
+
+  METHOD preview_exp_scrap_category.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key,
+      ty_scrap_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+        WITH UNIQUE KEY storage_location batch valuation_type,
+      BEGIN OF ty_location_rank,
+        storage_location TYPE mard-lgort,
+        priority_rank    TYPE i,
+      END OF ty_location_rank,
+      ty_location_ranks TYPE HASHED TABLE OF ty_location_rank
+        WITH UNIQUE KEY storage_location,
+      BEGIN OF ty_candidate,
+        expiration_date         TYPE mcha-vfdat,
+        expiration_date_source  TYPE c LENGTH 1,
+        days_expired_at_posting TYPE i,
+        location_rank           TYPE i,
+        storage_location        TYPE mard-lgort,
+        batch                   TYPE mchb-charg,
+        valuation_type          TYPE mcha-bwtar,
+        category_balance        TYPE mard-labst,
+      END OF ty_candidate.
+    DATA lt_seen_batch_keys TYPE ty_scrap_batch_keys.
+    DATA lt_location_ranks TYPE ty_location_ranks.
+    DATA lt_candidates TYPE STANDARD TABLE OF ty_candidate WITH EMPTY KEY.
+    DATA lv_location_rank TYPE i.
+    DATA lv_remaining_quantity TYPE mard-labst.
+    DATA lv_split_quantity TYPE mard-labst.
+    DATA lv_batch_quantity TYPE mard-labst.
+
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted.
+        rs_result-movement_type = '551'.
+      WHEN c_scrap_stock_quality.
+        rs_result-movement_type = '553'.
+      WHEN c_scrap_stock_blocked.
+        rs_result-movement_type = '555'.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+    rs_result-request_id = is_exposure-request_id.
+    rs_result-material = is_exposure-material.
+    rs_result-plant = is_exposure-plant.
+    rs_result-as_of_date = is_exposure-as_of_date.
+    rs_result-through_date = is_exposure-through_date.
+    rs_result-posting_date = iv_posting_date.
+    rs_result-stock_category = iv_stock_category.
+    rs_result-snapshot_timestamp = is_exposure-snapshot_timestamp.
+    rs_result-excluded_reservations = is_exposure-excluded_reservations.
+
+    IF is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > iv_posting_date
+        OR iv_posting_date IS INITIAL
+        OR iv_requested_quantity <= 0
+        OR iv_cost_center IS INITIAL
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_posting_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_storage_location_priority INTO DATA(lv_storage_location).
+      IF lv_storage_location IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      ADD 1 TO lv_location_rank.
+      INSERT VALUE ty_location_rank(
+        storage_location = lv_storage_location
+        priority_rank    = lv_location_rank )
+        INTO TABLE lt_location_ranks.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_exposure-batches INTO DATA(ls_batch).
+      IF ls_batch-storage_location IS INITIAL OR ls_batch-batch IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_batch-storage_location
+        batch            = ls_batch-batch
+        valuation_type   = ls_batch-valuation_type )
+        INTO TABLE lt_seen_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF is_scrap_expired_at_posting(
+          iv_status          = ls_batch-status
+          iv_expiration_date = ls_batch-expiration_date
+          iv_as_of_date      = is_exposure-as_of_date
+          iv_through_date    = is_exposure-through_date
+          iv_posting_date    = iv_posting_date ) <> abap_true.
+        CONTINUE.
+      ENDIF.
+      IF ls_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_batch-expiration_date ) <> abap_true
+          OR ls_batch-expiration_date >= iv_posting_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      CASE iv_stock_category.
+        WHEN c_scrap_stock_unrestricted.
+          IF ls_batch-available_quantity > ls_batch-unrestricted_quantity.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+          lv_batch_quantity = ls_batch-available_quantity.
+        WHEN c_scrap_stock_quality.
+          lv_batch_quantity = ls_batch-quality_inspection_quantity.
+        WHEN c_scrap_stock_blocked.
+          lv_batch_quantity = ls_batch-blocked_quantity.
+      ENDCASE.
+      IF lv_batch_quantity < 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF lv_batch_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      DATA(lv_candidate_rank) = lines( it_storage_location_priority ) + 1.
+      IF it_storage_location_priority IS INITIAL.
+        CLEAR lv_candidate_rank.
+      ELSE.
+        READ TABLE lt_location_ranks INTO DATA(ls_location_rank)
+          WITH TABLE KEY storage_location = ls_batch-storage_location.
+        IF sy-subrc = 0.
+          lv_candidate_rank = ls_location_rank-priority_rank.
+        ENDIF.
+      ENDIF.
+      APPEND VALUE #(
+        expiration_date         = ls_batch-expiration_date
+        expiration_date_source  = ls_batch-expiration_date_source
+        days_expired_at_posting = iv_posting_date - ls_batch-expiration_date
+        location_rank           = lv_candidate_rank
+        storage_location        = ls_batch-storage_location
+        batch                   = ls_batch-batch
+        valuation_type          = ls_batch-valuation_type
+        category_balance        = lv_batch_quantity )
+        TO lt_candidates.
+    ENDLOOP.
+
+    SORT lt_candidates BY expiration_date ASCENDING
+      location_rank ASCENDING
+      storage_location ASCENDING
+      batch ASCENDING
+      valuation_type ASCENDING.
+
+    rs_result-requested_quantity = iv_requested_quantity.
+    lv_remaining_quantity = iv_requested_quantity.
+    LOOP AT lt_candidates INTO DATA(ls_candidate).
+      IF lv_remaining_quantity <= 0.
+        EXIT.
+      ENDIF.
+      lv_split_quantity = ls_candidate-category_balance.
+      IF lv_split_quantity > lv_remaining_quantity.
+        lv_split_quantity = lv_remaining_quantity.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_candidate-storage_location
+        batch            = ls_candidate-batch
+        valuation_type   = ls_candidate-valuation_type
+        cost_center      = iv_cost_center
+        movement_reason  = iv_movement_reason
+        quantity         = lv_split_quantity )
+        TO rs_result-selections.
+      APPEND VALUE #(
+        storage_location        = ls_candidate-storage_location
+        location_priority_rank  = ls_candidate-location_rank
+        category_balance        = ls_candidate-category_balance
+        batch                   = ls_candidate-batch
+        valuation_type          = ls_candidate-valuation_type
+        expiration_date         = ls_candidate-expiration_date
+        expiration_date_source  = ls_candidate-expiration_date_source
+        days_expired_at_posting = ls_candidate-days_expired_at_posting
+        cost_center             = iv_cost_center
+        movement_reason         = iv_movement_reason
+        quantity                = lv_split_quantity )
+        TO rs_result-selection_details.
+      lv_remaining_quantity = lv_remaining_quantity - lv_split_quantity.
+    ENDLOOP.
+
+    rs_result-remaining_quantity = lv_remaining_quantity.
+    rs_result-allocated_quantity =
+      iv_requested_quantity - lv_remaining_quantity.
+    IF lv_remaining_quantity = 0.
+      rs_result-is_fully_allocated = abap_true.
+    ELSEIF iv_require_full_quantity = abap_true.
+      CLEAR rs_result-selections.
+      CLEAR rs_result-selection_details.
+      CLEAR rs_result-allocated_quantity.
+      rs_result-remaining_quantity = iv_requested_quantity.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scrap_expired_scrap_uom.
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted.
+        rs_result = scrap_expired_batch_uom(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN c_scrap_stock_quality.
+        rs_result = scrap_expired_qi_batch_uom(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN c_scrap_stock_blocked.
+        rs_result = scrap_expired_blocked_uom(
+          is_header           = is_header
+          is_exposure         = is_exposure
+          it_scrap_quantities = it_scrap_quantities
+          is_material_unit    = is_material_unit
+          iv_test_run         = iv_test_run ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD scrap_exp_cat_recheck_uom.
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted.
+        rs_result = scrap_expired_rechecked_uom(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN c_scrap_stock_quality.
+        rs_result = scrap_expired_qi_rechecked_uom(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN c_scrap_stock_blocked.
+        rs_result = scrap_expired_blk_recheck_uom(
+          is_header             = is_header
+          is_original_exposure  = is_original_exposure
+          is_rechecked_exposure = is_rechecked_exposure
+          it_scrap_quantities   = it_scrap_quantities
+          is_material_unit      = is_material_unit
+          iv_test_run           = iv_test_run ).
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD preview_exp_blocked_scrap_uom.
+    rs_result = preview_expired_scrap_uom(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_requested_unit            = iv_requested_unit
+      iv_cost_center               = iv_cost_center
+      is_material_unit             = is_material_unit
+      iv_stock_category            = c_scrap_stock_blocked
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD preview_expired_scrap_uom.
+    rs_result = preview_exp_scrap_category_uom(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_requested_unit            = iv_requested_unit
+      iv_cost_center               = iv_cost_center
+      is_material_unit             = is_material_unit
+      iv_stock_category            = iv_stock_category
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD preview_exp_scrap_category_uom.
+    DATA ls_base_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_requested_quantity <= 0
+        OR iv_requested_unit IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    ls_base_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_base_unit_check-is_successful <> abap_true
+        OR ls_base_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_base_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = iv_requested_quantity
+      iv_source_unit = iv_requested_unit ).
+    IF ls_conversion-is_successful <> abap_true
+        OR ls_conversion-base_unit <> is_material_unit-base_unit
+        OR ls_conversion-base_quantity <= 0.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    rs_result-source_requested_quantity = iv_requested_quantity.
+    rs_result-source_requested_unit = iv_requested_unit.
+    rs_result-base_requested_quantity = ls_conversion-base_quantity.
+    rs_result-base_unit = is_material_unit-base_unit.
+    rs_result-preview = preview_expired_scrap(
+      is_exposure                  = is_exposure
+      iv_posting_date              = iv_posting_date
+      iv_requested_quantity        = ls_conversion-base_quantity
+      iv_cost_center               = iv_cost_center
+      iv_stock_category            = iv_stock_category
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD preview_exp_scrap_from_stock.
+    TYPES:
+      ty_preview_capacity TYPE ty_exp_scrap_capacity.
+    TYPES ty_preview_capacities TYPE HASHED TABLE OF ty_preview_capacity
+      WITH UNIQUE KEY material plant storage_location batch valuation_type
+        stock_category.
+    TYPES:
+      BEGIN OF ty_preview_request_order,
+        is_ranked     TYPE abap_bool,
+        priority_rank TYPE i,
+        request_index TYPE i,
+        request_id    TYPE c LENGTH 30,
+      END OF ty_preview_request_order.
+    TYPES ty_preview_request_orders TYPE STANDARD TABLE OF
+      ty_preview_request_order WITH EMPTY KEY.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_preview_order TYPE ty_preview_request_orders.
+    DATA lt_exposure_requests TYPE zcl_stock_service=>ty_batch_expiry_requests.
+    DATA lt_preview_capacities TYPE ty_preview_capacities.
+    DATA lv_category_quantity TYPE mard-labst.
+    DATA lv_remaining_quantity TYPE mard-labst.
+    DATA lv_priority_rank TYPE i.
+    DATA lv_is_ranked TYPE abap_bool.
+    DATA lv_request_index TYPE i.
+    DATA lv_processing_sequence TYPE i.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+    DATA ls_base_unit_check TYPE zif_material_uom_converter=>ty_result.
+    DATA ls_requested_unit_check TYPE zif_material_uom_converter=>ty_result.
+    FIELD-SYMBOLS <ls_preview_capacity> TYPE ty_preview_capacity.
+    FIELD-SYMBOLS <ls_preview_row> TYPE ty_expired_stock_preview_row.
+
+    rs_result-is_fully_allocated = abap_true.
+    IF iv_require_full_quantity <> abap_true
+        AND iv_require_full_quantity <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    rs_result-require_full_quantity = iv_require_full_quantity.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      RETURN.
+    ENDIF.
+    rs_result-request_count = lines( it_requests ).
+    IF mo_expiry_reader IS NOT BOUND
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_posting_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF is_valid_scrap_res_keys(
+      it_keys = it_excluded_reservations ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    LOOP AT it_requests INTO DATA(ls_preflight_request).
+      validate_scrap_stock_request(
+        is_request      = ls_preflight_request
+        iv_posting_date = iv_posting_date ).
+      INSERT ls_preflight_request-request_id INTO TABLE
+        lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF is_valid_scrap_res_keys(
+        it_keys = ls_preflight_request-excluded_reservations )
+          <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      ls_base_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = '1.000'
+        iv_source_unit = ls_request-material_unit-base_unit ).
+      IF ls_base_unit_check-is_successful <> abap_true
+          OR ls_base_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_base_unit_check-base_quantity
+            <> CONV mard-labst( '1.000' ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      ls_requested_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = ls_request-requested_quantity
+        iv_source_unit = ls_request-requested_unit ).
+      IF ls_requested_unit_check-is_successful <> abap_true
+          OR ls_requested_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_requested_unit_check-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        request_id            = ls_request-request_id
+        material              = ls_request-material
+        plant                 = ls_request-plant
+        as_of_date            = ls_request-as_of_date
+        through_date          = ls_request-through_date
+        excluded_reservations = ls_request-excluded_reservations )
+        TO lt_exposure_requests.
+    ENDLOOP.
+
+
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc = 0.
+        lv_priority_rank = ls_priority-priority_rank.
+        lv_is_ranked = abap_true.
+      ENDIF.
+      APPEND VALUE #(
+        is_ranked     = lv_is_ranked
+        priority_rank = lv_priority_rank
+        request_index = lv_request_index
+        request_id    = ls_request-request_id )
+        TO lt_preview_order.
+    ENDLOOP.
+    SORT lt_preview_order BY is_ranked DESCENDING priority_rank ASCENDING
+      request_index ASCENDING.
+
+    rs_result-exposures = mo_expiry_reader->get_batch_expiry_exposure_bulk(
+      it_requests              = lt_exposure_requests
+      it_excluded_reservations = it_excluded_reservations ).
+    IF lines( rs_result-exposures ) <> lines( it_requests ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_requests INTO ls_request.
+      READ TABLE rs_result-exposures INTO DATA(ls_exposure)
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0
+          OR ls_exposure-material <> ls_request-material
+          OR ls_exposure-plant <> ls_request-plant
+          OR ls_exposure-as_of_date <> ls_request-as_of_date
+          OR ls_exposure-through_date <> ls_request-through_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      validate_scrap_stock_exposure(
+        is_exposure              = ls_exposure
+        it_excluded_reservations = it_excluded_reservations
+        it_request_exclusions    = ls_request-excluded_reservations ).
+
+      LOOP AT ls_exposure-batches INTO DATA(ls_batch).
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            lv_category_quantity = ls_batch-available_quantity.
+          WHEN c_scrap_stock_quality.
+            lv_category_quantity = ls_batch-quality_inspection_quantity.
+          WHEN c_scrap_stock_blocked.
+            lv_category_quantity = ls_batch-blocked_quantity.
+        ENDCASE.
+
+        READ TABLE lt_preview_capacities ASSIGNING <ls_preview_capacity>
+          WITH TABLE KEY material         = ls_request-material
+                         plant            = ls_request-plant
+                         storage_location = ls_batch-storage_location
+                         batch            = ls_batch-batch
+                         valuation_type   = ls_batch-valuation_type
+                         stock_category   = ls_request-stock_category.
+        IF sy-subrc = 0.
+          IF ls_exposure-snapshot_timestamp IS INITIAL.
+            ADD 1 TO <ls_preview_capacity>-untimestamped_exposure_count.
+          ELSE.
+            IF <ls_preview_capacity>-earliest_snapshot_timestamp IS INITIAL
+                OR ls_exposure-snapshot_timestamp
+                  < <ls_preview_capacity>-earliest_snapshot_timestamp.
+              <ls_preview_capacity>-earliest_snapshot_timestamp =
+                ls_exposure-snapshot_timestamp.
+            ENDIF.
+            IF <ls_preview_capacity>-latest_snapshot_timestamp IS INITIAL
+                OR ls_exposure-snapshot_timestamp
+                  > <ls_preview_capacity>-latest_snapshot_timestamp.
+              <ls_preview_capacity>-latest_snapshot_timestamp =
+                ls_exposure-snapshot_timestamp.
+            ENDIF.
+          ENDIF.
+          ADD 1 TO <ls_preview_capacity>-reported_exposure_count.
+          ADD 1 TO <ls_preview_capacity>-contributing_request_count.
+          IF lv_category_quantity > 0.
+            ADD 1 TO <ls_preview_capacity>-positive_exposure_count.
+          ENDIF.
+          IF lv_category_quantity
+              < <ls_preview_capacity>-available_quantity.
+            <ls_preview_capacity>-available_quantity = lv_category_quantity.
+            <ls_preview_capacity>-limiting_request_id =
+              ls_request-request_id.
+            <ls_preview_capacity>-minimum_exposure_count = 1.
+          ELSEIF lv_category_quantity =
+              <ls_preview_capacity>-available_quantity.
+            ADD 1 TO <ls_preview_capacity>-minimum_exposure_count.
+          ENDIF.
+          IF lv_category_quantity
+              > <ls_preview_capacity>-maximum_reported_quantity.
+            <ls_preview_capacity>-maximum_reported_quantity =
+              lv_category_quantity.
+            <ls_preview_capacity>-maximum_reported_request_id =
+              ls_request-request_id.
+            <ls_preview_capacity>-maximum_exposure_count = 1.
+          ELSEIF lv_category_quantity =
+              <ls_preview_capacity>-maximum_reported_quantity.
+            ADD 1 TO <ls_preview_capacity>-maximum_exposure_count.
+          ENDIF.
+        ELSE.
+          INSERT VALUE #(
+            material                     = ls_request-material
+            plant                        = ls_request-plant
+            base_unit                    = ls_request-material_unit-base_unit
+            storage_location             = ls_batch-storage_location
+            batch                        = ls_batch-batch
+            valuation_type               = ls_batch-valuation_type
+            stock_category               = ls_request-stock_category
+            available_quantity           = lv_category_quantity
+            minimum_exposure_count       = 1
+            maximum_reported_quantity    = lv_category_quantity
+            maximum_reported_request_id  = ls_request-request_id
+            maximum_exposure_count       = 1
+            limiting_request_id          = ls_request-request_id
+            reported_exposure_count      = 1
+            contributing_request_count   = 1
+            positive_exposure_count      = COND i(
+              WHEN lv_category_quantity > 0 THEN 1 ELSE 0 )
+            earliest_snapshot_timestamp  = ls_exposure-snapshot_timestamp
+            latest_snapshot_timestamp    = ls_exposure-snapshot_timestamp
+            untimestamped_exposure_count = COND i(
+              WHEN ls_exposure-snapshot_timestamp IS INITIAL THEN 1
+              ELSE 0 ) )
+            INTO TABLE lt_preview_capacities.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      APPEND VALUE #( request_id = ls_request-request_id )
+        TO rs_result-requests.
+    ENDLOOP.
+
+    LOOP AT lt_preview_order INTO DATA(ls_preview_order).
+      ADD 1 TO lv_processing_sequence.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_preview_order-request_index.
+      IF sy-subrc <> 0
+          OR ls_request-request_id <> ls_preview_order-request_id.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-exposures INTO ls_exposure
+        WITH KEY request_id = ls_preview_order-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      DATA(ls_adjusted_exposure) = ls_exposure.
+      LOOP AT ls_adjusted_exposure-batches
+          ASSIGNING FIELD-SYMBOL(<ls_adjusted_batch>).
+        IF <ls_adjusted_batch>-storage_location IS INITIAL
+            OR <ls_adjusted_batch>-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_preview_capacities ASSIGNING <ls_preview_capacity>
+          WITH TABLE KEY material         = ls_request-material
+                         plant            = ls_request-plant
+                         storage_location = <ls_adjusted_batch>-storage_location
+                         batch            = <ls_adjusted_batch>-batch
+                         valuation_type   = <ls_adjusted_batch>-valuation_type
+                         stock_category   = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        lv_remaining_quantity =
+          <ls_preview_capacity>-available_quantity
+          - <ls_preview_capacity>-allocated_quantity.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            <ls_adjusted_batch>-available_quantity = lv_remaining_quantity.
+          WHEN c_scrap_stock_quality.
+            <ls_adjusted_batch>-quality_inspection_quantity =
+              lv_remaining_quantity.
+          WHEN c_scrap_stock_blocked.
+            <ls_adjusted_batch>-blocked_quantity = lv_remaining_quantity.
+        ENDCASE.
+      ENDLOOP.
+
+      DATA(ls_preview_result) = preview_expired_scrap_uom(
+        is_exposure                  = ls_adjusted_exposure
+        iv_posting_date              = iv_posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-requested_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+      READ TABLE rs_result-requests ASSIGNING <ls_preview_row>
+        INDEX ls_preview_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_preview_row>-priority_rank = ls_preview_order-priority_rank.
+      <ls_preview_row>-is_priority_ranked = ls_preview_order-is_ranked.
+      <ls_preview_row>-material = ls_request-material.
+      <ls_preview_row>-plant = ls_request-plant.
+      <ls_preview_row>-as_of_date = ls_request-as_of_date.
+      <ls_preview_row>-through_date = ls_request-through_date.
+      <ls_preview_row>-stock_category = ls_request-stock_category.
+      <ls_preview_row>-cost_center = ls_request-cost_center.
+      <ls_preview_row>-movement_reason = ls_request-movement_reason.
+      <ls_preview_row>-storage_location_priority =
+        ls_request-storage_location_priority.
+      <ls_preview_row>-allocation_sequence = lv_processing_sequence.
+      <ls_preview_row>-snapshot_timestamp = ls_exposure-snapshot_timestamp.
+      <ls_preview_row>-excluded_reservations =
+        ls_exposure-excluded_reservations.
+      <ls_preview_row>-preview_result = ls_preview_result.
+      IF ls_preview_result-preview-is_fully_allocated = abap_true.
+        ADD 1 TO rs_result-fully_allocated_count.
+      ELSE.
+        ADD 1 TO rs_result-shortfall_count.
+        CLEAR rs_result-is_fully_allocated.
+      ENDIF.
+
+      LOOP AT ls_preview_result-preview-selections INTO DATA(ls_selection).
+        READ TABLE lt_preview_capacities ASSIGNING <ls_preview_capacity>
+          WITH TABLE KEY material         = ls_request-material
+                         plant            = ls_request-plant
+                         storage_location = ls_selection-storage_location
+                         batch            = ls_selection-batch
+                         valuation_type   = ls_selection-valuation_type
+                         stock_category   = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        ADD ls_selection-quantity TO
+          <ls_preview_capacity>-allocated_quantity.
+        ADD 1 TO <ls_preview_capacity>-allocation_row_count.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT lt_preview_capacities INTO DATA(ls_shared_capacity).
+      APPEND VALUE #(
+        material                     = ls_shared_capacity-material
+        plant                        = ls_shared_capacity-plant
+        base_unit                    = ls_shared_capacity-base_unit
+        storage_location             = ls_shared_capacity-storage_location
+        batch                        = ls_shared_capacity-batch
+        valuation_type               = ls_shared_capacity-valuation_type
+        stock_category               = ls_shared_capacity-stock_category
+        available_quantity           = ls_shared_capacity-available_quantity
+        minimum_exposure_count       =
+          ls_shared_capacity-minimum_exposure_count
+        maximum_reported_quantity    =
+          ls_shared_capacity-maximum_reported_quantity
+        maximum_reported_request_id  =
+          ls_shared_capacity-maximum_reported_request_id
+        maximum_exposure_count       = ls_shared_capacity-maximum_exposure_count
+        capacity_spread_quantity     =
+          ls_shared_capacity-maximum_reported_quantity
+          - ls_shared_capacity-available_quantity
+        limiting_request_id          = ls_shared_capacity-limiting_request_id
+        reported_exposure_count      =
+          ls_shared_capacity-reported_exposure_count
+        contributing_request_count   =
+          ls_shared_capacity-contributing_request_count
+        rechecked_exposure_count     =
+          ls_shared_capacity-rechecked_exposure_count
+        positive_exposure_count      =
+          ls_shared_capacity-positive_exposure_count
+        earliest_snapshot_timestamp  =
+          ls_shared_capacity-earliest_snapshot_timestamp
+        latest_snapshot_timestamp    =
+          ls_shared_capacity-latest_snapshot_timestamp
+        untimestamped_exposure_count =
+          ls_shared_capacity-untimestamped_exposure_count
+        allocated_quantity           = ls_shared_capacity-allocated_quantity
+        allocation_row_count         = ls_shared_capacity-allocation_row_count
+        remaining_quantity           = ls_shared_capacity-available_quantity
+          - ls_shared_capacity-allocated_quantity )
+        TO rs_result-shared_capacities.
+    ENDLOOP.
+    SORT rs_result-shared_capacities BY material plant storage_location
+      batch valuation_type stock_category.
+  ENDMETHOD.
+
+  METHOD scrap_expired_fefo.
+    DATA ls_base_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    ls_base_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_base_unit_check-is_successful <> abap_true
+        OR ls_base_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_base_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    rs_result-source_requested_quantity = iv_requested_quantity.
+    rs_result-source_requested_unit = is_material_unit-base_unit.
+    rs_result-base_requested_quantity = iv_requested_quantity.
+    rs_result-base_unit = is_material_unit-base_unit.
+    rs_result-preview = preview_expired_scrap(
+      is_exposure                  = is_exposure
+      iv_posting_date              = is_header-posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_cost_center               = iv_cost_center
+      iv_stock_category            = iv_stock_category
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity ).
+    rs_result-require_full_quantity = iv_require_full_quantity.
+
+    IF is_rechecked_exposure IS SUPPLIED.
+      validate_scrap_recheck_full(
+        is_original_exposure  = is_exposure
+        is_rechecked_exposure = is_rechecked_exposure
+        iv_stock_category     = iv_stock_category ).
+      rs_result-is_rechecked = abap_true.
+      rs_result-rechecked_snapshot_timestamp =
+        is_rechecked_exposure-snapshot_timestamp.
+    ENDIF.
+
+    IF rs_result-preview-selections IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_posting_attempted = abap_true.
+    IF is_rechecked_exposure IS SUPPLIED.
+      rs_result-posting_result = scrap_expired_cat_rechecked(
+        is_header             = is_header
+        is_original_exposure  = is_exposure
+        is_rechecked_exposure = is_rechecked_exposure
+        it_scrap_quantities   = rs_result-preview-selections
+        is_material_unit      = is_material_unit
+        iv_stock_category     = iv_stock_category
+        iv_test_run           = iv_test_run ).
+    ELSE.
+      rs_result-posting_result = scrap_expired_scrap(
+        is_header           = is_header
+        is_exposure         = is_exposure
+        it_scrap_quantities = rs_result-preview-selections
+        is_material_unit    = is_material_unit
+        iv_stock_category   = iv_stock_category
+        iv_test_run         = iv_test_run ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scrap_expired_fefo_uom.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    DATA(ls_preview) = preview_expired_scrap_uom(
+      is_exposure                  = is_exposure
+      iv_posting_date              = is_header-posting_date
+      iv_requested_quantity        = iv_requested_quantity
+      iv_requested_unit            = iv_requested_unit
+      iv_cost_center               = iv_cost_center
+      is_material_unit             = is_material_unit
+      iv_stock_category            = iv_stock_category
+      iv_movement_reason           = iv_movement_reason
+      it_storage_location_priority = it_storage_location_priority
+      iv_require_full_quantity     = iv_require_full_quantity ).
+    rs_result-source_requested_quantity =
+      ls_preview-source_requested_quantity.
+    rs_result-source_requested_unit = ls_preview-source_requested_unit.
+    rs_result-base_requested_quantity = ls_preview-base_requested_quantity.
+    rs_result-base_unit = ls_preview-base_unit.
+    rs_result-preview = ls_preview-preview.
+    rs_result-require_full_quantity = iv_require_full_quantity.
+
+    IF is_rechecked_exposure IS SUPPLIED.
+      validate_scrap_recheck_full(
+        is_original_exposure  = is_exposure
+        is_rechecked_exposure = is_rechecked_exposure
+        iv_stock_category     = iv_stock_category ).
+      rs_result-is_rechecked = abap_true.
+      rs_result-rechecked_snapshot_timestamp =
+        is_rechecked_exposure-snapshot_timestamp.
+    ENDIF.
+
+    IF rs_result-preview-selections IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    rs_result-is_posting_attempted = abap_true.
+    IF is_rechecked_exposure IS SUPPLIED.
+      rs_result-posting_result = scrap_expired_cat_rechecked(
+        is_header             = is_header
+        is_original_exposure  = is_exposure
+        is_rechecked_exposure = is_rechecked_exposure
+        it_scrap_quantities   = rs_result-preview-selections
+        is_material_unit      = is_material_unit
+        iv_stock_category     = iv_stock_category
+        iv_test_run           = iv_test_run ).
+    ELSE.
+      rs_result-posting_result = scrap_expired_scrap(
+        is_header           = is_header
+        is_exposure         = is_exposure
+        it_scrap_quantities = rs_result-preview-selections
+        is_material_unit    = is_material_unit
+        iv_stock_category   = iv_stock_category
+        iv_test_run         = iv_test_run ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scrap_expired_fefo_bulk.
+    TYPES:
+      BEGIN OF ty_request_order,
+        is_ranked     TYPE abap_bool,
+        priority_rank TYPE i,
+        request_index TYPE i,
+      END OF ty_request_order.
+    TYPES ty_request_orders TYPE STANDARD TABLE OF ty_request_order
+      WITH EMPTY KEY.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_request_order TYPE ty_request_orders.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+    DATA ls_request_order TYPE ty_request_order.
+    DATA lv_request_index TYPE i.
+    DATA lv_priority_rank TYPE i.
+    DATA lv_is_ranked TYPE abap_bool.
+    DATA lv_stop_posting TYPE abap_bool.
+    DATA lv_order_index TYPE i.
+    DATA lv_next_order_index TYPE i.
+    FIELD-SYMBOLS <ls_request_result> TYPE ty_scrap_fefo_row_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    rs_result-require_full_quantity = iv_require_full_quantity.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      RETURN.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      lv_request_index = sy-tabix.
+      IF ls_request-exposure-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-exposure-request_id INTO TABLE lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      DATA(ls_preflight) = preview_expired_scrap_uom(
+        is_exposure                  = ls_request-exposure
+        iv_posting_date              = is_header-posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-material_unit-base_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+      IF ls_request-rechecked_exposure IS NOT INITIAL
+          AND ls_preflight-preview-selections IS NOT INITIAL.
+        validate_scrap_recheck(
+          is_header             = is_header
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          it_scrap_quantities   = ls_preflight-preview-selections
+          iv_stock_category     = ls_request-stock_category ).
+      ENDIF.
+      APPEND VALUE #(
+        request_index = lv_request_index
+        request_id    = ls_request-exposure-request_id
+        fefo_result   = VALUE #(
+          source_requested_quantity    = ls_preflight-source_requested_quantity
+          source_requested_unit        = ls_preflight-source_requested_unit
+          base_requested_quantity      = ls_preflight-base_requested_quantity
+          base_unit                    = ls_preflight-base_unit
+          require_full_quantity        = iv_require_full_quantity
+          is_rechecked                 = xsdbool(
+            ls_request-rechecked_exposure IS NOT INITIAL )
+          rechecked_snapshot_timestamp =
+            ls_request-rechecked_exposure-snapshot_timestamp
+          preview                      = ls_preflight-preview ) )
+        TO rs_result-requests.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      IF ls_request-rechecked_exposure IS NOT INITIAL.
+        validate_scrap_recheck_full(
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          iv_stock_category     = ls_request-stock_category ).
+      ENDIF.
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-exposure-request_id.
+      IF sy-subrc = 0.
+        lv_priority_rank = ls_priority-priority_rank.
+        lv_is_ranked = abap_true.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX lv_request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-priority_rank = lv_priority_rank.
+      <ls_request_result>-is_priority_ranked = lv_is_ranked.
+      APPEND VALUE #(
+        is_ranked     = lv_is_ranked
+        priority_rank = lv_priority_rank
+        request_index = lv_request_index )
+        TO lt_request_order.
+    ENDLOOP.
+    SORT lt_request_order BY is_ranked DESCENDING priority_rank ASCENDING
+      request_index ASCENDING.
+
+    LOOP AT lt_request_order INTO ls_request_order.
+      lv_order_index = sy-tabix.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-allocation_sequence = lv_order_index.
+      TRY.
+        IF ls_request-rechecked_exposure IS NOT INITIAL.
+          <ls_request_result>-fefo_result = scrap_expired_fefo(
+          is_header                    = is_header
+          is_exposure                  = ls_request-exposure
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority = ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity
+          is_rechecked_exposure        = ls_request-rechecked_exposure
+          iv_test_run                  = iv_test_run ).
+      ELSE.
+        <ls_request_result>-fefo_result = scrap_expired_fefo(
+          is_header                    = is_header
+          is_exposure                  = ls_request-exposure
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority = ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity
+          iv_test_run                  = iv_test_run ).
+      ENDIF.
+      CATCH zcx_invalid_goods_movement INTO DATA(lx_post_error).
+        <ls_request_result>-is_exception = abap_true.
+        ADD 1 TO rs_result-exception_count.
+        <ls_request_result>-fefo_result-is_rechecked = xsdbool(
+          ls_request-rechecked_exposure IS NOT INITIAL ).
+        <ls_request_result>-fefo_result-posting_result-is_successful =
+          abap_false.
+        APPEND VALUE #(
+          type    = 'E'
+          message = lx_post_error->get_text( ) )
+          TO <ls_request_result>-fefo_result-posting_result-messages.
+    ENDTRY.
+      <ls_request_result>-is_attempted =
+        <ls_request_result>-fefo_result-is_posting_attempted.
+      IF <ls_request_result>-is_attempted = abap_true
+          AND <ls_request_result>-fefo_result-posting_result-is_successful
+            = abap_true.
+        <ls_request_result>-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+        <ls_request_result>-is_committed = xsdbool(
+          iv_test_run = abap_false ).
+        IF <ls_request_result>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_posting = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    IF lv_stop_posting = abap_true.
+      lv_next_order_index = lv_order_index + 1.
+      LOOP AT lt_request_order INTO ls_request_order
+          FROM lv_next_order_index.
+        lv_order_index = sy-tabix.
+        READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+          INDEX ls_request_order-request_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        <ls_request_result>-allocation_sequence = lv_order_index.
+        <ls_request_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scrap_expired_fefo_bulk_uom.
+    TYPES:
+      BEGIN OF ty_request_order,
+        is_ranked     TYPE abap_bool,
+        priority_rank TYPE i,
+        request_index TYPE i,
+      END OF ty_request_order.
+    TYPES ty_request_orders TYPE STANDARD TABLE OF ty_request_order
+      WITH EMPTY KEY.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_request_order TYPE ty_request_orders.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+    DATA ls_request_order TYPE ty_request_order.
+    DATA lv_request_index TYPE i.
+    DATA lv_priority_rank TYPE i.
+    DATA lv_is_ranked TYPE abap_bool.
+    DATA lv_stop_posting TYPE abap_bool.
+    DATA lv_order_index TYPE i.
+    DATA lv_next_order_index TYPE i.
+    FIELD-SYMBOLS <ls_request_result> TYPE ty_scrap_fefo_row_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    rs_result-require_full_quantity = iv_require_full_quantity.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      RETURN.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      lv_request_index = sy-tabix.
+      IF ls_request-exposure-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-exposure-request_id INTO TABLE lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      DATA(ls_preflight) = preview_expired_scrap_uom(
+        is_exposure                  = ls_request-exposure
+        iv_posting_date              = is_header-posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-requested_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+      IF ls_request-rechecked_exposure IS NOT INITIAL
+          AND ls_preflight-preview-selections IS NOT INITIAL.
+        validate_scrap_recheck(
+          is_header             = is_header
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          it_scrap_quantities   = ls_preflight-preview-selections
+          iv_stock_category     = ls_request-stock_category ).
+      ENDIF.
+      APPEND VALUE #(
+        request_index = lv_request_index
+        request_id    = ls_request-exposure-request_id
+        fefo_result   = VALUE #(
+          source_requested_quantity    = ls_preflight-source_requested_quantity
+          source_requested_unit        = ls_preflight-source_requested_unit
+          base_requested_quantity      = ls_preflight-base_requested_quantity
+          base_unit                    = ls_preflight-base_unit
+          require_full_quantity        = iv_require_full_quantity
+          is_rechecked                 = xsdbool(
+            ls_request-rechecked_exposure IS NOT INITIAL )
+          rechecked_snapshot_timestamp =
+            ls_request-rechecked_exposure-snapshot_timestamp
+          preview                      = ls_preflight-preview ) )
+        TO rs_result-requests.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      IF ls_request-rechecked_exposure IS NOT INITIAL.
+        validate_scrap_recheck_full(
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          iv_stock_category     = ls_request-stock_category ).
+      ENDIF.
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-exposure-request_id.
+      IF sy-subrc = 0.
+        lv_priority_rank = ls_priority-priority_rank.
+        lv_is_ranked = abap_true.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX lv_request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-priority_rank = lv_priority_rank.
+      <ls_request_result>-is_priority_ranked = lv_is_ranked.
+      APPEND VALUE #(
+        is_ranked     = lv_is_ranked
+        priority_rank = lv_priority_rank
+        request_index = lv_request_index )
+        TO lt_request_order.
+    ENDLOOP.
+    SORT lt_request_order BY is_ranked DESCENDING priority_rank ASCENDING
+      request_index ASCENDING.
+
+    LOOP AT lt_request_order INTO ls_request_order.
+      lv_order_index = sy-tabix.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-allocation_sequence = lv_order_index.
+      TRY.
+        IF ls_request-rechecked_exposure IS NOT INITIAL.
+          <ls_request_result>-fefo_result = scrap_expired_fefo_uom(
+          is_header                    = is_header
+          is_exposure                  = ls_request-exposure
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_requested_unit            = ls_request-requested_unit
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority = ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity
+          is_rechecked_exposure        = ls_request-rechecked_exposure
+          iv_test_run                  = iv_test_run ).
+      ELSE.
+        <ls_request_result>-fefo_result = scrap_expired_fefo_uom(
+          is_header                    = is_header
+          is_exposure                  = ls_request-exposure
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_requested_unit            = ls_request-requested_unit
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority = ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity
+          iv_test_run                  = iv_test_run ).
+      ENDIF.
+      CATCH zcx_invalid_goods_movement INTO DATA(lx_post_error).
+        <ls_request_result>-is_exception = abap_true.
+        ADD 1 TO rs_result-exception_count.
+        <ls_request_result>-fefo_result-is_rechecked = xsdbool(
+          ls_request-rechecked_exposure IS NOT INITIAL ).
+        <ls_request_result>-fefo_result-posting_result-is_successful =
+          abap_false.
+        APPEND VALUE #(
+          type    = 'E'
+          message = lx_post_error->get_text( ) )
+          TO <ls_request_result>-fefo_result-posting_result-messages.
+      ENDTRY.
+      <ls_request_result>-is_attempted =
+        <ls_request_result>-fefo_result-is_posting_attempted.
+      IF <ls_request_result>-is_attempted = abap_true
+          AND <ls_request_result>-fefo_result-posting_result-is_successful
+            = abap_true.
+        <ls_request_result>-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+        <ls_request_result>-is_committed = xsdbool(
+          iv_test_run = abap_false ).
+        IF <ls_request_result>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_posting = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    IF lv_stop_posting = abap_true.
+      lv_next_order_index = lv_order_index + 1.
+      LOOP AT lt_request_order INTO ls_request_order
+          FROM lv_next_order_index.
+        lv_order_index = sy-tabix.
+        READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+          INDEX ls_request_order-request_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        <ls_request_result>-allocation_sequence = lv_order_index.
+        <ls_request_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scrap_exp_fefo_bulk_atomic.
+    rs_result = post_expired_fefo_bulk_atomic(
+      is_header                = is_header
+      it_requests              = it_requests
+      iv_require_full_quantity = iv_require_full_quantity
+      it_request_priorities    = it_request_priorities
+      iv_test_run              = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_exp_fefo_bulk_atomic_uom.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_base_requests TYPE ty_scrap_fefo_requests.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      rs_result-is_successful = abap_true.
+      rs_result-is_test_run = iv_test_run.
+      rs_result-require_full_quantity = iv_require_full_quantity.
+      RETURN.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-exposure-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-exposure-request_id INTO TABLE lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      DATA(ls_preview) = preview_expired_scrap_uom(
+        is_exposure                  = ls_request-exposure
+        iv_posting_date              = is_header-posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-requested_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+      APPEND VALUE #(
+        exposure                  = ls_request-exposure
+        rechecked_exposure        = ls_request-rechecked_exposure
+        requested_quantity        = ls_preview-base_requested_quantity
+        cost_center               = ls_request-cost_center
+        material_unit             = ls_request-material_unit
+        stock_category            = ls_request-stock_category
+        movement_reason           = ls_request-movement_reason
+        storage_location_priority =
+          ls_request-storage_location_priority )
+        TO lt_base_requests.
+    ENDLOOP.
+
+    rs_result = post_expired_fefo_bulk_atomic(
+      is_header                = is_header
+      it_requests              = lt_base_requests
+      iv_require_full_quantity = iv_require_full_quantity
+      it_request_priorities    = it_request_priorities
+      iv_test_run              = iv_test_run ).
+    LOOP AT rs_result-requests ASSIGNING FIELD-SYMBOL(<ls_result>).
+      READ TABLE it_requests INTO ls_request INDEX sy-tabix.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_result>-fefo_result-source_requested_quantity =
+        ls_request-requested_quantity.
+      <ls_result>-fefo_result-source_requested_unit =
+        ls_request-requested_unit.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD scrap_fefo_atomic_from_stock.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_exposure_requests TYPE zcl_stock_service=>ty_batch_expiry_requests.
+    DATA lt_fefo_requests TYPE ty_scrap_fefo_uom_requests.
+    DATA ls_base_unit_check TYPE zif_material_uom_converter=>ty_result.
+    DATA ls_requested_unit_check TYPE zif_material_uom_converter=>ty_result.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+
+    IF iv_require_full_quantity <> abap_true
+        AND iv_require_full_quantity <> abap_false
+        OR iv_recheck_exposure <> abap_true
+          AND iv_recheck_exposure <> abap_false
+        OR iv_test_run <> abap_true
+          AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      rs_result-posting_result = scrap_exp_fefo_bulk_atomic_uom(
+        is_header                = is_header
+        it_requests              = lt_fefo_requests
+        iv_require_full_quantity = iv_require_full_quantity
+        it_request_priorities    = it_request_priorities
+        iv_test_run              = iv_test_run ).
+      RETURN.
+    ENDIF.
+    IF mo_expiry_reader IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_valid_scrap_res_keys(
+      it_keys = it_excluded_reservations ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    LOOP AT it_requests INTO DATA(ls_preflight_request).
+      validate_scrap_stock_request(
+        is_request      = ls_preflight_request
+        iv_posting_date = is_header-posting_date ).
+      INSERT ls_preflight_request-request_id INTO TABLE
+        lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF is_valid_scrap_res_keys(
+        it_keys = ls_preflight_request-excluded_reservations )
+          <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      ls_base_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = '1.000'
+        iv_source_unit = ls_request-material_unit-base_unit ).
+      IF ls_base_unit_check-is_successful <> abap_true
+          OR ls_base_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_base_unit_check-base_quantity
+            <> CONV mard-labst( '1.000' ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      ls_requested_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = ls_request-requested_quantity
+        iv_source_unit = ls_request-requested_unit ).
+      IF ls_requested_unit_check-is_successful <> abap_true
+          OR ls_requested_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_requested_unit_check-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        request_id            = ls_request-request_id
+        material              = ls_request-material
+        plant                 = ls_request-plant
+        as_of_date            = ls_request-as_of_date
+        through_date          = ls_request-through_date
+        excluded_reservations = ls_request-excluded_reservations )
+        TO lt_exposure_requests.
+    ENDLOOP.
+
+
+    rs_result-exposures = mo_expiry_reader->get_batch_expiry_exposure_bulk(
+      it_requests              = lt_exposure_requests
+      it_excluded_reservations = it_excluded_reservations ).
+    IF lines( rs_result-exposures ) <> lines( it_requests ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_requests INTO ls_preflight_request.
+      READ TABLE rs_result-exposures INTO DATA(ls_preflight_exposure)
+        WITH KEY request_id = ls_preflight_request-request_id.
+      IF sy-subrc <> 0
+          OR ls_preflight_exposure-material <> ls_preflight_request-material
+          OR ls_preflight_exposure-plant <> ls_preflight_request-plant
+          OR ls_preflight_exposure-as_of_date
+            <> ls_preflight_request-as_of_date
+          OR ls_preflight_exposure-through_date
+            <> ls_preflight_request-through_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      validate_scrap_stock_exposure(
+        is_exposure              = ls_preflight_exposure
+        it_excluded_reservations = it_excluded_reservations
+        it_request_exclusions    =
+          ls_preflight_request-excluded_reservations ).
+    ENDLOOP.
+
+    IF iv_recheck_exposure = abap_true.
+      rs_result-rechecked_exposures =
+        mo_expiry_reader->get_batch_expiry_exposure_bulk(
+          it_requests              = lt_exposure_requests
+          it_excluded_reservations = it_excluded_reservations ).
+      IF lines( rs_result-rechecked_exposures ) <> lines( it_requests ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT it_requests INTO ls_request.
+      READ TABLE rs_result-exposures INTO DATA(ls_exposure)
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0
+          OR ls_exposure-material <> ls_request-material
+          OR ls_exposure-plant <> ls_request-plant
+          OR ls_exposure-as_of_date <> ls_request-as_of_date
+          OR ls_exposure-through_date <> ls_request-through_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_rechecked_exposure) = VALUE
+        zcl_stock_service=>ty_batch_expiry_result( ).
+      IF iv_recheck_exposure = abap_true.
+        READ TABLE rs_result-rechecked_exposures INTO ls_rechecked_exposure
+          WITH KEY request_id = ls_request-request_id.
+        IF sy-subrc <> 0
+            OR ls_rechecked_exposure-material <> ls_request-material
+            OR ls_rechecked_exposure-plant <> ls_request-plant
+            OR ls_rechecked_exposure-as_of_date <> ls_request-as_of_date
+            OR ls_rechecked_exposure-through_date <> ls_request-through_date.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        validate_scrap_stock_exposure(
+          is_exposure              = ls_rechecked_exposure
+          it_excluded_reservations = it_excluded_reservations
+          it_request_exclusions    = ls_request-excluded_reservations ).
+      ENDIF.
+
+      APPEND VALUE #(
+        exposure                  = ls_exposure
+        rechecked_exposure        = ls_rechecked_exposure
+        requested_quantity        = ls_request-requested_quantity
+        requested_unit            = ls_request-requested_unit
+        cost_center               = ls_request-cost_center
+        material_unit             = ls_request-material_unit
+        stock_category            = ls_request-stock_category
+        movement_reason           = ls_request-movement_reason
+        storage_location_priority = ls_request-storage_location_priority )
+        TO lt_fefo_requests.
+    ENDLOOP.
+
+    rs_result-posting_result = scrap_exp_fefo_bulk_atomic_uom(
+      is_header                = is_header
+      it_requests              = lt_fefo_requests
+      iv_require_full_quantity = iv_require_full_quantity
+      it_request_priorities    = it_request_priorities
+      iv_test_run              = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_fefo_bulk_from_stock.
+    TYPES:
+      BEGIN OF ty_fefo_capacity,
+        material           TYPE mard-matnr,
+        plant              TYPE mard-werks,
+        storage_location   TYPE mard-lgort,
+        batch              TYPE mchb-charg,
+        valuation_type     TYPE mcha-bwtar,
+        stock_category     TYPE ty_scrap_stock_category,
+        allocated_quantity TYPE mard-labst,
+        available_quantity TYPE mard-labst,
+      END OF ty_fefo_capacity.
+    TYPES ty_fefo_capacities TYPE HASHED TABLE OF ty_fefo_capacity
+      WITH UNIQUE KEY material plant storage_location batch valuation_type
+        stock_category.
+    TYPES:
+      BEGIN OF ty_request_order,
+        is_ranked     TYPE abap_bool,
+        priority_rank TYPE i,
+        request_index TYPE i,
+      END OF ty_request_order.
+    TYPES ty_request_orders TYPE STANDARD TABLE OF ty_request_order
+      WITH EMPTY KEY.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_exposure_requests TYPE zcl_stock_service=>ty_batch_expiry_requests.
+    DATA lt_fefo_requests TYPE ty_scrap_fefo_uom_requests.
+    DATA lt_request_order TYPE ty_request_orders.
+    DATA lt_fefo_capacities TYPE ty_fefo_capacities.
+    DATA lt_preflight_capacities TYPE ty_fefo_capacities.
+    DATA lt_one_request TYPE ty_scrap_fefo_uom_requests.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+    DATA ls_request_order TYPE ty_request_order.
+    DATA ls_exposure TYPE zcl_stock_service=>ty_batch_expiry_result.
+    DATA ls_rechecked_exposure TYPE zcl_stock_service=>ty_batch_expiry_result.
+    DATA ls_adjusted_exposure TYPE zcl_stock_service=>ty_batch_expiry_result.
+    DATA ls_adjusted_preview TYPE ty_expired_scrap_uom_preview_result.
+    DATA ls_one_fefo_request TYPE ty_scrap_fefo_uom_request.
+    DATA ls_batch TYPE zcl_stock_service=>ty_batch_expiry_row.
+    DATA ls_single_result TYPE ty_scrap_fefo_bulk_result.
+    DATA ls_single_row TYPE ty_scrap_fefo_row_result.
+    DATA ls_base_unit_check TYPE zif_material_uom_converter=>ty_result.
+    DATA ls_requested_unit_check TYPE zif_material_uom_converter=>ty_result.
+    DATA lv_category_quantity TYPE mard-labst.
+    DATA lv_remaining_quantity TYPE mard-labst.
+    DATA lv_request_index TYPE i.
+    DATA lv_priority_rank TYPE i.
+    DATA lv_is_ranked TYPE abap_bool.
+    DATA lv_order_index TYPE i.
+    DATA lv_next_order_index TYPE i.
+    DATA lv_stop_posting TYPE abap_bool.
+    FIELD-SYMBOLS <ls_fefo_capacity> TYPE ty_fefo_capacity.
+    FIELD-SYMBOLS <ls_adjusted_batch> TYPE zcl_stock_service=>ty_batch_expiry_row.
+    FIELD-SYMBOLS <ls_request_result> TYPE ty_scrap_fefo_row_result.
+
+    IF iv_require_full_quantity <> abap_true
+        AND iv_require_full_quantity <> abap_false
+        OR iv_recheck_exposure <> abap_true
+          AND iv_recheck_exposure <> abap_false
+        OR iv_test_run <> abap_true
+          AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      rs_result-posting_result = scrap_expired_fefo_bulk_uom(
+        is_header                = is_header
+        it_requests              = lt_fefo_requests
+        iv_require_full_quantity = iv_require_full_quantity
+        iv_stop_on_failure       = iv_stop_on_failure
+        iv_test_run              = iv_test_run ).
+      RETURN.
+    ENDIF.
+    IF mo_expiry_reader IS NOT BOUND.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_valid_scrap_res_keys(
+      it_keys = it_excluded_reservations ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    LOOP AT it_requests INTO DATA(ls_preflight_request).
+      validate_scrap_stock_request(
+        is_request      = ls_preflight_request
+        iv_posting_date = is_header-posting_date ).
+      INSERT ls_preflight_request-request_id INTO TABLE
+        lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF is_valid_scrap_res_keys(
+        it_keys = ls_preflight_request-excluded_reservations )
+          <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      ls_base_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = '1.000'
+        iv_source_unit = ls_request-material_unit-base_unit ).
+      IF ls_base_unit_check-is_successful <> abap_true
+          OR ls_base_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_base_unit_check-base_quantity
+            <> CONV mard-labst( '1.000' ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      ls_requested_unit_check = mo_uom_converter->convert_material_unit(
+        iv_material    = ls_request-material
+        iv_quantity    = ls_request-requested_quantity
+        iv_source_unit = ls_request-requested_unit ).
+      IF ls_requested_unit_check-is_successful <> abap_true
+          OR ls_requested_unit_check-base_unit
+            <> ls_request-material_unit-base_unit
+          OR ls_requested_unit_check-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      APPEND VALUE #(
+        request_id            = ls_request-request_id
+        material              = ls_request-material
+        plant                 = ls_request-plant
+        as_of_date            = ls_request-as_of_date
+        through_date          = ls_request-through_date
+        excluded_reservations = ls_request-excluded_reservations )
+        TO lt_exposure_requests.
+    ENDLOOP.
+
+
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc = 0.
+        lv_priority_rank = ls_priority-priority_rank.
+        lv_is_ranked = abap_true.
+      ENDIF.
+      APPEND VALUE #(
+        is_ranked     = lv_is_ranked
+        priority_rank = lv_priority_rank
+        request_index = lv_request_index )
+        TO lt_request_order.
+    ENDLOOP.
+    SORT lt_request_order BY is_ranked DESCENDING priority_rank ASCENDING
+      request_index ASCENDING.
+
+    rs_result-exposures = mo_expiry_reader->get_batch_expiry_exposure_bulk(
+      it_requests              = lt_exposure_requests
+      it_excluded_reservations = it_excluded_reservations ).
+    IF lines( rs_result-exposures ) <> lines( it_requests ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_requests INTO ls_request.
+      READ TABLE rs_result-exposures INTO ls_exposure
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0
+          OR ls_exposure-material <> ls_request-material
+          OR ls_exposure-plant <> ls_request-plant
+          OR ls_exposure-as_of_date <> ls_request-as_of_date
+          OR ls_exposure-through_date <> ls_request-through_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      validate_scrap_stock_exposure(
+        is_exposure              = ls_exposure
+        it_excluded_reservations = it_excluded_reservations
+        it_request_exclusions    = ls_request-excluded_reservations ).
+    ENDLOOP.
+
+    IF iv_recheck_exposure = abap_true.
+      rs_result-rechecked_exposures =
+        mo_expiry_reader->get_batch_expiry_exposure_bulk(
+          it_requests              = lt_exposure_requests
+          it_excluded_reservations = it_excluded_reservations ).
+      IF lines( rs_result-rechecked_exposures ) <> lines( it_requests ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDIF.
+
+    rs_result-posting_result-is_successful = abap_true.
+    rs_result-posting_result-is_test_run = iv_test_run.
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      READ TABLE rs_result-exposures INTO ls_exposure
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0
+          OR ls_exposure-material <> ls_request-material
+          OR ls_exposure-plant <> ls_request-plant
+          OR ls_exposure-as_of_date <> ls_request-as_of_date
+          OR ls_exposure-through_date <> ls_request-through_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      CLEAR ls_rechecked_exposure.
+      IF iv_recheck_exposure = abap_true.
+        READ TABLE rs_result-rechecked_exposures INTO ls_rechecked_exposure
+          WITH KEY request_id = ls_request-request_id.
+        IF sy-subrc <> 0
+            OR ls_rechecked_exposure-material <> ls_request-material
+            OR ls_rechecked_exposure-plant <> ls_request-plant
+            OR ls_rechecked_exposure-as_of_date <> ls_request-as_of_date
+            OR ls_rechecked_exposure-through_date <> ls_request-through_date.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        validate_scrap_stock_exposure(
+          is_exposure              = ls_rechecked_exposure
+          it_excluded_reservations = it_excluded_reservations
+          it_request_exclusions    = ls_request-excluded_reservations ).
+      ENDIF.
+
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc = 0.
+        lv_is_ranked = abap_true.
+        lv_priority_rank = ls_priority-priority_rank.
+      ENDIF.
+      APPEND VALUE #(
+        request_index      = lv_request_index
+        request_id         = ls_request-request_id
+        priority_rank      = lv_priority_rank
+        is_priority_ranked = lv_is_ranked )
+        TO rs_result-posting_result-requests.
+
+      LOOP AT ls_exposure-batches INTO ls_batch.
+        IF ls_batch-storage_location IS INITIAL OR ls_batch-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            lv_category_quantity = ls_batch-available_quantity.
+          WHEN c_scrap_stock_quality.
+            lv_category_quantity = ls_batch-quality_inspection_quantity.
+          WHEN c_scrap_stock_blocked.
+            lv_category_quantity = ls_batch-blocked_quantity.
+        ENDCASE.
+        READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-material
+            plant = ls_request-plant
+            storage_location = ls_batch-storage_location
+            batch = ls_batch-batch
+            valuation_type = ls_batch-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc = 0.
+          IF lv_category_quantity < <ls_fefo_capacity>-available_quantity.
+            <ls_fefo_capacity>-available_quantity = lv_category_quantity.
+          ENDIF.
+        ELSE.
+          INSERT VALUE #(
+            material           = ls_request-material
+            plant              = ls_request-plant
+            storage_location   = ls_batch-storage_location
+            batch              = ls_batch-batch
+            valuation_type     = ls_batch-valuation_type
+            stock_category     = ls_request-stock_category
+            available_quantity = lv_category_quantity )
+            INTO TABLE lt_fefo_capacities.
+        ENDIF.
+      ENDLOOP.
+
+      IF iv_recheck_exposure = abap_true.
+        LOOP AT ls_rechecked_exposure-batches INTO ls_batch.
+          IF ls_batch-storage_location IS INITIAL
+              OR ls_batch-batch IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          CASE ls_request-stock_category.
+            WHEN c_scrap_stock_unrestricted.
+              lv_category_quantity = ls_batch-available_quantity.
+            WHEN c_scrap_stock_quality.
+              lv_category_quantity = ls_batch-quality_inspection_quantity.
+            WHEN c_scrap_stock_blocked.
+              lv_category_quantity = ls_batch-blocked_quantity.
+          ENDCASE.
+          READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+            WITH TABLE KEY material = ls_request-material
+              plant = ls_request-plant
+              storage_location = ls_batch-storage_location
+              batch = ls_batch-batch
+              valuation_type = ls_batch-valuation_type
+              stock_category = ls_request-stock_category.
+          IF sy-subrc = 0.
+            IF lv_category_quantity < <ls_fefo_capacity>-available_quantity.
+              <ls_fefo_capacity>-available_quantity = lv_category_quantity.
+            ENDIF.
+          ELSE.
+            INSERT VALUE #(
+              material           = ls_request-material
+              plant              = ls_request-plant
+              storage_location   = ls_batch-storage_location
+              batch              = ls_batch-batch
+              valuation_type     = ls_batch-valuation_type
+              stock_category     = ls_request-stock_category
+              available_quantity = lv_category_quantity )
+              INTO TABLE lt_fefo_capacities.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+
+    lt_preflight_capacities = lt_fefo_capacities.
+    LOOP AT lt_request_order INTO ls_request_order.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-exposures INTO ls_exposure
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      ls_adjusted_exposure = ls_exposure.
+      LOOP AT ls_adjusted_exposure-batches
+          ASSIGNING <ls_adjusted_batch>.
+        IF <ls_adjusted_batch>-storage_location IS INITIAL
+            OR <ls_adjusted_batch>-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_preflight_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-material
+            plant = ls_request-plant
+            storage_location = <ls_adjusted_batch>-storage_location
+            batch = <ls_adjusted_batch>-batch
+            valuation_type = <ls_adjusted_batch>-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        lv_remaining_quantity = <ls_fefo_capacity>-available_quantity
+          - <ls_fefo_capacity>-allocated_quantity.
+        IF lv_remaining_quantity < 0.
+          CLEAR lv_remaining_quantity.
+        ENDIF.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            <ls_adjusted_batch>-available_quantity = lv_remaining_quantity.
+          WHEN c_scrap_stock_quality.
+            <ls_adjusted_batch>-quality_inspection_quantity =
+              lv_remaining_quantity.
+          WHEN c_scrap_stock_blocked.
+            <ls_adjusted_batch>-blocked_quantity = lv_remaining_quantity.
+        ENDCASE.
+      ENDLOOP.
+
+      ls_adjusted_preview = preview_expired_scrap_uom(
+        is_exposure                  = ls_adjusted_exposure
+        iv_posting_date              = is_header-posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-requested_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+
+      CLEAR ls_rechecked_exposure.
+      IF iv_recheck_exposure = abap_true.
+        READ TABLE rs_result-rechecked_exposures INTO ls_rechecked_exposure
+          WITH KEY request_id = ls_request-request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF ls_adjusted_preview-preview-selections IS NOT INITIAL.
+          validate_scrap_recheck(
+            is_header             = is_header
+            is_original_exposure  = ls_exposure
+            is_rechecked_exposure = ls_rechecked_exposure
+            it_scrap_quantities   = ls_adjusted_preview-preview-selections
+            iv_stock_category     = ls_request-stock_category ).
+        ENDIF.
+      ENDIF.
+
+      READ TABLE rs_result-posting_result-requests
+        ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-fefo_result-source_requested_quantity =
+        ls_adjusted_preview-source_requested_quantity.
+      <ls_request_result>-fefo_result-source_requested_unit =
+        ls_adjusted_preview-source_requested_unit.
+      <ls_request_result>-fefo_result-base_requested_quantity =
+        ls_adjusted_preview-base_requested_quantity.
+      <ls_request_result>-fefo_result-base_unit =
+        ls_adjusted_preview-base_unit.
+      <ls_request_result>-fefo_result-preview =
+        ls_adjusted_preview-preview.
+      <ls_request_result>-fefo_result-is_rechecked = xsdbool(
+        iv_recheck_exposure = abap_true
+        AND ls_adjusted_preview-preview-selections IS NOT INITIAL ).
+
+      LOOP AT ls_adjusted_preview-preview-selections
+          INTO DATA(ls_capacity_selection).
+        READ TABLE lt_preflight_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-material
+            plant = ls_request-plant
+            storage_location = ls_capacity_selection-storage_location
+            batch = ls_capacity_selection-batch
+            valuation_type = ls_capacity_selection-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        ADD ls_capacity_selection-quantity
+          TO <ls_fefo_capacity>-allocated_quantity.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT lt_request_order INTO ls_request_order.
+      lv_order_index = sy-tabix.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-exposures INTO ls_exposure
+        WITH KEY request_id = ls_request-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-posting_result-requests
+        ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      ls_adjusted_exposure = ls_exposure.
+      LOOP AT ls_adjusted_exposure-batches
+          ASSIGNING <ls_adjusted_batch>.
+        IF <ls_adjusted_batch>-storage_location IS INITIAL
+            OR <ls_adjusted_batch>-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-material
+            plant = ls_request-plant
+            storage_location = <ls_adjusted_batch>-storage_location
+            batch = <ls_adjusted_batch>-batch
+            valuation_type = <ls_adjusted_batch>-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        lv_remaining_quantity = <ls_fefo_capacity>-available_quantity
+          - <ls_fefo_capacity>-allocated_quantity.
+        IF lv_remaining_quantity < 0.
+          CLEAR lv_remaining_quantity.
+        ENDIF.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            <ls_adjusted_batch>-available_quantity = lv_remaining_quantity.
+          WHEN c_scrap_stock_quality.
+            <ls_adjusted_batch>-quality_inspection_quantity =
+              lv_remaining_quantity.
+          WHEN c_scrap_stock_blocked.
+            <ls_adjusted_batch>-blocked_quantity = lv_remaining_quantity.
+        ENDCASE.
+      ENDLOOP.
+
+      CLEAR ls_rechecked_exposure.
+      IF iv_recheck_exposure = abap_true.
+        READ TABLE rs_result-rechecked_exposures INTO ls_rechecked_exposure
+          WITH KEY request_id = ls_request-request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDIF.
+
+      TRY.
+        ls_adjusted_preview = preview_expired_scrap_uom(
+          is_exposure                  = ls_adjusted_exposure
+          iv_posting_date              = is_header-posting_date
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_requested_unit            = ls_request-requested_unit
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority = ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity ).
+        <ls_request_result>-fefo_result-source_requested_quantity =
+          ls_adjusted_preview-source_requested_quantity.
+        <ls_request_result>-fefo_result-source_requested_unit =
+          ls_adjusted_preview-source_requested_unit.
+        <ls_request_result>-fefo_result-base_requested_quantity =
+          ls_adjusted_preview-base_requested_quantity.
+        <ls_request_result>-fefo_result-base_unit =
+          ls_adjusted_preview-base_unit.
+        <ls_request_result>-fefo_result-preview =
+          ls_adjusted_preview-preview.
+
+        IF iv_recheck_exposure = abap_true
+            AND ls_adjusted_preview-preview-selections IS NOT INITIAL.
+          validate_scrap_recheck(
+            is_header             = is_header
+            is_original_exposure  = ls_exposure
+            is_rechecked_exposure = ls_rechecked_exposure
+            it_scrap_quantities   = ls_adjusted_preview-preview-selections
+            iv_stock_category     = ls_request-stock_category ).
+        ENDIF.
+
+        CLEAR ls_one_fefo_request.
+        ls_one_fefo_request-exposure = ls_adjusted_exposure.
+        ls_one_fefo_request-requested_quantity =
+          ls_request-requested_quantity.
+        ls_one_fefo_request-requested_unit = ls_request-requested_unit.
+        ls_one_fefo_request-cost_center = ls_request-cost_center.
+        ls_one_fefo_request-material_unit = ls_request-material_unit.
+        ls_one_fefo_request-stock_category = ls_request-stock_category.
+        ls_one_fefo_request-movement_reason = ls_request-movement_reason.
+        ls_one_fefo_request-storage_location_priority =
+          ls_request-storage_location_priority.
+        IF iv_recheck_exposure = abap_true.
+          ls_one_fefo_request-rechecked_exposure = ls_adjusted_exposure.
+        ENDIF.
+        CLEAR lt_one_request.
+        APPEND ls_one_fefo_request TO lt_one_request.
+
+        ls_single_result = scrap_expired_fefo_bulk_uom(
+          is_header                = is_header
+          it_requests              = lt_one_request
+          iv_require_full_quantity = iv_require_full_quantity
+          iv_test_run              = iv_test_run ).
+        READ TABLE ls_single_result-requests INTO ls_single_row INDEX 1.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        ls_single_row-request_index = ls_request_order-request_index.
+        ls_single_row-request_id = ls_request-request_id.
+        ls_single_row-priority_rank = ls_request_order-priority_rank.
+        ls_single_row-is_priority_ranked = ls_request_order-is_ranked.
+        <ls_request_result> = ls_single_row.
+      CATCH zcx_invalid_goods_movement INTO DATA(lx_request_error).
+        <ls_request_result>-is_exception = abap_true.
+        <ls_request_result>-is_attempted = abap_false.
+        <ls_request_result>-fefo_result-is_posting_attempted = abap_false.
+        <ls_request_result>-fefo_result-is_rechecked =
+          xsdbool( iv_recheck_exposure = abap_true ).
+        <ls_request_result>-fefo_result-posting_result-is_successful =
+          abap_false.
+        APPEND VALUE #(
+          type    = 'E'
+          message = lx_request_error->get_text( ) )
+          TO <ls_request_result>-fefo_result-posting_result-messages.
+      ENDTRY.
+
+      IF <ls_request_result>-is_exception = abap_true.
+        ADD 1 TO rs_result-posting_result-exception_count.
+      ENDIF.
+      IF <ls_request_result>-is_successful = abap_true.
+        ADD 1 TO rs_result-posting_result-successful_count.
+        IF <ls_request_result>-is_committed = abap_true.
+          rs_result-posting_result-is_committed = abap_true.
+        ENDIF.
+        LOOP AT <ls_request_result>-fefo_result-preview-selections
+            INTO ls_capacity_selection.
+          READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+            WITH TABLE KEY material = ls_request-material
+              plant = ls_request-plant
+              storage_location = ls_capacity_selection-storage_location
+              batch = ls_capacity_selection-batch
+              valuation_type = ls_capacity_selection-valuation_type
+              stock_category = ls_request-stock_category.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+          ADD ls_capacity_selection-quantity
+            TO <ls_fefo_capacity>-allocated_quantity.
+        ENDLOOP.
+      ELSE.
+        ADD 1 TO rs_result-posting_result-failed_count.
+        rs_result-posting_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_posting = abap_true.
+          rs_result-posting_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_stop_posting = abap_true.
+      lv_next_order_index = lv_order_index + 1.
+      LOOP AT lt_request_order INTO ls_request_order
+          FROM lv_next_order_index.
+        READ TABLE rs_result-posting_result-requests
+          ASSIGNING <ls_request_result>
+          INDEX ls_request_order-request_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        <ls_request_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-posting_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD add_exp_scrap_capacity.
+    FIELD-SYMBOLS <ls_capacity> TYPE ty_exp_scrap_capacity.
+    DATA lv_new_request TYPE abap_bool.
+
+    IF iv_quantity < 0.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_is_rechecked <> abap_true AND iv_is_rechecked <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    INSERT VALUE #(
+      material         = iv_material
+      plant            = iv_plant
+      storage_location = iv_storage_location
+      batch            = iv_batch
+      valuation_type   = iv_valuation_type
+      stock_category   = iv_stock_category
+      request_id       = iv_request_id )
+      INTO TABLE ct_capacity_requests.
+    IF sy-subrc = 0.
+      lv_new_request = abap_true.
+    ENDIF.
+    READ TABLE ct_capacities ASSIGNING <ls_capacity>
+      WITH TABLE KEY material = iv_material
+        plant = iv_plant
+        storage_location = iv_storage_location
+        batch = iv_batch
+        valuation_type = iv_valuation_type
+        stock_category = iv_stock_category.
+    IF sy-subrc <> 0.
+      INSERT VALUE #(
+        material                     = iv_material
+        plant                        = iv_plant
+        base_unit                    = iv_base_unit
+        storage_location             = iv_storage_location
+        batch                        = iv_batch
+        valuation_type               = iv_valuation_type
+        stock_category               = iv_stock_category
+        available_quantity           = iv_quantity
+        minimum_exposure_count       = 1
+        maximum_reported_quantity    = iv_quantity
+        maximum_reported_request_id  = iv_request_id
+        maximum_exposure_count       = 1
+        limiting_request_id          = iv_request_id
+        reported_exposure_count      = 1
+        contributing_request_count   = 1
+        rechecked_exposure_count     = COND i(
+          WHEN iv_is_rechecked = abap_true THEN 1 ELSE 0 )
+        positive_exposure_count      = COND i(
+          WHEN iv_quantity > 0 THEN 1 ELSE 0 )
+        earliest_snapshot_timestamp  = iv_snapshot_timestamp
+        latest_snapshot_timestamp    = iv_snapshot_timestamp
+        untimestamped_exposure_count = COND i(
+          WHEN iv_snapshot_timestamp IS INITIAL THEN 1 ELSE 0 ) )
+        INTO TABLE ct_capacities.
+      RETURN.
+    ENDIF.
+
+    IF <ls_capacity>-base_unit <> iv_base_unit.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    ADD 1 TO <ls_capacity>-reported_exposure_count.
+    IF lv_new_request = abap_true.
+      ADD 1 TO <ls_capacity>-contributing_request_count.
+    ENDIF.
+    IF iv_is_rechecked = abap_true.
+      ADD 1 TO <ls_capacity>-rechecked_exposure_count.
+    ENDIF.
+    IF iv_quantity > 0.
+      ADD 1 TO <ls_capacity>-positive_exposure_count.
+    ENDIF.
+    IF iv_quantity < <ls_capacity>-available_quantity.
+      <ls_capacity>-available_quantity = iv_quantity.
+      <ls_capacity>-minimum_exposure_count = 1.
+      <ls_capacity>-limiting_request_id = iv_request_id.
+    ELSEIF iv_quantity = <ls_capacity>-available_quantity.
+      ADD 1 TO <ls_capacity>-minimum_exposure_count.
+    ENDIF.
+    IF iv_quantity > <ls_capacity>-maximum_reported_quantity.
+      <ls_capacity>-maximum_reported_quantity = iv_quantity.
+      <ls_capacity>-maximum_reported_request_id = iv_request_id.
+      <ls_capacity>-maximum_exposure_count = 1.
+    ELSEIF iv_quantity = <ls_capacity>-maximum_reported_quantity.
+      ADD 1 TO <ls_capacity>-maximum_exposure_count.
+    ENDIF.
+    IF iv_snapshot_timestamp IS INITIAL.
+      ADD 1 TO <ls_capacity>-untimestamped_exposure_count.
+    ELSE.
+      IF <ls_capacity>-earliest_snapshot_timestamp IS INITIAL
+          OR iv_snapshot_timestamp
+            < <ls_capacity>-earliest_snapshot_timestamp.
+        <ls_capacity>-earliest_snapshot_timestamp = iv_snapshot_timestamp.
+      ENDIF.
+      IF <ls_capacity>-latest_snapshot_timestamp IS INITIAL
+          OR iv_snapshot_timestamp
+            > <ls_capacity>-latest_snapshot_timestamp.
+        <ls_capacity>-latest_snapshot_timestamp = iv_snapshot_timestamp.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD post_expired_fefo_bulk_atomic.
+    TYPES ty_fefo_capacity TYPE ty_exp_scrap_capacity.
+    TYPES ty_fefo_capacities TYPE ty_exp_scrap_capacity_map.
+    TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES ty_request_ids TYPE HASHED TABLE OF ty_request_id
+      WITH UNIQUE KEY table_line.
+    TYPES:
+      BEGIN OF ty_request_order,
+        is_ranked     TYPE abap_bool,
+        priority_rank TYPE i,
+        request_index TYPE i,
+      END OF ty_request_order.
+    TYPES ty_request_orders TYPE STANDARD TABLE OF ty_request_order
+      WITH EMPTY KEY.
+    DATA lt_seen_request_ids TYPE ty_request_ids.
+    DATA lt_seen_priority_ids TYPE ty_request_ids.
+    DATA lt_request_order TYPE ty_request_orders.
+    DATA lt_fefo_capacities TYPE ty_fefo_capacities.
+    DATA lt_capacity_requests TYPE ty_exp_scrap_capacity_requests.
+    DATA lt_items TYPE zif_goods_movement_api=>ty_items.
+    DATA ls_priority TYPE ty_fefo_preview_priority.
+    DATA ls_request_order TYPE ty_request_order.
+    DATA ls_adjusted_exposure TYPE zcl_stock_service=>ty_batch_expiry_result.
+    DATA ls_preview TYPE ty_expired_scrap_uom_preview_result.
+    DATA ls_original_preview TYPE ty_expired_scrap_uom_preview_result.
+    DATA ls_batch TYPE zcl_stock_service=>ty_batch_expiry_row.
+    DATA lv_category_quantity TYPE mard-labst.
+    DATA lv_remaining_quantity TYPE mard-labst.
+    DATA lv_request_index TYPE i.
+    DATA lv_priority_rank TYPE i.
+    DATA lv_order_index TYPE i.
+    DATA lv_is_ranked TYPE abap_bool.
+    FIELD-SYMBOLS <ls_request_result> TYPE ty_scrap_fefo_row_result.
+    FIELD-SYMBOLS <ls_fefo_capacity> TYPE ty_fefo_capacity.
+    FIELD-SYMBOLS <ls_adjusted_batch> TYPE zcl_stock_service=>ty_batch_expiry_row.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    rs_result-require_full_quantity = iv_require_full_quantity.
+    IF it_requests IS INITIAL.
+      IF it_request_priorities IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      RETURN.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+
+    LOOP AT it_requests INTO DATA(ls_request).
+      IF ls_request-exposure-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_request-exposure-request_id INTO TABLE lt_seen_request_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_request_priorities INTO ls_priority.
+      IF ls_priority-request_id IS INITIAL
+          OR ls_priority-priority_rank <= 0
+          OR NOT line_exists( lt_seen_request_ids[
+            table_line = ls_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT ls_priority-request_id INTO TABLE lt_seen_priority_ids.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_requests INTO ls_request.
+      lv_request_index = sy-tabix.
+      IF ls_request-rechecked_exposure IS NOT INITIAL.
+        validate_scrap_recheck_full(
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          iv_stock_category     = ls_request-stock_category ).
+      ENDIF.
+      CLEAR lv_is_ranked.
+      CLEAR lv_priority_rank.
+      READ TABLE it_request_priorities INTO ls_priority
+        WITH KEY request_id = ls_request-exposure-request_id.
+      IF sy-subrc = 0.
+        lv_is_ranked = abap_true.
+        lv_priority_rank = ls_priority-priority_rank.
+      ENDIF.
+      APPEND VALUE #(
+        is_ranked     = lv_is_ranked
+        priority_rank = lv_priority_rank
+        request_index = lv_request_index )
+        TO lt_request_order.
+      APPEND VALUE #(
+        request_index      = lv_request_index
+        request_id         = ls_request-exposure-request_id
+        priority_rank      = lv_priority_rank
+        is_priority_ranked = lv_is_ranked
+        fefo_result        = VALUE #(
+          require_full_quantity        = iv_require_full_quantity
+          is_rechecked                 = xsdbool(
+            ls_request-rechecked_exposure IS NOT INITIAL )
+          rechecked_snapshot_timestamp =
+            ls_request-rechecked_exposure-snapshot_timestamp ) )
+        TO rs_result-requests.
+
+      LOOP AT ls_request-exposure-batches INTO ls_batch.
+        IF ls_batch-storage_location IS INITIAL OR ls_batch-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            lv_category_quantity = ls_batch-available_quantity.
+          WHEN c_scrap_stock_quality.
+            lv_category_quantity = ls_batch-quality_inspection_quantity.
+          WHEN c_scrap_stock_blocked.
+            lv_category_quantity = ls_batch-blocked_quantity.
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDCASE.
+        CALL METHOD add_exp_scrap_capacity
+          EXPORTING
+            iv_material           = ls_request-exposure-material
+            iv_plant              = ls_request-exposure-plant
+            iv_base_unit          = ls_request-material_unit-base_unit
+            iv_storage_location   = ls_batch-storage_location
+            iv_batch              = ls_batch-batch
+            iv_valuation_type     = ls_batch-valuation_type
+            iv_stock_category     = ls_request-stock_category
+            iv_quantity           = lv_category_quantity
+            iv_request_id         = ls_request-exposure-request_id
+            iv_is_rechecked       = abap_false
+            iv_snapshot_timestamp =
+              ls_request-exposure-snapshot_timestamp
+          CHANGING
+            ct_capacities         = lt_fefo_capacities
+            ct_capacity_requests  = lt_capacity_requests.
+      ENDLOOP.
+
+      IF ls_request-rechecked_exposure IS NOT INITIAL.
+        LOOP AT ls_request-rechecked_exposure-batches INTO ls_batch.
+          IF ls_batch-storage_location IS INITIAL OR ls_batch-batch IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          CASE ls_request-stock_category.
+            WHEN c_scrap_stock_unrestricted.
+              lv_category_quantity = ls_batch-available_quantity.
+            WHEN c_scrap_stock_quality.
+              lv_category_quantity = ls_batch-quality_inspection_quantity.
+            WHEN c_scrap_stock_blocked.
+              lv_category_quantity = ls_batch-blocked_quantity.
+            WHEN OTHERS.
+              RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDCASE.
+          CALL METHOD add_exp_scrap_capacity
+            EXPORTING
+              iv_material           = ls_request-exposure-material
+              iv_plant              = ls_request-exposure-plant
+              iv_base_unit          = ls_request-material_unit-base_unit
+              iv_storage_location   = ls_batch-storage_location
+              iv_batch              = ls_batch-batch
+              iv_valuation_type     = ls_batch-valuation_type
+              iv_stock_category     = ls_request-stock_category
+              iv_quantity           = lv_category_quantity
+              iv_request_id         = ls_request-exposure-request_id
+              iv_is_rechecked       = abap_true
+              iv_snapshot_timestamp =
+                ls_request-rechecked_exposure-snapshot_timestamp
+            CHANGING
+              ct_capacities         = lt_fefo_capacities
+              ct_capacity_requests  = lt_capacity_requests.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+
+    SORT lt_request_order BY is_ranked DESCENDING priority_rank ASCENDING
+      request_index ASCENDING.
+    LOOP AT lt_request_order INTO ls_request_order.
+      lv_order_index = sy-tabix.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_request_result>-allocation_sequence = lv_order_index.
+
+      ls_adjusted_exposure = ls_request-exposure.
+      LOOP AT ls_adjusted_exposure-batches ASSIGNING <ls_adjusted_batch>.
+        IF <ls_adjusted_batch>-storage_location IS INITIAL
+            OR <ls_adjusted_batch>-batch IS INITIAL.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-exposure-material
+            plant = ls_request-exposure-plant
+            storage_location = <ls_adjusted_batch>-storage_location
+            batch = <ls_adjusted_batch>-batch
+            valuation_type = <ls_adjusted_batch>-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        lv_remaining_quantity = <ls_fefo_capacity>-available_quantity
+          - <ls_fefo_capacity>-allocated_quantity.
+        IF lv_remaining_quantity < 0.
+          CLEAR lv_remaining_quantity.
+        ENDIF.
+        CASE ls_request-stock_category.
+          WHEN c_scrap_stock_unrestricted.
+            <ls_adjusted_batch>-available_quantity = lv_remaining_quantity.
+          WHEN c_scrap_stock_quality.
+            <ls_adjusted_batch>-quality_inspection_quantity =
+              lv_remaining_quantity.
+          WHEN c_scrap_stock_blocked.
+            <ls_adjusted_batch>-blocked_quantity = lv_remaining_quantity.
+        ENDCASE.
+      ENDLOOP.
+
+      ls_preview = preview_expired_scrap_uom(
+        is_exposure                  = ls_adjusted_exposure
+        iv_posting_date              = is_header-posting_date
+        iv_requested_quantity        = ls_request-requested_quantity
+        iv_requested_unit            = ls_request-material_unit-base_unit
+        iv_cost_center               = ls_request-cost_center
+        is_material_unit             = ls_request-material_unit
+        iv_stock_category            = ls_request-stock_category
+        iv_movement_reason           = ls_request-movement_reason
+        it_storage_location_priority = ls_request-storage_location_priority
+        iv_require_full_quantity     = iv_require_full_quantity ).
+      <ls_request_result>-fefo_result-source_requested_quantity =
+        ls_preview-source_requested_quantity.
+      <ls_request_result>-fefo_result-source_requested_unit =
+        ls_preview-source_requested_unit.
+      <ls_request_result>-fefo_result-base_requested_quantity =
+        ls_preview-base_requested_quantity.
+      <ls_request_result>-fefo_result-base_unit = ls_preview-base_unit.
+      <ls_request_result>-fefo_result-require_full_quantity =
+        iv_require_full_quantity.
+      <ls_request_result>-fefo_result-preview = ls_preview-preview.
+
+      IF ls_preview-preview-selections IS INITIAL.
+        ls_original_preview = preview_expired_scrap_uom(
+          is_exposure                  = ls_request-exposure
+          iv_posting_date              = is_header-posting_date
+          iv_requested_quantity        = ls_request-requested_quantity
+          iv_requested_unit            = ls_request-material_unit-base_unit
+          iv_cost_center               = ls_request-cost_center
+          is_material_unit             = ls_request-material_unit
+          iv_stock_category            = ls_request-stock_category
+          iv_movement_reason           = ls_request-movement_reason
+          it_storage_location_priority =
+            ls_request-storage_location_priority
+          iv_require_full_quantity     = iv_require_full_quantity ).
+        IF ls_original_preview-preview-selections IS NOT INITIAL.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Atomic FEFO requests exceed the shared snapshot balance' )
+            TO <ls_request_result>-fefo_result-posting_result-messages.
+        ELSE.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Atomic FEFO preflight found insufficient expired stock' )
+            TO <ls_request_result>-fefo_result-posting_result-messages.
+        ENDIF.
+      ENDIF.
+
+      IF ls_request-rechecked_exposure IS NOT INITIAL
+          AND ls_preview-preview-selections IS NOT INITIAL.
+        validate_scrap_recheck(
+          is_header             = is_header
+          is_original_exposure  = ls_request-exposure
+          is_rechecked_exposure = ls_request-rechecked_exposure
+          it_scrap_quantities   = ls_preview-preview-selections
+          iv_stock_category     = ls_request-stock_category ).
+        <ls_request_result>-fefo_result-is_rechecked = abap_true.
+      ENDIF.
+
+      LOOP AT ls_preview-preview-selections
+          INTO DATA(ls_capacity_selection).
+        READ TABLE lt_fefo_capacities ASSIGNING <ls_fefo_capacity>
+          WITH TABLE KEY material = ls_request-exposure-material
+            plant = ls_request-exposure-plant
+            storage_location = ls_capacity_selection-storage_location
+            batch = ls_capacity_selection-batch
+            valuation_type = ls_capacity_selection-valuation_type
+            stock_category = ls_request-stock_category.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        ADD ls_capacity_selection-quantity
+          TO <ls_fefo_capacity>-allocated_quantity.
+        ADD 1 TO <ls_fefo_capacity>-allocation_row_count.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT lt_fefo_capacities ASSIGNING <ls_fefo_capacity>.
+      <ls_fefo_capacity>-capacity_spread_quantity =
+        <ls_fefo_capacity>-maximum_reported_quantity
+        - <ls_fefo_capacity>-available_quantity.
+      <ls_fefo_capacity>-remaining_quantity =
+        <ls_fefo_capacity>-available_quantity
+        - <ls_fefo_capacity>-allocated_quantity.
+      IF <ls_fefo_capacity>-remaining_quantity < 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND <ls_fefo_capacity> TO rs_result-shared_capacities.
+    ENDLOOP.
+    SORT rs_result-shared_capacities BY material plant storage_location batch
+      valuation_type stock_category.
+
+    LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+      IF <ls_request_result>-fefo_result-preview-selections IS INITIAL.
+        rs_result-is_successful = abap_false.
+        rs_result-failed_count = lines( rs_result-requests ).
+        IF <ls_request_result>-fefo_result-posting_result-messages IS INITIAL.
+          APPEND VALUE #(
+            type    = 'E'
+            message =
+              'Atomic FEFO preflight found insufficient expired stock' )
+            TO <ls_request_result>-fefo_result-posting_result-messages.
+        ENDIF.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_request_order INTO ls_request_order.
+      READ TABLE it_requests INTO ls_request
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+        INDEX ls_request_order-request_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      CLEAR lt_items.
+      LOOP AT <ls_request_result>-fefo_result-preview-selections
+          INTO DATA(ls_selection).
+        APPEND VALUE #(
+          material         = ls_request-exposure-material
+          plant            = ls_request-exposure-plant
+          storage_location = ls_selection-storage_location
+          movement_type    =
+            <ls_request_result>-fefo_result-preview-movement_type
+          quantity         = ls_selection-quantity
+          entry_unit       = ls_request-material_unit-base_unit
+          entry_unit_iso   = ls_request-material_unit-base_unit_iso
+          cost_center      = ls_selection-cost_center
+          movement_reason  = ls_selection-movement_reason
+          batch            = ls_selection-batch
+          valuation_type   = ls_selection-valuation_type )
+          TO lt_items.
+      ENDLOOP.
+
+      <ls_request_result>-is_attempted = abap_true.
+      <ls_request_result>-fefo_result-is_posting_attempted = abap_true.
+      TRY.
+        <ls_request_result>-fefo_result-posting_result = execute(
+          is_header       = is_header
+          iv_gm_code      = '03'
+          it_items        = lt_items
+          iv_test_run     = iv_test_run
+          iv_defer_commit = abap_true ).
+      CATCH zcx_invalid_goods_movement INTO DATA(lx_post_exception).
+        IF iv_test_run = abap_false.
+          mo_api->rollback( ).
+        ENDIF.
+        <ls_request_result>-is_exception = abap_true.
+        <ls_request_result>-is_attempted = abap_false.
+        <ls_request_result>-fefo_result-is_posting_attempted = abap_false.
+        <ls_request_result>-fefo_result-posting_result-is_successful =
+          abap_false.
+        APPEND VALUE #(
+          type    = 'E'
+          message = lx_post_exception->get_text( ) )
+          TO <ls_request_result>-fefo_result-posting_result-messages.
+        rs_result-is_successful = abap_false.
+        rs_result-is_rolled_back = xsdbool( iv_test_run = abap_false ).
+        rs_result-failed_count = lines( rs_result-requests ).
+        rs_result-exception_count = 1.
+        LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+          <ls_request_result>-is_successful = abap_false.
+          <ls_request_result>-is_committed = abap_false.
+          <ls_request_result>-fefo_result-posting_result-is_successful =
+            abap_false.
+          CLEAR:
+            <ls_request_result>-fefo_result-posting_result-material_document,
+            <ls_request_result>-fefo_result-posting_result-fiscal_year.
+        ENDLOOP.
+        RETURN.
+      ENDTRY.
+      IF <ls_request_result>-fefo_result-posting_result-is_successful
+          = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      rs_result-is_successful = abap_false.
+      rs_result-is_rolled_back = xsdbool( iv_test_run = abap_false ).
+      rs_result-failed_count = lines( rs_result-requests ).
+      LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+        <ls_request_result>-is_successful = abap_false.
+        <ls_request_result>-is_committed = abap_false.
+        <ls_request_result>-fefo_result-posting_result-is_successful =
+          abap_false.
+        CLEAR:
+          <ls_request_result>-fefo_result-posting_result-material_document,
+          <ls_request_result>-fefo_result-posting_result-fiscal_year.
+      ENDLOOP.
+      RETURN.
+    ENDLOOP.
+
+    IF iv_test_run = abap_true.
+      rs_result-is_successful = abap_true.
+      rs_result-successful_count = lines( rs_result-requests ).
+      LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+        <ls_request_result>-is_successful = abap_true.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    rs_result-commit_result = mo_api->commit( ).
+    IF rs_result-commit_result-is_successful = abap_true.
+      rs_result-is_committed = abap_true.
+      rs_result-successful_count = lines( rs_result-requests ).
+      LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+        <ls_request_result>-is_successful = abap_true.
+        <ls_request_result>-is_committed = abap_true.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    mo_api->rollback( ).
+    rs_result-is_successful = abap_false.
+    rs_result-is_rolled_back = abap_true.
+    rs_result-failed_count = lines( rs_result-requests ).
+    LOOP AT rs_result-requests ASSIGNING <ls_request_result>.
+      <ls_request_result>-is_successful = abap_false.
+      <ls_request_result>-is_committed = abap_false.
+      <ls_request_result>-fefo_result-posting_result-is_successful =
+        abap_false.
+      CLEAR:
+        <ls_request_result>-fefo_result-posting_result-material_document,
+        <ls_request_result>-fefo_result-posting_result-fiscal_year.
+    ENDLOOP.
+    READ TABLE rs_result-requests ASSIGNING <ls_request_result>
+      INDEX lines( rs_result-requests ).
+    IF sy-subrc = 0 AND rs_result-commit_result-message IS NOT INITIAL.
+      APPEND rs_result-commit_result-message
+        TO <ls_request_result>-fefo_result-posting_result-messages.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD validate_scrap_recheck_full.
+    TYPES:
+      BEGIN OF ty_rechecked_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_rechecked_batch_key.
+    DATA lt_rechecked_batch_keys TYPE HASHED TABLE OF
+      ty_rechecked_batch_key WITH UNIQUE KEY storage_location batch
+        valuation_type.
+
+    IF is_original_exposure-request_id IS INITIAL
+        OR is_rechecked_exposure-request_id
+          <> is_original_exposure-request_id
+        OR is_rechecked_exposure-material <> is_original_exposure-material
+        OR is_rechecked_exposure-plant <> is_original_exposure-plant
+        OR is_rechecked_exposure-as_of_date <> is_original_exposure-as_of_date
+        OR is_rechecked_exposure-through_date
+          <> is_original_exposure-through_date
+        OR is_rechecked_exposure-as_of_date IS INITIAL
+        OR is_rechecked_exposure-through_date
+          < is_rechecked_exposure-as_of_date
+        OR is_rechecked_exposure-material IS INITIAL
+        OR is_rechecked_exposure-plant IS INITIAL
+        OR same_scrap_reservation_keys(
+          it_first  = is_original_exposure-excluded_reservations
+          it_second = is_rechecked_exposure-excluded_reservations )
+          <> abap_true
+        OR ( is_original_exposure-snapshot_timestamp IS NOT INITIAL
+          AND ( is_rechecked_exposure-snapshot_timestamp IS INITIAL
+            OR is_rechecked_exposure-snapshot_timestamp
+              <= is_original_exposure-snapshot_timestamp ) )
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_rechecked_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_rechecked_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted
+          OR c_scrap_stock_quality
+          OR c_scrap_stock_blocked.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+
+    LOOP AT is_rechecked_exposure-batches INTO DATA(ls_rechecked_batch).
+      IF ls_rechecked_batch-storage_location IS INITIAL
+          OR ls_rechecked_batch-batch IS INITIAL
+          OR ls_rechecked_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_rechecked_batch-expiration_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE #(
+        storage_location = ls_rechecked_batch-storage_location
+        batch            = ls_rechecked_batch-batch
+        valuation_type   = ls_rechecked_batch-valuation_type )
+        INTO TABLE lt_rechecked_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      CASE ls_rechecked_batch-status.
+        WHEN zcl_stock_service=>c_expiry_status_expired.
+          IF ls_rechecked_batch-expiration_date
+              >= is_rechecked_exposure-as_of_date.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN zcl_stock_service=>c_expiry_status_upcoming.
+          IF ls_rechecked_batch-expiration_date
+              < is_rechecked_exposure-as_of_date
+              OR ls_rechecked_batch-expiration_date
+                > is_rechecked_exposure-through_date.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN OTHERS.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDCASE.
+      CASE iv_stock_category.
+        WHEN c_scrap_stock_unrestricted.
+          IF ls_rechecked_batch-unrestricted_quantity < 0
+              OR ls_rechecked_batch-available_quantity < 0
+              OR ls_rechecked_batch-available_quantity
+                > ls_rechecked_batch-unrestricted_quantity.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN c_scrap_stock_quality.
+          IF ls_rechecked_batch-quality_inspection_quantity < 0.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN c_scrap_stock_blocked.
+          IF ls_rechecked_batch-blocked_quantity < 0.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_scrap_recheck.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+
+    IF is_original_exposure-snapshot_timestamp IS NOT INITIAL
+        AND ( is_rechecked_exposure-snapshot_timestamp IS INITIAL
+          OR is_rechecked_exposure-snapshot_timestamp
+            <= is_original_exposure-snapshot_timestamp ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    IF is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR same_scrap_reservation_keys(
+          it_first  = is_original_exposure-excluded_reservations
+          it_second = is_rechecked_exposure-excluded_reservations )
+          <> abap_true
+        OR it_scrap_quantities IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    CASE iv_stock_category.
+      WHEN c_scrap_stock_unrestricted
+          OR c_scrap_stock_quality
+          OR c_scrap_stock_blocked.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(lv_original_matches) = 0.
+      LOOP AT is_original_exposure-batches INTO DATA(ls_original_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_original_matches.
+      ENDLOOP.
+      DATA(lv_rechecked_matches) = 0.
+      LOOP AT is_rechecked_exposure-batches INTO DATA(ls_rechecked_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_rechecked_matches.
+      ENDLOOP.
+      IF lv_original_matches <> 1 OR lv_rechecked_matches <> 1
+          OR ls_original_batch-status <> ls_rechecked_batch-status
+          OR ls_original_batch-expiration_date
+            <> ls_rechecked_batch-expiration_date
+          OR ls_original_batch-unrestricted_quantity
+            <> ls_rechecked_batch-unrestricted_quantity
+          OR ls_original_batch-available_quantity
+            <> ls_rechecked_batch-available_quantity
+          OR ls_original_batch-quality_inspection_quantity
+            <> ls_rechecked_batch-quality_inspection_quantity
+          OR ls_original_batch-blocked_quantity
+            <> ls_rechecked_batch-blocked_quantity
+          OR is_scrap_expired_at_posting(
+            iv_status          = ls_rechecked_batch-status
+            iv_expiration_date = ls_rechecked_batch-expiration_date
+            iv_as_of_date      = is_rechecked_exposure-as_of_date
+            iv_through_date    = is_rechecked_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+          OR ls_rechecked_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_rechecked_batch-expiration_date ) <> abap_true
+          OR ls_rechecked_batch-expiration_date >= is_header-posting_date.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      CASE iv_stock_category.
+        WHEN c_scrap_stock_unrestricted.
+          IF ls_rechecked_batch-available_quantity <= 0
+              OR ls_rechecked_batch-available_quantity
+                > ls_rechecked_batch-unrestricted_quantity
+              OR ls_scrap_quantity-quantity
+                > ls_rechecked_batch-available_quantity.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN c_scrap_stock_quality.
+          IF ls_rechecked_batch-quality_inspection_quantity <= 0
+              OR ls_scrap_quantity-quantity
+                > ls_rechecked_batch-quality_inspection_quantity.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN c_scrap_stock_blocked.
+          IF ls_rechecked_batch-blocked_quantity <= 0
+              OR ls_scrap_quantity-quantity
+                > ls_rechecked_batch-blocked_quantity.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD is_valid_scrap_res_keys.
+    DATA lt_seen_keys TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+
+    rv_valid = abap_true.
+    LOOP AT it_keys INTO DATA(ls_key).
+      IF ls_key-reservation_number IS INITIAL
+          OR ls_key-reservation_item IS INITIAL.
+        rv_valid = abap_false.
+        RETURN.
+      ENDIF.
+      INSERT ls_key INTO TABLE lt_seen_keys.
+      IF sy-subrc <> 0.
+        rv_valid = abap_false.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD validate_scrap_stock_request.
+    IF is_request-request_id IS INITIAL
+        OR is_request-material IS INITIAL
+        OR is_request-plant IS INITIAL
+        OR is_request-as_of_date IS INITIAL
+        OR is_request-through_date IS INITIAL
+        OR is_request-through_date < is_request-as_of_date
+        OR is_request-as_of_date > iv_posting_date
+        OR is_request-requested_unit IS INITIAL
+        OR is_request-requested_quantity <= 0
+        OR is_request-cost_center IS INITIAL
+        OR is_request-material_unit-material <> is_request-material
+        OR is_request-material_unit-base_unit IS INITIAL
+        OR is_request-material_unit-base_unit_iso IS INITIAL
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_request-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_request-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    CASE is_request-stock_category.
+      WHEN c_scrap_stock_unrestricted
+          OR c_scrap_stock_quality
+          OR c_scrap_stock_blocked.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD validate_scrap_stock_exposure.
+    TYPES:
+      BEGIN OF ty_exposure_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_exposure_batch_key.
+    TYPES ty_exposure_batch_keys TYPE HASHED TABLE OF
+      ty_exposure_batch_key WITH UNIQUE KEY storage_location batch
+        valuation_type.
+    DATA lt_expected_exclusions TYPE
+      zif_stock_repository=>ty_reservation_keys.
+    DATA lt_exposure_batch_keys TYPE ty_exposure_batch_keys.
+
+    IF is_exposure-request_id IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    lt_expected_exclusions = it_excluded_reservations.
+    LOOP AT it_request_exclusions INTO DATA(ls_request_exclusion).
+      READ TABLE lt_expected_exclusions TRANSPORTING NO FIELDS
+        WITH KEY reservation_number = ls_request_exclusion-reservation_number
+          reservation_item = ls_request_exclusion-reservation_item.
+      IF sy-subrc <> 0.
+        APPEND ls_request_exclusion TO lt_expected_exclusions.
+      ENDIF.
+    ENDLOOP.
+    IF same_scrap_reservation_keys(
+        it_first  = is_exposure-excluded_reservations
+        it_second = lt_expected_exclusions ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT is_exposure-batches INTO DATA(ls_batch).
+      IF ls_batch-storage_location IS INITIAL
+          OR ls_batch-batch IS INITIAL
+          OR ls_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_batch-expiration_date ) <> abap_true
+          OR ls_batch-available_quantity < 0
+          OR ( ls_batch-unrestricted_quantity >= 0
+            AND ls_batch-available_quantity
+              > ls_batch-unrestricted_quantity ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      CASE ls_batch-status.
+        WHEN zcl_stock_service=>c_expiry_status_expired.
+          IF ls_batch-expiration_date >= is_exposure-as_of_date.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN zcl_stock_service=>c_expiry_status_upcoming.
+          IF ls_batch-expiration_date < is_exposure-as_of_date
+              OR ls_batch-expiration_date > is_exposure-through_date.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        WHEN OTHERS.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDCASE.
+      INSERT VALUE #(
+        storage_location = ls_batch-storage_location
+        batch            = ls_batch-batch
+        valuation_type   = ls_batch-valuation_type )
+        INTO TABLE lt_exposure_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD same_scrap_reservation_keys.
+    DATA lt_first_keys TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+    DATA lt_second_keys TYPE HASHED TABLE OF
+      zif_stock_repository=>ty_reservation_key
+      WITH UNIQUE KEY reservation_number reservation_item.
+
+    IF lines( it_first ) <> lines( it_second ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT it_first INTO DATA(ls_first_key).
+      IF ls_first_key-reservation_number IS INITIAL
+          OR ls_first_key-reservation_item IS INITIAL.
+        RETURN.
+      ENDIF.
+      INSERT ls_first_key INTO TABLE lt_first_keys.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+      READ TABLE it_second TRANSPORTING NO FIELDS
+        WITH KEY reservation_number = ls_first_key-reservation_number
+          reservation_item = ls_first_key-reservation_item.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT it_second INTO DATA(ls_second_key).
+      IF ls_second_key-reservation_number IS INITIAL
+          OR ls_second_key-reservation_item IS INITIAL.
+        RETURN.
+      ENDIF.
+      INSERT ls_second_key INTO TABLE lt_second_keys.
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD is_scrap_expired_at_posting.
+    IF iv_expiration_date IS INITIAL
+        OR iv_as_of_date IS INITIAL
+        OR iv_through_date IS INITIAL
+        OR iv_posting_date IS INITIAL
+        OR iv_through_date < iv_as_of_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_expiration_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_through_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = iv_posting_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    CASE iv_status.
+      WHEN zcl_stock_service=>c_expiry_status_expired.
+        IF iv_expiration_date >= iv_as_of_date.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      WHEN zcl_stock_service=>c_expiry_status_upcoming.
+        IF iv_expiration_date < iv_as_of_date
+            OR iv_expiration_date > iv_through_date.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDCASE.
+
+    rv_expired = xsdbool( iv_expiration_date < iv_posting_date ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_blocked_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_blocked_stock(
+      is_header           = is_header
+      is_exposure         = is_exposure
+      it_scrap_quantities = lt_base_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_blk_rechecked.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(lv_original_matches) = 0.
+      LOOP AT is_original_exposure-batches INTO DATA(ls_original_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_original_matches.
+      ENDLOOP.
+      DATA(lv_rechecked_matches) = 0.
+      LOOP AT is_rechecked_exposure-batches INTO DATA(ls_rechecked_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_rechecked_matches.
+      ENDLOOP.
+      IF lv_original_matches <> 1 OR lv_rechecked_matches <> 1
+          OR ls_original_batch-status <> ls_rechecked_batch-status
+          OR ls_original_batch-expiration_date
+            <> ls_rechecked_batch-expiration_date
+          OR ls_original_batch-unrestricted_quantity
+            <> ls_rechecked_batch-unrestricted_quantity
+          OR ls_original_batch-available_quantity
+            <> ls_rechecked_batch-available_quantity
+          OR ls_original_batch-quality_inspection_quantity
+            <> ls_rechecked_batch-quality_inspection_quantity
+          OR ls_original_batch-blocked_quantity
+            <> ls_rechecked_batch-blocked_quantity
+          OR is_scrap_expired_at_posting(
+            iv_status          = ls_rechecked_batch-status
+            iv_expiration_date = ls_rechecked_batch-expiration_date
+            iv_as_of_date      = is_rechecked_exposure-as_of_date
+            iv_through_date    = is_rechecked_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+          OR ls_rechecked_batch-blocked_quantity <= 0
+          OR ls_rechecked_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_rechecked_batch-expiration_date ) <> abap_true
+          OR ls_rechecked_batch-expiration_date >= is_header-posting_date
+          OR ls_scrap_quantity-quantity
+            > ls_rechecked_batch-blocked_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result = scrap_expired_blocked_stock(
+      is_header           = is_header
+      is_exposure         = is_rechecked_exposure
+      it_scrap_quantities = it_scrap_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_blk_recheck_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL
+        OR is_material_unit-material <> is_rechecked_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_rechecked_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_blk_rechecked(
+      is_header             = is_header
+      is_original_exposure  = is_original_exposure
+      is_rechecked_exposure = is_rechecked_exposure
+      it_scrap_quantities   = lt_base_quantities
+      is_material_unit      = is_material_unit
+      iv_test_run           = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_qi_batch_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_qi_batch_stock(
+      is_header           = is_header
+      is_exposure         = is_exposure
+      it_scrap_quantities = lt_base_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_qi_rechecked.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(lv_original_matches) = 0.
+      LOOP AT is_original_exposure-batches INTO DATA(ls_original_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_original_matches.
+      ENDLOOP.
+      DATA(lv_rechecked_matches) = 0.
+      LOOP AT is_rechecked_exposure-batches INTO DATA(ls_rechecked_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_rechecked_matches.
+      ENDLOOP.
+      IF lv_original_matches <> 1 OR lv_rechecked_matches <> 1
+          OR ls_original_batch-status <> ls_rechecked_batch-status
+          OR ls_original_batch-expiration_date
+            <> ls_rechecked_batch-expiration_date
+          OR ls_original_batch-unrestricted_quantity
+            <> ls_rechecked_batch-unrestricted_quantity
+          OR ls_original_batch-available_quantity
+            <> ls_rechecked_batch-available_quantity
+          OR ls_original_batch-quality_inspection_quantity
+            <> ls_rechecked_batch-quality_inspection_quantity
+          OR ls_original_batch-blocked_quantity
+            <> ls_rechecked_batch-blocked_quantity
+          OR is_scrap_expired_at_posting(
+            iv_status          = ls_rechecked_batch-status
+            iv_expiration_date = ls_rechecked_batch-expiration_date
+            iv_as_of_date      = is_rechecked_exposure-as_of_date
+            iv_through_date    = is_rechecked_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+          OR ls_rechecked_batch-quality_inspection_quantity <= 0
+          OR ls_rechecked_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_rechecked_batch-expiration_date ) <> abap_true
+          OR ls_rechecked_batch-expiration_date >= is_header-posting_date
+          OR ls_scrap_quantity-quantity
+            > ls_rechecked_batch-quality_inspection_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result = scrap_expired_qi_batch_stock(
+      is_header           = is_header
+      is_exposure         = is_rechecked_exposure
+      it_scrap_quantities = it_scrap_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_qi_rechecked_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL
+        OR is_material_unit-material <> is_rechecked_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_rechecked_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_qi_rechecked(
+      is_header             = is_header
+      is_original_exposure  = is_original_exposure
+      is_rechecked_exposure = is_rechecked_exposure
+      it_scrap_quantities   = lt_base_quantities
+      is_material_unit      = is_material_unit
+      iv_test_run           = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_batch_rechecked.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+
+    IF is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(lv_original_matches) = 0.
+      LOOP AT is_original_exposure-batches INTO DATA(ls_original_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_original_matches.
+      ENDLOOP.
+      DATA(lv_rechecked_matches) = 0.
+      LOOP AT is_rechecked_exposure-batches INTO DATA(ls_rechecked_batch)
+          WHERE storage_location = ls_scrap_quantity-storage_location
+            AND batch = ls_scrap_quantity-batch
+            AND valuation_type = ls_scrap_quantity-valuation_type.
+        ADD 1 TO lv_rechecked_matches.
+      ENDLOOP.
+      IF lv_original_matches <> 1 OR lv_rechecked_matches <> 1
+          OR ls_original_batch-status <> ls_rechecked_batch-status
+          OR ls_original_batch-expiration_date
+            <> ls_rechecked_batch-expiration_date
+          OR ls_original_batch-unrestricted_quantity
+            <> ls_rechecked_batch-unrestricted_quantity
+          OR ls_original_batch-available_quantity
+            <> ls_rechecked_batch-available_quantity
+          OR ls_original_batch-quality_inspection_quantity
+            <> ls_rechecked_batch-quality_inspection_quantity
+          OR ls_original_batch-blocked_quantity
+            <> ls_rechecked_batch-blocked_quantity
+          OR is_scrap_expired_at_posting(
+            iv_status          = ls_rechecked_batch-status
+            iv_expiration_date = ls_rechecked_batch-expiration_date
+            iv_as_of_date      = is_rechecked_exposure-as_of_date
+            iv_through_date    = is_rechecked_exposure-through_date
+            iv_posting_date    = is_header-posting_date ) <> abap_true
+          OR ls_rechecked_batch-available_quantity <= 0
+          OR ls_rechecked_batch-available_quantity
+            > ls_rechecked_batch-unrestricted_quantity
+          OR ls_rechecked_batch-expiration_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            iv_date = ls_rechecked_batch-expiration_date ) <> abap_true
+          OR ls_rechecked_batch-expiration_date >= is_header-posting_date
+          OR ls_scrap_quantity-quantity
+            > ls_rechecked_batch-available_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    rs_result = scrap_expired_batch_stock(
+      is_header           = is_header
+      is_exposure         = is_rechecked_exposure
+      it_scrap_quantities = it_scrap_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_batch_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR it_scrap_quantities IS INITIAL
+        OR is_header-posting_date IS INITIAL
+        OR is_header-document_date IS INITIAL
+        OR is_exposure-material IS INITIAL
+        OR is_exposure-plant IS INITIAL
+        OR is_exposure-as_of_date IS INITIAL
+        OR is_exposure-through_date IS INITIAL
+        OR is_exposure-through_date < is_exposure-as_of_date
+        OR is_exposure-as_of_date > is_header-posting_date
+        OR is_material_unit-material <> is_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_batch_stock(
+      is_header           = is_header
+      is_exposure         = is_exposure
+      it_scrap_quantities = lt_base_quantities
+      is_material_unit    = is_material_unit
+      iv_test_run         = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD scrap_expired_rechecked_uom.
+    TYPES:
+      BEGIN OF ty_scrap_batch_key,
+        storage_location TYPE mard-lgort,
+        batch            TYPE mchb-charg,
+        valuation_type   TYPE mcha-bwtar,
+      END OF ty_scrap_batch_key.
+    DATA lt_batch_keys TYPE HASHED TABLE OF ty_scrap_batch_key
+      WITH UNIQUE KEY storage_location batch valuation_type.
+    DATA lt_base_quantities TYPE ty_expired_scrap_quantities.
+    DATA ls_unit_check TYPE zif_material_uom_converter=>ty_result.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false
+        OR is_original_exposure-request_id IS INITIAL
+        OR is_original_exposure-request_id
+          <> is_rechecked_exposure-request_id
+        OR is_original_exposure-material <> is_rechecked_exposure-material
+        OR is_original_exposure-plant <> is_rechecked_exposure-plant
+        OR is_original_exposure-as_of_date
+          <> is_rechecked_exposure-as_of_date
+        OR is_original_exposure-through_date
+          <> is_rechecked_exposure-through_date
+        OR it_scrap_quantities IS INITIAL
+        OR is_material_unit-material <> is_original_exposure-material
+        OR is_material_unit-base_unit IS INITIAL
+        OR is_material_unit-base_unit_iso IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    validate_header_dates( is_header = is_header ).
+    IF is_original_exposure-as_of_date IS INITIAL
+        OR is_original_exposure-through_date
+          < is_original_exposure-as_of_date
+        OR is_original_exposure-as_of_date > is_header-posting_date
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-as_of_date ) <> abap_true
+        OR zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = is_original_exposure-through_date ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO DATA(ls_scrap_quantity).
+      IF ls_scrap_quantity-storage_location IS INITIAL
+          OR ls_scrap_quantity-batch IS INITIAL
+          OR ls_scrap_quantity-cost_center IS INITIAL
+          OR ls_scrap_quantity-quantity <= 0
+          OR ls_scrap_quantity-unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      INSERT VALUE ty_scrap_batch_key(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type )
+        INTO TABLE lt_batch_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDLOOP.
+
+    ls_unit_check = mo_uom_converter->convert_material_unit(
+      iv_material    = is_material_unit-material
+      iv_quantity    = '1.000'
+      iv_source_unit = is_material_unit-base_unit ).
+    IF ls_unit_check-is_successful <> abap_true
+        OR ls_unit_check-base_unit <> is_material_unit-base_unit
+        OR ls_unit_check-base_quantity <> CONV mard-labst( '1.000' ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_scrap_quantities INTO ls_scrap_quantity.
+      DATA(ls_conversion) = mo_uom_converter->convert_material_unit(
+        iv_material    = is_original_exposure-material
+        iv_quantity    = ls_scrap_quantity-quantity
+        iv_source_unit = ls_scrap_quantity-unit ).
+      IF ls_conversion-is_successful <> abap_true
+          OR ls_conversion-base_unit <> is_material_unit-base_unit
+          OR ls_conversion-base_quantity <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND VALUE #(
+        storage_location = ls_scrap_quantity-storage_location
+        batch            = ls_scrap_quantity-batch
+        valuation_type   = ls_scrap_quantity-valuation_type
+        cost_center      = ls_scrap_quantity-cost_center
+        movement_reason  = ls_scrap_quantity-movement_reason
+        quantity         = ls_conversion-base_quantity )
+        TO lt_base_quantities.
+    ENDLOOP.
+
+    rs_result = scrap_expired_batch_rechecked(
+      is_header             = is_header
+      is_original_exposure  = is_original_exposure
+      is_rechecked_exposure = is_rechecked_exposure
+      it_scrap_quantities   = lt_base_quantities
+      is_material_unit      = is_material_unit
+      iv_test_run           = iv_test_run ).
   ENDMETHOD.
 
   METHOD execute.
@@ -3893,7 +9608,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
         cost_center      = iv_cost_center
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -3966,7 +9682,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
         cost_center      = iv_cost_center
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -4003,7 +9720,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
         cost_center      = iv_cost_center
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -4076,7 +9794,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
         cost_center      = iv_cost_center
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -4096,7 +9815,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_seen_splits TYPE HASHED TABLE OF ty_split_key
       WITH UNIQUE KEY storage_location batch.
     DATA lt_issue_lines TYPE ty_cc_issue_lines.
-    DATA lv_split_quantity TYPE mard-labst.
+    DATA lv_split_quantity TYPE decfloat34.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_allocation <> abap_true
@@ -4224,12 +9943,19 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         request_id       TYPE c LENGTH 30,
         storage_location TYPE mard-lgort,
       END OF ty_split_key.
+    TYPES:
+      BEGIN OF ty_request_location_key,
+        request_id       TYPE c LENGTH 30,
+        storage_location TYPE mard-lgort,
+      END OF ty_request_location_key.
     DATA lt_seen_requests TYPE HASHED TABLE OF ty_request_key
       WITH UNIQUE KEY request_id.
     DATA lt_seen_materials TYPE HASHED TABLE OF ty_material_key
       WITH UNIQUE KEY material.
     DATA lt_seen_splits TYPE HASHED TABLE OF ty_split_key
       WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      ty_request_location_key WITH UNIQUE KEY request_id storage_location.
     DATA lt_movement_items TYPE zif_goods_movement_api=>ty_items.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
@@ -4258,6 +9984,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-request_id <> ls_preview-request_id
           OR ls_allocation-material IS INITIAL
           OR ls_allocation-plant IS INITIAL
+          OR ( ls_preview-require_full_quantity <> abap_true
+            AND ls_preview-require_full_quantity <> abap_false )
           OR ls_preview-allocation-source_quantity <= 0
           OR ls_preview-allocation-source_unit IS INITIAL
           OR ls_preview-allocation-base_quantity <= 0
@@ -4279,7 +10007,21 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-
+      LOOP AT ls_preview-request_locations
+          INTO DATA(ls_request_location).
+        IF ls_request_location-request_id <> ls_preview-request_id
+            OR ls_request_location-request_id IS INITIAL
+            OR ls_request_location-storage_location IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        INSERT VALUE #(
+          request_id       = ls_request_location-request_id
+          storage_location = ls_request_location-storage_location )
+          INTO TABLE lt_seen_request_locations.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDLOOP.
       READ TABLE it_material_units INTO ls_material_unit
         WITH KEY material = ls_allocation-material.
       IF sy-subrc <> 0
@@ -4287,12 +10029,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             <> ls_preview-allocation-base_unit.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      IF iv_require_full_allocation = abap_true
-          AND ls_allocation-shortfall_quantity > 0.
+      IF ( iv_require_full_allocation = abap_true
+            OR ls_preview-require_full_quantity = abap_true )
+          AND ls_allocation-shortfall_quantity > 0
+          AND ( iv_require_full_allocation = abap_true
+            OR ls_allocation-allocated_quantity > 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT ls_preview-storage_allocations
         INTO DATA(ls_storage_split).
@@ -4302,6 +10047,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             OR ls_raw_split-plant <> ls_allocation-plant
             OR ls_raw_split-storage_location IS INITIAL
             OR ls_raw_split-allocated_quantity <= 0
+            OR ( ls_preview-request_locations IS NOT INITIAL
+              AND NOT line_exists( ls_preview-request_locations[
+                request_id = ls_preview-request_id
+                storage_location = ls_raw_split-storage_location ] ) )
             OR ls_storage_split-base_unit
               <> ls_preview-allocation-base_unit
             OR ls_storage_split-source_unit
@@ -4349,6 +10098,46 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_test_run = iv_test_run ).
   ENDMETHOD.
 
+  METHOD issue_cc_locations_by_date.
+    DATA lt_previews TYPE zcl_cc_reservation_service=>ty_location_demand_previews.
+    FIELD-SYMBOLS <ls_location_preview> TYPE
+      zcl_cc_reservation_service=>ty_location_demand_preview.
+
+    LOOP AT it_previews INTO DATA(ls_preview).
+      IF ls_preview-required_date IS INITIAL
+          OR zcl_date_validation=>is_valid_gregorian_date(
+            ls_preview-required_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      APPEND INITIAL LINE TO lt_previews
+        ASSIGNING <ls_location_preview>.
+      <ls_location_preview>-request_id = ls_preview-request_id.
+      <ls_location_preview>-cost_center = ls_preview-cost_center.
+      <ls_location_preview>-priority = ls_preview-priority.
+      <ls_location_preview>-require_full_quantity =
+        ls_preview-require_full_quantity.
+      <ls_location_preview>-allocation = ls_preview-allocation.
+      <ls_location_preview>-request_locations =
+        ls_preview-request_locations.
+
+      LOOP AT ls_preview-storage_allocations INTO DATA(ls_dated_split).
+        IF ls_dated_split-required_date <> ls_preview-required_date
+            OR ls_dated_split-priority <> ls_preview-priority.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        APPEND ls_dated_split-storage_split
+          TO <ls_location_preview>-storage_allocations.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result = issue_cost_center_locations(
+      is_header                  = is_header
+      it_previews                = lt_previews
+      it_material_units          = it_material_units
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
+  ENDMETHOD.
+
   METHOD issue_cost_center_batches.
     DATA lt_previews TYPE ty_cc_batch_issue_previews.
 
@@ -4357,11 +10146,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       APPEND VALUE #(
-        request_id        = ls_preview-request_id
-        cost_center       = ls_preview-cost_center
-        selected_batch    = ls_preview-selected_batch
-        allocation        = ls_preview-allocation
-        batch_allocations = ls_preview-batch_allocations )
+        request_id              = ls_preview-request_id
+        cost_center             = ls_preview-cost_center
+        selected_batch          = ls_preview-selected_batch
+        required_date           = ls_preview-required_date
+        minimum_shelf_life_days = ls_preview-minimum_shelf_life_days
+        include_undated_batches = ls_preview-include_undated_batches
+        require_full_quantity   = ls_preview-require_full_quantity
+        allocation              = ls_preview-allocation
+        batch_allocations       = ls_preview-batch_allocations
+        request_locations       = ls_preview-request_locations )
         TO lt_previews.
     ENDLOOP.
 
@@ -4378,10 +10172,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     LOOP AT it_previews INTO DATA(ls_preview).
       APPEND VALUE #(
-        request_id        = ls_preview-request_id
-        cost_center       = ls_preview-cost_center
-        allocation        = ls_preview-allocation
-        batch_allocations = ls_preview-batch_allocations )
+        request_id              = ls_preview-request_id
+        cost_center             = ls_preview-cost_center
+        is_fefo_preview         = abap_true
+        as_of_date              = ls_preview-as_of_date
+        minimum_shelf_life_days = ls_preview-minimum_shelf_life_days
+        include_undated_batches = ls_preview-include_undated_batches
+        require_full_quantity   = ls_preview-require_full_quantity
+        allocation              = ls_preview-allocation
+        batch_allocations       = ls_preview-batch_allocations
+        request_locations       = ls_preview-request_locations )
         TO lt_previews.
     ENDLOOP.
 
@@ -4406,14 +10206,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         batch            TYPE mchb-charg,
         storage_location TYPE mard-lgort,
       END OF ty_split_key.
+    TYPES:
+      BEGIN OF ty_request_location_key,
+        request_id       TYPE c LENGTH 30,
+        storage_location TYPE mard-lgort,
+      END OF ty_request_location_key.
     DATA lt_seen_requests TYPE HASHED TABLE OF ty_request_key
       WITH UNIQUE KEY request_id.
     DATA lt_seen_materials TYPE HASHED TABLE OF ty_material_key
       WITH UNIQUE KEY material.
     DATA lt_seen_splits TYPE HASHED TABLE OF ty_split_key
       WITH UNIQUE KEY request_id batch storage_location.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      ty_request_location_key WITH UNIQUE KEY request_id storage_location.
     DATA lt_movement_items TYPE zif_goods_movement_api=>ty_items.
+    DATA lo_batch_eligibility TYPE REF TO zcl_stock_batch_eligibility.
+    DATA lv_include_undated TYPE abap_bool.
+    DATA lv_batch_as_of_date TYPE d.
+    DATA lv_batch_is_eligible TYPE abap_bool.
 
+    lo_batch_eligibility = NEW zcl_stock_batch_eligibility( ).
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
         OR ( iv_require_full_allocation <> abap_true
           AND iv_require_full_allocation <> abap_false ).
@@ -4435,6 +10247,49 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     LOOP AT it_previews INTO DATA(ls_preview).
       DATA(ls_allocation) = ls_preview-allocation-allocation.
+      IF ls_preview-require_full_quantity <> abap_true
+          AND ls_preview-require_full_quantity <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF ls_preview-is_fefo_preview <> abap_true
+          AND ls_preview-is_fefo_preview <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF ls_preview-is_fefo_preview = abap_false
+          AND ( is_header-posting_date IS INITIAL
+            OR zcl_date_validation=>is_valid_gregorian_date(
+              is_header-posting_date ) <> abap_true
+            OR ( ls_preview-required_date IS NOT INITIAL
+              AND zcl_date_validation=>is_valid_gregorian_date(
+                ls_preview-required_date ) <> abap_true )
+            OR ls_preview-minimum_shelf_life_days < 0
+            OR ( ls_preview-minimum_shelf_life_days > 0
+              AND ls_preview-required_date IS INITIAL )
+            OR ( ls_preview-include_undated_batches <> abap_true
+              AND ls_preview-include_undated_batches <> abap_false )
+            OR ( ls_allocation-require_known_expiry <> abap_true
+              AND ls_allocation-require_known_expiry <> abap_false )
+            OR ( ls_allocation-allow_undated_batches <> abap_true
+              AND ls_allocation-allow_undated_batches <> abap_false )
+            OR ( ls_allocation-require_known_expiry = abap_true
+              AND ls_allocation-allow_undated_batches = abap_true ) ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      IF ls_preview-is_fefo_preview = abap_true
+          AND ( ls_preview-as_of_date IS INITIAL
+            OR zcl_date_validation=>is_valid_gregorian_date(
+              ls_preview-as_of_date ) <> abap_true
+            OR ls_preview-minimum_shelf_life_days < 0
+            OR ( ls_preview-include_undated_batches <> abap_true
+              AND ls_preview-include_undated_batches <> abap_false )
+            OR ( ls_allocation-require_known_expiry <> abap_true
+              AND ls_allocation-require_known_expiry <> abap_false )
+            OR ( ls_allocation-allow_undated_batches <> abap_true
+              AND ls_allocation-allow_undated_batches <> abap_false )
+            OR ( ls_allocation-require_known_expiry = abap_true
+              AND ls_allocation-allow_undated_batches = abap_true ) ).
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
       IF ls_preview-request_id IS INITIAL
           OR ls_preview-cost_center IS INITIAL
           OR ls_allocation-request_id <> ls_preview-request_id
@@ -4461,6 +10316,21 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      LOOP AT ls_preview-request_locations
+          INTO DATA(ls_request_location).
+        IF ls_request_location-request_id <> ls_preview-request_id
+            OR ls_request_location-request_id IS INITIAL
+            OR ls_request_location-storage_location IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        INSERT VALUE #(
+          request_id       = ls_request_location-request_id
+          storage_location = ls_request_location-storage_location )
+          INTO TABLE lt_seen_request_locations.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+      ENDLOOP.
 
       READ TABLE it_material_units INTO ls_material_unit
         WITH KEY material = ls_allocation-material.
@@ -4469,12 +10339,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             <> ls_preview-allocation-base_unit.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      IF iv_require_full_allocation = abap_true
-          AND ls_allocation-shortfall_quantity > 0.
+      IF ( iv_require_full_allocation = abap_true
+            OR ls_preview-require_full_quantity = abap_true )
+          AND ls_allocation-shortfall_quantity > 0
+          AND ( iv_require_full_allocation = abap_true
+            OR ls_allocation-allocated_quantity > 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT ls_preview-batch_allocations
         INTO DATA(ls_batch_split).
@@ -4487,11 +10360,92 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             OR ls_raw_split-allocated_quantity <= 0
             OR ( ls_preview-selected_batch IS NOT INITIAL
               AND ls_raw_split-batch <> ls_preview-selected_batch )
+            OR ( ls_preview-request_locations IS NOT INITIAL
+              AND NOT line_exists( ls_preview-request_locations[
+                request_id = ls_preview-request_id
+                storage_location = ls_raw_split-storage_location ] ) )
             OR ls_batch_split-base_unit
               <> ls_preview-allocation-base_unit
             OR ls_batch_split-source_unit
               <> ls_preview-allocation-source_unit.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+        ENDIF.
+        IF ls_preview-is_fefo_preview = abap_false.
+          lv_batch_as_of_date = ls_preview-required_date.
+          IF ls_raw_split-as_of_date IS NOT INITIAL.
+            IF lv_batch_as_of_date IS NOT INITIAL
+                AND ls_raw_split-as_of_date <> lv_batch_as_of_date.
+              RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+            ENDIF.
+            IF lv_batch_as_of_date IS INITIAL.
+              lv_batch_as_of_date = ls_raw_split-as_of_date.
+            ENDIF.
+          ENDIF.
+          IF lv_batch_as_of_date IS INITIAL.
+            lv_batch_as_of_date = sy-datum.
+          ENDIF.
+          IF is_header-posting_date > lv_batch_as_of_date.
+            lv_batch_as_of_date = is_header-posting_date.
+          ENDIF.
+          IF ls_raw_split-minimum_shelf_life_days
+                <> ls_preview-minimum_shelf_life_days
+              OR ls_raw_split-require_known_expiry
+                <> ls_allocation-require_known_expiry
+              OR ls_raw_split-allow_undated_batches
+                <> ls_allocation-allow_undated_batches.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+          lv_include_undated = ls_preview-include_undated_batches.
+          IF ls_allocation-allow_undated_batches = abap_true.
+            lv_include_undated = abap_true.
+          ENDIF.
+          IF ls_allocation-require_known_expiry = abap_true.
+            lv_include_undated = abap_false.
+          ENDIF.
+          TRY.
+              lv_batch_is_eligible = lo_batch_eligibility->is_eligible(
+                iv_expiration_date         = ls_raw_split-expiration_date
+                iv_as_of_date              = lv_batch_as_of_date
+                iv_min_days                =
+                  ls_preview-minimum_shelf_life_days
+                iv_include_undated_batches = lv_include_undated ).
+            CATCH zcx_invalid_stock_request.
+              RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDTRY.
+          IF lv_batch_is_eligible <> abap_true.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+        ENDIF.
+        IF ls_preview-is_fefo_preview = abap_true.
+          IF ls_raw_split-as_of_date <> ls_preview-as_of_date
+              OR ls_raw_split-minimum_shelf_life_days
+                <> ls_preview-minimum_shelf_life_days
+              OR ls_raw_split-require_known_expiry
+                <> ls_allocation-require_known_expiry
+              OR ls_raw_split-allow_undated_batches
+                <> ls_allocation-allow_undated_batches.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
+          lv_include_undated = ls_preview-include_undated_batches.
+          IF ls_allocation-allow_undated_batches = abap_true.
+            lv_include_undated = abap_true.
+          ENDIF.
+          IF ls_allocation-require_known_expiry = abap_true.
+            lv_include_undated = abap_false.
+          ENDIF.
+          TRY.
+              lv_batch_is_eligible = lo_batch_eligibility->is_eligible(
+                iv_expiration_date         = ls_raw_split-expiration_date
+                iv_as_of_date              = ls_preview-as_of_date
+                iv_min_days                =
+                  ls_preview-minimum_shelf_life_days
+                iv_include_undated_batches = lv_include_undated ).
+            CATCH zcx_invalid_stock_request.
+              RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDTRY.
+          IF lv_batch_is_eligible <> abap_true.
+            RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+          ENDIF.
         ENDIF.
         INSERT VALUE #(
           request_id       = ls_raw_split-request_id
@@ -4546,6 +10500,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     rs_result-is_successful = abap_true.
     rs_result-is_test_run = iv_test_run.
     IF it_requests IS INITIAL.
@@ -4598,11 +10556,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_issue>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_issue>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-issues ASSIGNING <ls_issue>
+          WHERE is_attempted = abap_false.
+        <ls_issue>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD issue_cost_centers_bulk_uom.
@@ -4625,11 +10598,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = issue_cost_centers_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -4691,6 +10669,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -4699,9 +10678,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = issue_cost_centers_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD issue_cost_centers_atomic.
@@ -4768,7 +10748,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
           cost_center      = ls_request-cost_center
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
 
       <ls_issue>-is_attempted = abap_true.
@@ -4910,6 +10891,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -4931,6 +10913,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_return> TYPE ty_cc_return_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     rs_result-is_successful = abap_true.
@@ -4985,11 +10971,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_return>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_return>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-returns ASSIGNING <ls_return>
+          WHERE is_attempted = abap_false.
+        <ls_return>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD return_cost_centers_bulk_uom.
@@ -5012,11 +11013,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = return_cost_centers_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -5078,6 +11084,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -5086,9 +11093,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = return_cost_centers_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_cost_centers_atomic.
@@ -5155,7 +11163,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
           cost_center      = ls_request-cost_center
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
 
       <ls_return>-is_attempted = abap_true.
@@ -5297,6 +11306,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -5340,7 +11350,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_item-quantity
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -5417,7 +11428,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_conversion-base_quantity
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -5436,6 +11448,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_issue> TYPE ty_sales_order_issue_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     IF iv_special_stock <> space AND iv_special_stock <> 'E'.
@@ -5496,11 +11512,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_issue>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_issue>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-issues ASSIGNING <ls_issue>
+          WHERE is_attempted = abap_false.
+        <ls_issue>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD issue_sales_orders_bulk_uom.
@@ -5524,15 +11555,20 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF iv_special_stock <> space AND iv_special_stock <> 'E'.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     IF it_requests IS INITIAL.
       rs_result = issue_sales_orders_bulk(
-        is_header        = is_header
-        it_requests      = VALUE #( )
-        iv_test_run      = iv_test_run
-        iv_special_stock = iv_special_stock ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_special_stock   = iv_special_stock
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -5600,6 +11636,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -5608,10 +11645,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = issue_sales_orders_bulk(
-      is_header        = is_header
-      it_requests      = lt_base_requests
-      iv_test_run      = iv_test_run
-      iv_special_stock = iv_special_stock ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_special_stock   = iv_special_stock
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD issue_sales_orders_atomic.
@@ -5685,7 +11723,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           quantity         = ls_item-quantity
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
 
       <ls_issue>-is_attempted = abap_true.
@@ -5839,6 +11878,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -5890,7 +11930,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       WITH UNIQUE KEY request_id storage_location batch.
     DATA lt_movement_items TYPE zif_goods_movement_api=>ty_items.
     DATA lo_batch_eligibility TYPE REF TO zcl_stock_batch_eligibility.
-    DATA lv_split_quantity TYPE mska-kalab.
+    DATA lv_split_quantity TYPE decfloat34.
     DATA lv_split_rows TYPE i.
     DATA lv_batch_is_eligible TYPE abap_bool.
 
@@ -5993,6 +12033,12 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-minimum_shelf_life_days < 0
           OR ( ls_allocation-include_undated_batches <> abap_true
             AND ls_allocation-include_undated_batches <> abap_false )
+          OR ( ls_allocation-require_known_expiry <> abap_true
+            AND ls_allocation-require_known_expiry <> abap_false )
+          OR ( ls_allocation-allow_undated_batches <> abap_true
+            AND ls_allocation-allow_undated_batches <> abap_false )
+          OR ( ls_allocation-require_known_expiry = abap_true
+            AND ls_allocation-allow_undated_batches = abap_true )
           OR ( ls_allocation-allow_location_fallback <> abap_true
             AND ls_allocation-allow_location_fallback <> abap_false )
           OR ( ls_allocation-allow_location_fallback = abap_true
@@ -6102,6 +12148,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
               <> ls_allocation-minimum_shelf_life_days
             OR ls_batch_allocation-include_undated_batches
               <> ls_allocation-include_undated_batches
+            OR ls_batch_allocation-require_known_expiry
+              <> ls_allocation-require_known_expiry
+            OR ls_batch_allocation-allow_undated_batches
+              <> ls_allocation-allow_undated_batches
             OR ( ls_batch_allocation-expiration_date IS NOT INITIAL
               AND zcl_date_validation=>is_valid_gregorian_date(
                 ls_batch_allocation-expiration_date ) <> abap_true )
@@ -6289,7 +12339,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_item-quantity
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -6366,7 +12417,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_conversion-base_quantity
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -6385,6 +12437,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_return> TYPE ty_sales_return_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     IF iv_special_stock <> space AND iv_special_stock <> 'E'.
@@ -6446,11 +12502,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_return>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_return>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-returns ASSIGNING <ls_return>
+          WHERE is_attempted = abap_false.
+        <ls_return>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD return_sales_orders_bulk_uom.
@@ -6474,15 +12545,20 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF iv_special_stock <> space AND iv_special_stock <> 'E'.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     IF it_requests IS INITIAL.
       rs_result = return_sales_orders_bulk(
-        is_header        = is_header
-        it_requests      = VALUE #( )
-        iv_test_run      = iv_test_run
-        iv_special_stock = iv_special_stock ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_special_stock   = iv_special_stock
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -6550,6 +12626,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -6558,10 +12635,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = return_sales_orders_bulk(
-      is_header        = is_header
-      it_requests      = lt_base_requests
-      iv_test_run      = iv_test_run
-      iv_special_stock = iv_special_stock ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_special_stock   = iv_special_stock
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_sales_orders_atomic.
@@ -6636,7 +12714,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           quantity         = ls_item-quantity
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
 
       <ls_return>-is_attempted = abap_true.
@@ -6790,6 +12869,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -6833,7 +12913,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_item-quantity
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -6909,7 +12990,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_conversion-base_quantity
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -6928,6 +13010,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_movement> TYPE ty_sales_stock_transfer_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     rs_result-is_successful = abap_true.
@@ -6984,11 +13070,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_movement>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_movement>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-movements ASSIGNING <ls_movement>
+          WHERE is_attempted = abap_false.
+        <ls_movement>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD transfer_sales_stock_bulk_uom.
@@ -7011,11 +13112,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = transfer_sales_stock_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -7079,6 +13185,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -7087,9 +13194,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = transfer_sales_stock_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD transfer_sales_stock_atomic.
@@ -7160,7 +13268,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           quantity         = ls_item-quantity
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
       <ls_movement>-is_attempted = abap_true.
       <ls_movement>-movement_result = execute(
@@ -7304,6 +13413,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -7346,7 +13456,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_item-quantity
         entry_unit       = ls_item-entry_unit
         entry_unit_iso   = ls_item-entry_unit_iso
-        batch            = ls_item-batch )
+        batch            = ls_item-batch
+        valuation_type   = ls_item-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -7422,7 +13533,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         quantity         = ls_conversion-base_quantity
         entry_unit       = ls_material_unit-base_unit
         entry_unit_iso   = ls_material_unit-base_unit_iso
-        batch            = ls_request-batch )
+        batch            = ls_request-batch
+        valuation_type   = ls_request-valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -7441,6 +13553,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_movement> TYPE ty_sales_stock_transfer_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     rs_result-is_successful = abap_true.
@@ -7497,11 +13613,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_movement>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_movement>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-movements ASSIGNING <ls_movement>
+          WHERE is_attempted = abap_false.
+        <ls_movement>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD transfer_to_so_stock_bulk_uom.
@@ -7524,11 +13655,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = transfer_to_sales_stock_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -7592,6 +13728,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -7600,9 +13737,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = transfer_to_sales_stock_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD transfer_to_sales_stock_atomic.
@@ -7673,7 +13811,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           quantity         = ls_item-quantity
           entry_unit       = ls_item-entry_unit
           entry_unit_iso   = ls_item-entry_unit_iso
-          batch            = ls_item-batch ) TO lt_movement_items.
+          batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type ) TO lt_movement_items.
       ENDLOOP.
       <ls_movement>-is_attempted = abap_true.
       <ls_movement>-movement_result = execute(
@@ -7817,6 +13956,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           plant            = ls_item-plant
           storage_location = ls_item-storage_location
           batch            = ls_item-batch
+          valuation_type   = ls_item-valuation_type
           quantity         = ls_conversion-base_quantity
           entry_unit       = ls_material_unit-base_unit
           entry_unit_iso   = ls_material_unit-base_unit_iso )
@@ -7844,6 +13984,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_issue> TYPE ty_project_wbs_issue_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -7903,29 +14047,53 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_issue>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_issue>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-issues ASSIGNING <ls_issue>
+          WHERE is_attempted = abap_false.
+        <ls_issue>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD issue_project_wbs_bulk_uom.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     DATA(lt_base_requests) = prepare_wbs_requests_uom(
       is_header         = is_header
       it_requests       = it_requests
       it_material_units = it_material_units
       iv_test_run       = iv_test_run ).
     rs_result = issue_project_wbs_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_project_wbs_bulk.
     FIELD-SYMBOLS <ls_return> TYPE ty_project_wbs_return_row_result.
 
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -7985,16 +14153,36 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_return>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_return>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-returns ASSIGNING <ls_return>
+          WHERE is_attempted = abap_false.
+        <ls_return>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD return_project_wbs_bulk_uom.
     DATA lt_unit_requests TYPE ty_project_wbs_issue_requests_in_unit.
     DATA lt_return_requests TYPE ty_project_wbs_return_requests.
+
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
 
     LOOP AT it_requests INTO DATA(ls_unit_request).
       APPEND VALUE #(
@@ -8017,9 +14205,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_return_requests.
     ENDLOOP.
     rs_result = return_project_wbs_bulk(
-      is_header   = is_header
-      it_requests = lt_return_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_return_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD issue_project_wbs_bulk_atomic.
@@ -8592,6 +14781,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
+          OR ( ls_allocation-require_full_quantity <> abap_true
+            AND ls_allocation-require_full_quantity <> abap_false )
           OR CONV decfloat34( ls_allocation-allocated_quantity )
             + CONV decfloat34( ls_allocation-shortfall_quantity )
             <> CONV decfloat34( ls_allocation-requested_quantity )
@@ -8616,12 +14807,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_material_unit-base_unit <> ls_unit_allocation-base_unit.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      IF iv_require_full_allocation = abap_true
-          AND ls_allocation-shortfall_quantity > 0.
+      IF ( iv_require_full_allocation = abap_true
+            AND ls_allocation-shortfall_quantity > 0 )
+          OR ( ls_allocation-require_full_quantity = abap_true
+            AND ls_allocation-allocated_quantity > 0
+            AND ls_allocation-shortfall_quantity > 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT is_allocation-storage_allocations
         INTO DATA(ls_storage_split).
@@ -8683,6 +14877,630 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_gm_code  = '03'
       it_items    = lt_movement_items
       iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_location.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE zcl_project_stock_service=>ty_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_internal_demand TYPE zcl_project_stock_service=>ty_demand.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_location_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |L{ lv_internal_index }|.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
+      APPEND ls_internal_demand TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element )
+        TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_by_location(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_by_location(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_project_wbs_location(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Project WBS location allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocation-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-allocation-storage_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE storage_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-storage_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocation-allocations
+          INTO DATA(ls_allocation)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        APPEND ls_allocation TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-allocation-storage_allocations
+          INTO DATA(ls_split)
+          WHERE storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split TO ls_posting_allocation-storage_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocation-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        <ls_allocation>-allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-allocation-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE storage_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-storage_allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_allocation(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_loc_priority.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_priority_location_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_location_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |P{ lv_internal_index }|.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit )
+        TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element )
+        TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_by_location_priority(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_by_location_priority(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_project_wbs_loc_prio(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Priority WBS location allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-storage_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE split-storage_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-split-storage_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocations INTO DATA(ls_allocation)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_allocation-allocation
+          TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-storage_allocations INTO DATA(ls_split)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split-split
+          TO ls_posting_allocation-storage_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_allocation>-allocation-allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-split-storage_allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_allocation(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_loc_date.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_dated_location_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_location_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_quantity <> abap_true
+          AND iv_require_full_quantity <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |L{ lv_internal_index }|.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        required_date           = ls_demand-required_date
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit )
+        TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element )
+        TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_by_location_date(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_by_location_date(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_project_wbs_location_date(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Dated WBS location allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-storage_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE split-storage_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-split-storage_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocations INTO DATA(ls_allocation)
+          WHERE allocation-allocation-request_id = ls_context-internal_request_id.
+        APPEND ls_allocation-allocation
+          TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-storage_allocations INTO DATA(ls_split)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split-split
+          TO ls_posting_allocation-storage_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-allocation-request_id = ls_context-internal_request_id.
+        <ls_allocation>-allocation-allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE split-storage_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-split-storage_allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_allocation(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
   ENDMETHOD.
 
   METHOD issue_project_wbs_batch_alloc.
@@ -8786,7 +15604,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT is_allocation-batch_allocations INTO DATA(ls_batch_split).
         DATA(ls_raw_split) = ls_batch_split-batch_allocation.
@@ -8849,6 +15667,655 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_gm_code  = '03'
       it_items    = lt_movement_items
       iv_test_run = iv_test_run ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_fefo.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE zcl_project_stock_service=>ty_demands.
+    DATA ls_internal_demand TYPE zcl_project_stock_service=>ty_demand.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_batch_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |F{ lv_internal_index }|.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
+      APPEND ls_internal_demand TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element )
+        TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_fefo(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_fefo(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_project_wbs_fefo_result(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'WBS FEFO allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocation-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-allocation-batch_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE batch_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-batch_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocation-allocations
+          INTO DATA(ls_allocation)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        APPEND ls_allocation TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-allocation-batch_allocations
+          INTO DATA(ls_split)
+          WHERE batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split TO ls_posting_allocation-batch_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocation-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        <ls_allocation>-allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-allocation-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE batch_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-batch_allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_batch_alloc(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_fefo_prio.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_priority_fefo_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_batch_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |P{ lv_internal_index }|.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        batch                   = ls_demand-batch
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit
+        fefo_as_of_date         = ls_demand-fefo_as_of_date
+        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
+        TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element ) TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_fefo_priority(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_prioritize_by_date          = iv_prioritize_by_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_fefo_priority(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_prioritize_by_date          = iv_prioritize_by_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_priority_wbs_fefo_result(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Priority WBS FEFO allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-batch_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE split-batch_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-split-batch_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocations INTO DATA(ls_allocation)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_allocation-allocation
+          TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-batch_allocations INTO DATA(ls_split)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split-split
+          TO ls_posting_allocation-batch_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_allocation>-allocation-allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-split-batch_allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_batch_alloc(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
+  ENDMETHOD.
+
+  METHOD issue_project_wbs_fefo_by_date.
+    TYPES:
+      BEGIN OF ty_issue_context,
+        internal_request_id TYPE c LENGTH 30,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_issue_context,
+      ty_issue_contexts TYPE STANDARD TABLE OF ty_issue_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_issue_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_dated_fefo_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_batch_result.
+    DATA lt_wbs_assignments TYPE ty_project_wbs_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
+
+    IF io_stock_service IS NOT BOUND
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |D{ lv_internal_index }|.
+      APPEND VALUE #(
+        request_id              = lv_internal_request_id
+        required_date           = ls_demand-required_date
+        priority                = ls_demand-priority
+        wbs_element             = ls_demand-wbs_element
+        material                = ls_demand-material
+        plant                   = ls_demand-plant
+        storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
+        batch                   = ls_demand-batch
+        requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
+        unit                    = ls_demand-unit
+        fefo_as_of_date         = ls_demand-fefo_as_of_date
+        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
+        TO lt_internal_demands.
+      APPEND VALUE #(
+        internal_request_id = lv_internal_request_id
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element ) TO lt_contexts.
+    ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_fefo_by_date(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_fefo_by_date(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    IF same_dated_wbs_fefo_result(
+        is_first  = ls_first_preview
+        is_second = ls_rechecked_preview ) <> abap_true.
+      APPEND VALUE #(
+        type    = 'W'
+        message = 'Dated WBS FEFO allocation changed; no movement was posted' )
+        TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-batch_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE split-batch_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-split-batch_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocations INTO DATA(ls_allocation)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_allocation-allocation
+          TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-batch_allocations INTO DATA(ls_split)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_split-split
+          TO ls_posting_allocation-batch_allocations.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id  = ls_context-internal_request_id
+        wbs_element = ls_context-wbs_element ) TO lt_wbs_assignments.
+
+      LOOP AT rs_result-preview-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_allocation>-allocation-allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE split-batch_allocation-request_id =
+            ls_context-internal_request_id.
+        <ls_split>-split-batch_allocation-request_id =
+          ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-wbs_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
+    rs_result-movement = issue_project_wbs_batch_alloc(
+      is_header                  = is_header
+      is_allocation              = ls_posting_allocation
+      it_wbs_assignments         = lt_wbs_assignments
+      it_material_units          = it_material_units
+      iv_special_stock           = 'Q'
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_quantity ).
   ENDMETHOD.
 
   METHOD transfer_wbs_batch_alloc.
@@ -8924,6 +16391,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
+          OR ( ls_allocation-require_full_quantity <> abap_true
+            AND ls_allocation-require_full_quantity <> abap_false )
           OR CONV decfloat34( ls_allocation-allocated_quantity )
             + CONV decfloat34( ls_allocation-shortfall_quantity )
             <> CONV decfloat34( ls_allocation-requested_quantity )
@@ -8948,12 +16417,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_material_unit-base_unit <> ls_unit_allocation-base_unit.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      IF iv_require_full_allocation = abap_true
-          AND ls_allocation-shortfall_quantity > 0.
+      IF ( iv_require_full_allocation = abap_true
+            AND ls_allocation-shortfall_quantity > 0 )
+          OR ( ls_allocation-require_full_quantity = abap_true
+            AND ls_allocation-allocated_quantity > 0
+            AND ls_allocation-shortfall_quantity > 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT is_allocation-batch_allocations INTO DATA(ls_batch_split).
         DATA(ls_raw_split) = ls_batch_split-batch_allocation.
@@ -9091,6 +16563,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_allocation-available_quantity < 0
           OR ls_allocation-allocated_quantity < 0
           OR ls_allocation-shortfall_quantity < 0
+          OR ( ls_allocation-require_full_quantity <> abap_true
+            AND ls_allocation-require_full_quantity <> abap_false )
           OR CONV decfloat34( ls_allocation-allocated_quantity )
             + CONV decfloat34( ls_allocation-shortfall_quantity )
             <> CONV decfloat34( ls_allocation-requested_quantity )
@@ -9115,12 +16589,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_material_unit-base_unit <> ls_unit_allocation-base_unit.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      IF iv_require_full_allocation = abap_true
-          AND ls_allocation-shortfall_quantity > 0.
+      IF ( iv_require_full_allocation = abap_true
+            AND ls_allocation-shortfall_quantity > 0 )
+          OR ( ls_allocation-require_full_quantity = abap_true
+            AND ls_allocation-allocated_quantity > 0
+            AND ls_allocation-shortfall_quantity > 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       LOOP AT is_allocation-storage_allocations
         INTO DATA(ls_storage_split).
@@ -9184,70 +16661,208 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD transfer_wbs_fefo.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    TYPES:
+      BEGIN OF ty_transfer_context,
+        internal_request_id     TYPE c LENGTH 30,
+        request_id              TYPE c LENGTH 30,
+        source_wbs_element      TYPE zcl_project_stock_service=>ty_wbs_element,
+        destination_wbs_element TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_transfer_context,
+      ty_transfer_contexts TYPE STANDARD TABLE OF ty_transfer_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_transfer_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_transfer_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_internal_demand TYPE
+      zcl_project_stock_service=>ty_transfer_demand.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_batch_result.
+    DATA ls_first_stock_result TYPE zcl_project_stock_service=>ty_result.
+    DATA ls_rechecked_stock_result TYPE zcl_project_stock_service=>ty_result.
+    DATA lt_transfer_assignments TYPE ty_project_wbs_transfer_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
 
     IF io_stock_service IS NOT BOUND.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
-    rs_result-preview = io_stock_service->preview_transfer_fefo(
-      it_demands                   = it_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
-    DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_fefo(
-      it_demands                   = it_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
-
-    LOOP AT rs_result-preview-allocation-batch_allocations
-      INTO DATA(ls_first_batch).
-      READ TABLE rs_result-preview-transfer_assignments
-        INTO DATA(ls_first_assignment)
-        WITH KEY request_id =
-          ls_first_batch-batch_allocation-request_id.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |F{ lv_internal_index }|.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
+      APPEND ls_internal_demand TO lt_internal_demands.
       APPEND VALUE #(
-        source_wbs_element      = ls_first_assignment-source_wbs_element
-        destination_wbs_element =
-          ls_first_assignment-destination_wbs_element
-        material                = ls_first_batch-batch_allocation-material
-        plant                   = ls_first_batch-batch_allocation-plant
-        storage_location        =
-          ls_first_batch-batch_allocation-storage_location
-        batch                   = ls_first_batch-batch_allocation-batch
-        expiration_date         =
-          ls_first_batch-batch_allocation-expiration_date
-        quantity                =
-          ls_first_batch-batch_allocation-allocated_quantity
-        unit                    = ls_first_batch-base_unit )
-        TO lt_first_lines.
+        internal_request_id     = lv_internal_request_id
+        request_id              = ls_demand-request_id
+        source_wbs_element      = ls_demand-source_wbs_element
+        destination_wbs_element = ls_demand-destination_wbs_element )
+        TO lt_contexts.
     ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_transfer_fefo(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_fefo(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocation-allocations
+          INTO DATA(ls_allocation)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        APPEND ls_allocation TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-allocation-batch_allocations
+          INTO DATA(ls_first_batch)
+          WHERE batch_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_first_batch
+          TO ls_posting_allocation-batch_allocations.
+        APPEND VALUE #(
+          source_wbs_element      = ls_context-source_wbs_element
+          destination_wbs_element = ls_context-destination_wbs_element
+          material                = ls_first_batch-batch_allocation-material
+          plant                   = ls_first_batch-batch_allocation-plant
+          storage_location        =
+            ls_first_batch-batch_allocation-storage_location
+          batch                   = ls_first_batch-batch_allocation-batch
+          expiration_date         =
+            ls_first_batch-batch_allocation-expiration_date
+          require_known_expiry    =
+            ls_first_batch-batch_allocation-require_known_expiry
+          allow_undated_batches   =
+            ls_first_batch-batch_allocation-allow_undated_batches
+          quantity                =
+            ls_first_batch-batch_allocation-allocated_quantity
+          unit                    = ls_first_batch-base_unit )
+          TO lt_first_lines.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id              = ls_context-internal_request_id
+        source_wbs_element      = ls_context-source_wbs_element
+        destination_wbs_element = ls_context-destination_wbs_element )
+        TO lt_transfer_assignments.
+
+      LOOP AT rs_result-preview-allocation-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        <ls_allocation>-allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-allocation-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE batch_allocation-request_id = ls_context-internal_request_id.
+        <ls_split>-batch_allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-transfer_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_preview-allocation-batch_allocations
-      INTO DATA(ls_rechecked_batch).
-      READ TABLE ls_rechecked_preview-transfer_assignments
-        INTO DATA(ls_rechecked_assignment)
-        WITH KEY request_id =
+        INTO DATA(ls_rechecked_batch).
+      READ TABLE lt_contexts INTO DATA(ls_rechecked_context)
+        WITH KEY internal_request_id =
           ls_rechecked_batch-batch_allocation-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       APPEND VALUE #(
-        source_wbs_element      = ls_rechecked_assignment-source_wbs_element
+        source_wbs_element      = ls_rechecked_context-source_wbs_element
         destination_wbs_element =
-          ls_rechecked_assignment-destination_wbs_element
+          ls_rechecked_context-destination_wbs_element
         material                =
           ls_rechecked_batch-batch_allocation-material
         plant                   = ls_rechecked_batch-batch_allocation-plant
@@ -9256,15 +16871,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         batch                   = ls_rechecked_batch-batch_allocation-batch
         expiration_date         =
           ls_rechecked_batch-batch_allocation-expiration_date
+        require_known_expiry    =
+          ls_rechecked_batch-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_batch-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_batch-batch_allocation-allocated_quantity
         unit                    = ls_rechecked_batch-base_unit )
         TO lt_rechecked_lines.
     ENDLOOP.
 
-    IF same_wbs_xfer_lines(
-        it_first  = lt_first_lines
-        it_second = lt_rechecked_lines ) <> abap_true.
+    ls_first_stock_result-allocation = ls_first_preview-allocation.
+    ls_rechecked_stock_result-allocation =
+      ls_rechecked_preview-allocation.
+    IF same_project_wbs_fefo_result(
+        is_first  = ls_first_stock_result
+        is_second = ls_rechecked_stock_result ) <> abap_true
+        OR same_wbs_xfer_lines(
+          it_first  = lt_first_lines
+          it_second = lt_rechecked_lines ) <> abap_true.
       rs_result-movement-is_successful = abap_false.
       APPEND VALUE #(
         type    = 'E'
@@ -9275,15 +16900,18 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     rs_result-movement = transfer_wbs_batch_alloc(
       is_header                  = is_header
-      is_allocation              = rs_result-preview-allocation
-      it_transfer_assignments    =
-        rs_result-preview-transfer_assignments
+      is_allocation              = ls_posting_allocation
+      it_transfer_assignments    = lt_transfer_assignments
       it_material_units          = it_material_units
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity ).
   ENDMETHOD.
 
   METHOD transfer_wbs_fefo_priority.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     TYPES:
       BEGIN OF ty_transfer_context,
         internal_request_id     TYPE c LENGTH 30,
@@ -9297,6 +16925,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_transfer_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_priority_transfer_fefo_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_transfer_assignments TYPE ty_project_wbs_transfer_assignments.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
@@ -9324,12 +16962,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         batch                   = ls_demand-batch
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
         fefo_as_of_date         = ls_demand-fefo_as_of_date
         minimum_shelf_life_days =
-          ls_demand-minimum_shelf_life_days )
+          ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -9340,24 +16982,83 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    rs_result-preview-request_locations = it_request_locations.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
     DATA(ls_first_preview) = io_stock_service->preview_transfer_fefo_priority(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_prioritize_by_date          = iv_prioritize_by_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
     DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_fefo_priority(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_prioritize_by_date          = iv_prioritize_by_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -9408,6 +17109,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             ls_first_split-split-batch_allocation-batch
           expiration_date         =
             ls_first_split-split-batch_allocation-expiration_date
+          require_known_expiry    =
+            ls_first_split-split-batch_allocation-require_known_expiry
+          allow_undated_batches   =
+            ls_first_split-split-batch_allocation-allow_undated_batches
           quantity                =
             ls_first_split-split-batch_allocation-allocated_quantity
           unit                    = ls_first_split-split-base_unit )
@@ -9438,6 +17143,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           ls_rechecked_split-split-batch_allocation-batch
         expiration_date         =
           ls_rechecked_split-split-batch_allocation-expiration_date
+        require_known_expiry    =
+          ls_rechecked_split-split-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_split-split-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_split-split-batch_allocation-allocated_quantity
         unit                    = ls_rechecked_split-split-base_unit )
@@ -9465,6 +17174,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD transfer_wbs_fefo_by_date.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     TYPES:
       BEGIN OF ty_dated_transfer_context,
         internal_request_id     TYPE c LENGTH 30,
@@ -9479,6 +17192,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_dated_transfer_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_dated_transfer_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
     DATA ls_allocation TYPE zcl_stock_service=>ty_unit_batch_result.
@@ -9506,11 +17229,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         batch                   = ls_demand-batch
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
         fefo_as_of_date         = ls_demand-fefo_as_of_date
-        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days )
+        minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
+        require_known_expiry    = ls_demand-require_known_expiry
+        allow_undated_batches   = ls_demand-allow_undated_batches )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -9521,24 +17248,81 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         priority                = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    rs_result-preview-request_locations = it_request_locations.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
     DATA(ls_first_preview) = io_stock_service->preview_transfer_fefo_by_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
     DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_fefo_by_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_as_of_date                = iv_as_of_date
-      iv_minimum_shelf_life_days   = iv_minimum_shelf_life_days
-      iv_include_undated_batches   = iv_include_undated_batches
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_as_of_date                  = iv_as_of_date
+      iv_minimum_shelf_life_days     = iv_minimum_shelf_life_days
+      iv_include_undated_batches     = iv_include_undated_batches
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -9590,6 +17374,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             ls_first_split-split-batch_allocation-batch
           expiration_date         =
             ls_first_split-split-batch_allocation-expiration_date
+          require_known_expiry    =
+            ls_first_split-split-batch_allocation-require_known_expiry
+          allow_undated_batches   =
+            ls_first_split-split-batch_allocation-allow_undated_batches
           quantity                =
             ls_first_split-split-batch_allocation-allocated_quantity
           unit                    = ls_first_split-split-base_unit )
@@ -9619,6 +17407,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           ls_rechecked_split-split-batch_allocation-batch
         expiration_date         =
           ls_rechecked_split-split-batch_allocation-expiration_date
+        require_known_expiry    =
+          ls_rechecked_split-split-batch_allocation-require_known_expiry
+        allow_undated_batches   =
+          ls_rechecked_split-split-batch_allocation-allow_undated_batches
         quantity                =
           ls_rechecked_split-split-batch_allocation-allocated_quantity
         unit                    = ls_rechecked_split-split-base_unit )
@@ -9646,65 +17438,182 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD transfer_wbs_by_location.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    TYPES:
+      BEGIN OF ty_transfer_context,
+        internal_request_id     TYPE c LENGTH 30,
+        request_id              TYPE c LENGTH 30,
+        source_wbs_element      TYPE zcl_project_stock_service=>ty_wbs_element,
+        destination_wbs_element TYPE zcl_project_stock_service=>ty_wbs_element,
+      END OF ty_transfer_context,
+      ty_transfer_contexts TYPE STANDARD TABLE OF ty_transfer_context
+        WITH EMPTY KEY.
+    DATA lt_contexts TYPE ty_transfer_contexts.
+    DATA lt_internal_demands TYPE
+      zcl_project_stock_service=>ty_transfer_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
+    DATA ls_internal_demand TYPE
+      zcl_project_stock_service=>ty_transfer_demand.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
+    DATA ls_posting_allocation TYPE zcl_stock_service=>ty_unit_location_result.
+    DATA ls_first_location_result TYPE
+      zcl_project_stock_service=>ty_location_result.
+    DATA ls_rechecked_location_result TYPE
+      zcl_project_stock_service=>ty_location_result.
+    DATA lt_transfer_assignments TYPE ty_project_wbs_transfer_assignments.
+    DATA lv_internal_index TYPE i.
+    DATA lv_internal_request_id TYPE c LENGTH 30.
 
     IF io_stock_service IS NOT BOUND.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
-    rs_result-preview = io_stock_service->preview_transfer_by_location(
-      it_demands                   = it_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
-    DATA(ls_rechecked_preview) =
-      io_stock_service->preview_transfer_by_location(
-        it_demands                   = it_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
-
-    LOOP AT rs_result-preview-allocation-storage_allocations
-      INTO DATA(ls_first_location).
-      READ TABLE rs_result-preview-transfer_assignments
-        INTO DATA(ls_first_location_assignment)
-        WITH KEY request_id =
-          ls_first_location-storage_allocation-request_id.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    LOOP AT it_demands INTO DATA(ls_demand).
+      IF ls_demand-request_id IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ADD 1 TO lv_internal_index.
+      CLEAR lv_internal_request_id.
+      lv_internal_request_id = |L{ lv_internal_index }|.
+      ls_internal_demand = ls_demand.
+      ls_internal_demand-request_id = lv_internal_request_id.
+      APPEND ls_internal_demand TO lt_internal_demands.
       APPEND VALUE #(
-        source_wbs_element      =
-          ls_first_location_assignment-source_wbs_element
-        destination_wbs_element =
-          ls_first_location_assignment-destination_wbs_element
-        material                =
-          ls_first_location-storage_allocation-material
-        plant                   = ls_first_location-storage_allocation-plant
-        storage_location        =
-          ls_first_location-storage_allocation-storage_location
-        quantity                =
-          ls_first_location-storage_allocation-allocated_quantity
-        unit                    = ls_first_location-base_unit )
-        TO lt_first_lines.
+        internal_request_id     = lv_internal_request_id
+        request_id              = ls_demand-request_id
+        source_wbs_element      = ls_demand-source_wbs_element
+        destination_wbs_element = ls_demand-destination_wbs_element )
+        TO lt_contexts.
     ENDLOOP.
+
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(ls_first_preview) = io_stock_service->preview_transfer_by_location(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+    DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_by_location(
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
+
+    rs_result-preview = ls_first_preview.
+    rs_result-preview-request_locations = it_request_locations.
+    LOOP AT lt_contexts INTO DATA(ls_context).
+      LOOP AT ls_first_preview-allocation-allocations
+          INTO DATA(ls_allocation)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        APPEND ls_allocation TO ls_posting_allocation-allocations.
+      ENDLOOP.
+      LOOP AT ls_first_preview-allocation-storage_allocations
+          INTO DATA(ls_first_location)
+          WHERE storage_allocation-request_id =
+            ls_context-internal_request_id.
+        APPEND ls_first_location
+          TO ls_posting_allocation-storage_allocations.
+        APPEND VALUE #(
+          source_wbs_element      = ls_context-source_wbs_element
+          destination_wbs_element = ls_context-destination_wbs_element
+          material                =
+            ls_first_location-storage_allocation-material
+          plant                   = ls_first_location-storage_allocation-plant
+          storage_location        =
+            ls_first_location-storage_allocation-storage_location
+          quantity                =
+            ls_first_location-storage_allocation-allocated_quantity
+          unit                    = ls_first_location-base_unit )
+          TO lt_first_lines.
+      ENDLOOP.
+      APPEND VALUE #(
+        request_id              = ls_context-internal_request_id
+        source_wbs_element      = ls_context-source_wbs_element
+        destination_wbs_element = ls_context-destination_wbs_element )
+        TO lt_transfer_assignments.
+    ENDLOOP.
+
     LOOP AT ls_rechecked_preview-allocation-storage_allocations
-      INTO DATA(ls_rechecked_location).
-      READ TABLE ls_rechecked_preview-transfer_assignments
-        INTO DATA(ls_recheck_loc_assign)
-        WITH KEY request_id =
+        INTO DATA(ls_rechecked_location).
+      READ TABLE lt_contexts INTO DATA(ls_rechecked_context)
+        WITH KEY internal_request_id =
           ls_rechecked_location-storage_allocation-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       APPEND VALUE #(
-        source_wbs_element      =
-          ls_recheck_loc_assign-source_wbs_element
+        source_wbs_element      = ls_rechecked_context-source_wbs_element
         destination_wbs_element =
-          ls_recheck_loc_assign-destination_wbs_element
+          ls_rechecked_context-destination_wbs_element
         material                =
           ls_rechecked_location-storage_allocation-material
         plant                   =
@@ -9717,28 +17626,79 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_rechecked_lines.
     ENDLOOP.
 
-    IF same_wbs_xfer_lines(
-        it_first  = lt_first_lines
-        it_second = lt_rechecked_lines ) <> abap_true.
+    ls_first_location_result-allocation = ls_first_preview-allocation.
+    ls_rechecked_location_result-allocation = ls_rechecked_preview-allocation.
+    IF same_project_wbs_location(
+        is_first  = ls_first_location_result
+        is_second = ls_rechecked_location_result ) <> abap_true
+        OR same_wbs_xfer_lines(
+          it_first  = lt_first_lines
+          it_second = lt_rechecked_lines ) <> abap_true.
       rs_result-movement-is_successful = abap_false.
       APPEND VALUE #(
         type    = 'E'
         message = 'WBS transfer location allocation changed; no movement was posted' )
         TO rs_result-movement-messages.
+      LOOP AT lt_contexts INTO DATA(ls_changed_context).
+        LOOP AT rs_result-preview-allocation-allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_allocation>)
+            WHERE allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_allocation>-allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+        LOOP AT rs_result-preview-allocation-storage_allocations
+            ASSIGNING FIELD-SYMBOL(<ls_changed_split>)
+            WHERE storage_allocation-request_id =
+              ls_changed_context-internal_request_id.
+          <ls_changed_split>-storage_allocation-request_id =
+            ls_changed_context-request_id.
+        ENDLOOP.
+      ENDLOOP.
+      LOOP AT rs_result-preview-transfer_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_changed_assignment>).
+        READ TABLE lt_contexts INTO ls_changed_context
+          WITH KEY internal_request_id =
+            <ls_changed_assignment>-request_id.
+        IF sy-subrc = 0.
+          <ls_changed_assignment>-request_id = ls_changed_context-request_id.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
     rs_result-movement = transfer_wbs_location_alloc(
       is_header                  = is_header
-      is_allocation              = rs_result-preview-allocation
-      it_transfer_assignments    =
-        rs_result-preview-transfer_assignments
+      is_allocation              = ls_posting_allocation
+      it_transfer_assignments    = lt_transfer_assignments
       it_material_units          = it_material_units
       iv_test_run                = iv_test_run
       iv_require_full_allocation = iv_require_full_quantity ).
+
+    LOOP AT lt_contexts INTO ls_context.
+      LOOP AT rs_result-preview-allocation-allocations
+          ASSIGNING FIELD-SYMBOL(<ls_allocation>)
+          WHERE allocation-request_id = ls_context-internal_request_id.
+        <ls_allocation>-allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-allocation-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_split>)
+          WHERE storage_allocation-request_id = ls_context-internal_request_id.
+        <ls_split>-storage_allocation-request_id = ls_context-request_id.
+      ENDLOOP.
+      LOOP AT rs_result-preview-transfer_assignments
+          ASSIGNING FIELD-SYMBOL(<ls_assignment>)
+          WHERE request_id = ls_context-internal_request_id.
+        <ls_assignment>-request_id = ls_context-request_id.
+      ENDLOOP.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD transfer_wbs_loc_priority.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     TYPES:
       BEGIN OF ty_transfer_context,
         internal_request_id     TYPE c LENGTH 30,
@@ -9752,11 +17712,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_transfer_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_priority_location_transfer_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_transfer_assignments TYPE ty_project_wbs_transfer_assignments.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
     DATA ls_posting_allocation TYPE
       zcl_stock_service=>ty_unit_location_result.
+    DATA ls_first_location_result TYPE
+      zcl_project_stock_service=>ty_priority_location_result.
+    DATA ls_rechecked_location_result TYPE
+      zcl_project_stock_service=>ty_priority_location_result.
     DATA lv_internal_index TYPE i.
     DATA lv_internal_request_id TYPE c LENGTH 30.
 
@@ -9779,7 +17753,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit )
         TO lt_internal_demands.
       APPEND VALUE #(
@@ -9791,18 +17767,75 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    rs_result-preview-request_locations = it_request_locations.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
     DATA(ls_first_preview) = io_stock_service->preview_transfer_loc_priority(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
     DATA(ls_rechecked_preview) = io_stock_service->preview_transfer_loc_priority(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -9881,9 +17914,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_rechecked_lines.
     ENDLOOP.
 
-    IF same_wbs_xfer_lines(
-        it_first  = lt_first_lines
-        it_second = lt_rechecked_lines ) <> abap_true.
+    ls_first_location_result-allocations = ls_first_preview-allocations.
+    ls_first_location_result-storage_allocations = ls_first_preview-storage_allocations.
+    ls_rechecked_location_result-allocations = ls_rechecked_preview-allocations.
+    ls_rechecked_location_result-storage_allocations = ls_rechecked_preview-storage_allocations.
+    IF same_project_wbs_loc_prio(
+        is_first  = ls_first_location_result
+        is_second = ls_rechecked_location_result ) <> abap_true
+        OR same_wbs_xfer_lines(
+          it_first  = lt_first_lines
+          it_second = lt_rechecked_lines ) <> abap_true.
       rs_result-movement-is_successful = abap_false.
       APPEND VALUE #(
         type    = 'E'
@@ -9902,6 +17942,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD transfer_wbs_by_location_date.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     TYPES:
       BEGIN OF ty_dated_transfer_context,
         internal_request_id     TYPE c LENGTH 30,
@@ -9916,9 +17960,23 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_contexts TYPE ty_dated_transfer_contexts.
     DATA lt_internal_demands TYPE
       zcl_project_stock_service=>ty_dated_location_transfer_demands.
+    DATA lt_int_loc_prios TYPE
+      zcl_stock_service=>ty_request_location_priorities.
+    DATA lt_int_request_locations TYPE
+      zcl_project_stock_service=>ty_request_locations.
+    DATA lt_seen_request_locations TYPE HASHED TABLE OF
+      zcl_project_stock_service=>ty_request_location
+      WITH UNIQUE KEY request_id storage_location.
+    DATA lt_seen_location_priorities TYPE HASHED TABLE OF
+      zcl_stock_service=>ty_request_location_priority
+      WITH UNIQUE KEY request_id storage_location.
     DATA lt_first_lines TYPE ty_project_wbs_transfer_lines.
     DATA lt_rechecked_lines TYPE ty_project_wbs_transfer_lines.
     DATA ls_allocation TYPE zcl_stock_service=>ty_unit_location_result.
+    DATA ls_first_location_result TYPE
+      zcl_project_stock_service=>ty_dated_location_result.
+    DATA ls_rechecked_location_result TYPE
+      zcl_project_stock_service=>ty_dated_location_result.
     DATA lt_transfer_assignments TYPE ty_project_wbs_transfer_assignments.
     DATA lv_internal_index TYPE i.
     DATA lv_internal_request_id TYPE c LENGTH 30.
@@ -9943,7 +18001,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         material                = ls_demand-material
         plant                   = ls_demand-plant
         storage_location        = ls_demand-storage_location
+        allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
+        require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit )
         TO lt_internal_demands.
       APPEND VALUE #(
@@ -9955,19 +18015,76 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         priority                = ls_demand-priority ) TO lt_contexts.
     ENDLOOP.
 
+    LOOP AT it_request_locations INTO DATA(ls_request_location).
+      IF ls_request_location-request_id IS INITIAL
+          OR ls_request_location-storage_location IS INITIAL
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location INTO TABLE lt_seen_request_locations.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_scope_context).
+      LOOP AT it_request_locations INTO ls_request_location
+          WHERE request_id = ls_scope_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_scope_context-internal_request_id
+          storage_location = ls_request_location-storage_location )
+          TO lt_int_request_locations.
+      ENDLOOP.
+    ENDLOOP.
+    rs_result-preview-request_locations = it_request_locations.
+
+    LOOP AT it_request_location_priorities
+        INTO DATA(ls_request_location_priority).
+      IF ls_request_location_priority-request_id IS INITIAL
+          OR ls_request_location_priority-storage_location IS INITIAL
+          OR ls_request_location_priority-priority_rank <= 0
+          OR NOT line_exists( lt_contexts[
+            request_id = ls_request_location_priority-request_id ] ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_request_location_priority
+        INTO TABLE lt_seen_location_priorities.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_contexts INTO DATA(ls_rank_context).
+      LOOP AT it_request_location_priorities
+          INTO ls_request_location_priority
+          WHERE request_id = ls_rank_context-request_id.
+        APPEND VALUE #(
+          request_id       = ls_rank_context-internal_request_id
+          storage_location =
+            ls_request_location_priority-storage_location
+          priority_rank    = ls_request_location_priority-priority_rank )
+          TO lt_int_loc_prios.
+      ENDLOOP.
+    ENDLOOP.
+
     DATA(ls_first_preview) = io_stock_service->preview_transfer_location_date(
-      it_demands                   = lt_internal_demands
-      it_storage_location_priority = it_storage_location_priority
-      it_allowed_storage_locations = it_allowed_storage_locations
-      iv_require_full_quantity     = iv_require_full_quantity
-      iv_reservation_through_date  = iv_reservation_through_date ).
+      it_demands                     = lt_internal_demands
+      it_storage_location_priority   = it_storage_location_priority
+      it_request_location_priorities = lt_int_loc_prios
+      it_request_locations           = lt_int_request_locations
+      it_allowed_storage_locations   = it_allowed_storage_locations
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_reservation_through_date    = iv_reservation_through_date ).
     DATA(ls_rechecked_preview) =
       io_stock_service->preview_transfer_location_date(
-        it_demands                   = lt_internal_demands
-        it_storage_location_priority = it_storage_location_priority
-        it_allowed_storage_locations = it_allowed_storage_locations
-        iv_require_full_quantity     = iv_require_full_quantity
-        iv_reservation_through_date  = iv_reservation_through_date ).
+        it_demands                     = lt_internal_demands
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = lt_int_loc_prios
+        it_request_locations           = lt_int_request_locations
+        it_allowed_storage_locations   = it_allowed_storage_locations
+        iv_require_full_quantity       = iv_require_full_quantity
+        iv_reservation_through_date    = iv_reservation_through_date ).
 
     LOOP AT lt_contexts INTO DATA(ls_context).
       READ TABLE ls_first_preview-allocations
@@ -10046,9 +18163,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         TO lt_rechecked_lines.
     ENDLOOP.
 
-    IF same_wbs_xfer_lines(
-        it_first  = lt_first_lines
-        it_second = lt_rechecked_lines ) <> abap_true.
+    ls_first_location_result-allocations = ls_first_preview-allocations.
+    ls_first_location_result-storage_allocations = ls_first_preview-storage_allocations.
+    ls_rechecked_location_result-allocations = ls_rechecked_preview-allocations.
+    ls_rechecked_location_result-storage_allocations = ls_rechecked_preview-storage_allocations.
+    IF same_project_wbs_location_date(
+        is_first  = ls_first_location_result
+        is_second = ls_rechecked_location_result ) <> abap_true
+        OR same_wbs_xfer_lines(
+          it_first  = lt_first_lines
+          it_second = lt_rechecked_lines ) <> abap_true.
       rs_result-movement-is_successful = abap_false.
       APPEND VALUE #(
         type    = 'E'
@@ -10066,6 +18190,603 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_require_full_allocation = iv_require_full_quantity ).
   ENDMETHOD.
 
+  METHOD same_project_wbs_loc_prio.
+    DATA ls_first_base TYPE zcl_project_stock_service=>ty_location_result.
+    DATA ls_second_base TYPE zcl_project_stock_service=>ty_location_result.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocations ) <> lines( is_second-allocations )
+        OR lines( is_first-storage_allocations )
+          <> lines( is_second-storage_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO DATA(ls_first_allocation).
+      APPEND ls_first_allocation-allocation
+        TO ls_first_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_second-allocations INTO DATA(ls_second_allocation).
+      APPEND ls_second_allocation-allocation
+        TO ls_second_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_first-storage_allocations INTO DATA(ls_first_split).
+      APPEND ls_first_split-split
+        TO ls_first_base-allocation-storage_allocations.
+    ENDLOOP.
+    LOOP AT is_second-storage_allocations INTO DATA(ls_second_split).
+      APPEND ls_second_split-split
+        TO ls_second_base-allocation-storage_allocations.
+    ENDLOOP.
+    LOOP AT is_first-wbs_assignments INTO DATA(ls_first_assignment).
+      APPEND VALUE #(
+        request_id  = ls_first_assignment-request_id
+        wbs_element = ls_first_assignment-wbs_element )
+        TO ls_first_base-wbs_assignments.
+    ENDLOOP.
+    LOOP AT is_second-wbs_assignments INTO DATA(ls_second_assignment).
+      APPEND VALUE #(
+        request_id  = ls_second_assignment-request_id
+        wbs_element = ls_second_assignment-wbs_element )
+        TO ls_second_base-wbs_assignments.
+    ENDLOOP.
+
+    IF same_project_wbs_location(
+        is_first  = ls_first_base
+        is_second = ls_second_base ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO ls_first_allocation.
+      READ TABLE is_second-allocations INTO ls_second_allocation
+        WITH KEY allocation-allocation-request_id =
+          ls_first_allocation-allocation-allocation-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_allocation-priority <> ls_second_allocation-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-storage_allocations INTO ls_first_split.
+      READ TABLE is_second-storage_allocations INTO ls_second_split
+        WITH KEY split-storage_allocation-request_id =
+          ls_first_split-split-storage_allocation-request_id
+          split-storage_allocation-material =
+            ls_first_split-split-storage_allocation-material
+          split-storage_allocation-plant =
+            ls_first_split-split-storage_allocation-plant
+          split-storage_allocation-storage_location =
+            ls_first_split-split-storage_allocation-storage_location.
+      IF sy-subrc <> 0 OR ls_first_split-priority <> ls_second_split-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-wbs_assignments INTO ls_first_assignment.
+      READ TABLE is_second-wbs_assignments INTO ls_second_assignment
+        WITH KEY request_id = ls_first_assignment-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_assignment-priority <> ls_second_assignment-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD same_project_wbs_location.
+    DATA lt_first_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_second_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_first_splits TYPE zcl_stock_service=>ty_unit_storage_splits.
+    DATA lt_second_splits TYPE zcl_stock_service=>ty_unit_storage_splits.
+    DATA lt_first_assignments TYPE
+      zcl_project_stock_service=>ty_wbs_assignments.
+    DATA lt_second_assignments TYPE
+      zcl_project_stock_service=>ty_wbs_assignments.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocation-allocations )
+          <> lines( is_second-allocation-allocations )
+        OR lines( is_first-allocation-storage_allocations )
+          <> lines( is_second-allocation-storage_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    lt_first_allocations = is_first-allocation-allocations.
+    lt_second_allocations = is_second-allocation-allocations.
+    SORT lt_first_allocations BY allocation-request_id.
+    SORT lt_second_allocations BY allocation-request_id.
+    LOOP AT lt_first_allocations INTO DATA(ls_first_allocation).
+      READ TABLE lt_second_allocations INDEX sy-tabix
+        INTO DATA(ls_second_allocation).
+      IF sy-subrc <> 0
+          OR ls_first_allocation-allocation-request_id
+            <> ls_second_allocation-allocation-request_id
+          OR ls_first_allocation-allocation-material
+            <> ls_second_allocation-allocation-material
+          OR ls_first_allocation-allocation-plant
+            <> ls_second_allocation-allocation-plant
+          OR ls_first_allocation-allocation-priority
+            <> ls_second_allocation-allocation-priority
+          OR ls_first_allocation-allocation-requested_quantity
+            <> ls_second_allocation-allocation-requested_quantity
+          OR ls_first_allocation-allocation-available_quantity
+            <> ls_second_allocation-allocation-available_quantity
+          OR ls_first_allocation-allocation-allocated_quantity
+            <> ls_second_allocation-allocation-allocated_quantity
+          OR ls_first_allocation-allocation-shortfall_quantity
+            <> ls_second_allocation-allocation-shortfall_quantity
+          OR ls_first_allocation-allocation-require_full_quantity
+            <> ls_second_allocation-allocation-require_full_quantity
+          OR ls_first_allocation-allocation-require_known_expiry
+            <> ls_second_allocation-allocation-require_known_expiry
+          OR ls_first_allocation-allocation-allow_undated_batches
+            <> ls_second_allocation-allocation-allow_undated_batches
+          OR ls_first_allocation-source_quantity
+            <> ls_second_allocation-source_quantity
+          OR ls_first_allocation-source_unit
+            <> ls_second_allocation-source_unit
+          OR ls_first_allocation-base_quantity
+            <> ls_second_allocation-base_quantity
+          OR ls_first_allocation-base_unit
+            <> ls_second_allocation-base_unit
+          OR ls_first_allocation-allocated_source_quantity
+            <> ls_second_allocation-allocated_source_quantity
+          OR ls_first_allocation-shortfall_source_quantity
+            <> ls_second_allocation-shortfall_source_quantity.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    lt_first_splits = is_first-allocation-storage_allocations.
+    lt_second_splits = is_second-allocation-storage_allocations.
+    SORT lt_first_splits BY storage_allocation-request_id
+      storage_allocation-material storage_allocation-plant
+      storage_allocation-storage_location.
+    SORT lt_second_splits BY storage_allocation-request_id
+      storage_allocation-material storage_allocation-plant
+      storage_allocation-storage_location.
+    LOOP AT lt_first_splits INTO DATA(ls_first_split).
+      READ TABLE lt_second_splits INDEX sy-tabix
+        INTO DATA(ls_second_split).
+      IF sy-subrc <> 0
+          OR ls_first_split-storage_allocation-request_id
+            <> ls_second_split-storage_allocation-request_id
+          OR ls_first_split-storage_allocation-material
+            <> ls_second_split-storage_allocation-material
+          OR ls_first_split-storage_allocation-plant
+            <> ls_second_split-storage_allocation-plant
+          OR ls_first_split-storage_allocation-storage_location
+            <> ls_second_split-storage_allocation-storage_location
+          OR ls_first_split-storage_allocation-allocated_quantity
+            <> ls_second_split-storage_allocation-allocated_quantity
+          OR ls_first_split-base_unit <> ls_second_split-base_unit
+          OR ls_first_split-source_unit <> ls_second_split-source_unit
+          OR ls_first_split-allocated_source_quantity
+            <> ls_second_split-allocated_source_quantity.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    lt_first_assignments = is_first-wbs_assignments.
+    lt_second_assignments = is_second-wbs_assignments.
+    SORT lt_first_assignments BY request_id.
+    SORT lt_second_assignments BY request_id.
+    LOOP AT lt_first_assignments INTO DATA(ls_first_assignment).
+      READ TABLE lt_second_assignments INDEX sy-tabix
+        INTO DATA(ls_second_assignment).
+      IF sy-subrc <> 0
+          OR ls_first_assignment-request_id
+            <> ls_second_assignment-request_id
+          OR ls_first_assignment-wbs_element
+            <> ls_second_assignment-wbs_element.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD same_project_wbs_location_date.
+    DATA ls_first_base TYPE zcl_project_stock_service=>ty_location_result.
+    DATA ls_second_base TYPE zcl_project_stock_service=>ty_location_result.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocations ) <> lines( is_second-allocations )
+        OR lines( is_first-storage_allocations )
+          <> lines( is_second-storage_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO DATA(ls_first_allocation).
+      APPEND ls_first_allocation-allocation
+        TO ls_first_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_second-allocations INTO DATA(ls_second_allocation).
+      APPEND ls_second_allocation-allocation
+        TO ls_second_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_first-storage_allocations INTO DATA(ls_first_split).
+      APPEND ls_first_split-split
+        TO ls_first_base-allocation-storage_allocations.
+    ENDLOOP.
+    LOOP AT is_second-storage_allocations INTO DATA(ls_second_split).
+      APPEND ls_second_split-split
+        TO ls_second_base-allocation-storage_allocations.
+    ENDLOOP.
+    LOOP AT is_first-wbs_assignments INTO DATA(ls_first_assignment).
+      APPEND VALUE #(
+        request_id  = ls_first_assignment-request_id
+        wbs_element = ls_first_assignment-wbs_element )
+        TO ls_first_base-wbs_assignments.
+    ENDLOOP.
+    LOOP AT is_second-wbs_assignments INTO DATA(ls_second_assignment).
+      APPEND VALUE #(
+        request_id  = ls_second_assignment-request_id
+        wbs_element = ls_second_assignment-wbs_element )
+        TO ls_second_base-wbs_assignments.
+    ENDLOOP.
+
+    IF same_project_wbs_location(
+        is_first  = ls_first_base
+        is_second = ls_second_base ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO ls_first_allocation.
+      READ TABLE is_second-allocations INTO ls_second_allocation
+        WITH KEY allocation-allocation-request_id =
+          ls_first_allocation-allocation-allocation-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_allocation-required_date
+            <> ls_second_allocation-required_date
+          OR ls_first_allocation-priority <> ls_second_allocation-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-storage_allocations INTO ls_first_split.
+      READ TABLE is_second-storage_allocations INTO ls_second_split
+        WITH KEY split-storage_allocation-request_id =
+          ls_first_split-split-storage_allocation-request_id
+          split-storage_allocation-storage_location =
+            ls_first_split-split-storage_allocation-storage_location.
+      IF sy-subrc <> 0
+          OR ls_first_split-required_date <> ls_second_split-required_date
+          OR ls_first_split-priority <> ls_second_split-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-wbs_assignments INTO ls_first_assignment.
+      READ TABLE is_second-wbs_assignments INTO ls_second_assignment
+        WITH KEY request_id = ls_first_assignment-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_assignment-required_date
+            <> ls_second_assignment-required_date
+          OR ls_first_assignment-priority <> ls_second_assignment-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD same_project_wbs_fefo_result.
+    DATA lt_first_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_second_allocations TYPE
+      zcl_stock_service=>ty_unit_allocation_summaries.
+    DATA lt_first_splits TYPE zcl_stock_service=>ty_unit_batch_splits.
+    DATA lt_second_splits TYPE zcl_stock_service=>ty_unit_batch_splits.
+    DATA lt_first_assignments TYPE
+      zcl_project_stock_service=>ty_wbs_assignments.
+    DATA lt_second_assignments TYPE
+      zcl_project_stock_service=>ty_wbs_assignments.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocation-allocations )
+          <> lines( is_second-allocation-allocations )
+        OR lines( is_first-allocation-batch_allocations )
+          <> lines( is_second-allocation-batch_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    lt_first_allocations = is_first-allocation-allocations.
+    lt_second_allocations = is_second-allocation-allocations.
+    SORT lt_first_allocations BY allocation-request_id.
+    SORT lt_second_allocations BY allocation-request_id.
+    LOOP AT lt_first_allocations INTO DATA(ls_first_allocation).
+      READ TABLE lt_second_allocations INDEX sy-tabix
+        INTO DATA(ls_second_allocation).
+      IF sy-subrc <> 0
+          OR ls_first_allocation-allocation-request_id
+            <> ls_second_allocation-allocation-request_id
+          OR ls_first_allocation-allocation-material
+            <> ls_second_allocation-allocation-material
+          OR ls_first_allocation-allocation-plant
+            <> ls_second_allocation-allocation-plant
+          OR ls_first_allocation-allocation-priority
+            <> ls_second_allocation-allocation-priority
+          OR ls_first_allocation-allocation-requested_quantity
+            <> ls_second_allocation-allocation-requested_quantity
+          OR ls_first_allocation-allocation-available_quantity
+            <> ls_second_allocation-allocation-available_quantity
+          OR ls_first_allocation-allocation-allocated_quantity
+            <> ls_second_allocation-allocation-allocated_quantity
+          OR ls_first_allocation-allocation-shortfall_quantity
+            <> ls_second_allocation-allocation-shortfall_quantity
+          OR ls_first_allocation-allocation-require_full_quantity
+            <> ls_second_allocation-allocation-require_full_quantity
+          OR ls_first_allocation-allocation-require_known_expiry
+            <> ls_second_allocation-allocation-require_known_expiry
+          OR ls_first_allocation-allocation-allow_undated_batches
+            <> ls_second_allocation-allocation-allow_undated_batches
+          OR ls_first_allocation-source_quantity
+            <> ls_second_allocation-source_quantity
+          OR ls_first_allocation-source_unit
+            <> ls_second_allocation-source_unit
+          OR ls_first_allocation-base_quantity
+            <> ls_second_allocation-base_quantity
+          OR ls_first_allocation-base_unit
+            <> ls_second_allocation-base_unit
+          OR ls_first_allocation-allocated_source_quantity
+            <> ls_second_allocation-allocated_source_quantity
+          OR ls_first_allocation-shortfall_source_quantity
+            <> ls_second_allocation-shortfall_source_quantity.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    lt_first_splits = is_first-allocation-batch_allocations.
+    lt_second_splits = is_second-allocation-batch_allocations.
+    SORT lt_first_splits BY batch_allocation-request_id
+      batch_allocation-material batch_allocation-plant
+      batch_allocation-storage_location batch_allocation-batch.
+    SORT lt_second_splits BY batch_allocation-request_id
+      batch_allocation-material batch_allocation-plant
+      batch_allocation-storage_location batch_allocation-batch.
+    LOOP AT lt_first_splits INTO DATA(ls_first_split).
+      READ TABLE lt_second_splits INDEX sy-tabix INTO DATA(ls_second_split).
+      IF sy-subrc <> 0
+          OR ls_first_split-batch_allocation-request_id
+            <> ls_second_split-batch_allocation-request_id
+          OR ls_first_split-batch_allocation-material
+            <> ls_second_split-batch_allocation-material
+          OR ls_first_split-batch_allocation-plant
+            <> ls_second_split-batch_allocation-plant
+          OR ls_first_split-batch_allocation-storage_location
+            <> ls_second_split-batch_allocation-storage_location
+          OR ls_first_split-batch_allocation-batch
+            <> ls_second_split-batch_allocation-batch
+          OR ls_first_split-batch_allocation-expiration_date
+            <> ls_second_split-batch_allocation-expiration_date
+          OR ls_first_split-batch_allocation-as_of_date
+            <> ls_second_split-batch_allocation-as_of_date
+          OR ls_first_split-batch_allocation-minimum_shelf_life_days
+            <> ls_second_split-batch_allocation-minimum_shelf_life_days
+          OR ls_first_split-batch_allocation-require_known_expiry
+            <> ls_second_split-batch_allocation-require_known_expiry
+          OR ls_first_split-batch_allocation-allow_undated_batches
+            <> ls_second_split-batch_allocation-allow_undated_batches
+          OR ls_first_split-batch_allocation-allocated_quantity
+            <> ls_second_split-batch_allocation-allocated_quantity
+          OR ls_first_split-base_unit <> ls_second_split-base_unit
+          OR ls_first_split-source_unit <> ls_second_split-source_unit
+          OR ls_first_split-allocated_source_quantity
+            <> ls_second_split-allocated_source_quantity.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    lt_first_assignments = is_first-wbs_assignments.
+    lt_second_assignments = is_second-wbs_assignments.
+    SORT lt_first_assignments BY request_id.
+    SORT lt_second_assignments BY request_id.
+    LOOP AT lt_first_assignments INTO DATA(ls_first_assignment).
+      READ TABLE lt_second_assignments INDEX sy-tabix
+        INTO DATA(ls_second_assignment).
+      IF sy-subrc <> 0
+          OR ls_first_assignment-request_id
+            <> ls_second_assignment-request_id
+          OR ls_first_assignment-wbs_element
+            <> ls_second_assignment-wbs_element.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD same_priority_wbs_fefo_result.
+    DATA ls_first_base TYPE zcl_project_stock_service=>ty_result.
+    DATA ls_second_base TYPE zcl_project_stock_service=>ty_result.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocations ) <> lines( is_second-allocations )
+        OR lines( is_first-batch_allocations )
+          <> lines( is_second-batch_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO DATA(ls_first_allocation).
+      APPEND ls_first_allocation-allocation
+        TO ls_first_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_second-allocations INTO DATA(ls_second_allocation).
+      APPEND ls_second_allocation-allocation
+        TO ls_second_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_first-batch_allocations INTO DATA(ls_first_split).
+      APPEND ls_first_split-split
+        TO ls_first_base-allocation-batch_allocations.
+    ENDLOOP.
+    LOOP AT is_second-batch_allocations INTO DATA(ls_second_split).
+      APPEND ls_second_split-split
+        TO ls_second_base-allocation-batch_allocations.
+    ENDLOOP.
+    LOOP AT is_first-wbs_assignments INTO DATA(ls_first_assignment).
+      APPEND VALUE #(
+        request_id  = ls_first_assignment-request_id
+        wbs_element = ls_first_assignment-wbs_element )
+        TO ls_first_base-wbs_assignments.
+    ENDLOOP.
+    LOOP AT is_second-wbs_assignments INTO DATA(ls_second_assignment).
+      APPEND VALUE #(
+        request_id  = ls_second_assignment-request_id
+        wbs_element = ls_second_assignment-wbs_element )
+        TO ls_second_base-wbs_assignments.
+    ENDLOOP.
+
+    IF same_project_wbs_fefo_result(
+        is_first  = ls_first_base
+        is_second = ls_second_base ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO ls_first_allocation.
+      READ TABLE is_second-allocations INTO ls_second_allocation
+        WITH KEY allocation-allocation-request_id =
+          ls_first_allocation-allocation-allocation-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_allocation-priority <> ls_second_allocation-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-batch_allocations INTO ls_first_split.
+      READ TABLE is_second-batch_allocations INTO ls_second_split
+        WITH KEY split-batch_allocation-request_id =
+          ls_first_split-split-batch_allocation-request_id
+          split-batch_allocation-material =
+            ls_first_split-split-batch_allocation-material
+          split-batch_allocation-plant =
+            ls_first_split-split-batch_allocation-plant
+          split-batch_allocation-storage_location =
+            ls_first_split-split-batch_allocation-storage_location
+          split-batch_allocation-batch =
+            ls_first_split-split-batch_allocation-batch.
+      IF sy-subrc <> 0 OR ls_first_split-priority <> ls_second_split-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-wbs_assignments INTO ls_first_assignment.
+      READ TABLE is_second-wbs_assignments INTO ls_second_assignment
+        WITH KEY request_id = ls_first_assignment-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_assignment-priority <> ls_second_assignment-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
+  METHOD same_dated_wbs_fefo_result.
+    DATA ls_first_base TYPE zcl_project_stock_service=>ty_result.
+    DATA ls_second_base TYPE zcl_project_stock_service=>ty_result.
+
+    rv_same = abap_false.
+    IF lines( is_first-allocations ) <> lines( is_second-allocations )
+        OR lines( is_first-batch_allocations )
+          <> lines( is_second-batch_allocations )
+        OR lines( is_first-wbs_assignments )
+          <> lines( is_second-wbs_assignments ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO DATA(ls_first_allocation).
+      APPEND ls_first_allocation-allocation
+        TO ls_first_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_second-allocations INTO DATA(ls_second_allocation).
+      APPEND ls_second_allocation-allocation
+        TO ls_second_base-allocation-allocations.
+    ENDLOOP.
+    LOOP AT is_first-batch_allocations INTO DATA(ls_first_split).
+      APPEND ls_first_split-split
+        TO ls_first_base-allocation-batch_allocations.
+    ENDLOOP.
+    LOOP AT is_second-batch_allocations INTO DATA(ls_second_split).
+      APPEND ls_second_split-split
+        TO ls_second_base-allocation-batch_allocations.
+    ENDLOOP.
+    LOOP AT is_first-wbs_assignments INTO DATA(ls_first_assignment).
+      APPEND VALUE #(
+        request_id  = ls_first_assignment-request_id
+        wbs_element = ls_first_assignment-wbs_element )
+        TO ls_first_base-wbs_assignments.
+    ENDLOOP.
+    LOOP AT is_second-wbs_assignments INTO DATA(ls_second_assignment).
+      APPEND VALUE #(
+        request_id  = ls_second_assignment-request_id
+        wbs_element = ls_second_assignment-wbs_element )
+        TO ls_second_base-wbs_assignments.
+    ENDLOOP.
+
+    IF same_project_wbs_fefo_result(
+        is_first  = ls_first_base
+        is_second = ls_second_base ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    LOOP AT is_first-allocations INTO ls_first_allocation.
+      READ TABLE is_second-allocations INTO ls_second_allocation
+        WITH KEY allocation-allocation-request_id =
+          ls_first_allocation-allocation-allocation-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_allocation-required_date
+            <> ls_second_allocation-required_date
+          OR ls_first_allocation-priority <> ls_second_allocation-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-batch_allocations INTO ls_first_split.
+      READ TABLE is_second-batch_allocations INTO ls_second_split
+        WITH KEY split-batch_allocation-request_id =
+          ls_first_split-split-batch_allocation-request_id
+          split-batch_allocation-material =
+            ls_first_split-split-batch_allocation-material
+          split-batch_allocation-plant =
+            ls_first_split-split-batch_allocation-plant
+          split-batch_allocation-storage_location =
+            ls_first_split-split-batch_allocation-storage_location
+          split-batch_allocation-batch =
+            ls_first_split-split-batch_allocation-batch.
+      IF sy-subrc <> 0
+          OR ls_first_split-required_date <> ls_second_split-required_date
+          OR ls_first_split-priority <> ls_second_split-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_first-wbs_assignments INTO ls_first_assignment.
+      READ TABLE is_second-wbs_assignments INTO ls_second_assignment
+        WITH KEY request_id = ls_first_assignment-request_id.
+      IF sy-subrc <> 0
+          OR ls_first_assignment-required_date
+            <> ls_second_assignment-required_date
+          OR ls_first_assignment-priority <> ls_second_assignment-priority.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    rv_same = abap_true.
+  ENDMETHOD.
+
   METHOD same_wbs_xfer_lines.
     DATA lt_first TYPE ty_project_wbs_transfer_lines.
     DATA lt_second TYPE ty_project_wbs_transfer_lines.
@@ -10078,9 +18799,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     lt_first = it_first.
     lt_second = it_second.
     SORT lt_first BY source_wbs_element destination_wbs_element material
-      plant storage_location batch expiration_date quantity unit.
+      plant storage_location batch expiration_date
+      require_known_expiry allow_undated_batches quantity unit.
     SORT lt_second BY source_wbs_element destination_wbs_element material
-      plant storage_location batch expiration_date quantity unit.
+      plant storage_location batch expiration_date
+      require_known_expiry allow_undated_batches quantity unit.
 
     LOOP AT lt_first INTO DATA(ls_first).
       READ TABLE lt_second INDEX sy-tabix INTO DATA(ls_second).
@@ -10093,6 +18816,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_first-storage_location <> ls_second-storage_location
           OR ls_first-batch <> ls_second-batch
           OR ls_first-expiration_date <> ls_second-expiration_date
+          OR ls_first-require_known_expiry
+            <> ls_second-require_known_expiry
+          OR ls_first-allow_undated_batches
+            <> ls_second-allow_undated_batches
           OR ls_first-quantity <> ls_second-quantity
           OR ls_first-unit <> ls_second-unit.
         RETURN.
@@ -10283,6 +19010,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             <> ls_second_summary-minimum_shelf_life_days
           OR ls_first_summary-include_undated_batches
             <> ls_second_summary-include_undated_batches
+          OR ls_first_summary-require_known_expiry
+            <> ls_second_summary-require_known_expiry
+          OR ls_first_summary-allow_undated_batches
+            <> ls_second_summary-allow_undated_batches
           OR ls_first_summary-is_sufficient
             <> ls_second_summary-is_sufficient.
         RETURN.
@@ -10538,7 +19269,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
-      DATA lv_split_quantity TYPE mard-labst.
+      DATA lv_split_quantity TYPE decfloat34.
       CLEAR lv_split_quantity.
       IF is_allocation-batch_allocations IS NOT INITIAL.
         LOOP AT is_allocation-batch_allocations
@@ -10871,6 +19602,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     rs_result-is_successful = abap_true.
     rs_result-is_test_run = iv_test_run.
     IF it_requests IS INITIAL.
@@ -10925,11 +19660,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_return>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_return>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-returns ASSIGNING <ls_return>
+          WHERE is_attempted = abap_false.
+        <ls_return>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD return_prod_orders_bulk_uom.
@@ -10950,11 +19700,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = return_prod_orders_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -11027,9 +19782,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = return_prod_orders_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_prod_orders_atomic.
@@ -11262,6 +20018,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   METHOD issue_unplanned_prod_bulk.
     FIELD-SYMBOLS <ls_issue> TYPE ty_prod_issue_row_result.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     validate_unplanned_prod_issues(
       is_header   = is_header
       it_requests = it_requests
@@ -11293,11 +20054,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_issue>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_issue>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-issues ASSIGNING <ls_issue>
+          WHERE is_attempted = abap_false.
+        <ls_issue>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD issue_unplanned_prod_bulk_uom.
@@ -11318,11 +20094,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = issue_unplanned_prod_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -11395,9 +20176,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = issue_unplanned_prod_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD issue_prod_orders_atomic.
@@ -11631,6 +20413,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   METHOD receive_purchase_orders_bulk.
     FIELD-SYMBOLS <ls_receipt> TYPE ty_po_receipt_row_result.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     validate_po_receipts(
       is_header   = is_header
       it_requests = it_requests
@@ -11661,11 +20448,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_receipt>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_receipt>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-receipts ASSIGNING <ls_receipt>
+          WHERE is_attempted = abap_false.
+        <ls_receipt>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD receive_po_orders_bulk_uom.
@@ -11674,11 +20476,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = receive_purchase_orders_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -11691,9 +20498,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       it_requests       = it_requests
       it_material_units = it_material_units ).
     rs_result = receive_purchase_orders_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD receive_purchase_orders_atomic.
@@ -11841,6 +20649,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   METHOD return_purchase_orders_bulk.
     FIELD-SYMBOLS <ls_return> TYPE ty_po_return_row_result.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     validate_po_receipts(
       is_header   = is_header
       it_requests = it_requests
@@ -11871,11 +20684,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_return>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_return>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-returns ASSIGNING <ls_return>
+          WHERE is_attempted = abap_false.
+        <ls_return>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD return_po_orders_bulk_uom.
@@ -11884,11 +20712,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = return_purchase_orders_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -11901,9 +20734,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       it_requests       = it_requests
       it_material_units = it_material_units ).
     rs_result = return_purchase_orders_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD return_purchase_orders_atomic.
@@ -12239,6 +21073,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
   METHOD receive_prod_orders_bulk.
     FIELD-SYMBOLS <ls_receipt> TYPE ty_prod_receipt_row_result.
 
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     validate_prod_receipts(
       is_header   = is_header
       it_requests = it_requests
@@ -12269,11 +21108,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ADD 1 TO rs_result-successful_count.
         <ls_receipt>-is_committed = xsdbool(
           iv_test_run = abap_false ).
+        IF <ls_receipt>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-receipts ASSIGNING <ls_receipt>
+          WHERE is_attempted = abap_false.
+        <ls_receipt>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD receive_prod_orders_bulk_uom.
@@ -12282,11 +21136,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
     IF it_requests IS INITIAL.
       rs_result = receive_prod_orders_bulk(
-        is_header   = is_header
-        it_requests = VALUE #( )
-        iv_test_run = iv_test_run ).
+        is_header          = is_header
+        it_requests        = VALUE #( )
+        iv_test_run        = iv_test_run
+        iv_stop_on_failure = iv_stop_on_failure ).
       RETURN.
     ENDIF.
     IF is_header-posting_date IS INITIAL
@@ -12299,9 +21158,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       it_requests       = it_requests
       it_material_units = it_material_units ).
     rs_result = receive_prod_orders_bulk(
-      is_header   = is_header
-      it_requests = lt_base_requests
-      iv_test_run = iv_test_run ).
+      is_header          = is_header
+      it_requests        = lt_base_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD receive_prod_orders_atomic.
@@ -12739,6 +21599,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_seen_pos TYPE SORTED TABLE OF ty_seen_po
       WITH UNIQUE KEY table_line.
     DATA lt_prepared_issues TYPE ty_prepared_sto_issues.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_orders-orders IS INITIAL
         OR is_orders-is_test_run <> abap_false
@@ -12749,7 +21610,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR ( iv_test_run <> abap_true
           AND iv_test_run <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     validate_header_dates( is_header = is_header ).
@@ -12757,16 +21620,36 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     rs_result-is_successful = is_orders-is_successful.
     rs_result-is_test_run = iv_test_run.
     LOOP AT is_orders-orders INTO DATA(ls_pair_order).
+      IF ls_pair_order-is_skipped <> abap_true
+          AND ls_pair_order-is_skipped <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
       APPEND VALUE #(
         supplying_plant = ls_pair_order-supplying_plant
         receiving_plant = ls_pair_order-receiving_plant
-        order_result    = ls_pair_order-result ) TO rs_result-orders.
+        order_result    = ls_pair_order-result
+        is_skipped      = ls_pair_order-is_skipped ) TO rs_result-orders.
+
+      IF ls_pair_order-is_skipped = abap_true.
+        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
 
       IF ls_pair_order-result-is_successful <> abap_true
           OR ls_pair_order-result-is_committed <> abap_true
           OR ls_pair_order-result-is_test_run <> abap_false
           OR ls_pair_order-result-purchase_order_number IS INITIAL.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -12781,14 +21664,39 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       DATA(lt_issue_items) = build_sto_issue_items(
         is_order_result      = ls_pair_order-result
         it_unit_iso_mappings = it_unit_iso_mappings ).
-      APPEND VALUE #(
-        result_index   = lines( rs_result-orders )
-        purchase_order = ls_pair_order-result-purchase_order_number
-        items          = lt_issue_items ) TO lt_prepared_issues.
+      IF lv_first_failure_index = 0
+          OR lines( rs_result-orders ) < lv_first_failure_index.
+        APPEND VALUE #(
+          result_index   = lines( rs_result-orders )
+          purchase_order = ls_pair_order-result-purchase_order_number
+          items          = lt_issue_items ) TO lt_prepared_issues.
+      ENDIF.
     ENDLOOP.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+      ENDIF.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_atomic_preflight>).
+        IF <ls_atomic_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index > 0
+            AND sy-tabix > lv_first_failure_index.
+          <ls_atomic_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_atomic_preflight>-order_result-is_successful <> abap_true
+            OR <ls_atomic_preflight>-order_result-is_committed <> abap_true
+            OR <ls_atomic_preflight>-order_result-is_test_run <> abap_false
+            OR <ls_atomic_preflight>-order_result-purchase_order_number
+              IS INITIAL.
+          ADD 1 TO rs_result-failed_count.
+        ELSE.
+          <ls_atomic_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -12813,13 +21721,24 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF ls_issue_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
         IF iv_atomic = abap_true.
+          lv_first_failure_index = ls_prepared_issue-result_index.
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
-            <ls_pair_result>-goods_issue_result-is_successful =
-              abap_false.
-            CLEAR: <ls_pair_result>-goods_issue_result-material_document,
-              <ls_pair_result>-goods_issue_result-fiscal_year.
-            <ls_pair_result>-is_in_transit = abap_false.
+            IF <ls_pair_result>-is_issue_attempted = abap_true.
+              <ls_pair_result>-goods_issue_result-is_successful =
+                abap_false.
+              CLEAR: <ls_pair_result>-goods_issue_result-material_document,
+                <ls_pair_result>-goods_issue_result-fiscal_year.
+              <ls_pair_result>-is_in_transit = abap_false.
+            ELSE.
+              <ls_pair_result>-is_skipped = abap_true.
+            ENDIF.
           ENDLOOP.
+          EXIT.
+        ENDIF.
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = ls_prepared_issue-result_index.
+          rs_result-stopped_on_failure = abap_true.
           EXIT.
         ENDIF.
       ENDIF.
@@ -12835,6 +21754,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         mo_api->rollback( ).
+        lv_first_failure_index = lines( rs_result-orders ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
           <ls_pair_result>-goods_issue_result-is_successful = abap_false.
           CLEAR: <ls_pair_result>-goods_issue_result-material_document,
@@ -12850,6 +21771,30 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_pair_result> FROM 1.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_pair_result>-is_issue_attempted = abap_false.
+          <ls_pair_result>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+      IF <ls_pair_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_pair_result>-order_result-is_successful <> abap_true
+          OR <ls_pair_result>-order_result-is_committed <> abap_true
+          OR <ls_pair_result>-order_result-is_test_run <> abap_false
+          OR <ls_pair_result>-order_result-purchase_order_number IS INITIAL.
+        ADD 1 TO rs_result-failed_count.
+      ELSEIF <ls_pair_result>-is_issue_attempted = abap_true.
+        IF <ls_pair_result>-goods_issue_result-is_successful = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD receive_issued_sto.
@@ -12869,6 +21814,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_seen_pos TYPE SORTED TABLE OF ty_seen_po
       WITH UNIQUE KEY table_line.
     DATA lt_prepared_receipts TYPE ty_prepared_sto_receipts.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_issues-orders IS INITIAL
         OR is_issues-is_test_run <> abap_false
@@ -12879,7 +21825,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR ( iv_test_run <> abap_true
           AND iv_test_run <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
     validate_header_dates( is_header = is_header ).
@@ -12890,7 +21838,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF ( ls_issue_pair-is_issue_attempted <> abap_true
           AND ls_issue_pair-is_issue_attempted <> abap_false )
           OR ( ls_issue_pair-is_in_transit <> abap_true
-            AND ls_issue_pair-is_in_transit <> abap_false ).
+            AND ls_issue_pair-is_in_transit <> abap_false )
+          OR ( ls_issue_pair-is_skipped <> abap_true
+            AND ls_issue_pair-is_skipped <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
@@ -12899,11 +21849,27 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         receiving_plant    = ls_issue_pair-receiving_plant
         order_result       = ls_issue_pair-order_result
         goods_issue_result = ls_issue_pair-goods_issue_result
-        is_in_transit      = ls_issue_pair-is_in_transit )
+        is_in_transit      = ls_issue_pair-is_in_transit
+        is_skipped         = ls_issue_pair-is_skipped )
         TO rs_result-orders.
+
+      IF ls_issue_pair-is_skipped = abap_true.
+        rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
 
       IF ls_issue_pair-is_in_transit <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_issue_pair-is_issue_attempted <> abap_true
@@ -12925,14 +21891,35 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       DATA(lt_receipt_items) = build_sto_receipt_items(
         is_order_result      = ls_issue_pair-order_result
         it_unit_iso_mappings = it_unit_iso_mappings ).
-      APPEND VALUE #(
-        result_index   = lines( rs_result-orders )
-        purchase_order = ls_issue_pair-order_result-purchase_order_number
-        items          = lt_receipt_items ) TO lt_prepared_receipts.
+      IF lv_first_failure_index = 0
+          OR lines( rs_result-orders ) < lv_first_failure_index.
+        APPEND VALUE #(
+          result_index   = lines( rs_result-orders )
+          purchase_order = ls_issue_pair-order_result-purchase_order_number
+          items          = lt_receipt_items ) TO lt_prepared_receipts.
+      ENDIF.
     ENDLOOP.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+      ENDIF.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_atomic_receipt_preflight>).
+        IF <ls_atomic_receipt_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index > 0
+            AND sy-tabix > lv_first_failure_index.
+          <ls_atomic_receipt_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_atomic_receipt_preflight>-is_in_transit = abap_true.
+          <ls_atomic_receipt_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -12961,13 +21948,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
       IF iv_atomic = abap_true
           AND ls_receipt_result-is_successful <> abap_true.
+        lv_first_failure_index = ls_prepared_receipt-result_index.
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
-          <ls_receipt_pair>-goods_receipt_result-is_successful =
-            abap_false.
-          CLEAR: <ls_receipt_pair>-goods_receipt_result-material_document,
-            <ls_receipt_pair>-goods_receipt_result-fiscal_year.
-          <ls_receipt_pair>-is_received = abap_false.
+          IF <ls_receipt_pair>-is_receipt_attempted = abap_true.
+            <ls_receipt_pair>-goods_receipt_result-is_successful =
+              abap_false.
+            CLEAR: <ls_receipt_pair>-goods_receipt_result-material_document,
+              <ls_receipt_pair>-goods_receipt_result-fiscal_year.
+            <ls_receipt_pair>-is_received = abap_false.
+          ELSE.
+            <ls_receipt_pair>-is_skipped = abap_true.
+          ENDIF.
         ENDLOOP.
+        EXIT.
+      ENDIF.
+      IF ls_receipt_result-is_successful <> abap_true
+          AND iv_stop_on_failure = abap_true.
+        lv_first_failure_index = ls_prepared_receipt-result_index.
+        rs_result-stopped_on_failure = abap_true.
         EXIT.
       ENDIF.
     ENDLOOP.
@@ -12983,6 +21982,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         mo_api->rollback( ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
           <ls_receipt_pair>-goods_receipt_result-is_successful =
             abap_false.
@@ -12999,6 +21999,27 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_receipt_pair>-is_receipt_attempted = abap_false.
+          <ls_receipt_pair>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_receipt_pair>.
+      IF <ls_receipt_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_receipt_pair>-is_in_transit <> abap_true.
+        ADD 1 TO rs_result-failed_count.
+      ELSEIF <ls_receipt_pair>-is_receipt_attempted = abap_true.
+        IF <ls_receipt_pair>-goods_receipt_result-is_successful = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD cancel_issued_sto.
@@ -13020,13 +22041,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_prepared_cancels TYPE ty_prepared_sto_cancels.
     DATA lt_cancel_keys TYPE HASHED TABLE OF ty_cancel_key
       WITH UNIQUE KEY material_document fiscal_year.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_issues-orders IS INITIAL
         OR is_issues-is_test_run <> abap_false
         OR ( is_issues-is_successful <> abap_true
           AND is_issues-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -13049,6 +22073,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
       IF ls_issue_pair-is_in_transit <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_issue_pair-is_issue_attempted <> abap_true
@@ -13069,16 +22098,36 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      APPEND VALUE #(
-        result_index      = lines( rs_result-orders )
-        material_document =
-          ls_issue_pair-goods_issue_result-material_document
-        fiscal_year       = ls_issue_pair-goods_issue_result-fiscal_year )
-        TO lt_prepared_cancels.
+      IF lv_first_failure_index = 0
+          OR lines( rs_result-orders ) < lv_first_failure_index.
+        APPEND VALUE #(
+          result_index      = lines( rs_result-orders )
+          material_document =
+            ls_issue_pair-goods_issue_result-material_document
+          fiscal_year       =
+            ls_issue_pair-goods_issue_result-fiscal_year )
+          TO lt_prepared_cancels.
+      ENDIF.
     ENDLOOP.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+      ENDIF.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_atomic_issue_preflight>).
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index > 0
+            AND sy-tabix > lv_first_failure_index.
+          <ls_atomic_issue_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_atomic_issue_preflight>-is_in_transit = abap_true.
+          <ls_atomic_issue_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -13106,13 +22155,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDIF.
         IF iv_atomic = abap_true
             AND ls_reversal_result-is_successful <> abap_true.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
-            <ls_cancel_pair>-reversal_result-is_successful = abap_false.
-            CLEAR: <ls_cancel_pair>-reversal_result-material_document,
-              <ls_cancel_pair>-reversal_result-fiscal_year.
-            <ls_cancel_pair>-is_cancelled = abap_false.
-            <ls_cancel_pair>-is_in_transit = abap_true.
+            IF <ls_cancel_pair>-is_cancel_attempted = abap_true.
+              <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+              CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+                <ls_cancel_pair>-reversal_result-fiscal_year.
+              <ls_cancel_pair>-is_cancelled = abap_false.
+              <ls_cancel_pair>-is_in_transit = abap_true.
+            ELSE.
+              <ls_cancel_pair>-is_skipped = abap_true.
+            ENDIF.
           ENDLOOP.
+          EXIT.
+        ENDIF.
+        IF ls_reversal_result-is_successful <> abap_true
+            AND iv_stop_on_failure = abap_true.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
           EXIT.
         ENDIF.
       ENDIF.
@@ -13128,6 +22189,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         mo_api->rollback( ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
           <ls_cancel_pair>-reversal_result-is_successful = abap_false.
           CLEAR: <ls_cancel_pair>-reversal_result-material_document,
@@ -13144,6 +22206,27 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_cancel_pair>-is_cancel_attempted = abap_false.
+          <ls_cancel_pair>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+      IF <ls_cancel_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_cancel_pair>-is_in_transit <> abap_true.
+        ADD 1 TO rs_result-failed_count.
+      ELSEIF <ls_cancel_pair>-is_cancel_attempted = abap_true.
+        IF <ls_cancel_pair>-is_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD cancel_received_sto.
@@ -13166,13 +22249,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_prepared_cancels TYPE ty_prepared_sto_cancels.
     DATA lt_cancel_keys TYPE HASHED TABLE OF ty_cancel_key
       WITH UNIQUE KEY material_document fiscal_year.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_receipts-orders IS INITIAL
         OR is_receipts-is_test_run <> abap_false
         OR ( is_receipts-is_successful <> abap_true
           AND is_receipts-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -13199,6 +22285,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
       IF ls_receipt_pair-is_received <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_receipt_pair-is_receipt_attempted <> abap_true
@@ -13224,17 +22315,36 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
-      APPEND VALUE #(
-        result_index      = lines( rs_result-orders )
-        material_document =
-          ls_receipt_pair-goods_receipt_result-material_document
-        fiscal_year       =
-          ls_receipt_pair-goods_receipt_result-fiscal_year )
-        TO lt_prepared_cancels.
+      IF lv_first_failure_index = 0
+          OR lines( rs_result-orders ) < lv_first_failure_index.
+        APPEND VALUE #(
+          result_index      = lines( rs_result-orders )
+          material_document =
+            ls_receipt_pair-goods_receipt_result-material_document
+          fiscal_year       =
+            ls_receipt_pair-goods_receipt_result-fiscal_year )
+          TO lt_prepared_cancels.
+      ENDIF.
     ENDLOOP.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+      ENDIF.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_atomic_preflight>).
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index > 0
+            AND sy-tabix > lv_first_failure_index.
+          <ls_atomic_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_atomic_preflight>-is_received = abap_true.
+          <ls_atomic_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -13263,14 +22373,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDIF.
         IF iv_atomic = abap_true
             AND ls_reversal_result-is_successful <> abap_true.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
-            <ls_cancel_pair>-reversal_result-is_successful = abap_false.
-            CLEAR: <ls_cancel_pair>-reversal_result-material_document,
-              <ls_cancel_pair>-reversal_result-fiscal_year.
-            <ls_cancel_pair>-is_cancelled = abap_false.
-            <ls_cancel_pair>-is_received = abap_true.
-            <ls_cancel_pair>-is_in_transit = abap_false.
+            IF <ls_cancel_pair>-is_cancel_attempted = abap_true.
+              <ls_cancel_pair>-reversal_result-is_successful = abap_false.
+              CLEAR: <ls_cancel_pair>-reversal_result-material_document,
+                <ls_cancel_pair>-reversal_result-fiscal_year.
+              <ls_cancel_pair>-is_cancelled = abap_false.
+              <ls_cancel_pair>-is_received = abap_true.
+              <ls_cancel_pair>-is_in_transit = abap_false.
+            ELSE.
+              <ls_cancel_pair>-is_skipped = abap_true.
+            ENDIF.
           ENDLOOP.
+          EXIT.
+        ENDIF.
+        IF ls_reversal_result-is_successful <> abap_true
+            AND iv_stop_on_failure = abap_true.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
           EXIT.
         ENDIF.
       ENDIF.
@@ -13287,6 +22409,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         mo_api->rollback( ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
           <ls_cancel_pair>-reversal_result-is_successful = abap_false.
           CLEAR: <ls_cancel_pair>-reversal_result-material_document,
@@ -13304,6 +22427,27 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_cancel_pair>-is_cancel_attempted = abap_false.
+          <ls_cancel_pair>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_cancel_pair>.
+      IF <ls_cancel_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_cancel_pair>-is_received <> abap_true.
+        ADD 1 TO rs_result-failed_count.
+      ELSEIF <ls_cancel_pair>-is_cancel_attempted = abap_true.
+        IF <ls_cancel_pair>-is_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD cancel_sto_receipt_chain.
@@ -13313,9 +22457,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       orders        = VALUE #( ( is_receipt ) ) ).
 
     rs_result = cancel_sto_receipt_chain_pairs(
-      is_receipts     = ls_receipts
-      iv_posting_date = iv_posting_date
-      iv_atomic       = iv_atomic ).
+      is_receipts        = ls_receipts
+      iv_posting_date    = iv_posting_date
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD cancel_sto_receipt_chain_pairs.
@@ -13326,13 +22471,16 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       END OF ty_cancel_key.
     DATA lt_cancel_keys TYPE HASHED TABLE OF ty_cancel_key
       WITH UNIQUE KEY material_document fiscal_year.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_receipts-orders IS INITIAL
         OR is_receipts-is_test_run <> abap_false
         OR ( is_receipts-is_successful <> abap_true
           AND is_receipts-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -13346,6 +22494,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       IF ls_receipt_pair-is_received <> abap_true.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = sy-tabix.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_receipt_pair-is_receipt_attempted <> abap_true
@@ -13385,17 +22537,36 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
+    LOOP AT is_receipts-orders INTO ls_receipt_pair.
+      APPEND CORRESPONDING #( ls_receipt_pair )
+        TO rs_result-orders.
+    ENDLOOP.
+
     IF iv_atomic = abap_true.
       rs_result-is_successful = is_receipts-is_successful.
       LOOP AT is_receipts-orders INTO ls_receipt_pair.
-        APPEND CORRESPONDING #( ls_receipt_pair )
-          TO rs_result-orders.
         IF ls_receipt_pair-is_received <> abap_true.
           rs_result-is_successful = abap_false.
         ENDIF.
       ENDLOOP.
 
       IF rs_result-is_successful <> abap_true.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_chain_preflight>).
+          IF iv_stop_on_failure = abap_true
+              AND lv_first_failure_index > 0
+              AND sy-tabix > lv_first_failure_index.
+            <ls_chain_preflight>-is_skipped = abap_true.
+            ADD 1 TO rs_result-skipped_count.
+          ELSEIF <ls_chain_preflight>-is_received = abap_true.
+            <ls_chain_preflight>-is_skipped = abap_true.
+            ADD 1 TO rs_result-skipped_count.
+          ELSE.
+            ADD 1 TO rs_result-failed_count.
+          ENDIF.
+        ENDLOOP.
         RETURN.
       ENDIF.
 
@@ -13436,22 +22607,30 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDIF.
 
         IF rs_result-is_successful <> abap_true.
+          lv_first_failure_index = lv_atomic_result_index.
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT rs_result-orders
             ASSIGNING <ls_atomic_chain_pair>.
-            <ls_atomic_chain_pair>-reversal_result-is_successful =
-              abap_false.
-            <ls_atomic_chain_pair>-goods_issue_reversal_result-is_successful =
-              abap_false.
-            CLEAR:
-              <ls_atomic_chain_pair>-reversal_result-material_document,
-              <ls_atomic_chain_pair>-reversal_result-fiscal_year,
-              <ls_atomic_chain_pair>-goods_issue_reversal_result-material_document,
-              <ls_atomic_chain_pair>-goods_issue_reversal_result-fiscal_year.
-            <ls_atomic_chain_pair>-is_cancelled = abap_false.
-            <ls_atomic_chain_pair>-is_issue_cancelled = abap_false.
-            <ls_atomic_chain_pair>-is_fully_cancelled = abap_false.
-            <ls_atomic_chain_pair>-is_received = abap_true.
-            <ls_atomic_chain_pair>-is_in_transit = abap_false.
+            IF <ls_atomic_chain_pair>-is_cancel_attempted = abap_true
+                OR <ls_atomic_chain_pair>-is_issue_cancel_attempted
+                  = abap_true.
+              <ls_atomic_chain_pair>-reversal_result-is_successful =
+                abap_false.
+              <ls_atomic_chain_pair>-goods_issue_reversal_result-is_successful =
+                abap_false.
+              CLEAR:
+                <ls_atomic_chain_pair>-reversal_result-material_document,
+                <ls_atomic_chain_pair>-reversal_result-fiscal_year,
+                <ls_atomic_chain_pair>-goods_issue_reversal_result-material_document,
+                <ls_atomic_chain_pair>-goods_issue_reversal_result-fiscal_year.
+              <ls_atomic_chain_pair>-is_cancelled = abap_false.
+              <ls_atomic_chain_pair>-is_issue_cancelled = abap_false.
+              <ls_atomic_chain_pair>-is_fully_cancelled = abap_false.
+              <ls_atomic_chain_pair>-is_received = abap_true.
+              <ls_atomic_chain_pair>-is_in_transit = abap_false.
+            ELSE.
+              <ls_atomic_chain_pair>-is_skipped = abap_true.
+            ENDIF.
           ENDLOOP.
           EXIT.
         ENDIF.
@@ -13470,6 +22649,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           ENDLOOP.
         ELSE.
           mo_api->rollback( ).
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT rs_result-orders
             ASSIGNING <ls_atomic_chain_pair>.
             <ls_atomic_chain_pair>-reversal_result-is_successful =
@@ -13497,35 +22677,57 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           rs_result-is_successful = abap_false.
         ENDIF.
       ENDIF.
+      LOOP AT rs_result-orders ASSIGNING <ls_atomic_chain_pair>.
+        IF <ls_atomic_chain_pair>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_atomic_chain_pair>-is_fully_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
     rs_result-is_successful = is_receipts-is_successful.
     LOOP AT is_receipts-orders INTO ls_receipt_pair.
-      APPEND CORRESPONDING #( ls_receipt_pair )
-        TO rs_result-orders.
+      DATA(lv_result_index) = sy-tabix.
+      IF iv_stop_on_failure = abap_true
+          AND lv_first_failure_index > 0
+          AND lv_result_index >= lv_first_failure_index.
+        EXIT.
+      ENDIF.
       IF ls_receipt_pair-is_received <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lv_result_index.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
-      DATA(lv_result_index) = lines( rs_result-orders ).
+      READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_chain_pair>)
+        INDEX lv_result_index.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
       DATA(ls_receipt_reversal) = cancel(
         iv_material_document =
           ls_receipt_pair-goods_receipt_result-material_document
         iv_fiscal_year       =
           ls_receipt_pair-goods_receipt_result-fiscal_year
         iv_posting_date      = iv_posting_date ).
-      READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_chain_pair>)
-        INDEX lv_result_index.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
-      ENDIF.
       <ls_chain_pair>-reversal_result = ls_receipt_reversal.
       <ls_chain_pair>-is_cancel_attempted = abap_true.
       <ls_chain_pair>-is_cancelled = ls_receipt_reversal-is_successful.
       IF ls_receipt_reversal-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lv_result_index.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
       <ls_chain_pair>-is_received = abap_false.
@@ -13545,6 +22747,29 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         <ls_chain_pair>-is_fully_cancelled = abap_true.
       ELSE.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lv_result_index.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_chain_pair>.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_chain_pair>-is_cancel_attempted = abap_false.
+          <ls_chain_pair>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_chain_pair>.
+      IF <ls_chain_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_chain_pair>-is_fully_cancelled = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSEIF <ls_chain_pair>-is_cancel_attempted = abap_true
+          OR <ls_chain_pair>-is_received <> abap_true.
+        ADD 1 TO rs_result-failed_count.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -13555,9 +22780,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       orders        = VALUE #( ( is_pair ) ) ).
 
     rs_result = retry_sto_chain_issue_pairs(
-      is_result       = ls_input
-      iv_posting_date = iv_posting_date
-      iv_atomic       = iv_atomic ).
+      is_result          = ls_input
+      iv_posting_date    = iv_posting_date
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD retry_sto_chain_issue_pairs.
@@ -13569,12 +22795,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     DATA lt_cancel_keys TYPE HASHED TABLE OF ty_cancel_key
       WITH UNIQUE KEY material_document fiscal_year.
     DATA lt_prepared_cancels TYPE ty_prepared_sto_cancels.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_result-orders IS INITIAL
         OR ( is_result-is_successful <> abap_true
           AND is_result-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -13598,6 +22827,12 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
 
       APPEND CORRESPONDING #( ls_pair ) TO rs_result-orders.
+      ASSIGN rs_result-orders[ lines( rs_result-orders ) ]
+        TO FIELD-SYMBOL(<ls_result_input_pair>).
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_result_input_pair>-is_skipped = abap_false.
       IF ls_pair-is_fully_cancelled = abap_true.
         IF ls_pair-is_cancel_attempted <> abap_true
             OR ls_pair-is_issue_cancel_attempted <> abap_true
@@ -13655,17 +22890,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
         ENDIF.
-        APPEND VALUE #(
-          result_index      = lines( rs_result-orders )
-          material_document =
-            ls_pair-goods_issue_result-material_document
-          fiscal_year       = ls_pair-goods_issue_result-fiscal_year )
-          TO lt_prepared_cancels.
+        IF lv_first_failure_index = 0
+            OR lines( rs_result-orders ) < lv_first_failure_index.
+          APPEND VALUE #(
+            result_index      = lines( rs_result-orders )
+            material_document =
+              ls_pair-goods_issue_result-material_document
+            fiscal_year       = ls_pair-goods_issue_result-fiscal_year )
+            TO lt_prepared_cancels.
+        ENDIF.
       ELSEIF ls_pair-is_cancelled = abap_false
           AND ls_pair-is_received = abap_true
           AND ls_pair-is_in_transit = abap_false
           AND ls_pair-is_issue_cancelled = abap_false.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ELSE.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
@@ -13673,6 +22916,27 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
+      ENDIF.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_retry_preflight>).
+        IF <ls_retry_preflight>-is_fully_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSEIF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index > 0
+            AND sy-tabix > lv_first_failure_index.
+          <ls_retry_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_retry_preflight>-is_cancelled = abap_true
+            AND <ls_retry_preflight>-is_received = abap_false
+            AND <ls_retry_preflight>-is_in_transit = abap_true
+            AND <ls_retry_preflight>-is_issue_cancelled = abap_false.
+          <ls_retry_preflight>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -13692,22 +22956,33 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       IF ls_issue_reversal-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
         IF iv_atomic = abap_true.
+          " CANCEL already rolled back the shared LUW on failure.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
           LOOP AT lt_prepared_cancels INTO DATA(ls_failed_group_item).
             READ TABLE rs_result-orders ASSIGNING <ls_retry_pair>
               INDEX ls_failed_group_item-result_index.
             IF sy-subrc <> 0.
               RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
             ENDIF.
-            <ls_retry_pair>-goods_issue_reversal_result-is_successful =
-              abap_false.
-            CLEAR:
-              <ls_retry_pair>-goods_issue_reversal_result-material_document,
-              <ls_retry_pair>-goods_issue_reversal_result-fiscal_year.
-            <ls_retry_pair>-is_issue_cancelled = abap_false.
-            <ls_retry_pair>-is_fully_cancelled = abap_false.
-            <ls_retry_pair>-is_in_transit = abap_true.
+            IF <ls_retry_pair>-is_issue_cancel_attempted = abap_true.
+              <ls_retry_pair>-goods_issue_reversal_result-is_successful =
+                abap_false.
+              CLEAR:
+                <ls_retry_pair>-goods_issue_reversal_result-material_document,
+                <ls_retry_pair>-goods_issue_reversal_result-fiscal_year.
+              <ls_retry_pair>-is_issue_cancelled = abap_false.
+              <ls_retry_pair>-is_fully_cancelled = abap_false.
+              <ls_retry_pair>-is_in_transit = abap_true.
+            ELSE.
+              <ls_retry_pair>-is_skipped = abap_true.
+            ENDIF.
           ENDLOOP.
-          RETURN.
+          EXIT.
+        ELSEIF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = ls_prepared_cancel-result_index.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
         ENDIF.
       ELSEIF iv_atomic = abap_false.
         <ls_retry_pair>-is_issue_cancelled = abap_true.
@@ -13716,7 +22991,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-    IF iv_atomic = abap_true AND lt_prepared_cancels IS NOT INITIAL.
+    IF iv_atomic = abap_true
+        AND lt_prepared_cancels IS NOT INITIAL
+        AND rs_result-is_successful = abap_true.
       DATA(ls_retry_commit) = mo_api->commit( ).
       IF ls_retry_commit-is_successful = abap_true.
         LOOP AT lt_prepared_cancels INTO ls_prepared_cancel.
@@ -13731,6 +23008,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         mo_api->rollback( ).
+        lv_first_failure_index = lines( rs_result-orders ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT lt_prepared_cancels INTO ls_prepared_cancel.
           READ TABLE rs_result-orders ASSIGNING <ls_retry_pair>
             INDEX ls_prepared_cancel-result_index.
@@ -13759,6 +23038,23 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+        IF sy-tabix > lv_first_failure_index
+            AND <ls_retry_pair>-is_fully_cancelled <> abap_true.
+          <ls_retry_pair>-is_skipped = abap_true.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+      IF <ls_retry_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_retry_pair>-is_fully_cancelled = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD retry_sto_chain_receipt.
@@ -13767,9 +23063,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       orders        = VALUE #( ( is_pair ) ) ).
 
     rs_result = retry_sto_chain_receipt_pairs(
-      is_result       = ls_input
-      iv_posting_date = iv_posting_date
-      iv_atomic       = iv_atomic ).
+      is_result          = ls_input
+      iv_posting_date    = iv_posting_date
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD retry_sto_chain_receipt_pairs.
@@ -13787,7 +23084,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR ( is_result-is_successful <> abap_true
           AND is_result-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -13812,6 +23111,12 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
 
       APPEND CORRESPONDING #( ls_pair ) TO rs_result-orders.
+      ASSIGN rs_result-orders[ lines( rs_result-orders ) ]
+        TO FIELD-SYMBOL(<ls_retry_input_pair>).
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+      <ls_retry_input_pair>-is_skipped = abap_false.
       IF ls_pair-is_fully_cancelled = abap_true.
         IF ls_pair-is_cancel_attempted <> abap_true
             OR ls_pair-is_issue_cancel_attempted <> abap_true
@@ -13886,9 +23191,11 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     IF ls_receipt_retries-orders IS NOT INITIAL.
       ls_retry_result = cancel_received_sto_pairs(
-        is_receipts     = ls_receipt_retries
-        iv_posting_date = iv_posting_date
-        iv_atomic       = iv_atomic ).
+        is_receipts        = ls_receipt_retries
+        iv_posting_date    = iv_posting_date
+        iv_atomic          = iv_atomic
+        iv_stop_on_failure = iv_stop_on_failure ).
+      rs_result-stopped_on_failure = ls_retry_result-stopped_on_failure.
       LOOP AT lt_retry_indices INTO DATA(ls_retry_index).
         READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_retry_pair>)
           INDEX ls_retry_index-result_index.
@@ -13906,14 +23213,26 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         <ls_retry_pair>-is_cancelled = ls_cancelled_pair-is_cancelled.
         <ls_retry_pair>-is_received = ls_cancelled_pair-is_received.
         <ls_retry_pair>-is_in_transit = ls_cancelled_pair-is_in_transit.
+        <ls_retry_pair>-is_skipped = ls_cancelled_pair-is_skipped.
       ENDLOOP.
     ENDIF.
 
     rs_result-is_successful = abap_true.
     LOOP AT rs_result-orders INTO DATA(ls_result_pair).
+      IF ls_result_pair-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF ls_result_pair-is_fully_cancelled = abap_true
+          OR ( ls_result_pair-is_cancelled = abap_true
+            AND ls_result_pair-is_received = abap_false
+            AND ls_result_pair-is_in_transit = abap_true ).
+        ADD 1 TO rs_result-successful_count.
+      ELSEIF ls_result_pair-is_cancel_attempted = abap_true
+          OR ( ls_result_pair-is_received = abap_true
+            AND ls_result_pair-is_cancelled = abap_false ).
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
       IF ls_result_pair-is_fully_cancelled <> abap_true.
         rs_result-is_successful = abap_false.
-        EXIT.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -13924,9 +23243,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       orders        = VALUE #( ( is_pair ) ) ).
 
     rs_result = retry_sto_chain_pairs(
-      is_result       = ls_input
-      iv_posting_date = iv_posting_date
-      iv_atomic       = iv_atomic ).
+      is_result          = ls_input
+      iv_posting_date    = iv_posting_date
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD retry_sto_chain_pairs.
@@ -13947,12 +23267,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       WITH EMPTY KEY.
     DATA lt_attempted_cancels TYPE STANDARD TABLE OF ty_pending_cancel
       WITH EMPTY KEY.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_result-orders IS INITIAL
         OR ( is_result-is_successful <> abap_true
           AND is_result-is_successful <> abap_false )
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -14090,6 +23413,13 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = is_result.
+    CLEAR: rs_result-successful_count,
+      rs_result-failed_count,
+      rs_result-skipped_count,
+      rs_result-stopped_on_failure.
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_combined_retry_row>).
+      <ls_combined_retry_row>-is_skipped = abap_false.
+    ENDLOOP.
     IF iv_atomic = abap_false.
       LOOP AT lt_pending_cancels INTO DATA(ls_pending_cancel)
           WHERE stage = 'R'.
@@ -14099,8 +23429,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
         ENDIF.
         DATA(ls_receipt_retry) = retry_sto_chain_receipt(
-          is_pair         = ls_retry_pair
-          iv_posting_date = iv_posting_date ).
+          is_pair            = ls_retry_pair
+          iv_posting_date    = iv_posting_date
+          iv_stop_on_failure = iv_stop_on_failure ).
         READ TABLE ls_receipt_retry-orders INTO ls_retry_pair INDEX 1.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -14111,10 +23442,23 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
         ENDIF.
         <ls_retry_pair> = ls_retry_pair.
+        IF iv_stop_on_failure = abap_true
+            AND ls_receipt_retry-stopped_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          lv_first_failure_index = ls_pending_cancel-result_index.
+          LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+            IF sy-tabix <> lv_first_failure_index
+                AND <ls_retry_pair>-is_fully_cancelled <> abap_true.
+              <ls_retry_pair>-is_skipped = abap_true.
+            ENDIF.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDLOOP.
 
-      LOOP AT lt_pending_cancels INTO ls_pending_cancel
-          WHERE stage = 'I'.
+      IF rs_result-stopped_on_failure <> abap_true.
+        LOOP AT lt_pending_cancels INTO ls_pending_cancel
+            WHERE stage = 'I'.
         READ TABLE rs_result-orders INTO ls_retry_pair
           INDEX ls_pending_cancel-result_index.
         IF sy-subrc <> 0.
@@ -14125,8 +23469,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         DATA(ls_issue_retry) = retry_sto_chain_issue(
-          is_pair         = ls_retry_pair
-          iv_posting_date = iv_posting_date ).
+          is_pair            = ls_retry_pair
+          iv_posting_date    = iv_posting_date
+          iv_stop_on_failure = iv_stop_on_failure ).
         READ TABLE ls_issue_retry-orders INTO ls_retry_pair INDEX 1.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -14137,13 +23482,34 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
         ENDIF.
         <ls_retry_pair> = ls_retry_pair.
+        IF iv_stop_on_failure = abap_true
+            AND ls_issue_retry-stopped_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          lv_first_failure_index = ls_pending_cancel-result_index.
+          LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+            IF sy-tabix > lv_first_failure_index
+                AND <ls_retry_pair>-is_fully_cancelled <> abap_true.
+              <ls_retry_pair>-is_skipped = abap_true.
+            ENDIF.
+          ENDLOOP.
+          EXIT.
+        ENDIF.
       ENDLOOP.
+      ENDIF.
 
       rs_result-is_successful = abap_true.
       LOOP AT rs_result-orders INTO ls_retry_pair.
         IF ls_retry_pair-is_fully_cancelled <> abap_true.
           rs_result-is_successful = abap_false.
-          EXIT.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+        IF <ls_retry_pair>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_retry_pair>-is_fully_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
         ENDIF.
       ENDLOOP.
       RETURN.
@@ -14176,6 +23542,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     ENDLOOP.
 
     IF lv_failed = abap_true.
+      mo_api->rollback( ).
+      rs_result-stopped_on_failure = abap_true.
       LOOP AT lt_attempted_cancels INTO DATA(ls_attempted_cancel).
         READ TABLE rs_result-orders ASSIGNING <ls_retry_pair>
           INDEX ls_attempted_cancel-result_index.
@@ -14195,7 +23563,25 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             <ls_retry_pair>-goods_issue_reversal_result-fiscal_year.
         ENDIF.
       ENDLOOP.
+      LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+        IF <ls_retry_pair>-is_fully_cancelled <> abap_true.
+          READ TABLE lt_attempted_cancels TRANSPORTING NO FIELDS
+            WITH KEY result_index = sy-tabix.
+          IF sy-subrc <> 0.
+            <ls_retry_pair>-is_skipped = abap_true.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
       rs_result-is_successful = abap_false.
+      LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+        IF <ls_retry_pair>-is_skipped = abap_true.
+          ADD 1 TO rs_result-skipped_count.
+        ELSEIF <ls_retry_pair>-is_fully_cancelled = abap_true.
+          ADD 1 TO rs_result-successful_count.
+        ELSE.
+          ADD 1 TO rs_result-failed_count.
+        ENDIF.
+      ENDLOOP.
       RETURN.
     ENDIF.
 
@@ -14203,6 +23589,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       DATA(ls_commit_result) = mo_api->commit( ).
       IF ls_commit_result-is_successful <> abap_true.
         mo_api->rollback( ).
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT lt_attempted_cancels INTO ls_attempted_cancel.
           READ TABLE rs_result-orders ASSIGNING <ls_retry_pair>
             INDEX ls_attempted_cancel-result_index.
@@ -14238,6 +23625,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           ENDIF.
         ENDIF.
         rs_result-is_successful = abap_false.
+        LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+          IF <ls_retry_pair>-is_skipped = abap_true.
+            ADD 1 TO rs_result-skipped_count.
+          ELSEIF <ls_retry_pair>-is_fully_cancelled = abap_true.
+            ADD 1 TO rs_result-successful_count.
+          ELSE.
+            ADD 1 TO rs_result-failed_count.
+          ENDIF.
+        ENDLOOP.
         RETURN.
       ENDIF.
     ENDIF.
@@ -14259,6 +23655,15 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
     rs_result-is_successful = abap_true.
+    LOOP AT rs_result-orders ASSIGNING <ls_retry_pair>.
+      IF <ls_retry_pair>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_retry_pair>-is_fully_cancelled = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD build_sto_issue_items.
@@ -14536,7 +23941,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit                 = ls_item-entry_unit
         entry_unit_iso             = ls_item-entry_unit_iso
         batch                      = ls_item-batch
-        receiving_batch            = ls_item-receiving_batch )
+        valuation_type             = ls_item-valuation_type
+        receiving_batch            = ls_item-receiving_batch
+        receiving_valuation_type   = ls_item-receiving_valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -14626,7 +24033,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         receiving_plant            = ls_request-receiving_plant
         receiving_storage_location = ls_request-receiving_storage_location
         batch                      = ls_request-batch
+        valuation_type             = ls_request-valuation_type
         receiving_batch            = ls_request-receiving_batch
+        receiving_valuation_type   = ls_request-receiving_valuation_type
         quantity                   = ls_conversion-base_quantity
         entry_unit                 = ls_source_unit-base_unit
         entry_unit_iso             = ls_source_unit-base_unit_iso )
@@ -14674,7 +24083,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         entry_unit                 = ls_item-entry_unit
         entry_unit_iso             = ls_item-entry_unit_iso
         batch                      = ls_item-batch
-        receiving_batch            = ls_item-receiving_batch )
+        valuation_type             = ls_item-valuation_type
+        receiving_batch            = ls_item-receiving_batch
+        receiving_valuation_type   = ls_item-receiving_valuation_type )
         TO lt_movement_items.
     ENDLOOP.
 
@@ -14764,7 +24175,9 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         receiving_plant            = ls_request-receiving_plant
         receiving_storage_location = ls_request-receiving_storage_location
         batch                      = ls_request-batch
+        valuation_type             = ls_request-valuation_type
         receiving_batch            = ls_request-receiving_batch
+        receiving_valuation_type   = ls_request-receiving_valuation_type
         quantity                   = ls_conversion-base_quantity
         entry_unit                 = ls_source_unit-base_unit
         entry_unit_iso             = ls_source_unit-base_unit_iso )
@@ -14952,7 +24365,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       WITH UNIQUE KEY request_id storage_location batch.
     DATA lt_items TYPE ty_stock_status_lines.
     DATA lo_eligibility TYPE REF TO zcl_stock_batch_eligibility.
-    DATA lv_split_quantity TYPE mard-labst.
+    DATA lv_split_quantity TYPE decfloat34.
     DATA lv_split_rows TYPE i.
     DATA lv_fefo_as_of_date TYPE d.
 
@@ -16810,8 +26223,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         required_date     TYPE resb-bdter,
         priority          TYPE i,
         base_unit         TYPE mara-meins,
-        plant_quantity    TYPE mard-labst,
-        location_quantity TYPE mard-labst,
+        plant_quantity    TYPE decfloat34,
+        location_quantity TYPE decfloat34,
       END OF ty_source_location_total.
     TYPES ty_source_location_totals TYPE SORTED TABLE OF
       ty_source_location_total WITH UNIQUE KEY request_id source_plant.
@@ -16957,8 +26370,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         required_date      TYPE resb-bdter,
         priority           TYPE i,
         base_unit          TYPE mara-meins,
-        allocated_quantity TYPE mard-labst,
-        source_quantity    TYPE mard-labst,
+        allocated_quantity TYPE decfloat34,
+        source_quantity    TYPE decfloat34,
       END OF ty_fefo_demand_total.
     TYPES ty_fefo_demand_totals TYPE SORTED TABLE OF
       ty_fefo_demand_total WITH UNIQUE KEY request_id.
@@ -16971,8 +26384,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         required_date  TYPE resb-bdter,
         priority       TYPE i,
         base_unit      TYPE mara-meins,
-        plant_quantity TYPE mard-labst,
-        split_quantity TYPE mard-labst,
+        plant_quantity TYPE decfloat34,
+        split_quantity TYPE decfloat34,
       END OF ty_source_fefo_total.
     TYPES ty_source_fefo_totals TYPE SORTED TABLE OF
       ty_source_fefo_total WITH UNIQUE KEY
@@ -17008,9 +26421,12 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             ls_fefo_demand-allocation-requested_quantity
           OR ls_fefo_demand-allocation-allocated_quantity >
             ls_fefo_demand-allocation-available_quantity
-          OR ls_fefo_demand-allocation-allocated_quantity
-              + ls_fefo_demand-allocation-shortfall_quantity <>
-            ls_fefo_demand-allocation-requested_quantity.
+          OR CONV decfloat34(
+            ls_fefo_demand-allocation-allocated_quantity )
+              + CONV decfloat34(
+                ls_fefo_demand-allocation-shortfall_quantity )
+            <> CONV decfloat34(
+              ls_fefo_demand-allocation-requested_quantity ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
       INSERT VALUE #(
@@ -17715,6 +27131,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
     IF iv_atomic <> abap_true AND iv_atomic <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
 
     rs_result-is_atomic = iv_atomic.
     rs_result-is_successful = abap_true.
@@ -17777,12 +27197,21 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
       rs_result-is_successful = abap_false.
       IF iv_atomic = abap_true.
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-documents ASSIGNING <ls_document>.
-          <ls_document>-reversal_result-is_successful = abap_false.
-          CLEAR: <ls_document>-reversal_result-material_document,
-            <ls_document>-reversal_result-fiscal_year.
-          <ls_document>-is_cancelled = abap_false.
+          IF <ls_document>-is_attempted = abap_true.
+            <ls_document>-reversal_result-is_successful = abap_false.
+            CLEAR: <ls_document>-reversal_result-material_document,
+              <ls_document>-reversal_result-fiscal_year.
+            <ls_document>-is_cancelled = abap_false.
+          ELSE.
+            <ls_document>-is_skipped = abap_true.
+          ENDIF.
         ENDLOOP.
+        EXIT.
+      ENDIF.
+      IF iv_stop_on_failure = abap_true.
+        rs_result-stopped_on_failure = abap_true.
         EXIT.
       ENDIF.
     ENDLOOP.
@@ -17796,6 +27225,7 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       ELSE.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
+        rs_result-stopped_on_failure = abap_true.
         LOOP AT rs_result-documents ASSIGNING <ls_document>.
           <ls_document>-reversal_result-is_successful = abap_false.
           CLEAR: <ls_document>-reversal_result-material_document,
@@ -17810,6 +27240,20 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         ENDIF.
       ENDIF.
     ENDIF.
+
+    LOOP AT rs_result-documents ASSIGNING <ls_document>.
+      IF rs_result-stopped_on_failure = abap_true
+          AND <ls_document>-is_attempted = abap_false.
+        <ls_document>-is_skipped = abap_true.
+      ENDIF.
+      IF <ls_document>-is_cancelled = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSEIF <ls_document>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_document>-is_attempted = abap_true.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
 ENDCLASS.

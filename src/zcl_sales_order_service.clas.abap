@@ -34,6 +34,13 @@ CLASS zcl_sales_order_service DEFINITION
     TYPES ty_order_item_clears TYPE STANDARD TABLE OF
       ty_order_item_clear WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_order_item_deletion,
+        sales_document TYPE zif_sales_order_api=>ty_sales_document,
+        item_numbers   TYPE ty_item_numbers,
+      END OF ty_order_item_deletion.
+    TYPES ty_order_item_deletions TYPE STANDARD TABLE OF
+      ty_order_item_deletion WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_order_write_result,
         sales_document TYPE zif_sales_order_api=>ty_sales_document,
         write_result   TYPE zif_sales_order_api=>ty_write_result,
@@ -53,6 +60,7 @@ CLASS zcl_sales_order_service DEFINITION
         order_results TYPE ty_order_write_results,
         is_successful TYPE abap_bool,
         is_test_run   TYPE abap_bool,
+        is_committed  TYPE abap_bool,
       END OF ty_bulk_write_result.
 
     METHODS constructor
@@ -180,6 +188,34 @@ CLASS zcl_sales_order_service DEFINITION
     METHODS clear_order_rejections_bulk
       IMPORTING
         it_clears        TYPE ty_order_item_clears
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_bulk_write_result
+      RAISING
+        zcx_invalid_sales_order.
+
+    METHODS delete_order_items
+      IMPORTING
+        iv_sales_document TYPE zif_sales_order_api=>ty_sales_document
+        it_item_numbers   TYPE ty_item_numbers
+        iv_test_run       TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)  TYPE zif_sales_order_api=>ty_write_result
+      RAISING
+        zcx_invalid_sales_order.
+
+    METHODS delete_orders_items_atomic
+      IMPORTING
+        it_deletions     TYPE ty_order_item_deletions
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result) TYPE ty_atomic_write_result
+      RAISING
+        zcx_invalid_sales_order.
+
+    METHODS delete_orders_items_bulk
+      IMPORTING
+        it_deletions     TYPE ty_order_item_deletions
         iv_test_run      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_bulk_write_result
@@ -386,6 +422,9 @@ CLASS zcl_sales_order_service IMPLEMENTATION.
       APPEND VALUE #(
         sales_document = ls_write_result-sales_document
         write_result   = ls_write_result ) TO rs_result-order_results.
+      IF ls_write_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_write_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
       ENDIF.
@@ -532,6 +571,9 @@ CLASS zcl_sales_order_service IMPLEMENTATION.
       APPEND VALUE #(
         sales_document = ls_rejection-sales_document
         write_result   = ls_write_result ) TO rs_result-order_results.
+      IF ls_write_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_write_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
       ENDIF.
@@ -675,6 +717,141 @@ CLASS zcl_sales_order_service IMPLEMENTATION.
       APPEND VALUE #(
         sales_document = ls_clear-sales_document
         write_result   = ls_write_result ) TO rs_result-order_results.
+      IF ls_write_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
+      IF ls_write_result-is_successful = abap_false.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD delete_order_items.
+    IF iv_sales_document IS INITIAL OR it_item_numbers IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+    ENDIF.
+
+    validate_item_numbers( it_item_numbers = it_item_numbers ).
+
+    DATA(ls_write_result) = mo_api->delete_order_items(
+      iv_sales_document = iv_sales_document
+      it_item_numbers   = it_item_numbers
+      iv_test_run       = iv_test_run ).
+    IF ls_write_result-sales_document IS INITIAL.
+      ls_write_result-sales_document = iv_sales_document.
+    ENDIF.
+    rs_result = complete_write(
+      is_result    = ls_write_result
+      iv_test_run  = iv_test_run
+      iv_is_create = abap_false ).
+  ENDMETHOD.
+
+  METHOD delete_orders_items_atomic.
+    DATA lt_sales_documents TYPE HASHED TABLE OF
+      zif_sales_order_api=>ty_sales_document
+      WITH UNIQUE KEY table_line.
+    DATA lv_has_failure TYPE abap_bool.
+
+    IF it_deletions IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+    ENDIF.
+
+    LOOP AT it_deletions INTO DATA(ls_deletion).
+      IF ls_deletion-sales_document IS INITIAL
+          OR ls_deletion-item_numbers IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+      ENDIF.
+      INSERT ls_deletion-sales_document INTO TABLE lt_sales_documents.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+      ENDIF.
+      validate_item_numbers( it_item_numbers = ls_deletion-item_numbers ).
+    ENDLOOP.
+
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT it_deletions INTO ls_deletion.
+      DATA(ls_write_result) = mo_api->delete_order_items(
+        iv_sales_document = ls_deletion-sales_document
+        it_item_numbers   = ls_deletion-item_numbers
+        iv_test_run       = iv_test_run ).
+      IF ls_write_result-sales_document IS INITIAL.
+        ls_write_result-sales_document = ls_deletion-sales_document.
+      ENDIF.
+
+      DATA(lv_order_failed) = xsdbool(
+        ls_write_result-is_successful = abap_false ).
+      DATA(lv_has_error_message) = abap_false.
+      LOOP AT ls_write_result-messages INTO DATA(ls_message).
+        IF ls_message-type = 'A'
+            OR ls_message-type = 'E'
+            OR ls_message-type = 'X'.
+          lv_order_failed = abap_true.
+          lv_has_error_message = abap_true.
+        ENDIF.
+      ENDLOOP.
+      IF lv_order_failed = abap_true.
+        IF lv_has_error_message = abap_false.
+          APPEND VALUE #(
+            type    = 'E'
+            message = 'Sales order item deletion failed without an error message' )
+            TO ls_write_result-messages.
+        ENDIF.
+        ls_write_result-is_successful = abap_false.
+        lv_has_failure = abap_true.
+      ELSE.
+        ls_write_result-is_successful = abap_true.
+      ENDIF.
+
+      APPEND VALUE #(
+        sales_document = ls_deletion-sales_document
+        write_result   = ls_write_result )
+        TO rs_result-order_results.
+    ENDLOOP.
+
+    rs_result = complete_atomic_write(
+      is_result      = rs_result
+      iv_has_failure = lv_has_failure
+      iv_test_run    = iv_test_run
+      iv_is_create   = abap_false ).
+  ENDMETHOD.
+
+  METHOD delete_orders_items_bulk.
+    DATA lt_sales_documents TYPE HASHED TABLE OF
+      zif_sales_order_api=>ty_sales_document
+      WITH UNIQUE KEY table_line.
+
+    IF it_deletions IS INITIAL
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+    ENDIF.
+
+    LOOP AT it_deletions INTO DATA(ls_deletion).
+      IF ls_deletion-sales_document IS INITIAL
+          OR ls_deletion-item_numbers IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+      ENDIF.
+      INSERT ls_deletion-sales_document INTO TABLE lt_sales_documents.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_sales_order.
+      ENDIF.
+      validate_item_numbers( it_item_numbers = ls_deletion-item_numbers ).
+    ENDLOOP.
+
+    rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
+    LOOP AT it_deletions INTO ls_deletion.
+      DATA(ls_write_result) = delete_order_items(
+        iv_sales_document = ls_deletion-sales_document
+        it_item_numbers   = ls_deletion-item_numbers
+        iv_test_run       = iv_test_run ).
+      APPEND VALUE #(
+        sales_document = ls_deletion-sales_document
+        write_result   = ls_write_result ) TO rs_result-order_results.
+      IF ls_write_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_write_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
       ENDIF.
@@ -781,6 +958,9 @@ CLASS zcl_sales_order_service IMPLEMENTATION.
       APPEND VALUE #(
         sales_document = ls_change-sales_document
         write_result   = ls_write_result ) TO rs_result-order_results.
+      IF ls_write_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_write_result-is_successful = abap_false.
         rs_result-is_successful = abap_false.
       ENDIF.

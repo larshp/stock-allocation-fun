@@ -19,6 +19,8 @@ CLASS ltcl_bapi_prod_order_api DEFINITION FINAL
       RAISING cx_static_check.
     METHODS maps_confirmation_create_error FOR TESTING
       RAISING cx_static_check.
+    METHODS maps_conf_create_test_run FOR TESTING
+      RAISING cx_static_check.
     METHODS maps_technical_completion FOR TESTING
       RAISING cx_static_check.
     METHODS maps_deletion_flag FOR TESTING
@@ -249,6 +251,21 @@ CLASS ltcl_bapi_prod_order_api IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-message-message
       exp = 'Operation is not released' ).
+  ENDMETHOD.
+
+  METHOD maps_conf_create_test_run.
+    DATA(ls_result) = zcl_bapi_prod_order_api=>map_confirmation_create_result(
+      is_request        = VALUE #(
+        production_order   = '0000000101'
+        operation_number   = '0010'
+        operation_sequence = '000000' )
+      it_detail_returns = VALUE #( )
+      is_return         = VALUE #( type = 'S' message = 'Test run passed' )
+      iv_test_run       = abap_true ).
+
+    cl_abap_unit_assert=>assert_true( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_initial( ls_result-confirmation ).
+    cl_abap_unit_assert=>assert_initial( ls_result-confirmation_counter ).
   ENDMETHOD.
 
   METHOD maps_technical_completion.

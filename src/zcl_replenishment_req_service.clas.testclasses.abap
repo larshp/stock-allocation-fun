@@ -258,6 +258,7 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
     METHODS deletes_all_active_pr_items FOR TESTING.
     METHODS skips_empty_pr_delete FOR TESTING.
     METHODS stops_pr_delete_on_read_error FOR TESTING.
+    METHODS stops_bulk_pr_delete_read FOR TESTING.
     METHODS continues_bulk_pr_delete FOR TESTING.
     METHODS rejects_bad_bulk_pr_delete FOR TESTING.
     METHODS rejects_order_unit_ratio FOR TESTING.
@@ -269,6 +270,7 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
     METHODS rejects_bad_pr_item_update FOR TESTING.
     METHODS rolls_back_pr_item_update FOR TESTING.
     METHODS bulk_updates_pr_items_ind FOR TESTING.
+    METHODS stops_bulk_pr_update FOR TESTING.
     METHODS updates_pr_items_atomically FOR TESTING.
     METHODS simulates_atomic_pr_updates FOR TESTING.
     METHODS rolls_back_atomic_pr_update FOR TESTING.
@@ -283,6 +285,7 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
     METHODS rolls_back_atomic_pr_commit FOR TESTING.
     METHODS rejects_bad_atomic_pr_delete FOR TESTING.
     METHODS bulk_deletes_pr_items_ind FOR TESTING.
+    METHODS stops_bulk_pr_item_delete FOR TESTING.
     METHODS simulates_bulk_pr_delete FOR TESTING.
     METHODS rolls_back_pr_commit_message FOR TESTING.
     METHODS reports_pr_write_failures FOR TESTING.
@@ -293,7 +296,10 @@ CLASS ltcl_replenishment_req_service DEFINITION FINAL
     METHODS rolls_back_pr_without_number FOR TESTING.
     METHODS rejects_bad_atomic_pr_create FOR TESTING.
     METHODS bulk_creates_pr_ind FOR TESTING.
+    METHODS stops_bulk_pr_create FOR TESTING.
+    METHODS rejects_bad_pr_stop_flag FOR TESTING.
     METHODS simulates_bulk_pr_create FOR TESTING.
+    METHODS stops_simulated_bulk_pr_create FOR TESTING.
     METHODS rolls_back_replenishment_req FOR TESTING.
     METHODS handles_covered_suggestions FOR TESTING.
     METHODS rejects_bad_repl_req FOR TESTING.
@@ -1424,6 +1430,61 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       act = lo_api->get_delete_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_pr_delete_read.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_read_results( it_results = VALUE #(
+      ( is_successful     = abap_true
+        requisition_items = VALUE #( (
+          item_number = '00010' ) ) )
+      ( is_successful = abap_false
+        messages      = VALUE #( (
+          type    = 'E'
+          message = 'Second requisition could not be read' ) ) ) ) ).
+    lo_api->set_write_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->delete_all_pr_items_bulk(
+      it_requisition_numbers = VALUE #(
+        ( '0012345678' )
+        ( '0012345679' )
+        ( '0012345680' ) )
+      iv_stop_on_failure     = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0012345678'
+      act = ls_result-requisition_results[ 1 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0012345679'
+      act = ls_result-requisition_results[ 2 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0012345680'
+      act = ls_result-requisition_results[ 3 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_delete_count( ) ).
+  ENDMETHOD.
+
   METHOD continues_bulk_pr_delete.
     DATA(lo_api) = NEW lcl_replenishment_req_api( ).
     lo_api->set_read_results( it_results = VALUE #(
@@ -1962,6 +2023,62 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       act = lo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_pr_update.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_change_results( it_results = VALUE #(
+      ( is_successful = abap_true )
+      ( messages      = VALUE #( (
+        type    = 'E'
+        message = 'Second requisition update failed' ) ) ) ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->update_pr_items_bulk(
+      it_requests        = VALUE #(
+        ( requisition_number = '0012345678'
+          item_updates       = VALUE #( (
+            item_number     = '00010'
+            change_quantity = abap_true
+            quantity        = '2.000' ) ) )
+        ( requisition_number = '0012345679'
+          item_updates       = VALUE #( (
+            item_number     = '00020'
+            change_quantity = abap_true
+            quantity        = '3.000' ) ) )
+        ( requisition_number = '0012345680'
+          item_updates       = VALUE #( (
+            item_number          = '00030'
+            change_delivery_date = abap_true
+            delivery_date        = '20261203' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_change_count( ) ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0012345680'
+      act = ls_result-requisition_results[ 3 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-requisition_results[ 3 ]-submitted_item_updates[ 1 ]-change_delivery_date ).
+  ENDMETHOD.
+
   METHOD updates_pr_items_atomically.
     DATA(lo_api) = NEW lcl_replenishment_req_api( ).
     lo_api->set_change_results( it_results = VALUE #(
@@ -2081,6 +2198,12 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       exp = abap_true
       act = ls_result-is_rolled_back ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-requisition_results ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -2089,6 +2212,8 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-requisition_results[ 3 ]-bapi_was_called ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 3 ]-is_skipped ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_api->get_change_count( ) ).
@@ -2512,6 +2637,50 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_bulk_pr_item_delete.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_delete_results( it_results = VALUE #(
+      ( is_successful = abap_true )
+      ( messages      = VALUE #( (
+        type    = 'E'
+        message = 'Second requisition deletion failed' ) ) ) ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->delete_pr_items_bulk(
+      it_requests        = VALUE #(
+        ( requisition_number = '0012345678'
+          item_numbers       = VALUE #( ( '00010' ) ) )
+        ( requisition_number = '0012345679'
+          item_numbers       = VALUE #( ( '00020' ) ) )
+        ( requisition_number = '0012345680'
+          item_numbers       = VALUE #( ( '00030' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0012345680'
+      act = ls_result-requisition_results[ 3 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 3 ]-is_skipped ).
   ENDMETHOD.
 
   METHOD simulates_bulk_pr_delete.
@@ -2991,6 +3160,144 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
       act = lo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_pr_create.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_create_results( it_results = VALUE #(
+      ( requisition_number = '0010001234'
+        is_successful      = abap_true )
+      ( messages           = VALUE #( (
+        type    = 'E'
+        message = 'Second requisition create failed' ) ) ) ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_requisitions_bulk(
+      it_requests        = VALUE #(
+        ( requisition_type = 'NB'
+          items            = VALUE #( (
+            item_number   = '00010'
+            material      = 'MAT-PR-1'
+            plant         = '1000'
+            quantity      = '1.000'
+            unit          = 'EA'
+            delivery_date = '20261115' ) ) )
+        ( requisition_type = 'NB'
+          items            = VALUE #( (
+            item_number   = '00010'
+            material      = 'MAT-PR-2'
+            plant         = '1000'
+            quantity      = '2.000'
+            unit          = 'EA'
+            delivery_date = '20261116' ) ) )
+        ( requisition_type = 'NB'
+          items            = VALUE #( (
+            item_number   = '00010'
+            material      = 'MAT-PR-3'
+            plant         = '1000'
+            quantity      = '3.000'
+            unit          = 'EA'
+            delivery_date = '20261117' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010001234'
+      act = ls_result-requisition_results[ 1 ]-requisition_number ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-PR-3'
+      act = ls_result-requisition_results[ 3 ]-submitted_items[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-requisition_results[ 3 ]-is_skipped ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_pr_stop_flag.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->delete_all_pr_items_bulk(
+          it_requisition_numbers = VALUE #( ( '0012345678' ) )
+          iv_stop_on_failure     = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        lo_cut->update_pr_items_bulk(
+          it_requests        = VALUE #( (
+            requisition_number = '0012345678'
+            item_updates       = VALUE #( (
+              item_number     = '00010'
+              change_quantity = abap_true
+              quantity        = '1.000' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        lo_cut->delete_pr_items_bulk(
+          it_requests        = VALUE #( (
+            requisition_number = '0012345678'
+            item_numbers       = VALUE #( ( '00010' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_exception_raised ).
+
+    CLEAR lv_exception_raised.
+    TRY.
+        lo_cut->create_requisitions_bulk(
+          it_requests        = VALUE #( (
+            requisition_type = 'NB'
+            items            = VALUE #( (
+              item_number   = '00010'
+              material      = 'MAT-PR-1'
+              plant         = '1000'
+              quantity      = '1.000'
+              unit          = 'EA'
+              delivery_date = '20261115' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_delete_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_change_count( ) ).
+  ENDMETHOD.
+
   METHOD simulates_bulk_pr_create.
     DATA(lo_api) = NEW lcl_replenishment_req_api( ).
     lo_api->set_create_results( it_results = VALUE #(
@@ -3029,6 +3336,89 @@ CLASS ltcl_replenishment_req_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-requisition_results[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_simulated_bulk_pr_create.
+    DATA(lo_api) = NEW lcl_replenishment_req_api( ).
+    lo_api->set_create_results( it_results = VALUE #(
+      ( messages      = VALUE #( ( type = 'E'
+                              message   = 'Simulated validation error' ) )
+        is_successful = abap_false )
+      ( is_successful = abap_true )
+      ( is_successful = abap_true ) ) ).
+    DATA(lo_cut) = NEW zcl_replenishment_req_service( io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_requisitions_bulk(
+      it_requests        = VALUE #(
+        ( requisition_type = 'NB'
+          items            = VALUE #(
+            ( item_number             = '00010'
+              source_suggestion_index = 0
+              material                = 'MAT-PR-1'
+              plant                   = '1000'
+              quantity                = '1.000'
+              unit                    = 'EA'
+              delivery_date           = '20261115' ) ) )
+        ( requisition_type = 'NB'
+          items            = VALUE #(
+            ( item_number             = '00010'
+              source_suggestion_index = 0
+              material                = 'MAT-PR-2'
+              plant                   = '1000'
+              quantity                = '1.000'
+              unit                    = 'EA'
+              delivery_date           = '20261115' ) ) )
+        ( requisition_type = 'NB'
+          items            = VALUE #(
+            ( item_number             = '00010'
+              source_suggestion_index = 0
+              material                = 'MAT-PR-3'
+              plant                   = '1000'
+              quantity                = '1.000'
+              unit                    = 'EA'
+              delivery_date           = '20261115' ) ) ) )
+      iv_test_run        = abap_true
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-requisition_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-requisition_results[ 1 ]-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-requisition_results[ 1 ]-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-requisition_results[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-requisition_results[ 2 ]-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-requisition_results[ 2 ]-is_test_run ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_create_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_commit_count( ) ).

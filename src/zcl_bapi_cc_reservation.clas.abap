@@ -70,6 +70,16 @@ CLASS zcl_bapi_cc_reservation IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    IF iv_test_run <> abap_true
+        AND rs_result-is_successful = abap_true
+        AND rs_result-reservation_number IS INITIAL.
+      rs_result-is_successful = abap_false.
+      APPEND VALUE #(
+        type    = 'E'
+        message = 'Reservation BAPI returned no reservation number' )
+        TO rs_result-messages.
+    ENDIF.
   ENDMETHOD.
 
   METHOD zif_cc_reservation_api~delete_reservations.

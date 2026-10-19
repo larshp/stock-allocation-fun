@@ -31,6 +31,7 @@ CLASS zcl_planned_order_service DEFINITION
         is_successful  TYPE abap_bool,
         is_committed   TYPE abap_bool,
         is_rolled_back TYPE abap_bool,
+        is_test_run    TYPE abap_bool,
       END OF ty_create_result.
     TYPES:
       BEGIN OF ty_bulk_order_result,
@@ -42,15 +43,20 @@ CLASS zcl_planned_order_service DEFINITION
         commit_result           TYPE zif_planned_order_api=>ty_commit_result,
         is_attempted            TYPE abap_bool,
         is_committed            TYPE abap_bool,
+        is_skipped              TYPE abap_bool,
       END OF ty_bulk_order_result.
     TYPES ty_bulk_order_results TYPE STANDARD TABLE OF
       ty_bulk_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_create_result,
-        orders           TYPE ty_bulk_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_bulk_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
       END OF ty_bulk_create_result.
     TYPES:
       BEGIN OF ty_delete_order_result,
@@ -76,15 +82,19 @@ CLASS zcl_planned_order_service DEFINITION
         commit_result TYPE zif_planned_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_bulk_delete_order_result.
     TYPES ty_bulk_delete_order_results TYPE STANDARD TABLE OF
       ty_bulk_delete_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_delete_result,
-        orders           TYPE ty_bulk_delete_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_bulk_delete_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_delete_result.
     TYPES:
       BEGIN OF ty_change_order_result,
@@ -94,6 +104,7 @@ CLASS zcl_planned_order_service DEFINITION
         commit_result TYPE zif_planned_order_api=>ty_commit_result,
         is_attempted  TYPE abap_bool,
         is_committed  TYPE abap_bool,
+        is_skipped    TYPE abap_bool,
       END OF ty_change_order_result.
     TYPES ty_change_order_results TYPE STANDARD TABLE OF
       ty_change_order_result WITH EMPTY KEY.
@@ -107,10 +118,13 @@ CLASS zcl_planned_order_service DEFINITION
       END OF ty_change_result.
     TYPES:
       BEGIN OF ty_bulk_change_result,
-        orders           TYPE ty_change_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_change_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_change_result.
     TYPES:
       BEGIN OF ty_conversion_order_result,
@@ -136,15 +150,19 @@ CLASS zcl_planned_order_service DEFINITION
         commit_result     TYPE zif_planned_order_api=>ty_commit_result,
         is_attempted      TYPE abap_bool,
         is_committed      TYPE abap_bool,
+        is_skipped        TYPE abap_bool,
       END OF ty_bulk_conversion_order_result.
     TYPES ty_bulk_conversion_order_results TYPE STANDARD TABLE OF
       ty_bulk_conversion_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_conversion_result,
-        orders           TYPE ty_bulk_conversion_order_results,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
+        orders             TYPE ty_bulk_conversion_order_results,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_conversion_result.
 
     METHODS constructor
@@ -154,6 +172,7 @@ CLASS zcl_planned_order_service DEFINITION
     METHODS create_orders_atomic
       IMPORTING
         it_requests      TYPE zif_planned_order_api=>ty_requests
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_create_result
       RAISING
@@ -161,15 +180,18 @@ CLASS zcl_planned_order_service DEFINITION
 
     METHODS create_orders_bulk
       IMPORTING
-        it_requests      TYPE zif_planned_order_api=>ty_requests
+        it_requests        TYPE zif_planned_order_api=>ty_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_create_result
+        VALUE(rs_result)   TYPE ty_bulk_create_result
       RAISING
         zcx_invalid_stock_request.
 
     METHODS create_from_suggestions
       IMPORTING
         it_suggestions   TYPE zcl_prod_comp_service=>ty_comp_replenishments
+        iv_test_run      TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result) TYPE ty_create_result
       RAISING
@@ -177,9 +199,11 @@ CLASS zcl_planned_order_service DEFINITION
 
     METHODS create_from_suggestions_bulk
       IMPORTING
-        it_suggestions   TYPE zcl_prod_comp_service=>ty_comp_replenishments
+        it_suggestions     TYPE zcl_prod_comp_service=>ty_comp_replenishments
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_create_result
+        VALUE(rs_result)   TYPE ty_bulk_create_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -201,9 +225,10 @@ CLASS zcl_planned_order_service DEFINITION
 
     METHODS delete_orders_bulk
       IMPORTING
-        it_planned_orders TYPE zif_planned_order_api=>ty_order_numbers
+        it_planned_orders  TYPE zif_planned_order_api=>ty_order_numbers
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_delete_result
+        VALUE(rs_result)   TYPE ty_bulk_delete_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -217,9 +242,10 @@ CLASS zcl_planned_order_service DEFINITION
 
     METHODS change_orders_bulk
       IMPORTING
-        it_requests      TYPE zif_planned_order_api=>ty_change_requests
+        it_requests        TYPE zif_planned_order_api=>ty_change_requests
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_change_result
+        VALUE(rs_result)   TYPE ty_bulk_change_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -233,9 +259,10 @@ CLASS zcl_planned_order_service DEFINITION
 
     METHODS convert_planned_orders_bulk
       IMPORTING
-        it_planned_orders TYPE zif_planned_order_api=>ty_order_numbers
+        it_planned_orders  TYPE zif_planned_order_api=>ty_order_numbers
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_conversion_result
+        VALUE(rs_result)   TYPE ty_bulk_conversion_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -258,6 +285,12 @@ CLASS zcl_planned_order_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS validate_stop_on_failure
+      IMPORTING
+        iv_stop_on_failure TYPE abap_bool
+      RAISING
+        zcx_invalid_stock_request.
+
     DATA mo_api TYPE REF TO zif_planned_order_api.
 ENDCLASS.
 
@@ -265,6 +298,13 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
 
   METHOD constructor.
     mo_api = io_api.
+  ENDMETHOD.
+
+  METHOD validate_stop_on_failure.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
   ENDMETHOD.
 
   METHOD validate_requests.
@@ -347,8 +387,12 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_orders_atomic.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
     validate_requests( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
 
     LOOP AT it_requests INTO DATA(ls_request).
       DATA(lv_request_index) = sy-tabix.
@@ -359,22 +403,30 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
         TO FIELD-SYMBOL(<ls_order_result>).
       <ls_order_result>-is_attempted = abap_true.
       <ls_order_result>-planned_order = mo_api->create_order(
-        is_request = ls_request ).
+        is_request  = ls_request
+        iv_test_run = iv_test_run ).
 
       IF <ls_order_result>-planned_order-is_successful = abap_false
-          OR <ls_order_result>-planned_order-planned_order IS INITIAL.
+          OR ( <ls_order_result>-planned_order-planned_order IS INITIAL
+            AND iv_test_run <> abap_true ).
         rs_result-is_successful = abap_false.
         EXIT.
       ENDIF.
     ENDLOOP.
 
     IF rs_result-is_successful = abap_false.
-      mo_api->rollback( ).
-      rs_result-is_rolled_back = abap_true.
-      LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
-        CLEAR <ls_order_result>-planned_order-planned_order.
-        <ls_order_result>-planned_order-is_successful = abap_false.
-      ENDLOOP.
+      IF iv_test_run <> abap_true.
+        mo_api->rollback( ).
+        rs_result-is_rolled_back = abap_true.
+        LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
+          CLEAR <ls_order_result>-planned_order-planned_order.
+          <ls_order_result>-planned_order-is_successful = abap_false.
+        ENDLOOP.
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    IF iv_test_run = abap_true.
       RETURN.
     ENDIF.
 
@@ -402,27 +454,45 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_orders_bulk.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_requests( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        request       = ls_request
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_order_result>).
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_order_result>).
+      <ls_order_result>-is_attempted = abap_true.
 
       <ls_order_result>-planned_order = mo_api->create_order(
-        is_request = ls_request ).
+        is_request  = <ls_order_result>-request
+        iv_test_run = iv_test_run ).
       IF <ls_order_result>-planned_order-is_successful = abap_false
-          OR <ls_order_result>-planned_order-planned_order IS INITIAL.
-        mo_api->rollback( ).
+          OR ( <ls_order_result>-planned_order-planned_order IS INITIAL
+            AND iv_test_run <> abap_true ).
+        IF iv_test_run <> abap_true.
+          mo_api->rollback( ).
+        ENDIF.
         CLEAR <ls_order_result>-planned_order-planned_order.
         <ls_order_result>-planned_order-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
+      IF iv_test_run = abap_true.
+        ADD 1 TO rs_result-successful_count.
         CONTINUE.
       ENDIF.
 
@@ -441,17 +511,35 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
         <ls_order_result>-planned_order-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_order_result>-planned_order-is_successful = abap_true.
       <ls_order_result>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_order>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_order>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD create_from_suggestions.
     DATA lt_requests TYPE zif_planned_order_api=>ty_requests.
+
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    rs_result-is_test_run = iv_test_run.
 
     DATA(lt_plan) = prepare_from_suggestions(
       it_suggestions = it_suggestions ).
@@ -464,7 +552,9 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result = create_orders_atomic( it_requests = lt_requests ).
+    rs_result = create_orders_atomic(
+      it_requests = lt_requests
+      iv_test_run = iv_test_run ).
     LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_order_result>).
       READ TABLE lt_plan INDEX <ls_order_result>-request_index
         INTO ls_plan_row.
@@ -479,6 +569,11 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   METHOD create_from_suggestions_bulk.
     DATA lt_requests TYPE zif_planned_order_api=>ty_requests.
 
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
+    rs_result-is_test_run = iv_test_run.
     DATA(lt_plan) = prepare_from_suggestions(
       it_suggestions = it_suggestions ).
     LOOP AT lt_plan INTO DATA(ls_plan_row).
@@ -490,7 +585,10 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result = create_orders_bulk( it_requests = lt_requests ).
+    rs_result = create_orders_bulk(
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure
+      iv_test_run        = iv_test_run ).
     LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_order_result>).
       READ TABLE lt_plan INDEX <ls_order_result>-request_index
         INTO ls_plan_row.
@@ -645,23 +743,30 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD delete_orders_bulk.
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_delete_requests( it_planned_orders = it_planned_orders ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_planned_orders INTO DATA(lv_planned_order).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_delete_result>).
+        request_index               = sy-tabix
+        planned_order-planned_order = lv_planned_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_delete_result>).
+      <ls_delete_result>-is_attempted = abap_true.
 
       <ls_delete_result>-planned_order = mo_api->delete_order(
-        iv_planned_order = lv_planned_order ).
+        iv_planned_order = <ls_delete_result>-planned_order-planned_order ).
       IF <ls_delete_result>-planned_order-is_successful = abap_false.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -679,12 +784,25 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
         <ls_delete_result>-planned_order-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_delete_result>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_order>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_order>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD change_orders_atomic.
@@ -740,24 +858,29 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD change_orders_bulk.
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_change_requests( it_requests = it_requests ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_requests INTO DATA(ls_request).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        request       = ls_request
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_change_result>).
+        request_index = sy-tabix
+        request       = ls_request ) TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_change_result>).
+      <ls_change_result>-is_attempted = abap_true.
 
       <ls_change_result>-planned_order = mo_api->change_order(
-        is_request = ls_request ).
+        is_request = <ls_change_result>-request ).
       IF <ls_change_result>-planned_order-is_successful = abap_false.
         mo_api->rollback( ).
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -772,12 +895,25 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
         <ls_change_result>-planned_order-is_successful = abap_false.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_change_result>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_order>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_order>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
   METHOD convert_planned_orders_atomic.
@@ -834,24 +970,32 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD convert_planned_orders_bulk.
+    validate_stop_on_failure( iv_stop_on_failure = iv_stop_on_failure ).
     validate_delete_requests( it_planned_orders = it_planned_orders ).
     rs_result-is_successful = abap_true.
 
     LOOP AT it_planned_orders INTO DATA(lv_planned_order).
-      DATA(lv_request_index) = sy-tabix.
       APPEND VALUE #(
-        request_index = lv_request_index
-        is_attempted  = abap_true ) TO rs_result-orders.
-      ASSIGN rs_result-orders[ lv_request_index ]
-        TO FIELD-SYMBOL(<ls_conversion_order>).
+        request_index                   = sy-tabix
+        conversion_result-planned_order = lv_planned_order )
+        TO rs_result-orders.
+    ENDLOOP.
+
+    LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_conversion_order>).
+      <ls_conversion_order>-is_attempted = abap_true.
 
       <ls_conversion_order>-conversion_result = mo_api->convert_order(
-        iv_planned_order = lv_planned_order ).
+        iv_planned_order =
+          <ls_conversion_order>-conversion_result-planned_order ).
       IF <ls_conversion_order>-conversion_result-is_successful = abap_false.
         mo_api->rollback( ).
         CLEAR <ls_conversion_order>-conversion_result-production_order.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
@@ -867,12 +1011,25 @@ CLASS zcl_planned_order_service IMPLEMENTATION.
         CLEAR <ls_conversion_order>-conversion_result-production_order.
         rs_result-is_successful = abap_false.
         ADD 1 TO rs_result-failed_count.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+          EXIT.
+        ENDIF.
         CONTINUE.
       ENDIF.
 
       <ls_conversion_order>-is_committed = abap_true.
+      rs_result-is_committed = abap_true.
       ADD 1 TO rs_result-successful_count.
     ENDLOOP.
+
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_skipped_conversion>)
+          WHERE is_attempted = abap_false.
+        <ls_skipped_conversion>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.

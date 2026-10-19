@@ -5,6 +5,12 @@ CLASS zcl_bapi_preq_api DEFINITION
 
   PUBLIC SECTION.
     INTERFACES zif_purchase_requisition_api.
+
+    CLASS-METHODS ensure_create_preq_number
+      IMPORTING
+        iv_test_run TYPE abap_bool
+      CHANGING
+        cs_result   TYPE zif_purchase_requisition_api=>ty_result.
 ENDCLASS.
 
 CLASS zcl_bapi_preq_api IMPLEMENTATION.
@@ -151,6 +157,26 @@ CLASS zcl_bapi_preq_api IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    ensure_create_preq_number(
+      EXPORTING
+        iv_test_run = is_request-is_test_run
+      CHANGING
+        cs_result   = rs_result ).
+  ENDMETHOD.
+
+  METHOD ensure_create_preq_number.
+    IF iv_test_run = abap_true
+        OR cs_result-is_successful <> abap_true
+        OR cs_result-requisition_number IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    cs_result-is_successful = abap_false.
+    APPEND VALUE #(
+      type    = 'E'
+      message = 'BAPI_PR_CREATE returned no requisition number' )
+      TO cs_result-messages.
   ENDMETHOD.
 
   METHOD zif_purchase_requisition_api~mark_items_deleted.

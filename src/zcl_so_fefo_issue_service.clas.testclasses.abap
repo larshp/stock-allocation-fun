@@ -116,6 +116,8 @@ CLASS ltcl_so_fefo_issue_service DEFINITION FINAL
     METHODS posts_priority_fefo_uom FOR TESTING.
     METHODS issues_only_known_expiry_batch FOR TESTING.
     METHODS posts_fefo_location_fallback FOR TESTING.
+    METHODS posts_fefo_location_priority FOR TESTING.
+    METHODS posts_fefo_req_loc_prio FOR TESTING.
     METHODS posts_selected_fefo_cutoff FOR TESTING.
     METHODS rejects_bad_fefo_selection FOR TESTING.
     METHODS rejects_stale_fefo_preview FOR TESTING.
@@ -317,62 +319,6 @@ CLASS ltcl_so_fefo_issue_service IMPLEMENTATION.
         expiration_date  = '20261031'
         base_unit        = 'EA'
         quantity         = '5.000' ) ).
-    DATA(lt_unit_requests) =
-      VALUE zcl_so_stock_service=>ty_fefo_issue_unit_requests(
-        ( request_id         = 'SO-FEFO-UOM-LOW'
-          sales_document     = '0000001234'
-          item_number        = '000010'
-          requested_quantity = '2.000'
-          requested_unit     = 'BOX'
-          priority           = 1 )
-        ( request_id         = 'SO-FEFO-UOM-HIGH'
-          sales_document     = '0000001234'
-          item_number        = '000010'
-          requested_quantity = '2.000'
-          requested_unit     = 'BOX'
-          priority           = 10 ) ).
-    DATA(ls_preview) = mo_stock_service->preview_issue_fefo_uom(
-      it_requests               = lt_unit_requests
-      iv_as_of_date             = '20261013'
-      iv_prioritize_by_priority = abap_true ).
-
-    DATA(ls_result) = mo_cut->issue_fefo_uom(
-      is_allocation             = ls_preview
-      it_requests               = lt_unit_requests
-      is_header                 = VALUE #(
-        posting_date  = '20261013'
-        document_date = '20261013' )
-      it_material_units         = VALUE #(
-        ( material      = 'MAT-1'
-          base_unit     = 'EA'
-          base_unit_iso = 'EA' ) )
-      iv_as_of_date             = '20261013'
-      iv_prioritize_by_priority = abap_true ).
-
-    cl_abap_unit_assert=>assert_equals(
-      exp = abap_true
-      act = ls_result-is_successful ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = 3
-      act = lines( mo_api->last_items ) ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = 'B-LATE'
-      act = mo_api->last_items[ 1 ]-batch ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = CONV mska-kalab( '4.000' )
-      act = mo_api->last_items[ 1 ]-quantity ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = 'B-EARLY'
-      act = mo_api->last_items[ 2 ]-batch ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = CONV mska-kalab( '3.000' )
-      act = mo_api->last_items[ 2 ]-quantity ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = 'B-LATE'
-      act = mo_api->last_items[ 3 ]-batch ).
-    cl_abap_unit_assert=>assert_equals(
-      exp = CONV mska-kalab( '1.000' )
-      act = mo_api->last_items[ 3 ]-quantity ).
   ENDMETHOD.
 
   METHOD issues_only_known_expiry_batch.
@@ -429,6 +375,48 @@ CLASS ltcl_so_fefo_issue_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV bapi2017_gm_item_create-entry_qnt( '2.000' )
       act = mo_api->last_items[ 1 ]-quantity ).
+
+    mt_requests = VALUE #(
+      ( request_id            = 'SO-FEFO-ALLOW-UNDATED'
+        sales_document        = '0000001234'
+        item_number           = '000010'
+        requested_quantity    = '3.000'
+        allow_undated_batches = abap_true ) ).
+    ms_allocation = mo_stock_service->preview_issue_demands_by_fefo(
+      it_requests                = mt_requests
+      iv_as_of_date              = '20261013'
+      iv_include_undated_batches = abap_false ).
+
+    DATA(ls_undated_result) = mo_cut->issue_fefo(
+      is_allocation              = ms_allocation
+      it_requests                = mt_requests
+      is_header                  = VALUE #(
+        posting_date  = '20261013'
+        document_date = '20261013' )
+      it_material_units          = VALUE #(
+        ( material      = 'MAT-1'
+          base_unit     = 'EA'
+          base_unit_iso = 'EA' ) )
+      iv_as_of_date              = '20261013'
+      iv_include_undated_batches = abap_false
+      iv_require_full_allocation = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_undated_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->create_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( mo_api->last_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UNDATED'
+      act = mo_api->last_items[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV bapi2017_gm_item_create-entry_qnt( '1.000' )
+      act = mo_api->last_items[ 2 ]-quantity ).
+
   ENDMETHOD.
 
   METHOD posts_fefo_location_fallback.
@@ -549,6 +537,218 @@ CLASS ltcl_so_fefo_issue_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '2.000'
       act = mo_api->last_items[ 1 ]-quantity ).
+  ENDMETHOD.
+
+  METHOD posts_fefo_location_priority.
+    mo_repository->stock_rows = VALUE #(
+      ( sales_document   = '0000001234'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        batch            = 'B-1'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '2.000' )
+      ( sales_document   = '0000001234'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0002'
+        batch            = 'B-1'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '3.000' ) ).
+    mt_requests = VALUE #(
+      ( request_id         = 'SO-FEFO-LOC-PRIO'
+        sales_document     = '0000001234'
+        item_number        = '000010'
+        requested_quantity = '4.000' ) ).
+    ms_allocation = mo_stock_service->preview_issue_demands_by_fefo(
+      it_requests                  = mt_requests
+      iv_as_of_date                = '20261013'
+      it_location_allowlist        = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+
+    DATA(ls_result) = mo_cut->issue_fefo(
+      is_allocation                = ms_allocation
+      it_requests                  = mt_requests
+      is_header                    = VALUE #(
+        posting_date  = '20261013'
+        document_date = '20261013' )
+      it_material_units            = VALUE #(
+        ( material      = 'MAT-1'
+          base_unit     = 'EA'
+          base_unit_iso = 'EA' ) )
+      iv_as_of_date                = '20261013'
+      it_location_allowlist        = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( mo_api->last_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = mo_api->last_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = mo_api->last_items[ 2 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV bapi2017_gm_item_create-entry_qnt( '3.000' )
+      act = mo_api->last_items[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV bapi2017_gm_item_create-entry_qnt( '1.000' )
+      act = mo_api->last_items[ 2 ]-quantity ).
+    DATA(lt_unit_requests) =
+      VALUE zcl_so_stock_service=>ty_fefo_issue_unit_requests(
+        ( request_id         = 'SO-FEFO-LOC-UOM'
+          sales_document     = '0000001234'
+          item_number        = '000010'
+          requested_quantity = '2.000'
+          requested_unit     = 'BOX' ) ).
+    DATA(ls_unit_allocation) = mo_stock_service->preview_issue_fefo_uom(
+      it_requests                  = lt_unit_requests
+      iv_as_of_date                = '20261013'
+      it_location_allowlist        = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+    DATA(ls_unit_result) = mo_cut->issue_fefo_uom(
+      is_allocation                = ls_unit_allocation
+      it_requests                  = lt_unit_requests
+      is_header                    = VALUE #(
+        posting_date  = '20261013'
+        document_date = '20261013' )
+      it_material_units            = VALUE #(
+        ( material      = 'MAT-1'
+          base_unit     = 'EA'
+          base_unit_iso = 'EA' ) )
+      iv_as_of_date                = '20261013'
+      it_location_allowlist        = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_unit_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = mo_api->last_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = mo_api->last_items[ 2 ]-storage_location ).
+  ENDMETHOD.
+
+  METHOD posts_fefo_req_loc_prio.
+    mo_repository->stock_rows = VALUE #(
+      ( sales_document   = '0000001234'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        batch            = 'B-1'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '2.000' )
+      ( sales_document   = '0000001234'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0002'
+        batch            = 'B-1'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '3.000' ) ).
+    mt_requests = VALUE #(
+      ( request_id         = 'SO-FEFO-REQ-PRIO'
+        sales_document     = '0000001234'
+        item_number        = '000010'
+        requested_quantity = '4.000' ) ).
+    DATA(lt_location_priorities) =
+      VALUE zcl_so_stock_service=>ty_fefo_request_location_priorities(
+        ( request_id       = 'SO-FEFO-REQ-PRIO'
+          storage_location = '0002'
+          priority_rank    = 1 )
+        ( request_id       = 'SO-FEFO-REQ-PRIO'
+          storage_location = '0001'
+          priority_rank    = 2 ) ).
+    ms_allocation = mo_stock_service->preview_issue_demands_by_fefo(
+      it_requests                    = mt_requests
+      iv_as_of_date                  = '20261013'
+      it_location_allowlist          = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
+
+    DATA(ls_result) = mo_cut->issue_fefo(
+      is_allocation                  = ms_allocation
+      it_requests                    = mt_requests
+      is_header                      = VALUE #(
+        posting_date  = '20261013'
+        document_date = '20261013' )
+      it_material_units              = VALUE #(
+        ( material      = 'MAT-1'
+          base_unit     = 'EA'
+          base_unit_iso = 'EA' ) )
+      iv_as_of_date                  = '20261013'
+      it_location_allowlist          = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_location_priorities ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = mo_api->last_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = mo_api->last_items[ 2 ]-storage_location ).
+
+    DATA(lt_uom_requests) =
+      VALUE zcl_so_stock_service=>ty_fefo_issue_unit_requests(
+        ( request_id         = 'SO-FEFO-REQ-PRIO-UOM'
+          sales_document     = '0000001234'
+          item_number        = '000010'
+          requested_quantity = '2.000'
+          requested_unit     = 'BOX' ) ).
+    DATA(lt_uom_location_priorities) =
+      VALUE zcl_so_stock_service=>ty_fefo_request_location_priorities(
+        ( request_id       = 'SO-FEFO-REQ-PRIO-UOM'
+          storage_location = '0002'
+          priority_rank    = 1 )
+        ( request_id       = 'SO-FEFO-REQ-PRIO-UOM'
+          storage_location = '0001'
+          priority_rank    = 2 ) ).
+    DATA(ls_uom_allocation) = mo_stock_service->preview_issue_fefo_uom(
+      it_requests                    = lt_uom_requests
+      iv_as_of_date                  = '20261013'
+      it_location_allowlist          = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_uom_location_priorities ).
+    DATA(ls_uom_result) = mo_cut->issue_fefo_uom(
+      is_allocation                  = ls_uom_allocation
+      it_requests                    = lt_uom_requests
+      is_header                      = VALUE #(
+        posting_date  = '20261013'
+        document_date = '20261013' )
+      it_material_units              = VALUE #(
+        ( material      = 'MAT-1'
+          base_unit     = 'EA'
+          base_unit_iso = 'EA' ) )
+      iv_as_of_date                  = '20261013'
+      it_location_allowlist          = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = lt_uom_location_priorities ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = mo_api->last_items[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = mo_api->last_items[ 2 ]-storage_location ).
   ENDMETHOD.
 
   METHOD rejects_bad_fefo_selection.

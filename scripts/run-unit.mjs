@@ -11,7 +11,7 @@ await database.execute([
     bstrf DECIMAL(13,3), disls NCHAR(2), bstma DECIMAL(13,3),
     beskz NCHAR(1), sobsl NCHAR(2), plifz DECIMAL(3,0), webaz DECIMAL(3,0),
     kordb NCHAR(1), usequ NCHAR(1), mabst DECIMAL(13,3), mrppp NCHAR(3),
-    rdprf NCHAR(4), PRIMARY KEY(mandt, matnr, werks)
+    rdprf NCHAR(4), xchar NCHAR(1), PRIMARY KEY(mandt, matnr, werks)
   );`,
   `CREATE TABLE 'mara' (
     mandt NCHAR(3), matnr NCHAR(40), meins NCHAR(3),
@@ -104,20 +104,26 @@ await database.execute([
   );`,
   `CREATE TABLE 'afko' (
     mandt NCHAR(3), aufnr NCHAR(12), aufpl NCHAR(10), gltrp NCHAR(8),
-    gstrp NCHAR(8), PRIMARY KEY(mandt, aufnr)
+    gstrp NCHAR(8), gstrs NCHAR(8), gltrs NCHAR(8), gsuzs NCHAR(6),
+    gluzs NCHAR(6), PRIMARY KEY(mandt, aufnr)
   );`,
   `CREATE TABLE 'afpo' (
     mandt NCHAR(3), aufnr NCHAR(12), posnr NCHAR(4), matnr NCHAR(40),
     werks NCHAR(4), psmng DECIMAL(13,3), wemng DECIMAL(13,3),
     umrez DECIMAL(5,0), umren DECIMAL(5,0), wepos NCHAR(1), xloek NCHAR(1),
     elikz NCHAR(1), kdauf NCHAR(10), knttp NCHAR(1), amein NCHAR(3),
-    meins NCHAR(3), lgort NCHAR(4), charg NCHAR(10),
+    meins NCHAR(3), lgort NCHAR(4), charg NCHAR(10), kdpos NCHAR(6),
+    berid NCHAR(10), projn NCHAR(8), plnum NCHAR(10), pwerk NCHAR(4),
+    verid NCHAR(4), strmp NCHAR(8), dwerk NCHAR(4), sobkz NCHAR(1),
+    insmk NCHAR(1), wempf NCHAR(12), ablad NCHAR(25), kdein NCHAR(4),
     PRIMARY KEY(mandt, aufnr, posnr)
   );`,
   `CREATE TABLE 'aufk' (
     mandt NCHAR(3), aufnr NCHAR(12), autyp NCHAR(2), phas1 NCHAR(1),
     phas2 NCHAR(1), phas3 NCHAR(1), loekz NCHAR(1), objnr NCHAR(22),
-    stsma NCHAR(8), PRIMARY KEY(mandt, aufnr)
+    stsma NCHAR(8), auart NCHAR(4), erdat NCHAR(8), ernam NCHAR(12),
+    aedat NCHAR(8), aenam NCHAR(12), ktext NCHAR(40),
+    PRIMARY KEY(mandt, aufnr)
   );`,
   `CREATE TABLE 'afvc' (
     mandt NCHAR(3), aufpl NCHAR(10), aplzl NCHAR(8), plnfl NCHAR(6),
@@ -128,7 +134,8 @@ await database.execute([
     mandt NCHAR(3), rueck NCHAR(10), rmzhl NCHAR(8), aufnr NCHAR(12),
     aufpl NCHAR(10), aplzl NCHAR(8), budat NCHAR(8), aueru NCHAR(1),
     stokz NCHAR(1), lmnga DECIMAL(13,3), rmnga DECIMAL(13,3),
-    xmnga DECIMAL(13,3), meinh NCHAR(3),
+    xmnga DECIMAL(13,3), meinh NCHAR(3), ernam NCHAR(12), ersda NCHAR(8),
+    aenam NCHAR(12), laeda NCHAR(8), erzet NCHAR(6),
     PRIMARY KEY(mandt, rueck, rmzhl)
   );`,
   `CREATE TABLE 'jest' (
@@ -174,7 +181,11 @@ await database.execute([
     mandt NCHAR(3), plnum NCHAR(10), matnr NCHAR(40), pwwrk NCHAR(4),
     psttr NCHAR(8), pedtr NCHAR(8), gsmng DECIMAL(13,3), meins NCHAR(3),
     auffx NCHAR(1), plscn NCHAR(3), sobkz NCHAR(1), kdauf NCHAR(10),
-    lgort NCHAR(4), PRIMARY KEY(mandt, plnum)
+    lgort NCHAR(4), paart NCHAR(4), beskz NCHAR(1), dispo NCHAR(3),
+    plgrp NCHAR(3), verid NCHAR(4), berid NCHAR(10), knttp NCHAR(1),
+    kdpos NCHAR(6), kdein NCHAR(4), plwrk NCHAR(4), pertr NCHAR(8),
+    gstrs NCHAR(8), gsuzs NCHAR(6), gltrs NCHAR(8), gluzs NCHAR(6),
+    puser NCHAR(12), pstmp DECIMAL(15,0), PRIMARY KEY(mandt, plnum)
   );`,
   `CREATE TABLE 'mard' (
     mandt NCHAR(3), matnr NCHAR(40), werks NCHAR(4), lgort NCHAR(4),
@@ -189,7 +200,8 @@ await database.execute([
   );`,
   `CREATE TABLE 'mcha' (
     mandt NCHAR(3), matnr NCHAR(40), werks NCHAR(4), charg NCHAR(10),
-    vfdat NCHAR(8), PRIMARY KEY(mandt, matnr, werks, charg)
+    vfdat NCHAR(8), bwtar NCHAR(10),
+    PRIMARY KEY(mandt, matnr, werks, charg)
   );`,
   `CREATE TABLE 'mch1' (
     mandt NCHAR(3), matnr NCHAR(40), charg NCHAR(10), vfdat NCHAR(8),
@@ -210,7 +222,7 @@ await database.execute([
     enmng DECIMAL(13,3), charg NCHAR(10), bwart NCHAR(3), kdauf NCHAR(10),
     kdpos NCHAR(6), kdein NCHAR(4), bdter NCHAR(8), aufnr NCHAR(12),
     rsnum NCHAR(10), rspos NCHAR(4), meins NCHAR(3), pspel NCHAR(8),
-    erfme NCHAR(3), PRIMARY KEY(mandt, rsnum, rspos)
+    erfme NCHAR(3), bwtar NCHAR(10), PRIMARY KEY(mandt, rsnum, rspos)
   );`,
   `CREATE TABLE 'rkpf' (
     mandt NCHAR(3), rsnum NCHAR(10), kostl NCHAR(10),

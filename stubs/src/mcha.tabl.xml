@@ -61,6 +61,14 @@
           <INTTYPE>D</INTTYPE>
           <INTLEN>000016</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>BWTAR</FIELDNAME>
+          <POSITION>0006</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

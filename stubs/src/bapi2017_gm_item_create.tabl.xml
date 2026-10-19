@@ -226,6 +226,31 @@
           <INTTYPE>N</INTTYPE>
           <INTLEN>000008</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>VAL_TYPE</FIELDNAME>
+          <POSITION>0028</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MOVE_VAL_TYPE</FIELDNAME>
+          <POSITION>0029</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000010</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000020</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>MOVE_REAS</FIELDNAME>
+          <POSITION>0030</POSITION>
+          <DATATYPE>NUMC</DATATYPE>
+          <LENG>000004</LENG>
+          <DECIMALS>000000</DECIMALS>
+          <INTTYPE>N</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

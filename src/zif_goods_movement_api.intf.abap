@@ -13,6 +13,7 @@ INTERFACE zif_goods_movement_api PUBLIC.
       plant                      TYPE mard-werks,
       storage_location           TYPE mard-lgort,
       movement_type              TYPE c LENGTH 3,
+      movement_reason            TYPE bapi2017_gm_item_create-move_reas,
       quantity                   TYPE mard-labst,
       entry_unit                 TYPE c LENGTH 3,
       entry_unit_iso             TYPE c LENGTH 3,
@@ -20,6 +21,7 @@ INTERFACE zif_goods_movement_api PUBLIC.
       receiving_plant            TYPE c LENGTH 4,
       receiving_storage_location TYPE c LENGTH 4,
       receiving_batch            TYPE mchb-charg,
+      receiving_valuation_type   TYPE c LENGTH 10,
       cost_center                TYPE c LENGTH 10,
       order_id                   TYPE c LENGTH 12,
       order_item                 TYPE afpo-posnr,
@@ -34,6 +36,7 @@ INTERFACE zif_goods_movement_api PUBLIC.
       movement_indicator         TYPE c LENGTH 1,
       is_reversal                TYPE abap_bool,
       batch                      TYPE bapi2093_res_item_detail-batch,
+      valuation_type             TYPE c LENGTH 10,
       purchase_order             TYPE c LENGTH 10,
       purchase_order_item        TYPE c LENGTH 5,
     END OF ty_item.

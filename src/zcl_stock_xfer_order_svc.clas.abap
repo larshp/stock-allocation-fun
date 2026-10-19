@@ -11,15 +11,21 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       BEGIN OF ty_source_order_result,
         supplying_plant TYPE mard-werks,
         result          TYPE zif_stock_transfer_order_api=>ty_result,
+        is_skipped      TYPE abap_bool,
       END OF ty_source_order_result.
     TYPES ty_source_order_results TYPE STANDARD TABLE OF
       ty_source_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_multi_order_result,
-        receiving_plant TYPE mard-werks,
-        orders          TYPE ty_source_order_results,
-        is_successful   TYPE abap_bool,
-        is_test_run     TYPE abap_bool,
+        receiving_plant    TYPE mard-werks,
+        orders             TYPE ty_source_order_results,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
       END OF ty_multi_order_result.
     TYPES:
       BEGIN OF ty_receiving_location,
@@ -29,18 +35,31 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
     TYPES ty_receiving_locations TYPE STANDARD TABLE OF
       ty_receiving_location WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_material_base_unit,
+        material  TYPE mard-matnr,
+        base_unit TYPE mara-meins,
+      END OF ty_material_base_unit.
+    TYPES ty_material_base_units TYPE STANDARD TABLE OF
+      ty_material_base_unit WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_plant_pair_order_result,
         supplying_plant TYPE mard-werks,
         receiving_plant TYPE mard-werks,
         result          TYPE zif_stock_transfer_order_api=>ty_result,
+        is_skipped      TYPE abap_bool,
       END OF ty_plant_pair_order_result.
     TYPES ty_plant_pair_order_results TYPE STANDARD TABLE OF
       ty_plant_pair_order_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_plant_pairs_result,
-        orders        TYPE ty_plant_pair_order_results,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        orders             TYPE ty_plant_pair_order_results,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
       END OF ty_plant_pairs_result.
     TYPES:
       BEGIN OF ty_sto_deletion_result,
@@ -56,14 +75,20 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         supplying_plant TYPE mard-werks,
         receiving_plant TYPE mard-werks,
         deletion        TYPE ty_sto_deletion_result,
+        is_skipped      TYPE abap_bool,
       END OF ty_sto_deletion_pair_result.
     TYPES ty_sto_deletion_pair_results TYPE STANDARD TABLE OF
       ty_sto_deletion_pair_result WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_deletion_pairs_result,
-        orders        TYPE ty_sto_deletion_pair_results,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        orders             TYPE ty_sto_deletion_pair_results,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_deleted         TYPE abap_bool,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
       END OF ty_sto_deletion_pairs_result.
     TYPES:
       BEGIN OF ty_sto_delivery_completion_result,
@@ -79,14 +104,20 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         supplying_plant     TYPE mard-werks,
         receiving_plant     TYPE mard-werks,
         delivery_completion TYPE ty_sto_delivery_completion_result,
+        is_skipped          TYPE abap_bool,
       END OF ty_sto_delivery_completion_pair.
     TYPES ty_sto_delivery_completion_pairs TYPE STANDARD TABLE OF
       ty_sto_delivery_completion_pair WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sto_delivery_completions_result,
-        orders        TYPE ty_sto_delivery_completion_pairs,
-        is_successful TYPE abap_bool,
-        is_test_run   TYPE abap_bool,
+        orders             TYPE ty_sto_delivery_completion_pairs,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_completed       TYPE abap_bool,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
       END OF ty_sto_delivery_completions_result.
 
     METHODS constructor
@@ -137,6 +168,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial         TYPE abap_bool DEFAULT abap_false
         iv_test_run              TYPE abap_bool DEFAULT abap_false
         iv_atomic                TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)         TYPE ty_multi_order_result
       RAISING
@@ -153,8 +185,185 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial         TYPE abap_bool DEFAULT abap_false
         iv_test_run              TYPE abap_bool DEFAULT abap_false
         iv_atomic                TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure       TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)         TYPE ty_multi_order_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_prio_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_plant_fefo_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_base_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_fefo_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_prio_batch_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_plant_batch_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_base_batch_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_batch_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_base_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_prio_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_plant_result
+        it_material_base_units TYPE ty_material_base_units
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_unit_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_unit_plant_allocation_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_unit_plant_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_unit_atp_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_plant_atp_allocation_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_atp_plant_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_plant_atp_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -168,6 +377,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -183,6 +393,41 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_base_date_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_date_plant_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_base_date_loc_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_dated_plant_location_result
+        it_material_base_units TYPE ty_material_base_units
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -198,6 +443,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -213,6 +459,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -229,6 +476,24 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_batch_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_unit_plant_batch_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -245,6 +510,58 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_atp_batch_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_unit_plant_batch_atp_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_base_dated_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_date_plant_fefo_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_base_dated_batch_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_date_plant_batch_allocation_result
+        it_material_base_units TYPE ty_material_base_units
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -260,6 +577,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -275,6 +593,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -290,6 +609,24 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_unit_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_unit_plant_fefo_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -305,6 +642,7 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -321,6 +659,41 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         iv_allow_partial       TYPE abap_bool DEFAULT abap_false
         iv_test_run            TYPE abap_bool DEFAULT abap_false
         iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_fefo_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_unit_plant_fefo_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)       TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_uom_fefo_atp_pairs
+      IMPORTING
+        is_allocation          TYPE zcl_stock_service=>ty_priority_unit_plant_fefo_atp_result
+        iv_delivery_date       TYPE d
+        it_receiving_locations TYPE ty_receiving_locations OPTIONAL
+        iv_company_code        TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org      TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group    TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_allow_partial       TYPE abap_bool DEFAULT abap_false
+        iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_atomic              TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_plant_pairs_result
       RAISING
@@ -337,11 +710,12 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
 
     METHODS mark_sto_pairs_for_deletion
       IMPORTING
-        is_orders        TYPE ty_plant_pairs_result
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_orders          TYPE ty_plant_pairs_result
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_deletion_pairs_result
+        VALUE(rs_result)   TYPE ty_sto_deletion_pairs_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -356,11 +730,12 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
 
     METHODS mark_sto_pairs_deliv_complete
       IMPORTING
-        is_orders        TYPE ty_plant_pairs_result
-        iv_atomic        TYPE abap_bool DEFAULT abap_false
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_orders          TYPE ty_plant_pairs_result
+        iv_atomic          TYPE abap_bool DEFAULT abap_false
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_sto_delivery_completions_result
+        VALUE(rs_result)   TYPE ty_sto_delivery_completions_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -475,8 +850,43 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
         it_prepared_orders TYPE ty_prepared_pair_orders
         iv_test_run        TYPE abap_bool
         iv_atomic          TYPE abap_bool
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)   TYPE ty_plant_pairs_result.
+
+    METHODS create_for_fefo_pairs_core
+      IMPORTING
+        is_allocation               TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
+        it_receiving_locations      TYPE ty_receiving_locations OPTIONAL
+        iv_company_code             TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org           TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group         TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_validate_expiry_metadata TYPE abap_bool
+        iv_allow_partial            TYPE abap_bool DEFAULT abap_false
+        iv_test_run                 TYPE abap_bool DEFAULT abap_false
+        iv_atomic                   TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure          TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)            TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS create_for_atp_fefo_pairs_core
+      IMPORTING
+        is_allocation               TYPE zcl_stock_service=>ty_plant_fefo_date_atp_result
+        it_receiving_locations      TYPE ty_receiving_locations OPTIONAL
+        iv_company_code             TYPE zif_stock_transfer_order_api=>ty_company_code
+        iv_purchasing_org           TYPE zif_stock_transfer_order_api=>ty_purchasing_org
+        iv_purchasing_group         TYPE zif_stock_transfer_order_api=>ty_purchasing_group
+        iv_validate_expiry_metadata TYPE abap_bool
+        iv_allow_partial            TYPE abap_bool DEFAULT abap_false
+        iv_test_run                 TYPE abap_bool DEFAULT abap_false
+        iv_atomic                   TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure          TYPE abap_bool DEFAULT abap_false
+      RETURNING
+        VALUE(rs_result)            TYPE ty_plant_pairs_result
+      RAISING
+        zcx_invalid_stock_request.
 
     METHODS validate_atp_source_splits
       IMPORTING
@@ -511,7 +921,8 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
 
     METHODS validate_fefo_pair_totals
       IMPORTING
-        is_allocation TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
+        is_allocation               TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result
+        iv_validate_expiry_metadata TYPE abap_bool
       RAISING
         zcx_invalid_stock_request.
 
@@ -606,10 +1017,13 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
   METHOD create_from_source_plants.
     DATA lt_source_plants TYPE ty_source_plants.
     DATA lt_prepared_orders TYPE ty_prepared_orders.
+    DATA lv_next_index TYPE i.
 
     validate_plant_pair_totals( is_allocation = is_allocation ).
 
-    IF iv_atomic <> abap_true AND iv_atomic <> abap_false.
+    IF ( iv_atomic <> abap_true AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -659,6 +1073,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result-is_test_run = iv_test_run.
     rs_result-is_successful = abap_true.
     LOOP AT lt_prepared_orders INTO DATA(ls_prepared_order).
+      DATA(lv_current_index) = sy-tabix.
       DATA(ls_order_result) = complete_write(
         is_request      = ls_prepared_order-request
         is_result       = mo_api->create_order(
@@ -669,17 +1084,39 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       APPEND VALUE #(
         supplying_plant = ls_prepared_order-supplying_plant
         result          = ls_order_result ) TO rs_result-orders.
+      IF ls_order_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_order_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
-        IF iv_atomic = abap_true.
-          LOOP AT rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_order_result>).
-            <ls_order_result>-result-is_successful = abap_false.
-            <ls_order_result>-result-is_committed = abap_false.
-          ENDLOOP.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        IF iv_atomic = abap_true OR iv_stop_on_failure = abap_true.
+          lv_next_index = lv_current_index + 1.
+          IF iv_atomic = abap_true.
+            LOOP AT rs_result-orders ASSIGNING
+                FIELD-SYMBOL(<ls_order_result>).
+              <ls_order_result>-result-is_successful = abap_false.
+              <ls_order_result>-result-is_committed = abap_false.
+            ENDLOOP.
+          ENDIF.
           EXIT.
         ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF lv_next_index > 0.
+      LOOP AT lt_prepared_orders INTO ls_prepared_order
+          FROM lv_next_index.
+        APPEND VALUE #(
+          supplying_plant = ls_prepared_order-supplying_plant
+          result          = VALUE #(
+            submitted_items = ls_prepared_order-request-items
+            is_test_run     = iv_test_run )
+          is_skipped      = abap_true ) TO rs_result-orders.
+      ENDLOOP.
+    ENDIF.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful = abap_true
@@ -689,11 +1126,19 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
           <ls_order_result>-result-is_committed = abap_true.
         ENDLOOP.
+        IF rs_result-orders IS NOT INITIAL.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         mo_api->rollback( ).
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
-          <ls_order_result>-result-is_successful = abap_false.
-          <ls_order_result>-result-is_committed = abap_false.
+          IF <ls_order_result>-is_skipped = abap_false.
+            <ls_order_result>-result-is_successful = abap_false.
+            <ls_order_result>-result-is_committed = abap_false.
+          ENDIF.
         ENDLOOP.
         READ TABLE rs_result-orders ASSIGNING <ls_order_result>
           INDEX lines( rs_result-orders ).
@@ -704,12 +1149,24 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+
+    LOOP AT rs_result-orders ASSIGNING <ls_order_result>.
+      IF <ls_order_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_order_result>-result-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD create_from_atp_source_plants.
     IF iv_receiving_plant IS INITIAL
         OR ( iv_atomic <> abap_true
-          AND iv_atomic <> abap_false ).
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -726,7 +1183,406 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_purchasing_group      = iv_purchasing_group
       iv_allow_partial         = iv_allow_partial
       iv_test_run              = iv_test_run
-      iv_atomic                = iv_atomic ).
+      iv_atomic                = iv_atomic
+      iv_stop_on_failure       = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_base_plant_pairs.
+    DATA ls_priority_allocation TYPE
+      zcl_stock_service=>ty_priority_plant_result.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_demand).
+      APPEND VALUE #(
+        allocation = ls_demand
+        priority   = 0 )
+        TO ls_priority_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_source).
+      APPEND VALUE #(
+        allocation = ls_source
+        priority   = 0 )
+        TO ls_priority_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_location).
+      APPEND VALUE #(
+        allocation = ls_location
+        priority   = 0 )
+        TO ls_priority_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_prio_plant_pairs(
+      is_allocation          = ls_priority_allocation
+      it_material_base_units = it_material_base_units
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_prio_plant_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_source_alloc.
+    DATA ls_location TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_split.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_demand-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #(
+        ls_priority_demand-allocation ).
+      ls_demand-allocation-required_date = iv_delivery_date.
+      ls_demand-allocation-priority = ls_priority_demand-priority.
+      ls_demand-source_quantity =
+        ls_priority_demand-allocation-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity =
+        ls_priority_demand-allocation-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_priority_demand-allocation-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_priority_demand-allocation-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_priority_demand-allocation-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_priority_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_source-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = CORRESPONDING #(
+        ls_priority_source-allocation ).
+      ls_source-allocation-required_date = iv_delivery_date.
+      ls_source-allocation-priority = ls_priority_source-priority.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_priority_source-allocation-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_priority_source-allocation-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_priority_location).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_location-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_location.
+      ls_location-allocation-allocation = CORRESPONDING #(
+        ls_priority_location-allocation ).
+      ls_location-allocation-required_date = iv_delivery_date.
+      ls_location-allocation-priority = ls_priority_location-priority.
+      ls_location-source_unit = ls_material_unit-base_unit.
+      ls_location-base_unit = ls_material_unit-base_unit.
+      ls_location-available_source_quantity =
+        ls_priority_location-allocation-available_quantity.
+      ls_location-allocated_source_quantity =
+        ls_priority_location-allocation-allocated_quantity.
+      APPEND ls_location TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_date_loc_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_unit_plant_pairs.
+    DATA ls_priority_allocation TYPE
+      zcl_stock_service=>ty_priority_unit_plant_result.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_demand).
+      APPEND VALUE #(
+        allocation = ls_demand
+        priority   = 0 )
+        TO ls_priority_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_source).
+      APPEND VALUE #(
+        allocation = ls_source
+        priority   = 0 )
+        TO ls_priority_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_location).
+      APPEND VALUE #(
+        allocation = ls_location
+        priority   = 0 )
+        TO ls_priority_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_uom_plant_pairs(
+      is_allocation          = ls_priority_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_plant_pairs.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_source_alloc.
+    DATA ls_location TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_split.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #(
+        ls_priority_demand-allocation-allocation ).
+      ls_demand-allocation-required_date = iv_delivery_date.
+      ls_demand-allocation-priority = ls_priority_demand-priority.
+      ls_demand-source_quantity =
+        ls_priority_demand-allocation-source_quantity.
+      ls_demand-source_unit = ls_priority_demand-allocation-source_unit.
+      ls_demand-base_quantity = ls_priority_demand-allocation-base_quantity.
+      ls_demand-base_unit = ls_priority_demand-allocation-base_unit.
+      ls_demand-available_source_quantity =
+        ls_priority_demand-allocation-available_source_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_priority_demand-allocation-allocated_source_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_priority_demand-allocation-shortfall_source_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_priority_source).
+      CLEAR ls_source.
+      ls_source-allocation = CORRESPONDING #(
+        ls_priority_source-allocation-allocation ).
+      ls_source-allocation-required_date = iv_delivery_date.
+      ls_source-allocation-priority = ls_priority_source-priority.
+      ls_source-source_unit = ls_priority_source-allocation-source_unit.
+      ls_source-base_unit = ls_priority_source-allocation-base_unit.
+      ls_source-available_source_quantity =
+        ls_priority_source-allocation-available_source_quantity.
+      ls_source-allocated_source_quantity =
+        ls_priority_source-allocation-allocated_source_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_priority_location).
+      CLEAR ls_location.
+      ls_location-allocation-allocation = CORRESPONDING #(
+        ls_priority_location-allocation-allocation ).
+      ls_location-allocation-required_date = iv_delivery_date.
+      ls_location-allocation-priority = ls_priority_location-priority.
+      ls_location-source_unit =
+        ls_priority_location-allocation-source_unit.
+      ls_location-base_unit =
+        ls_priority_location-allocation-base_unit.
+      ls_location-available_source_quantity =
+        ls_priority_location-allocation-available_source_quantity.
+      ls_location-allocated_source_quantity =
+        ls_priority_location-allocation-allocated_source_quantity.
+      APPEND ls_location TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_date_loc_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_unit_atp_pairs.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_priority_plant_atp_result.
+
+    LOOP AT is_allocation-local_estimate-allocations
+        INTO DATA(ls_demand_allocation).
+      APPEND VALUE #(
+        allocation = ls_demand_allocation
+        priority   = 0 )
+        TO ls_allocation-local_estimate-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_source_allocation).
+      APPEND VALUE #(
+        allocation = ls_source_allocation
+        priority   = 0 )
+        TO ls_allocation-local_estimate-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-location_allocations
+        INTO DATA(ls_location_allocation).
+      APPEND VALUE #(
+        allocation = ls_location_allocation
+        priority   = 0 )
+        TO ls_allocation-local_estimate-location_allocations.
+    ENDLOOP.
+    ls_allocation-atp_checks = is_allocation-atp_checks.
+
+    rs_result = create_for_uom_atp_plant_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_atp_plant_pairs.
+    DATA ls_atp_validation TYPE
+      zcl_stock_service=>ty_plant_fefo_atp_allocation_result.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_source_alloc.
+    DATA ls_location TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_split.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_priority_source_for_atp).
+      APPEND ls_priority_source_for_atp-allocation
+        TO ls_atp_validation-local_estimate-plant_allocations.
+    ENDLOOP.
+    ls_atp_validation-atp_checks = is_allocation-atp_checks.
+    validate_fefo_atp( is_allocation = ls_atp_validation ).
+
+    LOOP AT is_allocation-atp_checks INTO DATA(ls_atp_check).
+      IF ls_atp_check-check_date <> sy-datum.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-allocations
+        INTO DATA(ls_priority_demand).
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #(
+        ls_priority_demand-allocation-allocation ).
+      ls_demand-allocation-required_date = iv_delivery_date.
+      ls_demand-allocation-priority = ls_priority_demand-priority.
+      ls_demand-source_quantity =
+        ls_priority_demand-allocation-source_quantity.
+      ls_demand-source_unit = ls_priority_demand-allocation-source_unit.
+      ls_demand-base_quantity = ls_priority_demand-allocation-base_quantity.
+      ls_demand-base_unit = ls_priority_demand-allocation-base_unit.
+      ls_demand-available_source_quantity =
+        ls_priority_demand-allocation-available_source_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_priority_demand-allocation-allocated_source_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_priority_demand-allocation-shortfall_source_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_priority_source).
+      CLEAR ls_source.
+      ls_source-allocation = CORRESPONDING #(
+        ls_priority_source-allocation-allocation ).
+      ls_source-allocation-required_date = iv_delivery_date.
+      ls_source-allocation-priority = ls_priority_source-priority.
+      ls_source-source_unit = ls_priority_source-allocation-source_unit.
+      ls_source-base_unit = ls_priority_source-allocation-base_unit.
+      ls_source-available_source_quantity =
+        ls_priority_source-allocation-available_source_quantity.
+      ls_source-allocated_source_quantity =
+        ls_priority_source-allocation-allocated_source_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-location_allocations
+        INTO DATA(ls_priority_location).
+      CLEAR ls_location.
+      ls_location-allocation-allocation = CORRESPONDING #(
+        ls_priority_location-allocation-allocation ).
+      ls_location-allocation-required_date = iv_delivery_date.
+      ls_location-allocation-priority = ls_priority_location-priority.
+      ls_location-source_unit = ls_priority_location-allocation-source_unit.
+      ls_location-base_unit = ls_priority_location-allocation-base_unit.
+      ls_location-available_source_quantity =
+        ls_priority_location-allocation-available_source_quantity.
+      ls_location-allocated_source_quantity =
+        ls_priority_location-allocation-allocated_source_quantity.
+      APPEND ls_location TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_date_loc_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_atp_plant_pairs.
@@ -740,7 +1596,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_purchasing_group    = iv_purchasing_group
       iv_allow_partial       = iv_allow_partial
       iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_all_plant_pairs.
@@ -855,7 +1712,170 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result = execute_pair_orders(
       it_prepared_orders = lt_prepared_orders
       iv_test_run        = iv_test_run
-      iv_atomic          = iv_atomic ).
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_base_date_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_unit_date_plant_result.
+    DATA ls_demand TYPE zcl_stock_service=>ty_unit_date_plant_demand_allocation.
+    DATA ls_source TYPE zcl_stock_service=>ty_unit_date_plant_source_allocation.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = ls_base_demand.
+      ls_demand-source_quantity = ls_base_demand-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity = ls_base_demand-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_base_demand-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_base_demand-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_base_demand-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = ls_base_source.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_base_source-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_base_source-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_all_plant_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_base_date_loc_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_source_alloc.
+    DATA ls_location TYPE
+      zcl_stock_service=>ty_unit_date_plant_location_split.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #( ls_base_demand ).
+      ls_demand-source_quantity = ls_base_demand-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity = ls_base_demand-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_base_demand-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_base_demand-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_base_demand-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = ls_base_source.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_base_source-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_base_source-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_base_location).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_location-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_location.
+      ls_location-allocation = ls_base_location.
+      ls_location-source_unit = ls_material_unit-base_unit.
+      ls_location-base_unit = ls_material_unit-base_unit.
+      ls_location-available_source_quantity =
+        ls_base_location-allocation-available_quantity.
+      ls_location-allocated_source_quantity =
+        ls_base_location-allocation-allocated_quantity.
+      APPEND ls_location TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_date_loc_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_date_loc_pairs.
@@ -959,7 +1979,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result = execute_pair_orders(
       it_prepared_orders = lt_prepared_orders
       iv_test_run        = iv_test_run
-      iv_atomic          = iv_atomic ).
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_date_loc_atp_pairs.
@@ -982,7 +2003,379 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_purchasing_group    = iv_purchasing_group
       iv_allow_partial       = iv_allow_partial
       iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_prio_batch_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_priority_unit_plant_batch_result.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_demand-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+          allocation = VALUE #(
+            allocation                = ls_priority_demand-allocation
+            source_quantity           =
+              ls_priority_demand-allocation-requested_quantity
+            source_unit               = ls_material_unit-base_unit
+            base_quantity             =
+              ls_priority_demand-allocation-requested_quantity
+            base_unit                 = ls_material_unit-base_unit
+            available_source_quantity =
+              ls_priority_demand-allocation-available_quantity
+            allocated_source_quantity =
+              ls_priority_demand-allocation-allocated_quantity
+            shortfall_source_quantity =
+              ls_priority_demand-allocation-shortfall_quantity )
+          priority   = ls_priority_demand-priority )
+        TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_priority_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_source-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+          allocation = VALUE #(
+            allocation                = ls_priority_source-allocation
+            source_unit               = ls_material_unit-base_unit
+            base_unit                 = ls_material_unit-base_unit
+            available_source_quantity =
+              ls_priority_source-allocation-available_quantity
+            allocated_source_quantity =
+              ls_priority_source-allocation-allocated_quantity )
+          priority   = ls_priority_source-priority )
+        TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations
+        INTO DATA(ls_priority_location).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_location-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+          allocation = VALUE #(
+            allocation                = ls_priority_location-allocation
+            source_unit               = ls_material_unit-base_unit
+            base_unit                 = ls_material_unit-base_unit
+            available_source_quantity =
+              ls_priority_location-allocation-available_quantity
+            allocated_source_quantity =
+              ls_priority_location-allocation-allocated_quantity )
+          priority   = ls_priority_location-priority )
+        TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_uom_batch_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_prio_fefo_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_priority_unit_plant_fefo_result.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_demand-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation = VALUE #(
+          allocation                = ls_priority_demand-allocation
+          source_quantity           =
+            ls_priority_demand-allocation-requested_quantity
+          source_unit               = ls_material_unit-base_unit
+          base_quantity             =
+            ls_priority_demand-allocation-requested_quantity
+          base_unit                 = ls_material_unit-base_unit
+          available_source_quantity =
+            ls_priority_demand-allocation-available_quantity
+          allocated_source_quantity =
+            ls_priority_demand-allocation-allocated_quantity
+          shortfall_source_quantity =
+            ls_priority_demand-allocation-shortfall_quantity )
+        priority   = ls_priority_demand-priority )
+        TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_priority_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_source-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation = VALUE #(
+          allocation                = ls_priority_source-allocation
+          source_unit               = ls_material_unit-base_unit
+          base_unit                 = ls_material_unit-base_unit
+          available_source_quantity =
+            ls_priority_source-allocation-available_quantity
+          allocated_source_quantity =
+            ls_priority_source-allocation-allocated_quantity )
+        priority   = ls_priority_source-priority )
+        TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_priority_split).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_priority_split-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation = VALUE #(
+          allocation                = ls_priority_split-allocation
+          source_unit               = ls_material_unit-base_unit
+          base_unit                 = ls_material_unit-base_unit
+          available_source_quantity =
+            ls_priority_split-allocation-available_quantity
+          allocated_source_quantity =
+            ls_priority_split-allocation-allocated_quantity )
+        priority   = ls_priority_split-priority )
+        TO ls_allocation-batch_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_uom_fefo_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_base_fefo_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_source_allocation.
+    DATA ls_fefo_split TYPE
+      zcl_stock_service=>ty_unit_date_plant_fefo_batch_split.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #( ls_base_demand ).
+      ls_demand-allocation-required_date = iv_delivery_date.
+      ls_demand-allocation-priority = 0.
+      ls_demand-source_quantity = ls_base_demand-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity = ls_base_demand-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_base_demand-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_base_demand-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_base_demand-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = CORRESPONDING #( ls_base_source ).
+      ls_source-allocation-required_date = iv_delivery_date.
+      ls_source-allocation-priority = 0.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_base_source-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_base_source-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_base_fefo_split).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_fefo_split-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_fefo_split.
+      ls_fefo_split-allocation-required_date = iv_delivery_date.
+      ls_fefo_split-allocation-priority = 0.
+      ls_fefo_split-allocation-allocation = ls_base_fefo_split.
+      ls_fefo_split-source_unit = ls_material_unit-base_unit.
+      ls_fefo_split-base_unit = ls_material_unit-base_unit.
+      ls_fefo_split-available_source_quantity =
+        ls_base_fefo_split-available_quantity.
+      ls_fefo_split-allocated_source_quantity =
+        ls_base_fefo_split-allocated_quantity.
+      APPEND ls_fefo_split TO ls_allocation-batch_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_fefo_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_base_batch_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_unit_plant_batch_result.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation                = ls_base_demand
+        source_quantity           = ls_base_demand-requested_quantity
+        source_unit               = ls_material_unit-base_unit
+        base_quantity             = ls_base_demand-requested_quantity
+        base_unit                 = ls_material_unit-base_unit
+        available_source_quantity = ls_base_demand-available_quantity
+        allocated_source_quantity = ls_base_demand-allocated_quantity
+        shortfall_source_quantity = ls_base_demand-shortfall_quantity )
+        TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation                = ls_base_source
+        source_unit               = ls_material_unit-base_unit
+        base_unit                 = ls_material_unit-base_unit
+        available_source_quantity = ls_base_source-available_quantity
+        allocated_source_quantity = ls_base_source-allocated_quantity )
+        TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_base_location).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_location-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      APPEND VALUE #(
+        allocation                = ls_base_location
+        source_unit               = ls_material_unit-base_unit
+        base_unit                 = ls_material_unit-base_unit
+        available_source_quantity = ls_base_location-available_quantity
+        allocated_source_quantity = ls_base_location-allocated_quantity )
+        TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_batch_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_batch_pairs.
@@ -1100,7 +2493,41 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result = execute_pair_orders(
       it_prepared_orders = lt_prepared_orders
       iv_test_run        = iv_test_run
-      iv_atomic          = iv_atomic ).
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_batch_pairs.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_unit_plant_batch_result.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      APPEND ls_priority_demand-allocation
+        TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations
+        INTO DATA(ls_priority_source).
+      APPEND ls_priority_source-allocation
+        TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations
+        INTO DATA(ls_priority_location).
+      APPEND ls_priority_location-allocation
+        TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_batch_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_atp_batch_pairs.
@@ -1118,7 +2545,44 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_purchasing_group    = iv_purchasing_group
       iv_allow_partial       = iv_allow_partial
       iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_atp_batch_pairs.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_plant_batch_atp_allocation_result.
+
+    LOOP AT is_allocation-local_estimate-allocations
+        INTO DATA(ls_priority_demand).
+      APPEND ls_priority_demand-allocation
+        TO ls_allocation-local_estimate-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_priority_source).
+      APPEND ls_priority_source-allocation
+        TO ls_allocation-local_estimate-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-location_allocations
+        INTO DATA(ls_priority_location).
+      APPEND ls_priority_location-allocation
+        TO ls_allocation-local_estimate-location_allocations.
+    ENDLOOP.
+    ls_allocation-atp_checks = is_allocation-atp_checks.
+
+    rs_result = create_for_atp_batch_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD map_dated_batch_fefo.
@@ -1133,7 +2597,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         source_unit          TYPE mara-meins,
         base_unit            TYPE mara-meins,
         demand_base_quantity TYPE mard-labst,
-        source_base_quantity TYPE mard-labst,
+        source_base_quantity TYPE decfloat34,
       END OF ty_batch_demand_group.
     TYPES ty_batch_demand_groups TYPE SORTED TABLE OF
       ty_batch_demand_group WITH UNIQUE KEY request_id.
@@ -1148,8 +2612,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         batch                   TYPE mchb-charg,
         source_unit             TYPE mara-meins,
         base_unit               TYPE mara-meins,
-        allocated_base_quantity TYPE mard-labst,
-        location_base_quantity  TYPE mard-labst,
+        allocated_base_quantity TYPE decfloat34,
+        location_base_quantity  TYPE decfloat34,
       END OF ty_batch_split_group.
     TYPES ty_batch_split_groups TYPE SORTED TABLE OF
       ty_batch_split_group WITH UNIQUE KEY request_id material
@@ -1360,19 +2824,204 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
-  METHOD create_dated_batch_pairs.
-    DATA(ls_fefo_allocation) = map_dated_batch_fefo(
-      is_allocation = is_allocation ).
+  METHOD create_base_dated_fefo_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE zcl_stock_service=>ty_unit_date_plant_fefo_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_source_allocation.
+    DATA ls_fefo_split TYPE
+      zcl_stock_service=>ty_unit_date_plant_fefo_batch_split.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = ls_base_demand.
+      ls_demand-source_quantity = ls_base_demand-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity = ls_base_demand-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_base_demand-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_base_demand-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_base_demand-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = ls_base_source.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_base_source-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_base_source-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_base_split).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_split-allocation-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_fefo_split.
+      ls_fefo_split-allocation = ls_base_split.
+      ls_fefo_split-source_unit = ls_material_unit-base_unit.
+      ls_fefo_split-base_unit = ls_material_unit-base_unit.
+      ls_fefo_split-available_source_quantity =
+        ls_base_split-allocation-available_quantity.
+      ls_fefo_split-allocated_source_quantity =
+        ls_base_split-allocation-allocated_quantity.
+      APPEND ls_fefo_split TO ls_allocation-batch_allocations.
+    ENDLOOP.
 
     rs_result = create_for_fefo_pairs(
-      is_allocation          = ls_fefo_allocation
+      is_allocation          = ls_allocation
       it_receiving_locations = it_receiving_locations
       iv_company_code        = iv_company_code
       iv_purchasing_org      = iv_purchasing_org
       iv_purchasing_group    = iv_purchasing_group
       iv_allow_partial       = iv_allow_partial
       iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_base_dated_batch_pairs.
+    TYPES ty_material_key TYPE mara-matnr.
+    TYPES ty_material_keys TYPE SORTED TABLE OF ty_material_key
+      WITH UNIQUE KEY table_line.
+    DATA lt_material_keys TYPE ty_material_keys.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_batch_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_batch_demand_alloc.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_batch_source_alloc.
+    DATA ls_location TYPE
+      zcl_stock_service=>ty_unit_date_plant_batch_location.
+
+    LOOP AT it_material_base_units INTO DATA(ls_material_unit).
+      IF ls_material_unit-material IS INITIAL
+          OR ls_material_unit-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT ls_material_unit-material INTO TABLE lt_material_keys.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_base_demand).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_demand-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_demand.
+      ls_demand-allocation = ls_base_demand.
+      ls_demand-source_quantity = ls_base_demand-requested_quantity.
+      ls_demand-source_unit = ls_material_unit-base_unit.
+      ls_demand-base_quantity = ls_base_demand-requested_quantity.
+      ls_demand-base_unit = ls_material_unit-base_unit.
+      ls_demand-available_source_quantity =
+        ls_base_demand-available_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_base_demand-allocated_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_base_demand-shortfall_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_base_source).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_source-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_source.
+      ls_source-allocation = ls_base_source.
+      ls_source-source_unit = ls_material_unit-base_unit.
+      ls_source-base_unit = ls_material_unit-base_unit.
+      ls_source-available_source_quantity =
+        ls_base_source-available_quantity.
+      ls_source-allocated_source_quantity =
+        ls_base_source-allocated_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-location_allocations INTO DATA(ls_base_location).
+      READ TABLE it_material_base_units INTO ls_material_unit
+        WITH KEY material = ls_base_location-material.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      CLEAR ls_location.
+      ls_location-allocation = ls_base_location.
+      ls_location-source_unit = ls_material_unit-base_unit.
+      ls_location-base_unit = ls_material_unit-base_unit.
+      ls_location-available_source_quantity =
+        ls_base_location-available_quantity.
+      ls_location-allocated_source_quantity =
+        ls_base_location-allocated_quantity.
+      APPEND ls_location TO ls_allocation-location_allocations.
+    ENDLOOP.
+
+    rs_result = create_dated_batch_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_dated_batch_pairs.
+    DATA(ls_fefo_allocation) = map_dated_batch_fefo(
+      is_allocation = is_allocation ).
+
+    rs_result = create_for_fefo_pairs_core(
+      is_allocation               = ls_fefo_allocation
+      iv_validate_expiry_metadata = abap_false
+      it_receiving_locations      = it_receiving_locations
+      iv_company_code             = iv_company_code
+      iv_purchasing_org           = iv_purchasing_org
+      iv_purchasing_group         = iv_purchasing_group
+      iv_allow_partial            = iv_allow_partial
+      iv_test_run                 = iv_test_run
+      iv_atomic                   = iv_atomic
+      iv_stop_on_failure          = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_dated_batch_atp_pairs.
@@ -1382,8 +3031,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         source_plant              TYPE mard-werks,
         base_unit                 TYPE mara-meins,
         required_date             TYPE resb-bdter,
-        allocated_base_quantity   TYPE mard-labst,
-        cumulative_base_quantity  TYPE mard-labst,
+        allocated_base_quantity   TYPE decfloat34,
+        cumulative_base_quantity  TYPE decfloat34,
         confirmed_base_quantity   TYPE mard-labst,
         unconfirmed_base_quantity TYPE mard-labst,
         atp_result                TYPE zif_material_availability_api=>ty_result,
@@ -1394,7 +3043,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lt_groups TYPE ty_dated_batch_atp_groups.
     DATA ls_fefo_allocation TYPE
       zcl_stock_service=>ty_plant_fefo_date_atp_result.
-    DATA lv_cumulative_quantity TYPE mard-labst.
+    DATA lv_cumulative_quantity TYPE decfloat34.
     DATA lv_previous_material TYPE mard-matnr.
     DATA lv_previous_plant TYPE mard-werks.
     DATA lv_previous_unit TYPE mara-meins.
@@ -1466,8 +3115,11 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
               <ls_group>-allocated_base_quantity
             OR ls_atp_check-cumulative_base_quantity <>
               <ls_group>-cumulative_base_quantity
-            OR ls_atp_check-confirmed_base_quantity
-              + ls_atp_check-unconfirmed_base_quantity <>
+            OR CONV decfloat34(
+              ls_atp_check-confirmed_base_quantity )
+              + CONV decfloat34(
+                ls_atp_check-unconfirmed_base_quantity )
+              <>
                 <ls_group>-cumulative_base_quantity
             OR ls_atp_check-confirmed_base_quantity <
               <ls_group>-cumulative_base_quantity
@@ -1533,24 +3185,46 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         TO ls_fefo_allocation-atp_checks.
     ENDLOOP.
 
-    rs_result = create_for_atp_fefo_pairs(
-      is_allocation          = ls_fefo_allocation
-      it_receiving_locations = it_receiving_locations
-      iv_company_code        = iv_company_code
-      iv_purchasing_org      = iv_purchasing_org
-      iv_purchasing_group    = iv_purchasing_group
-      iv_allow_partial       = iv_allow_partial
-      iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+    rs_result = create_for_atp_fefo_pairs_core(
+      is_allocation               = ls_fefo_allocation
+      iv_validate_expiry_metadata = abap_false
+      it_receiving_locations      = it_receiving_locations
+      iv_company_code             = iv_company_code
+      iv_purchasing_org           = iv_purchasing_org
+      iv_purchasing_group         = iv_purchasing_group
+      iv_allow_partial            = iv_allow_partial
+      iv_test_run                 = iv_test_run
+      iv_atomic                   = iv_atomic
+      iv_stop_on_failure          = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_fefo_pairs.
+    rs_result = create_for_fefo_pairs_core(
+      is_allocation               = is_allocation
+      it_receiving_locations      = it_receiving_locations
+      iv_company_code             = iv_company_code
+      iv_purchasing_org           = iv_purchasing_org
+      iv_purchasing_group         = iv_purchasing_group
+      iv_validate_expiry_metadata = abap_true
+      iv_allow_partial            = iv_allow_partial
+      iv_test_run                 = iv_test_run
+      iv_atomic                   = iv_atomic
+      iv_stop_on_failure          = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_fefo_pairs_core.
     DATA lt_plant_pairs TYPE ty_plant_pairs.
     DATA lt_prepared_orders TYPE ty_prepared_pair_orders.
     DATA lt_location_targets TYPE ty_source_plants.
     DATA lv_receiving_storage_loc TYPE mard-lgort.
 
-    validate_fefo_pair_totals( is_allocation = is_allocation ).
+    IF iv_validate_expiry_metadata <> abap_true
+        AND iv_validate_expiry_metadata <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+    validate_fefo_pair_totals(
+      is_allocation               = is_allocation
+      iv_validate_expiry_metadata = iv_validate_expiry_metadata ).
 
     IF iv_company_code IS INITIAL
         OR iv_purchasing_org IS INITIAL
@@ -1657,21 +3331,24 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     rs_result = execute_pair_orders(
       it_prepared_orders = lt_prepared_orders
       iv_test_run        = iv_test_run
-      iv_atomic          = iv_atomic ).
+      iv_atomic          = iv_atomic
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD validate_fefo_pair_totals.
     TYPES:
       BEGIN OF ty_fefo_demand_group,
-        request_id           TYPE c LENGTH 30,
-        material             TYPE mard-matnr,
-        target_plant         TYPE mard-werks,
-        required_date        TYPE resb-bdter,
-        priority             TYPE i,
-        source_unit          TYPE mara-meins,
-        base_unit            TYPE mara-meins,
-        demand_base_quantity TYPE mard-labst,
-        source_base_quantity TYPE mard-labst,
+        request_id            TYPE c LENGTH 30,
+        material              TYPE mard-matnr,
+        target_plant          TYPE mard-werks,
+        required_date         TYPE resb-bdter,
+        priority              TYPE i,
+        source_unit           TYPE mara-meins,
+        base_unit             TYPE mara-meins,
+        demand_base_quantity  TYPE mard-labst,
+        source_base_quantity  TYPE decfloat34,
+        require_known_expiry  TYPE abap_bool,
+        allow_undated_batches TYPE abap_bool,
       END OF ty_fefo_demand_group.
     TYPES ty_fefo_demand_groups TYPE SORTED TABLE OF
       ty_fefo_demand_group WITH UNIQUE KEY request_id.
@@ -1685,8 +3362,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         priority            TYPE i,
         source_unit         TYPE mara-meins,
         base_unit           TYPE mara-meins,
-        plant_base_quantity TYPE mard-labst,
-        batch_base_quantity TYPE mard-labst,
+        plant_base_quantity TYPE decfloat34,
+        batch_base_quantity TYPE decfloat34,
       END OF ty_fefo_plant_group.
     TYPES ty_fefo_plant_groups TYPE SORTED TABLE OF ty_fefo_plant_group
       WITH UNIQUE KEY request_id material target_plant source_plant
@@ -1695,6 +3372,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lt_plant_groups TYPE ty_fefo_plant_groups.
     FIELD-SYMBOLS <ls_demand_group> TYPE ty_fefo_demand_group.
     FIELD-SYMBOLS <ls_plant_group> TYPE ty_fefo_plant_group.
+    DATA lo_batch_eligibility TYPE REF TO zcl_stock_batch_eligibility.
+    DATA lv_is_eligible TYPE abap_bool.
 
     LOOP AT is_allocation-allocations INTO DATA(ls_demand_allocation).
       IF ls_demand_allocation-allocation-request_id IS INITIAL
@@ -1709,6 +3388,18 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             ls_demand_allocation-allocation-allocated_quantity
           OR ls_demand_allocation-available_source_quantity <
             ls_demand_allocation-allocated_source_quantity
+          OR ( ls_demand_allocation-allocation-require_known_expiry <>
+                abap_true
+            AND ls_demand_allocation-allocation-require_known_expiry <>
+                abap_false )
+          OR ( ls_demand_allocation-allocation-allow_undated_batches <>
+                abap_true
+            AND ls_demand_allocation-allocation-allow_undated_batches <>
+                abap_false )
+          OR ( ls_demand_allocation-allocation-require_known_expiry =
+                abap_true
+            AND ls_demand_allocation-allocation-allow_undated_batches =
+                abap_true )
           OR ( ls_demand_allocation-allocation-allocated_quantity > 0
             AND ls_demand_allocation-allocated_source_quantity <= 0 )
           OR ( ls_demand_allocation-allocation-allocated_quantity = 0
@@ -1716,15 +3407,19 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       INSERT VALUE #(
-        request_id           = ls_demand_allocation-allocation-request_id
-        material             = ls_demand_allocation-allocation-material
-        target_plant         = ls_demand_allocation-allocation-target_plant
-        required_date        = ls_demand_allocation-allocation-required_date
-        priority             = ls_demand_allocation-allocation-priority
-        source_unit          = ls_demand_allocation-source_unit
-        base_unit            = ls_demand_allocation-base_unit
-        demand_base_quantity =
-          ls_demand_allocation-allocation-allocated_quantity )
+        request_id            = ls_demand_allocation-allocation-request_id
+        material              = ls_demand_allocation-allocation-material
+        target_plant          = ls_demand_allocation-allocation-target_plant
+        required_date         = ls_demand_allocation-allocation-required_date
+        priority              = ls_demand_allocation-allocation-priority
+        source_unit           = ls_demand_allocation-source_unit
+        base_unit             = ls_demand_allocation-base_unit
+        demand_base_quantity  =
+          ls_demand_allocation-allocation-allocated_quantity
+        require_known_expiry  =
+          ls_demand_allocation-allocation-require_known_expiry
+        allow_undated_batches =
+          ls_demand_allocation-allocation-allow_undated_batches )
         INTO TABLE lt_demand_groups.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1851,6 +3546,65 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
+      IF iv_validate_expiry_metadata = abap_true.
+        IF ls_batch_split-allocation-allocation-as_of_date IS INITIAL
+            OR ls_batch_split-allocation-allocation-minimum_shelf_life_days < 0
+            OR ( ls_batch_split-allocation-allocation-require_known_expiry <>
+                  abap_true
+              AND ls_batch_split-allocation-allocation-require_known_expiry <>
+                  abap_false )
+            OR ( ls_batch_split-allocation-allocation-allow_undated_batches <>
+                  abap_true
+              AND ls_batch_split-allocation-allocation-allow_undated_batches <>
+                  abap_false )
+            OR ( ls_batch_split-allocation-allocation-require_known_expiry =
+                  abap_true
+              AND ls_batch_split-allocation-allocation-allow_undated_batches =
+                  abap_true )
+            OR ( ls_batch_split-allocation-allocation-include_undated_batches <>
+                  abap_true
+              AND ls_batch_split-allocation-allocation-include_undated_batches <>
+                  abap_false )
+            OR ( ls_batch_split-allocation-allocation-require_known_expiry =
+                  abap_true
+              AND ls_batch_split-allocation-allocation-include_undated_batches =
+                  abap_true )
+            OR ( ls_batch_split-allocation-allocation-allow_undated_batches =
+                  abap_true
+              AND ls_batch_split-allocation-allocation-include_undated_batches =
+                  abap_false ).
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+
+        IF lo_batch_eligibility IS NOT BOUND.
+          lo_batch_eligibility = NEW zcl_stock_batch_eligibility( ).
+        ENDIF.
+        lv_is_eligible = lo_batch_eligibility->is_eligible(
+          iv_expiration_date         =
+            ls_batch_split-allocation-allocation-expiration_date
+          iv_as_of_date              =
+            ls_batch_split-allocation-allocation-as_of_date
+          iv_min_days                =
+            ls_batch_split-allocation-allocation-minimum_shelf_life_days
+          iv_include_undated_batches =
+            ls_batch_split-allocation-allocation-include_undated_batches ).
+        IF lv_is_eligible <> abap_true.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+
+        READ TABLE lt_demand_groups INTO DATA(ls_batch_demand_group)
+          WITH TABLE KEY
+            request_id =
+              ls_batch_split-allocation-allocation-request_id.
+        IF sy-subrc <> 0
+            OR ls_batch_demand_group-require_known_expiry <>
+              ls_batch_split-allocation-allocation-require_known_expiry
+            OR ls_batch_demand_group-allow_undated_batches <>
+              ls_batch_split-allocation-allocation-allow_undated_batches.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDIF.
+
       READ TABLE lt_plant_groups ASSIGNING <ls_plant_group>
         WITH TABLE KEY
           request_id =
@@ -1893,7 +3647,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         source_unit          TYPE mara-meins,
         base_unit            TYPE mara-meins,
         demand_base_quantity TYPE mard-labst,
-        source_base_quantity TYPE mard-labst,
+        source_base_quantity TYPE decfloat34,
       END OF ty_plant_demand_group.
     TYPES ty_plant_demand_groups TYPE SORTED TABLE OF
       ty_plant_demand_group WITH UNIQUE KEY request_id.
@@ -2003,7 +3757,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         source_unit          TYPE mara-meins,
         base_unit            TYPE mara-meins,
         demand_base_quantity TYPE mard-labst,
-        source_base_quantity TYPE mard-labst,
+        source_base_quantity TYPE decfloat34,
       END OF ty_batch_demand_group.
     TYPES ty_batch_demand_groups TYPE SORTED TABLE OF
       ty_batch_demand_group WITH UNIQUE KEY request_id.
@@ -2016,8 +3770,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         batch                  TYPE mchb-charg,
         source_unit            TYPE mara-meins,
         base_unit              TYPE mara-meins,
-        plant_base_quantity    TYPE mard-labst,
-        location_base_quantity TYPE mard-labst,
+        plant_base_quantity    TYPE decfloat34,
+        location_base_quantity TYPE decfloat34,
       END OF ty_batch_source_group.
     TYPES ty_batch_source_groups TYPE SORTED TABLE OF
       ty_batch_source_group WITH UNIQUE KEY request_id material
@@ -2226,6 +3980,20 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD create_for_atp_fefo_pairs.
+    rs_result = create_for_atp_fefo_pairs_core(
+      is_allocation               = is_allocation
+      it_receiving_locations      = it_receiving_locations
+      iv_company_code             = iv_company_code
+      iv_purchasing_org           = iv_purchasing_org
+      iv_purchasing_group         = iv_purchasing_group
+      iv_validate_expiry_metadata = abap_true
+      iv_allow_partial            = iv_allow_partial
+      iv_test_run                 = iv_test_run
+      iv_atomic                   = iv_atomic
+      iv_stop_on_failure          = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_atp_fefo_pairs_core.
     DATA ls_plant_allocation TYPE
       zcl_stock_service=>ty_plant_date_atp_result.
 
@@ -2234,15 +4002,17 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     ls_plant_allocation-atp_checks = is_allocation-atp_checks.
     validate_atp_source_splits( is_allocation = ls_plant_allocation ).
 
-    rs_result = create_for_fefo_pairs(
-      is_allocation          = is_allocation-local_estimate
-      it_receiving_locations = it_receiving_locations
-      iv_company_code        = iv_company_code
-      iv_purchasing_org      = iv_purchasing_org
-      iv_purchasing_group    = iv_purchasing_group
-      iv_allow_partial       = iv_allow_partial
-      iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+    rs_result = create_for_fefo_pairs_core(
+      is_allocation               = is_allocation-local_estimate
+      iv_validate_expiry_metadata = iv_validate_expiry_metadata
+      it_receiving_locations      = it_receiving_locations
+      iv_company_code             = iv_company_code
+      iv_purchasing_org           = iv_purchasing_org
+      iv_purchasing_group         = iv_purchasing_group
+      iv_allow_partial            = iv_allow_partial
+      iv_test_run                 = iv_test_run
+      iv_atomic                   = iv_atomic
+      iv_stop_on_failure          = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD create_for_fefo_atp_pairs.
@@ -2312,14 +4082,209 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_purchasing_group    = iv_purchasing_group
       iv_allow_partial       = iv_allow_partial
       iv_test_run            = iv_test_run
-      iv_atomic              = iv_atomic ).
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_unit_fefo_pairs.
+    DATA ls_dated_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_fefo_result.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_unit_demand).
+      DATA(ls_dated_demand) = VALUE
+        zcl_stock_service=>ty_unit_date_plant_demand_allocation(
+          allocation                = CORRESPONDING #(
+            ls_unit_demand-allocation )
+          source_quantity           = ls_unit_demand-source_quantity
+          source_unit               = ls_unit_demand-source_unit
+          base_quantity             = ls_unit_demand-base_quantity
+          base_unit                 = ls_unit_demand-base_unit
+          available_source_quantity =
+            ls_unit_demand-available_source_quantity
+          allocated_source_quantity =
+            ls_unit_demand-allocated_source_quantity
+          shortfall_source_quantity =
+            ls_unit_demand-shortfall_source_quantity ).
+      ls_dated_demand-allocation-required_date = iv_delivery_date.
+      APPEND ls_dated_demand TO ls_dated_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_unit_source).
+      DATA(ls_dated_source) = VALUE
+        zcl_stock_service=>ty_unit_date_plant_source_allocation(
+          allocation                = CORRESPONDING #(
+            ls_unit_source-allocation )
+          source_unit               = ls_unit_source-source_unit
+          base_unit                 = ls_unit_source-base_unit
+          available_source_quantity =
+            ls_unit_source-available_source_quantity
+          allocated_source_quantity =
+            ls_unit_source-allocated_source_quantity ).
+      ls_dated_source-allocation-required_date = iv_delivery_date.
+      APPEND ls_dated_source TO ls_dated_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_unit_split).
+      DATA(ls_dated_split) = VALUE
+        zcl_stock_service=>ty_unit_date_plant_fefo_batch_split(
+          source_unit               = ls_unit_split-source_unit
+          base_unit                 = ls_unit_split-base_unit
+          available_source_quantity =
+            ls_unit_split-available_source_quantity
+          allocated_source_quantity =
+            ls_unit_split-allocated_source_quantity ).
+      ls_dated_split-allocation-allocation =
+        ls_unit_split-allocation.
+      ls_dated_split-allocation-required_date = iv_delivery_date.
+      APPEND ls_dated_split TO ls_dated_allocation-batch_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_fefo_pairs(
+      is_allocation          = ls_dated_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_fefo_pairs.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_unit_date_plant_fefo_result.
+    DATA ls_demand TYPE
+      zcl_stock_service=>ty_unit_date_plant_demand_allocation.
+    DATA ls_source TYPE
+      zcl_stock_service=>ty_unit_date_plant_source_allocation.
+    DATA ls_split TYPE
+      zcl_stock_service=>ty_unit_date_plant_fefo_batch_split.
+
+    IF iv_delivery_date IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT is_allocation-allocations INTO DATA(ls_priority_demand).
+      CLEAR ls_demand.
+      ls_demand-allocation = CORRESPONDING #(
+        ls_priority_demand-allocation-allocation ).
+      ls_demand-allocation-required_date = iv_delivery_date.
+      ls_demand-allocation-priority = ls_priority_demand-priority.
+      ls_demand-source_quantity =
+        ls_priority_demand-allocation-source_quantity.
+      ls_demand-source_unit = ls_priority_demand-allocation-source_unit.
+      ls_demand-base_quantity =
+        ls_priority_demand-allocation-base_quantity.
+      ls_demand-base_unit = ls_priority_demand-allocation-base_unit.
+      ls_demand-available_source_quantity =
+        ls_priority_demand-allocation-available_source_quantity.
+      ls_demand-allocated_source_quantity =
+        ls_priority_demand-allocation-allocated_source_quantity.
+      ls_demand-shortfall_source_quantity =
+        ls_priority_demand-allocation-shortfall_source_quantity.
+      APPEND ls_demand TO ls_allocation-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-plant_allocations INTO DATA(ls_priority_source).
+      CLEAR ls_source.
+      ls_source-allocation = CORRESPONDING #(
+        ls_priority_source-allocation-allocation ).
+      ls_source-allocation-required_date = iv_delivery_date.
+      ls_source-allocation-priority = ls_priority_source-priority.
+      ls_source-source_unit = ls_priority_source-allocation-source_unit.
+      ls_source-base_unit = ls_priority_source-allocation-base_unit.
+      ls_source-available_source_quantity =
+        ls_priority_source-allocation-available_source_quantity.
+      ls_source-allocated_source_quantity =
+        ls_priority_source-allocation-allocated_source_quantity.
+      APPEND ls_source TO ls_allocation-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-batch_allocations INTO DATA(ls_priority_split).
+      CLEAR ls_split.
+      ls_split-allocation-required_date = iv_delivery_date.
+      ls_split-allocation-priority = ls_priority_split-priority.
+      ls_split-allocation-allocation = CORRESPONDING #(
+        ls_priority_split-allocation-allocation ).
+      ls_split-source_unit = ls_priority_split-allocation-source_unit.
+      ls_split-base_unit = ls_priority_split-allocation-base_unit.
+      ls_split-available_source_quantity =
+        ls_priority_split-allocation-available_source_quantity.
+      ls_split-allocated_source_quantity =
+        ls_priority_split-allocation-allocated_source_quantity.
+      APPEND ls_split TO ls_allocation-batch_allocations.
+    ENDLOOP.
+
+    rs_result = create_for_fefo_pairs(
+      is_allocation          = ls_allocation
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
+  ENDMETHOD.
+
+  METHOD create_for_uom_fefo_atp_pairs.
+    DATA ls_allocation TYPE
+      zcl_stock_service=>ty_plant_fefo_atp_allocation_result.
+
+    LOOP AT is_allocation-local_estimate-allocations
+        INTO DATA(ls_priority_demand).
+      APPEND ls_priority_demand-allocation
+        TO ls_allocation-local_estimate-allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-plant_allocations
+        INTO DATA(ls_priority_source).
+      APPEND ls_priority_source-allocation
+        TO ls_allocation-local_estimate-plant_allocations.
+    ENDLOOP.
+
+    LOOP AT is_allocation-local_estimate-batch_allocations
+        INTO DATA(ls_priority_split).
+      APPEND ls_priority_split-allocation
+        TO ls_allocation-local_estimate-batch_allocations.
+    ENDLOOP.
+    ls_allocation-atp_checks = is_allocation-atp_checks.
+
+    rs_result = create_for_fefo_atp_pairs(
+      is_allocation          = ls_allocation
+      iv_delivery_date       = iv_delivery_date
+      it_receiving_locations = it_receiving_locations
+      iv_company_code        = iv_company_code
+      iv_purchasing_org      = iv_purchasing_org
+      iv_purchasing_group    = iv_purchasing_group
+      iv_allow_partial       = iv_allow_partial
+      iv_test_run            = iv_test_run
+      iv_atomic              = iv_atomic
+      iv_stop_on_failure     = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD execute_pair_orders.
+    DATA lv_next_index TYPE i.
+
+    IF ( iv_test_run <> abap_true
+          AND iv_test_run <> abap_false )
+        OR ( iv_atomic <> abap_true
+          AND iv_atomic <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
     rs_result-is_successful = abap_true.
     rs_result-is_test_run = iv_test_run.
 
     LOOP AT it_prepared_orders INTO DATA(ls_prepared_order).
+      DATA(lv_current_index) = sy-tabix.
       DATA(ls_order_result) = complete_write(
         is_request      = ls_prepared_order-request
         is_result       = mo_api->create_order(
@@ -2331,18 +4296,40 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         supplying_plant = ls_prepared_order-supplying_plant
         receiving_plant = ls_prepared_order-receiving_plant
         result          = ls_order_result ) TO rs_result-orders.
+      IF ls_order_result-is_committed = abap_true.
+        rs_result-is_committed = abap_true.
+      ENDIF.
       IF ls_order_result-is_successful <> abap_true.
         rs_result-is_successful = abap_false.
-        IF iv_atomic = abap_true.
-          LOOP AT rs_result-orders
-              ASSIGNING FIELD-SYMBOL(<ls_pair_result>).
-            <ls_pair_result>-result-is_successful = abap_false.
-            <ls_pair_result>-result-is_committed = abap_false.
-          ENDLOOP.
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        IF iv_atomic = abap_true OR iv_stop_on_failure = abap_true.
+          lv_next_index = lv_current_index + 1.
+          IF iv_atomic = abap_true.
+            LOOP AT rs_result-orders
+                ASSIGNING FIELD-SYMBOL(<ls_pair_result>).
+              <ls_pair_result>-result-is_successful = abap_false.
+              <ls_pair_result>-result-is_committed = abap_false.
+            ENDLOOP.
+          ENDIF.
           EXIT.
         ENDIF.
       ENDIF.
     ENDLOOP.
+
+    IF lv_next_index > 0.
+      LOOP AT it_prepared_orders INTO ls_prepared_order
+          FROM lv_next_index.
+        APPEND VALUE #(
+          supplying_plant = ls_prepared_order-supplying_plant
+          receiving_plant = ls_prepared_order-receiving_plant
+          result          = VALUE #(
+            submitted_items = ls_prepared_order-request-items
+            is_test_run     = iv_test_run )
+          is_skipped      = abap_true ) TO rs_result-orders.
+      ENDLOOP.
+    ENDIF.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful = abap_true
@@ -2352,11 +4339,19 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
           <ls_pair_result>-result-is_committed = abap_true.
         ENDLOOP.
+        IF rs_result-orders IS NOT INITIAL.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         mo_api->rollback( ).
+        IF iv_stop_on_failure = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
-          <ls_pair_result>-result-is_successful = abap_false.
-          <ls_pair_result>-result-is_committed = abap_false.
+          IF <ls_pair_result>-is_skipped = abap_false.
+            <ls_pair_result>-result-is_successful = abap_false.
+            <ls_pair_result>-result-is_committed = abap_false.
+          ENDIF.
         ENDLOOP.
         READ TABLE rs_result-orders ASSIGNING <ls_pair_result>
           INDEX lines( rs_result-orders ).
@@ -2367,6 +4362,16 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDIF.
+
+    LOOP AT rs_result-orders ASSIGNING <ls_pair_result>.
+      IF <ls_pair_result>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF <ls_pair_result>-result-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD validate_atp_source_splits.
@@ -2436,7 +4441,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         material      TYPE mard-matnr,
         source_plant  TYPE mard-werks,
         base_unit     TYPE mara-meins,
-        allocated_qty TYPE mard-labst,
+        allocated_qty TYPE decfloat34,
       END OF ty_fefo_atp_group.
     TYPES ty_fefo_atp_groups TYPE SORTED TABLE OF ty_fefo_atp_group
       WITH UNIQUE KEY material source_plant base_unit.
@@ -2492,8 +4497,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             ls_group-allocated_qty
           OR ls_atp_check-confirmed_base_quantity <
             ls_group-allocated_qty
-          OR ls_atp_check-confirmed_base_quantity
-            + ls_atp_check-unconfirmed_base_quantity <>
+          OR CONV decfloat34( ls_atp_check-confirmed_base_quantity )
+            + CONV decfloat34( ls_atp_check-unconfirmed_base_quantity )
+            <>
               ls_group-allocated_qty
           OR ls_atp_check-atp_result-material <> ls_group-material
           OR ls_atp_check-atp_result-plant <> ls_group-source_plant
@@ -2514,13 +4520,15 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       BEGIN OF ty_batch_atp_group,
         material      TYPE mard-matnr,
         source_plant  TYPE mard-werks,
+        check_date    TYPE d,
         base_unit     TYPE mara-meins,
-        allocated_qty TYPE mard-labst,
+        allocated_qty TYPE decfloat34,
       END OF ty_batch_atp_group.
     TYPES ty_batch_atp_groups TYPE SORTED TABLE OF ty_batch_atp_group
-      WITH UNIQUE KEY material source_plant base_unit.
+      WITH UNIQUE KEY material source_plant check_date base_unit.
     DATA lt_groups TYPE ty_batch_atp_groups.
     DATA lv_match_count TYPE i.
+    DATA lv_check_date TYPE d.
     DATA ls_atp_check TYPE zcl_stock_service=>ty_plant_atp_check.
     FIELD-SYMBOLS <ls_group> TYPE ty_batch_atp_group.
 
@@ -2529,11 +4537,29 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       IF ls_source_allocation-allocation-allocated_quantity <= 0.
         CONTINUE.
       ENDIF.
+
+      READ TABLE is_allocation-local_estimate-allocations
+        INTO DATA(ls_demand_allocation)
+        WITH KEY allocation-request_id =
+          ls_source_allocation-allocation-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      lv_check_date =
+        ls_demand_allocation-allocation-as_of_date.
+      IF lv_check_date IS INITIAL.
+        lv_check_date = sy-datum.
+      ELSEIF zcl_date_validation=>is_valid_gregorian_date(
+          iv_date = lv_check_date ) <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
       READ TABLE lt_groups ASSIGNING <ls_group>
         WITH TABLE KEY material =
             ls_source_allocation-allocation-material
           source_plant =
             ls_source_allocation-allocation-source_plant
+          check_date = lv_check_date
           base_unit = ls_source_allocation-base_unit.
       IF sy-subrc = 0.
         <ls_group>-allocated_qty = <ls_group>-allocated_qty
@@ -2543,6 +4569,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           material      = ls_source_allocation-allocation-material
           source_plant  =
             ls_source_allocation-allocation-source_plant
+          check_date    = lv_check_date
           base_unit     = ls_source_allocation-base_unit
           allocated_qty =
             ls_source_allocation-allocation-allocated_quantity )
@@ -2559,6 +4586,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       LOOP AT is_allocation-atp_checks INTO DATA(ls_candidate_check).
         IF ls_candidate_check-material = ls_group-material
             AND ls_candidate_check-source_plant = ls_group-source_plant
+            AND ls_candidate_check-check_date = ls_group-check_date
             AND ls_candidate_check-base_unit = ls_group-base_unit.
           ADD 1 TO lv_match_count.
           ls_atp_check = ls_candidate_check.
@@ -2571,8 +4599,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             ls_group-allocated_qty
           OR ls_atp_check-confirmed_base_quantity <
             ls_group-allocated_qty
-          OR ls_atp_check-confirmed_base_quantity
-            + ls_atp_check-unconfirmed_base_quantity <>
+          OR CONV decfloat34( ls_atp_check-confirmed_base_quantity )
+            + CONV decfloat34( ls_atp_check-unconfirmed_base_quantity )
+            <>
               ls_group-allocated_qty
           OR ls_atp_check-atp_result-material <> ls_group-material
           OR ls_atp_check-atp_result-plant <> ls_group-source_plant
@@ -2597,6 +4626,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lt_seen_items TYPE SORTED TABLE OF
       zif_stock_transfer_order_api=>ty_item_number
       WITH UNIQUE KEY table_line.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_orders-orders IS INITIAL
         OR is_orders-is_test_run <> abap_false
@@ -2605,7 +4635,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_atomic <> abap_true
           AND iv_atomic <> abap_false )
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -2617,7 +4649,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           OR ( ls_order_pair-result-is_test_run <> abap_true
             AND ls_order_pair-result-is_test_run <> abap_false )
           OR ( ls_order_pair-result-is_committed <> abap_true
-            AND ls_order_pair-result-is_committed <> abap_false ).
+            AND ls_order_pair-result-is_committed <> abap_false )
+          OR ( ls_order_pair-is_skipped <> abap_true
+            AND ls_order_pair-is_skipped <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
@@ -2629,10 +4663,39 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           is_test_run  = iv_test_run ) )
         TO rs_result-orders.
 
+      IF ls_order_pair-is_skipped = abap_true.
+        rs_result-is_successful = abap_false.
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_skipped_deletion_pair>)
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_skipped_deletion_pair>-is_skipped = abap_true.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
       IF ls_order_pair-result-is_successful <> abap_true
           OR ls_order_pair-result-is_committed <> abap_true
           OR ls_order_pair-result-is_test_run <> abap_false.
         rs_result-is_successful = abap_false.
+        IF lv_first_failure_index > 0.
+          READ TABLE rs_result-orders ASSIGNING
+            FIELD-SYMBOL(<ls_ineligible_deletion_pair>)
+            INDEX lines( rs_result-orders ).
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          <ls_ineligible_deletion_pair>-is_skipped = abap_true.
+        ELSEIF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_order_pair-result-purchase_order_number IS INITIAL
@@ -2659,6 +4722,17 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         APPEND ls_submitted_item-item_number TO lt_item_numbers.
       ENDLOOP.
 
+      IF lv_first_failure_index > 0.
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_later_deletion_pair>)
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_later_deletion_pair>-is_skipped = abap_true.
+        CONTINUE.
+      ENDIF.
+
       APPEND VALUE #(
         result_index = lines( rs_result-orders )
         order_result = ls_order_pair-result
@@ -2667,32 +4741,69 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
-      RETURN.
+      LOOP AT lt_prepared_deletions INTO DATA(ls_prepared_deletion).
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_deletion_pair>)
+          INDEX ls_prepared_deletion-result_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_deletion_pair>-is_skipped = abap_true.
+      ENDLOOP.
+    ELSE.
+      LOOP AT lt_prepared_deletions INTO ls_prepared_deletion.
+        DATA(ls_deletion_result) = complete_deletion(
+          is_order        = ls_prepared_deletion-order_result
+          it_item_numbers = ls_prepared_deletion-item_numbers
+          iv_defer_commit = iv_atomic
+          iv_test_run     = iv_test_run ).
+        READ TABLE rs_result-orders ASSIGNING <ls_deletion_pair>
+          INDEX ls_prepared_deletion-result_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_deletion_pair>-deletion = ls_deletion_result.
+        IF iv_atomic = abap_false
+            AND ls_deletion_result-is_deleted = abap_true.
+          rs_result-is_deleted = abap_true.
+        ENDIF.
+        IF ls_deletion_result-is_successful <> abap_true.
+          rs_result-is_successful = abap_false.
+          IF iv_stop_on_failure = abap_true.
+            lv_first_failure_index =
+              ls_prepared_deletion-result_index.
+            rs_result-stopped_on_failure = abap_true.
+          ENDIF.
+          IF iv_atomic = abap_true AND iv_test_run = abap_false.
+            LOOP AT lt_prepared_deletions
+                INTO DATA(ls_atomic_deletion).
+              READ TABLE rs_result-orders ASSIGNING <ls_deletion_pair>
+                INDEX ls_atomic_deletion-result_index.
+              IF sy-subrc <> 0.
+                RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+              ENDIF.
+              IF <ls_deletion_pair>-deletion-is_attempted = abap_true.
+                <ls_deletion_pair>-deletion-is_successful = abap_false.
+                <ls_deletion_pair>-deletion-is_deleted = abap_false.
+              ELSE.
+                <ls_deletion_pair>-is_skipped = abap_true.
+              ENDIF.
+            ENDLOOP.
+            EXIT.
+          ELSEIF iv_stop_on_failure = abap_true.
+            EXIT.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
 
-    LOOP AT lt_prepared_deletions INTO DATA(ls_prepared_deletion).
-      DATA(ls_deletion_result) = complete_deletion(
-        is_order        = ls_prepared_deletion-order_result
-        it_item_numbers = ls_prepared_deletion-item_numbers
-        iv_defer_commit = iv_atomic
-        iv_test_run     = iv_test_run ).
-      READ TABLE rs_result-orders ASSIGNING FIELD-SYMBOL(<ls_deletion_pair>)
-        INDEX ls_prepared_deletion-result_index.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
-      ENDIF.
-      <ls_deletion_pair>-deletion = ls_deletion_result.
-      IF ls_deletion_result-is_successful <> abap_true.
-        rs_result-is_successful = abap_false.
-        IF iv_atomic = abap_true AND iv_test_run = abap_false.
-          LOOP AT rs_result-orders ASSIGNING <ls_deletion_pair>.
-            <ls_deletion_pair>-deletion-is_successful = abap_false.
-            <ls_deletion_pair>-deletion-is_deleted = abap_false.
-          ENDLOOP.
-          EXIT.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_deletion_pair>.
+        IF sy-tabix > lv_first_failure_index.
+          <ls_deletion_pair>-is_skipped = abap_true.
         ENDIF.
-      ENDIF.
-    ENDLOOP.
+      ENDLOOP.
+    ENDIF.
 
     IF iv_atomic = abap_true
         AND iv_test_run = abap_false
@@ -2700,9 +4811,15 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       DATA(ls_commit_result) = mo_api->commit( ).
       IF ls_commit_result-is_successful <> abap_true.
         mo_api->rollback( ).
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         LOOP AT rs_result-orders ASSIGNING <ls_deletion_pair>.
-          <ls_deletion_pair>-deletion-is_successful = abap_false.
-          <ls_deletion_pair>-deletion-is_deleted = abap_false.
+          IF <ls_deletion_pair>-deletion-is_attempted = abap_true.
+            <ls_deletion_pair>-deletion-is_successful = abap_false.
+            <ls_deletion_pair>-deletion-is_deleted = abap_false.
+          ENDIF.
         ENDLOOP.
         READ TABLE rs_result-orders ASSIGNING <ls_deletion_pair>
           INDEX lines( rs_result-orders ).
@@ -2711,8 +4828,21 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             TO <ls_deletion_pair>-deletion-deletion_messages.
         ENDIF.
         rs_result-is_successful = abap_false.
+      ELSEIF rs_result-orders IS NOT INITIAL.
+        rs_result-is_deleted = abap_true.
       ENDIF.
     ENDIF.
+
+    LOOP AT rs_result-orders INTO DATA(ls_deletion_pair_result).
+      IF ls_deletion_pair_result-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF ls_deletion_pair_result-deletion-is_attempted = abap_true
+          AND ls_deletion_pair_result-deletion-is_successful = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD mark_sto_delivery_complete.
@@ -2735,6 +4865,7 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lt_seen_items TYPE SORTED TABLE OF
       zif_stock_transfer_order_api=>ty_item_number
       WITH UNIQUE KEY table_line.
+    DATA lv_first_failure_index TYPE i.
 
     IF is_orders-orders IS INITIAL
         OR is_orders-is_test_run <> abap_false
@@ -2743,7 +4874,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         OR ( iv_atomic <> abap_true
           AND iv_atomic <> abap_false )
         OR ( iv_test_run <> abap_true
-          AND iv_test_run <> abap_false ).
+          AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -2755,7 +4888,9 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           OR ( ls_order_pair-result-is_test_run <> abap_true
             AND ls_order_pair-result-is_test_run <> abap_false )
           OR ( ls_order_pair-result-is_committed <> abap_true
-            AND ls_order_pair-result-is_committed <> abap_false ).
+            AND ls_order_pair-result-is_committed <> abap_false )
+          OR ( ls_order_pair-is_skipped <> abap_true
+            AND ls_order_pair-is_skipped <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
@@ -2767,10 +4902,39 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           is_test_run  = iv_test_run ) )
         TO rs_result-orders.
 
+      IF ls_order_pair-is_skipped = abap_true.
+        rs_result-is_successful = abap_false.
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_skipped_completion>)
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_skipped_completion>-is_skipped = abap_true.
+        IF iv_stop_on_failure = abap_true
+            AND lv_first_failure_index = 0.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
+        CONTINUE.
+      ENDIF.
+
       IF ls_order_pair-result-is_successful <> abap_true
           OR ls_order_pair-result-is_committed <> abap_true
           OR ls_order_pair-result-is_test_run <> abap_false.
         rs_result-is_successful = abap_false.
+        IF lv_first_failure_index > 0.
+          READ TABLE rs_result-orders ASSIGNING
+            FIELD-SYMBOL(<ls_inelig_completion>)
+            INDEX lines( rs_result-orders ).
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          <ls_inelig_completion>-is_skipped = abap_true.
+        ELSEIF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         CONTINUE.
       ENDIF.
       IF ls_order_pair-result-purchase_order_number IS INITIAL
@@ -2797,6 +4961,17 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         APPEND ls_submitted_item-item_number TO lt_item_numbers.
       ENDLOOP.
 
+      IF lv_first_failure_index > 0.
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_later_completion_pair>)
+          INDEX lines( rs_result-orders ).
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_later_completion_pair>-is_skipped = abap_true.
+        CONTINUE.
+      ENDIF.
+
       APPEND VALUE #(
         result_index = lines( rs_result-orders )
         order_result = ls_order_pair-result
@@ -2805,35 +4980,73 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
 
     IF iv_atomic = abap_true
         AND rs_result-is_successful <> abap_true.
-      RETURN.
+      LOOP AT lt_prepared_completions INTO DATA(ls_prepared_completion).
+        READ TABLE rs_result-orders ASSIGNING
+          FIELD-SYMBOL(<ls_completion_pair>)
+          INDEX ls_prepared_completion-result_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_completion_pair>-is_skipped = abap_true.
+      ENDLOOP.
+    ELSE.
+      LOOP AT lt_prepared_completions INTO ls_prepared_completion.
+        DATA(ls_completion_result) = complete_delivery_mark(
+          is_order        = ls_prepared_completion-order_result
+          it_item_numbers = ls_prepared_completion-item_numbers
+          iv_defer_commit = iv_atomic
+          iv_test_run     = iv_test_run ).
+        READ TABLE rs_result-orders ASSIGNING
+          <ls_completion_pair>
+          INDEX ls_prepared_completion-result_index.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_completion_pair>-delivery_completion = ls_completion_result.
+        IF iv_atomic = abap_false
+            AND ls_completion_result-is_completed = abap_true.
+          rs_result-is_completed = abap_true.
+        ENDIF.
+        IF ls_completion_result-is_successful <> abap_true.
+          rs_result-is_successful = abap_false.
+          IF iv_stop_on_failure = abap_true.
+            lv_first_failure_index =
+              ls_prepared_completion-result_index.
+            rs_result-stopped_on_failure = abap_true.
+          ENDIF.
+          IF iv_atomic = abap_true AND iv_test_run = abap_false.
+            LOOP AT lt_prepared_completions
+                INTO DATA(ls_atomic_completion).
+              READ TABLE rs_result-orders ASSIGNING <ls_completion_pair>
+                INDEX ls_atomic_completion-result_index.
+              IF sy-subrc <> 0.
+                RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+              ENDIF.
+              IF <ls_completion_pair>-delivery_completion-is_attempted
+                  = abap_true.
+                <ls_completion_pair>-delivery_completion-is_successful =
+                  abap_false.
+                <ls_completion_pair>-delivery_completion-is_completed =
+                  abap_false.
+              ELSE.
+                <ls_completion_pair>-is_skipped = abap_true.
+              ENDIF.
+            ENDLOOP.
+            EXIT.
+          ELSEIF iv_stop_on_failure = abap_true.
+            EXIT.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
     ENDIF.
 
-    LOOP AT lt_prepared_completions INTO DATA(ls_prepared_completion).
-      DATA(ls_completion_result) = complete_delivery_mark(
-        is_order        = ls_prepared_completion-order_result
-        it_item_numbers = ls_prepared_completion-item_numbers
-        iv_defer_commit = iv_atomic
-        iv_test_run     = iv_test_run ).
-      READ TABLE rs_result-orders ASSIGNING
-        FIELD-SYMBOL(<ls_completion_pair>)
-        INDEX ls_prepared_completion-result_index.
-      IF sy-subrc <> 0.
-        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
-      ENDIF.
-      <ls_completion_pair>-delivery_completion = ls_completion_result.
-      IF ls_completion_result-is_successful <> abap_true.
-        rs_result-is_successful = abap_false.
-        IF iv_atomic = abap_true AND iv_test_run = abap_false.
-          LOOP AT rs_result-orders ASSIGNING <ls_completion_pair>.
-            <ls_completion_pair>-delivery_completion-is_successful =
-              abap_false.
-            <ls_completion_pair>-delivery_completion-is_completed =
-              abap_false.
-          ENDLOOP.
-          EXIT.
+    IF rs_result-stopped_on_failure = abap_true.
+      LOOP AT rs_result-orders ASSIGNING <ls_completion_pair>.
+        IF sy-tabix > lv_first_failure_index.
+          <ls_completion_pair>-is_skipped = abap_true.
         ENDIF.
-      ENDIF.
-    ENDLOOP.
+      ENDLOOP.
+    ENDIF.
 
     IF iv_atomic = abap_true
         AND iv_test_run = abap_false
@@ -2841,11 +5054,18 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       DATA(ls_commit_result) = mo_api->commit( ).
       IF ls_commit_result-is_successful <> abap_true.
         mo_api->rollback( ).
+        IF iv_stop_on_failure = abap_true.
+          lv_first_failure_index = lines( rs_result-orders ).
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
         LOOP AT rs_result-orders ASSIGNING <ls_completion_pair>.
-          <ls_completion_pair>-delivery_completion-is_successful =
-            abap_false.
-          <ls_completion_pair>-delivery_completion-is_completed =
-            abap_false.
+          IF <ls_completion_pair>-delivery_completion-is_attempted
+              = abap_true.
+            <ls_completion_pair>-delivery_completion-is_successful =
+              abap_false.
+            <ls_completion_pair>-delivery_completion-is_completed =
+              abap_false.
+          ENDIF.
         ENDLOOP.
         READ TABLE rs_result-orders ASSIGNING <ls_completion_pair>
           INDEX lines( rs_result-orders ).
@@ -2854,8 +5074,23 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
             <ls_completion_pair>-delivery_completion-completion_messages.
         ENDIF.
         rs_result-is_successful = abap_false.
+      ELSEIF rs_result-orders IS NOT INITIAL.
+        rs_result-is_completed = abap_true.
       ENDIF.
     ENDIF.
+
+    LOOP AT rs_result-orders INTO DATA(ls_completion_pair_result).
+      IF ls_completion_pair_result-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+      ELSEIF ls_completion_pair_result-delivery_completion-is_attempted
+          = abap_true
+          AND ls_completion_pair_result-delivery_completion-is_successful
+            = abap_true.
+        ADD 1 TO rs_result-successful_count.
+      ELSE.
+        ADD 1 TO rs_result-failed_count.
+      ENDIF.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD validate_delivery_date.
@@ -3039,8 +5274,8 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
         priority               TYPE i,
         source_unit            TYPE mara-meins,
         base_unit              TYPE mara-meins,
-        plant_base_quantity    TYPE mard-labst,
-        location_base_quantity TYPE mard-labst,
+        plant_base_quantity    TYPE decfloat34,
+        location_base_quantity TYPE decfloat34,
       END OF ty_source_location_group.
     TYPES ty_source_location_groups TYPE SORTED TABLE OF
       ty_source_location_group WITH UNIQUE KEY request_id source_plant.
@@ -3073,9 +5308,12 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
           OR ls_demand_allocation-allocation-shortfall_quantity < 0
           OR ls_demand_allocation-base_quantity <>
             ls_demand_allocation-allocation-requested_quantity
-          OR ls_demand_allocation-allocation-requested_quantity <>
-            ls_demand_allocation-allocation-allocated_quantity
-              + ls_demand_allocation-allocation-shortfall_quantity.
+          OR CONV decfloat34(
+            ls_demand_allocation-allocation-requested_quantity )
+            <> CONV decfloat34(
+              ls_demand_allocation-allocation-allocated_quantity )
+              + CONV decfloat34(
+                ls_demand_allocation-allocation-shortfall_quantity ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
     ENDLOOP.

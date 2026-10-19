@@ -35,6 +35,7 @@ INTERFACE zif_planned_order_api PUBLIC.
       planned_order TYPE plaf-plnum,
       message       TYPE ty_message,
       is_successful TYPE abap_bool,
+      is_test_run   TYPE abap_bool,
     END OF ty_result.
   TYPES:
     BEGIN OF ty_conversion_result,
@@ -52,6 +53,7 @@ INTERFACE zif_planned_order_api PUBLIC.
   METHODS create_order
     IMPORTING
       is_request       TYPE ty_request
+      iv_test_run      TYPE abap_bool DEFAULT abap_false
     RETURNING
       VALUE(rs_result) TYPE ty_result.
 

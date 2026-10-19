@@ -55,15 +55,17 @@ INTERFACE zif_project_stock_repository PUBLIC.
 
   METHODS read_project_reservations
     IMPORTING
-      it_keys                TYPE ty_keys
+      it_keys                  TYPE ty_keys
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_reservations.
+      VALUE(rt_reservations)   TYPE ty_reservations.
 
   METHODS read_project_reservations_wbs
     IMPORTING
-      it_wbs_elements        TYPE ty_wbs_elements
+      it_wbs_elements          TYPE ty_wbs_elements
+      iv_required_through_date TYPE resb-bdter OPTIONAL
     RETURNING
-      VALUE(rt_reservations) TYPE ty_reservations.
+      VALUE(rt_reservations)   TYPE ty_reservations.
 
   METHODS read_project_resv_items_wbs
     IMPORTING

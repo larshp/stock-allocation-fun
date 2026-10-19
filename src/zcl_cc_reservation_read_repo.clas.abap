@@ -11,7 +11,8 @@ CLASS zcl_cc_reservation_read_repo IMPLEMENTATION.
 
   METHOD zif_cc_reservation_read_repo~get_open_reservations.
     rt_reservations = zif_cc_reservation_read_repo~get_open_reservations_bulk(
-      it_cost_centers = VALUE #( ( iv_cost_center ) ) ).
+      it_cost_centers          = VALUE #( ( iv_cost_center ) )
+      iv_required_through_date = iv_required_through_date ).
   ENDMETHOD.
 
   METHOD zif_cc_reservation_read_repo~get_open_reservations_bulk.
@@ -30,6 +31,7 @@ CLASS zcl_cc_reservation_read_repo IMPLEMENTATION.
     DATA lt_cost_center_keys TYPE ty_cost_center_keys.
     DATA lt_headers TYPE ty_reservation_headers.
     DATA lt_items TYPE STANDARD TABLE OF resb WITH EMPTY KEY.
+    DATA lv_initial_required_date TYPE resb-bdter.
 
     IF it_cost_centers IS INITIAL.
       RETURN.
@@ -68,6 +70,9 @@ CLASS zcl_cc_reservation_read_repo IMPLEMENTATION.
         AND sobkz = @space
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_items.
 
     LOOP AT lt_items INTO DATA(ls_item).
@@ -97,8 +102,9 @@ CLASS zcl_cc_reservation_read_repo IMPLEMENTATION.
 
     LOOP AT rt_reservations ASSIGNING FIELD-SYMBOL(<ls_reservation>).
       <ls_reservation>-open_quantity =
-        <ls_reservation>-required_quantity
-        - <ls_reservation>-withdrawn_quantity.
+        zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+          iv_required_quantity  = <ls_reservation>-required_quantity
+          iv_withdrawn_quantity = <ls_reservation>-withdrawn_quantity ).
     ENDLOOP.
   ENDMETHOD.
 

@@ -58,6 +58,8 @@ CLASS ltcl_so_stock_service DEFINITION FINAL
     METHODS previews_fefo_selected_batch FOR TESTING.
     METHODS filters_fefo_issue_location FOR TESTING.
     METHODS fefo_location_fallback_order FOR TESTING.
+    METHODS prioritizes_fefo_loc_order FOR TESTING.
+    METHODS prioritizes_fefo_req_loc_prio FOR TESTING.
     METHODS filters_fefo_allowed_locations FOR TESTING.
     METHODS filters_fefo_req_locations FOR TESTING.
     METHODS previews_fefo_batch_uom FOR TESTING.
@@ -2422,6 +2424,170 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
       act = mo_repository->read_count ).
   ENDMETHOD.
 
+  METHOD prioritizes_fefo_loc_order.
+    set_fefo_stock( ).
+    mo_repository->reservations = VALUE #( ).
+    mo_repository->stocks = VALUE #(
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        batch            = 'B-SAME'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '2.000' )
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0002'
+        batch            = 'B-SAME'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '3.000' ) ).
+
+    DATA(ls_result) = mo_service->preview_issue_demands_by_fefo(
+      it_requests                  = VALUE #(
+        ( request_id         = 'FEFO-LOCATION-PRIORITY'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '4.000' ) )
+      iv_as_of_date                = '20261014'
+      it_location_allowlist        = VALUE #( ( '0001' ) ( '0002' ) )
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-batch_allocations[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mska-kalab( '3.000' )
+      act = ls_result-batch_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-batch_allocations[ 2 ]-storage_location ).
+
+    DATA(lv_read_count) = mo_repository->read_count.
+    TRY.
+        mo_service->preview_issue_demands_by_fefo(
+          it_requests                  = VALUE #(
+            ( request_id         = 'BAD-LOCATION-PRIORITY'
+              sales_document     = '0000001000'
+              item_number        = '000010'
+              requested_quantity = '1.000' ) )
+          iv_as_of_date                = '20261014'
+          it_storage_location_priority = VALUE #(
+            ( '0002' )
+            ( '0002' ) ) ).
+        cl_abap_unit_assert=>fail( ).
+      CATCH zcx_invalid_stock_request.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_read_count
+      act = mo_repository->read_count ).
+  ENDMETHOD.
+
+  METHOD prioritizes_fefo_req_loc_prio.
+    set_fefo_stock( ).
+    mo_repository->reservations = VALUE #( ).
+    mo_repository->stocks = VALUE #(
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        batch            = 'B-SAME'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '2.000' )
+      ( sales_document   = '0000001000'
+        item_number      = '000010'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0002'
+        batch            = 'B-SAME'
+        expiration_date  = '20261231'
+        base_unit        = 'EA'
+        quantity         = '3.000' ) ).
+    DATA(lt_requests) = VALUE zcl_so_stock_service=>ty_fefo_issue_requests(
+      ( request_id         = 'FEFO-REQ-1'
+        sales_document     = '0000001000'
+        item_number        = '000010'
+        requested_quantity = '4.000' )
+      ( request_id         = 'FEFO-REQ-2'
+        sales_document     = '0000001000'
+        item_number        = '000010'
+        requested_quantity = '1.000' ) ).
+    DATA(ls_result) = mo_service->preview_issue_demands_by_fefo(
+      it_requests                    = lt_requests
+      iv_as_of_date                  = '20261014'
+      it_storage_location_priority   = VALUE #( ( '0001' ) ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id = 'FEFO-REQ-1' storage_location = '0002'
+          priority_rank = 1 )
+        ( request_id = 'FEFO-REQ-2' storage_location = '0001'
+          priority_rank = 1 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FEFO-REQ-1'
+      act = ls_result-batch_allocations[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-batch_allocations[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FEFO-REQ-1'
+      act = ls_result-batch_allocations[ 2 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-batch_allocations[ 2 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FEFO-REQ-2'
+      act = ls_result-batch_allocations[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-batch_allocations[ 3 ]-storage_location ).
+
+    DATA(lv_read_count) = mo_repository->read_count.
+    TRY.
+        mo_service->preview_issue_demands_by_fefo(
+          it_requests                    = lt_requests
+          iv_as_of_date                  = '20261014'
+          it_request_location_priorities = VALUE #(
+            ( request_id = 'FEFO-REQ-1' storage_location = '0001'
+              priority_rank = 1 )
+            ( request_id = 'FEFO-REQ-1' storage_location = '0001'
+              priority_rank = 2 ) ) ).
+        cl_abap_unit_assert=>fail( ).
+      CATCH zcx_invalid_stock_request.
+    ENDTRY.
+    TRY.
+        mo_service->preview_issue_demands_by_fefo(
+          it_requests                    = lt_requests
+          iv_as_of_date                  = '20261014'
+          it_request_location_priorities = VALUE #(
+            ( request_id = 'FEFO-REQ-1' storage_location = '0001'
+              priority_rank = 0 ) ) ).
+        cl_abap_unit_assert=>fail( ).
+      CATCH zcx_invalid_stock_request.
+    ENDTRY.
+    TRY.
+        mo_service->preview_issue_demands_by_fefo(
+          it_requests                    = lt_requests
+          iv_as_of_date                  = '20261014'
+          it_request_location_priorities = VALUE #(
+            ( request_id = 'UNKNOWN' storage_location = '0001'
+              priority_rank = 1 ) ) ).
+        cl_abap_unit_assert=>fail( ).
+      CATCH zcx_invalid_stock_request.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_read_count
+      act = mo_repository->read_count ).
+  ENDMETHOD.
+
   METHOD filters_fefo_req_locations.
     set_fefo_stock( ).
     mo_repository->reservations = VALUE #( ).
@@ -2746,6 +2912,51 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-UNDATED'
       act = ls_result-batch_allocations[ 2 ]-batch ).
+
+    DATA(ls_row_allow) = mo_service->preview_issue_demands_by_fefo(
+      it_requests                = VALUE #(
+        ( request_id            = 'FEFO-ROW-ALLOW'
+          sales_document        = '0000001000'
+          item_number           = '000010'
+          requested_quantity    = '4.000'
+          allow_undated_batches = abap_true ) )
+      iv_as_of_date              = '20261014'
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mska-kalab( '5.000' )
+      act = ls_row_allow-allocations[ 1 ]-available_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_row_allow-allocations[ 1 ]-allow_undated_batches ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_row_allow-allocations[ 1 ]-include_undated_batches ).
+    cl_abap_unit_assert=>assert_true(
+      act = line_exists( ls_row_allow-batch_allocations[
+        batch = 'B-UNDATED' ] ) ).
+
+    DATA(lv_reads_before_conflict) = mo_repository->read_count.
+    DATA(lv_policy_rejected) = abap_false.
+    TRY.
+        mo_service->preview_issue_demands_by_fefo(
+          it_requests                = VALUE #(
+            ( request_id            = 'FEFO-ROW-CONFLICT'
+              sales_document        = '0000001000'
+              item_number           = '000010'
+              requested_quantity    = '1.000'
+              require_known_expiry  = abap_true
+              allow_undated_batches = abap_true ) )
+          iv_as_of_date              = '20261014'
+          iv_include_undated_batches = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_policy_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_policy_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_reads_before_conflict
+      act = mo_repository->read_count ).
   ENDMETHOD.
 
   METHOD rejects_bad_fefo_expiry.
@@ -2822,6 +3033,26 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-batch_allocations[ 1 ]-include_undated_batches ).
+
+    DATA(ls_row_allow) = mo_service->preview_issue_fefo_uom(
+      it_requests                = VALUE #(
+        ( request_id            = 'FEFO-ROW-ALLOW-BOX'
+          sales_document        = '0000001000'
+          item_number           = '000010'
+          requested_quantity    = '2.000'
+          requested_unit        = 'BOX'
+          allow_undated_batches = abap_true ) )
+      iv_as_of_date              = '20261014'
+      iv_include_undated_batches = abap_false ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_row_allow-allocations[ 1 ]-allow_undated_batches ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_row_allow-allocations[ 1 ]-include_undated_batches ).
+    cl_abap_unit_assert=>assert_true(
+      act = line_exists( ls_row_allow-batch_allocations[
+        batch = 'B-UNDATED' ] ) ).
   ENDMETHOD.
 
   METHOD rejects_bad_fefo_issue_options.

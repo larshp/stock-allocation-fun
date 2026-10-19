@@ -2912,15 +2912,15 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
         charg = 'B-1' clabs = '10.000' ) ).
     lt_resb = VALUE #(
       ( rsnum = '0000000991' rspos = '0001' matnr = 'MAT-LOC-RES-RANGE'
-        werks = '1000' lgort = '0001' bdmng = '9999999999.999' )
+        werks = '1000' lgort = '0001' bdmng = '4999999999.999' )
       ( rsnum = '0000000992' rspos = '0001' matnr = 'MAT-LOC-RES-RANGE'
-        werks = '1000' lgort = '0001' bdmng = '9999999999.999' )
+        werks = '1000' lgort = '0001' bdmng = '4999999999.999' )
       ( rsnum = '0000000993' rspos = '0001' matnr = 'MAT-BATCH-RES-RANGE'
         werks = '1000' lgort = '0001' charg = 'B-1'
-        bdmng = '9999999999.999' )
+        bdmng = '4999999999.999' )
       ( rsnum = '0000000994' rspos = '0001' matnr = 'MAT-BATCH-RES-RANGE'
         werks = '1000' lgort = '0001' charg = 'B-1'
-        bdmng = '9999999999.999' ) ).
+        bdmng = '4999999999.999' ) ).
 
     mo_environment->insert_test_data( lt_mard ).
     mo_environment->insert_test_data( lt_mchb ).
@@ -3074,5 +3074,20 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
       exp = CONV mard-labst( '30.000' )
       act = lt_statuses[ request_id = 'LOC-2' ]-locations[
         storage_location = '0001' ]-available_unrestricted_qty ).
+
+    DATA(lt_excluded_statuses) =
+      lo_repository->zif_stock_repository~get_location_stock_status_bulk(
+        it_requests              = VALUE #(
+          ( request_id = 'LOC-1-EXCLUDED'
+            material   = 'MAT-1'
+            plant      = '1000' ) )
+        it_excluded_reservations = VALUE #( (
+          reservation_number = '0000000301'
+          reservation_item   = '0010' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = lt_excluded_statuses[
+        request_id = 'LOC-1-EXCLUDED' ]-locations[
+          storage_location = '0001' ]-available_unrestricted_qty ).
   ENDMETHOD.
 ENDCLASS.

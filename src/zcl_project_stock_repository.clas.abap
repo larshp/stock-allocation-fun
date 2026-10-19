@@ -251,6 +251,7 @@ CLASS zcl_project_stock_repository IMPLEMENTATION.
     DATA lt_reservation_keys TYPE ty_reservation_keys.
     DATA lt_resb_rows TYPE STANDARD TABLE OF resb WITH EMPTY KEY.
     DATA lv_open_quantity TYPE resb-bdmng.
+    DATA lv_initial_required_date TYPE resb-bdter.
 
     IF it_keys IS INITIAL.
       RETURN.
@@ -299,6 +300,9 @@ CLASS zcl_project_stock_repository IMPLEMENTATION.
         AND sobkz = 'Q'
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_resb_rows.
 
     LOOP AT lt_resb_rows INTO DATA(ls_resb_row).
@@ -339,6 +343,7 @@ CLASS zcl_project_stock_repository IMPLEMENTATION.
     DATA lt_wbs_number_mappings TYPE ty_wbs_number_mappings.
     DATA lt_resb_rows TYPE STANDARD TABLE OF resb WITH EMPTY KEY.
     DATA lv_open_quantity TYPE resb-bdmng.
+    DATA lv_initial_required_date TYPE resb-bdter.
 
     IF it_wbs_elements IS INITIAL.
       RETURN.
@@ -372,6 +377,9 @@ CLASS zcl_project_stock_repository IMPLEMENTATION.
         AND sobkz = 'Q'
         AND xloek = @space
         AND kzear = @space
+        AND ( @iv_required_through_date = @lv_initial_required_date
+          OR bdter = @lv_initial_required_date
+          OR bdter <= @iv_required_through_date )
       INTO CORRESPONDING FIELDS OF TABLE @lt_resb_rows.
 
     LOOP AT lt_resb_rows INTO DATA(ls_resb_row).

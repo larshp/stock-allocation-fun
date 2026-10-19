@@ -61,6 +61,7 @@ CLASS lcl_sales_order_api_double DEFINITION FINAL.
     DATA mv_bulk_read_count TYPE i.
     DATA mv_change_count TYPE i.
     DATA mv_reject_count TYPE i.
+    DATA mv_delete_count TYPE i.
     DATA mv_commit_count TYPE i.
     DATA mv_rollback_count TYPE i.
     DATA mv_test_run TYPE abap_bool.
@@ -182,6 +183,13 @@ CLASS lcl_sales_order_api_double IMPLEMENTATION.
     IF rs_result-sales_document IS INITIAL.
       rs_result-sales_document = iv_sales_document.
     ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_sales_order_api~delete_order_items.
+    ADD 1 TO mv_delete_count.
+    mv_test_run = iv_test_run.
+    rs_result = ms_write_result.
+    rs_result-sales_document = iv_sales_document.
   ENDMETHOD.
 
   METHOD zif_sales_order_api~commit.

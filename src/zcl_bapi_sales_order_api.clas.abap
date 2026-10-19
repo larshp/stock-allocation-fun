@@ -31,6 +31,12 @@ CLASS zcl_bapi_sales_order_api DEFINITION
       RETURNING
         VALUE(rs_order) TYPE zif_sales_order_api=>ty_order.
 
+    CLASS-METHODS ensure_sales_order_key
+      IMPORTING
+        iv_test_run TYPE abap_bool
+      CHANGING
+        cs_result   TYPE zif_sales_order_api=>ty_write_result.
+
   PRIVATE SECTION.
     TYPES ty_bapi_items TYPE STANDARD TABLE OF bapisdit WITH DEFAULT KEY.
     TYPES:
@@ -516,6 +522,26 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         rs_result-is_successful = abap_false.
       ENDIF.
     ENDLOOP.
+
+    ensure_sales_order_key(
+      EXPORTING
+        iv_test_run = iv_test_run
+      CHANGING
+        cs_result   = rs_result ).
+  ENDMETHOD.
+
+  METHOD ensure_sales_order_key.
+    IF iv_test_run = abap_true
+        OR cs_result-is_successful <> abap_true
+        OR cs_result-sales_document IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    cs_result-is_successful = abap_false.
+    APPEND VALUE #(
+      type    = 'E'
+      message = 'BAPI_SALESORDER_CREATEFROMDAT2 returned no sales document' )
+      TO cs_result-messages.
   ENDMETHOD.
 
   METHOD zif_sales_order_api~change_order.
@@ -578,6 +604,52 @@ CLASS zcl_bapi_sales_order_api IMPLEMENTATION.
         order_item_inx  = lt_itemsx
         schedule_lines  = lt_schedules
         schedule_linesx = lt_schedulesx.
+
+    rs_result-is_successful = abap_true.
+    LOOP AT lt_return INTO ls_return.
+      APPEND VALUE #(
+        type    = ls_return-type
+        message = ls_return-message ) TO rs_result-messages.
+      IF ls_return-type = 'A'
+          OR ls_return-type = 'E'
+          OR ls_return-type = 'X'.
+        rs_result-is_successful = abap_false.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_sales_order_api~delete_order_items.
+    DATA ls_item TYPE bapisditm.
+    DATA ls_itemx TYPE bapisditmx.
+    DATA lt_items TYPE STANDARD TABLE OF bapisditm WITH DEFAULT KEY.
+    DATA lt_itemsx TYPE STANDARD TABLE OF bapisditmx WITH DEFAULT KEY.
+    DATA ls_return TYPE bapiret2.
+    DATA lt_return TYPE STANDARD TABLE OF bapiret2 WITH DEFAULT KEY.
+    DATA lv_test_run TYPE c LENGTH 1.
+
+    rs_result-sales_document = iv_sales_document.
+    LOOP AT it_item_numbers INTO DATA(lv_item_number).
+      CLEAR: ls_item, ls_itemx.
+      ls_item-itm_number = lv_item_number.
+      APPEND ls_item TO lt_items.
+
+      ls_itemx-itm_number = lv_item_number.
+      ls_itemx-updateflag = 'D'.
+      APPEND ls_itemx TO lt_itemsx.
+    ENDLOOP.
+
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
+
+    CALL FUNCTION 'BAPI_SALESORDER_CHANGE'
+      EXPORTING
+        salesdocument  = iv_sales_document
+        simulation     = lv_test_run
+      TABLES
+        return         = lt_return
+        order_item_in  = lt_items
+        order_item_inx = lt_itemsx.
 
     rs_result-is_successful = abap_true.
     LOOP AT lt_return INTO ls_return.

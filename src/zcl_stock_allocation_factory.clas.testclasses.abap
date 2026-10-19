@@ -11,6 +11,8 @@ CLASS ltcl_stock_allocation_factory DEFINITION FINAL
       RAISING cx_static_check.
     METHODS allocates_fefo_from_db FOR TESTING
       RAISING cx_static_check.
+    METHODS allocates_wbs_fefo_from_db FOR TESTING
+      RAISING cx_static_check.
 ENDCLASS.
 
 CLASS ltcl_stock_allocation_factory IMPLEMENTATION.
@@ -21,6 +23,10 @@ CLASS ltcl_stock_allocation_factory IMPLEMENTATION.
     APPEND 'MCHB' TO lt_tables.
     APPEND 'MCHA' TO lt_tables.
     APPEND 'MCH1' TO lt_tables.
+    APPEND 'MARA' TO lt_tables.
+    APPEND 'MARC' TO lt_tables.
+    APPEND 'MSPR' TO lt_tables.
+    APPEND 'PRPS' TO lt_tables.
     mo_environment = cl_osql_test_environment=>create( lt_tables ).
   ENDMETHOD.
 
@@ -206,4 +212,79 @@ CLASS ltcl_stock_allocation_factory IMPLEMENTATION.
       exp = CONV mard-labst( '6.000' )
       act = ls_result-batch_allocations[ 2 ]-allocated_quantity ).
   ENDMETHOD.
+  METHOD allocates_wbs_fefo_from_db.
+    DATA lt_mara TYPE STANDARD TABLE OF mara WITH EMPTY KEY.
+    DATA lt_mspr TYPE STANDARD TABLE OF mspr WITH EMPTY KEY.
+    DATA lt_prps TYPE STANDARD TABLE OF prps WITH EMPTY KEY.
+    DATA lt_mcha TYPE STANDARD TABLE OF mcha WITH EMPTY KEY.
+    DATA lt_resb TYPE STANDARD TABLE OF resb WITH EMPTY KEY.
+
+    lt_mara = VALUE #(
+      ( matnr = 'MAT-WBS-FEFO' meins = 'EA' ) ).
+    lt_prps = VALUE #(
+      ( pspnr = '00000001' posid = 'PRJ-WBS-FEFO' ) ).
+    lt_mspr = VALUE #(
+      ( matnr = 'MAT-WBS-FEFO' werks = '1000' lgort = '0001'
+        charg = 'B-EARLY' sobkz = 'Q' pspnr = '00000001'
+        prlab = '8.000' )
+      ( matnr = 'MAT-WBS-FEFO' werks = '1000' lgort = '0002'
+        charg = 'B-LATE' sobkz = 'Q' pspnr = '00000001'
+        prlab = '10.000' ) ).
+    lt_mcha = VALUE #(
+      ( matnr = 'MAT-WBS-FEFO' werks = '1000' charg = 'B-EARLY'
+        vfdat = '20261030' )
+      ( matnr = 'MAT-WBS-FEFO' werks = '1000' charg = 'B-LATE'
+        vfdat = '20261115' ) ).
+    lt_resb = VALUE #(
+      ( rsnum = '0000000800' rspos = '0001' matnr = 'MAT-WBS-FEFO'
+        werks = '1000' lgort = '0001' charg = 'B-EARLY' sobkz = 'Q'
+        pspel = '00000001' bdter = '20261020' meins = 'EA'
+        erfme = 'EA' bdmng = '5.000' enmng = '1.000' ) ).
+    mo_environment->insert_test_data( lt_mara ).
+    mo_environment->insert_test_data( lt_mspr ).
+    mo_environment->insert_test_data( lt_prps ).
+    mo_environment->insert_test_data( lt_mcha ).
+    mo_environment->insert_test_data( lt_resb ).
+
+    DATA(lo_service) =
+      zcl_stock_allocation_factory=>create_project_stock_service( ).
+    DATA(ls_result) = lo_service->preview_fefo(
+      it_demands    = VALUE #( (
+        request_id         = 'WBS-FEFO'
+        wbs_element        = 'PRJ-WBS-FEFO'
+        material           = 'MAT-WBS-FEFO'
+        plant              = '1000'
+        requested_quantity = '10.000'
+        unit               = 'EA' ) )
+      iv_as_of_date = '20261017' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-allocation-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '14.000' )
+      act = ls_result-allocation-allocations[ 1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_result-allocation-allocations[ 1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-WBS-FEFO'
+      act = ls_result-wbs_assignments[ 1 ]-wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocation-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EARLY'
+      act = ls_result-allocation-batch_allocations[ 1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocation-batch_allocations[ 1 ]-batch_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-LATE'
+      act = ls_result-allocation-batch_allocations[ 2 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_result-allocation-batch_allocations[ 2 ]-batch_allocation-allocated_quantity ).
+  ENDMETHOD.
+
 ENDCLASS.

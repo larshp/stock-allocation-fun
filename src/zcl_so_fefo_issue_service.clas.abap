@@ -11,56 +11,64 @@ CLASS zcl_so_fefo_issue_service DEFINITION
 
     METHODS issue_fefo
       IMPORTING
-        is_allocation              TYPE
+        is_allocation                  TYPE
           zcl_so_stock_service=>ty_fefo_issue_result
-        it_requests                TYPE
+        it_requests                    TYPE
           zcl_so_stock_service=>ty_fefo_issue_requests
-        is_header                  TYPE zif_goods_movement_api=>ty_header
-        it_material_units          TYPE
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_material_units              TYPE
           zcl_goods_movement_service=>ty_material_unit_mappings
-        iv_as_of_date              TYPE d DEFAULT sy-datum
-        iv_min_days                TYPE i DEFAULT 0
-        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
-        iv_prioritize_by_date      TYPE abap_bool DEFAULT abap_false
-        iv_prioritize_by_priority  TYPE abap_bool DEFAULT abap_false
-        it_request_ids             TYPE
-          zcl_goods_movement_service=>ty_so_fefo_request_ids OPTIONAL
-        iv_test_run                TYPE abap_bool DEFAULT abap_false
-        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
-        it_location_allowlist      TYPE
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_min_days                    TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_prioritize_by_date          TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority      TYPE abap_bool DEFAULT abap_false
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_request_locations       TYPE
+        it_request_location_priorities TYPE
+          zcl_so_stock_service=>ty_fefo_request_location_priorities OPTIONAL
+        it_request_ids                 TYPE
+          zcl_goods_movement_service=>ty_so_fefo_request_ids OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation     TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist          TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations           TYPE
           zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
       RETURNING
-        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+        VALUE(rs_result)               TYPE zif_goods_movement_api=>ty_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
 
     METHODS issue_fefo_uom
       IMPORTING
-        is_allocation              TYPE
+        is_allocation                  TYPE
           zcl_so_stock_service=>ty_fefo_issue_result
-        it_requests                TYPE
+        it_requests                    TYPE
           zcl_so_stock_service=>ty_fefo_issue_unit_requests
-        is_header                  TYPE zif_goods_movement_api=>ty_header
-        it_material_units          TYPE
+        is_header                      TYPE zif_goods_movement_api=>ty_header
+        it_material_units              TYPE
           zcl_goods_movement_service=>ty_material_unit_mappings
-        iv_as_of_date              TYPE d DEFAULT sy-datum
-        iv_min_days                TYPE i DEFAULT 0
-        iv_include_undated_batches TYPE abap_bool DEFAULT abap_true
-        iv_prioritize_by_date      TYPE abap_bool DEFAULT abap_false
-        iv_prioritize_by_priority  TYPE abap_bool DEFAULT abap_false
-        it_request_ids             TYPE
-          zcl_goods_movement_service=>ty_so_fefo_request_ids OPTIONAL
-        iv_test_run                TYPE abap_bool DEFAULT abap_false
-        iv_require_full_allocation TYPE abap_bool DEFAULT abap_true
-        it_location_allowlist      TYPE
+        iv_as_of_date                  TYPE d DEFAULT sy-datum
+        iv_min_days                    TYPE i DEFAULT 0
+        iv_include_undated_batches     TYPE abap_bool DEFAULT abap_true
+        iv_prioritize_by_date          TYPE abap_bool DEFAULT abap_false
+        iv_prioritize_by_priority      TYPE abap_bool DEFAULT abap_false
+        it_storage_location_priority   TYPE
           zcl_stock_service=>ty_storage_locations OPTIONAL
-        it_request_locations       TYPE
+        it_request_location_priorities TYPE
+          zcl_so_stock_service=>ty_fefo_request_location_priorities OPTIONAL
+        it_request_ids                 TYPE
+          zcl_goods_movement_service=>ty_so_fefo_request_ids OPTIONAL
+        iv_test_run                    TYPE abap_bool DEFAULT abap_false
+        iv_require_full_allocation     TYPE abap_bool DEFAULT abap_true
+        it_location_allowlist          TYPE
+          zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_request_locations           TYPE
           zcl_so_stock_service=>ty_fefo_request_locations OPTIONAL
       RETURNING
-        VALUE(rs_result)           TYPE zif_goods_movement_api=>ty_result
+        VALUE(rs_result)               TYPE zif_goods_movement_api=>ty_result
       RAISING
         zcx_invalid_stock_request
         zcx_invalid_goods_movement.
@@ -70,6 +78,16 @@ CLASS zcl_so_fefo_issue_service DEFINITION
     TYPES ty_request_ids TYPE STANDARD TABLE OF ty_request_id WITH EMPTY KEY.
     DATA mo_stock_service TYPE REF TO zcl_so_stock_service.
     DATA mo_goods_movement_service TYPE REF TO zcl_goods_movement_service.
+
+    METHODS validate_boolean_options
+      IMPORTING
+        iv_include_undated_batches TYPE abap_bool
+        iv_prioritize_by_date      TYPE abap_bool
+        iv_prioritize_by_priority  TYPE abap_bool
+        iv_test_run                TYPE abap_bool
+        iv_require_full_allocation TYPE abap_bool
+      RAISING
+        zcx_invalid_goods_movement.
 
     METHODS validate_input
       IMPORTING
@@ -100,6 +118,20 @@ CLASS zcl_so_fefo_issue_service IMPLEMENTATION.
   METHOD constructor.
     mo_stock_service = io_stock_service.
     mo_goods_movement_service = io_goods_movement_service.
+  ENDMETHOD.
+
+  METHOD validate_boolean_options.
+    IF ( iv_include_undated_batches <> abap_true
+          AND iv_include_undated_batches <> abap_false )
+        OR ( iv_prioritize_by_date <> abap_true
+          AND iv_prioritize_by_date <> abap_false )
+        OR ( iv_prioritize_by_priority <> abap_true
+          AND iv_prioritize_by_priority <> abap_false )
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_require_full_allocation <> abap_true
+          AND iv_require_full_allocation <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
   ENDMETHOD.
 
   METHOD validate_input.
@@ -187,6 +219,12 @@ CLASS zcl_so_fefo_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD issue_fefo.
+    validate_boolean_options(
+      iv_include_undated_batches = iv_include_undated_batches
+      iv_prioritize_by_date      = iv_prioritize_by_date
+      iv_prioritize_by_priority  = iv_prioritize_by_priority
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
     IF it_requests IS INITIAL.
       IF it_request_ids IS NOT INITIAL
           OR is_allocation-allocations IS NOT INITIAL
@@ -222,15 +260,17 @@ CLASS zcl_so_fefo_issue_service IMPLEMENTATION.
 
     DATA(ls_rechecked_allocation) =
       mo_stock_service->preview_issue_demands_by_fefo(
-        it_requests                = it_requests
-        iv_as_of_date              = iv_as_of_date
-        iv_min_days                = iv_min_days
-        iv_include_undated_batches = iv_include_undated_batches
-        iv_require_full_quantity   = iv_require_full_allocation
-        iv_prioritize_by_date      = iv_prioritize_by_date
-        iv_prioritize_by_priority  = iv_prioritize_by_priority
-        it_location_allowlist      = it_location_allowlist
-        it_request_locations       = it_request_locations ).
+        it_requests                    = it_requests
+        iv_as_of_date                  = iv_as_of_date
+        iv_min_days                    = iv_min_days
+        iv_include_undated_batches     = iv_include_undated_batches
+        iv_require_full_quantity       = iv_require_full_allocation
+        iv_prioritize_by_date          = iv_prioritize_by_date
+        iv_prioritize_by_priority      = iv_prioritize_by_priority
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = it_request_location_priorities
+        it_location_allowlist          = it_location_allowlist
+        it_request_locations           = it_request_locations ).
 
     IF it_request_ids IS INITIAL.
       rs_result = mo_goods_movement_service->issue_so_fefo_rechecked(
@@ -253,6 +293,12 @@ CLASS zcl_so_fefo_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD issue_fefo_uom.
+    validate_boolean_options(
+      iv_include_undated_batches = iv_include_undated_batches
+      iv_prioritize_by_date      = iv_prioritize_by_date
+      iv_prioritize_by_priority  = iv_prioritize_by_priority
+      iv_test_run                = iv_test_run
+      iv_require_full_allocation = iv_require_full_allocation ).
     IF it_requests IS INITIAL.
       IF it_request_ids IS NOT INITIAL
           OR is_allocation-allocations IS NOT INITIAL
@@ -288,15 +334,17 @@ CLASS zcl_so_fefo_issue_service IMPLEMENTATION.
 
     DATA(ls_rechecked_allocation) =
       mo_stock_service->preview_issue_fefo_uom(
-        it_requests                = it_requests
-        iv_as_of_date              = iv_as_of_date
-        iv_min_days                = iv_min_days
-        iv_include_undated_batches = iv_include_undated_batches
-        iv_require_full_quantity   = iv_require_full_allocation
-        iv_prioritize_by_date      = iv_prioritize_by_date
-        iv_prioritize_by_priority  = iv_prioritize_by_priority
-        it_location_allowlist      = it_location_allowlist
-        it_request_locations       = it_request_locations ).
+        it_requests                    = it_requests
+        iv_as_of_date                  = iv_as_of_date
+        iv_min_days                    = iv_min_days
+        iv_include_undated_batches     = iv_include_undated_batches
+        iv_require_full_quantity       = iv_require_full_allocation
+        iv_prioritize_by_date          = iv_prioritize_by_date
+        iv_prioritize_by_priority      = iv_prioritize_by_priority
+        it_storage_location_priority   = it_storage_location_priority
+        it_request_location_priorities = it_request_location_priorities
+        it_location_allowlist          = it_location_allowlist
+        it_request_locations           = it_request_locations ).
 
     IF it_request_ids IS INITIAL.
       rs_result = mo_goods_movement_service->issue_so_fefo_rechecked(

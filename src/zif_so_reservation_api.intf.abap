@@ -46,6 +46,7 @@ INTERFACE zif_so_reservation_api PUBLIC.
     BEGIN OF ty_delete_result,
       messages      TYPE ty_messages,
       is_successful TYPE abap_bool,
+      is_committed  TYPE abap_bool,
     END OF ty_delete_result.
   TYPES:
     BEGIN OF ty_commit_result,

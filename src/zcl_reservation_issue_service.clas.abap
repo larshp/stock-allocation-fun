@@ -53,16 +53,20 @@ CLASS zcl_reservation_issue_service DEFINITION
         is_attempted       TYPE abap_bool,
         is_successful      TYPE abap_bool,
         is_committed       TYPE abap_bool,
+        is_skipped         TYPE abap_bool,
       END OF ty_bulk_issue_item.
     TYPES ty_bulk_issue_items TYPE STANDARD TABLE OF ty_bulk_issue_item
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_bulk_issue_result,
-        items            TYPE ty_bulk_issue_items,
-        successful_count TYPE i,
-        failed_count     TYPE i,
-        is_successful    TYPE abap_bool,
-        is_test_run      TYPE abap_bool,
+        items              TYPE ty_bulk_issue_items,
+        successful_count   TYPE i,
+        failed_count       TYPE i,
+        skipped_count      TYPE i,
+        stopped_on_failure TYPE abap_bool,
+        is_successful      TYPE abap_bool,
+        is_test_run        TYPE abap_bool,
+        is_committed       TYPE abap_bool,
       END OF ty_bulk_issue_result.
     TYPES:
       BEGIN OF ty_atomic_issue_result,
@@ -121,13 +125,14 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_so_issue_bulk
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_issue_requests
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -138,6 +143,7 @@ CLASS zcl_reservation_issue_service DEFINITION
         is_header              TYPE zif_goods_movement_api=>ty_header
         it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_issue_result
       RAISING
@@ -177,13 +183,14 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_so_issue_rem_items_bulk
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_item_keys      TYPE ty_reservation_item_keys
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_item_keys       TYPE ty_reservation_item_keys
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -216,6 +223,7 @@ CLASS zcl_reservation_issue_service DEFINITION
         is_header              TYPE zif_goods_movement_api=>ty_header
         it_reservation_numbers TYPE zcl_so_res_read_service=>ty_reservation_numbers
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_issue_result
       RAISING
@@ -245,13 +253,14 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_so_rev_rem_items_bulk
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_item_keys      TYPE ty_reservation_item_keys
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_item_keys       TYPE ty_reservation_item_keys
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -269,37 +278,40 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_so_issue_bulk_uom
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_issue_requests_in_unit
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_so_reversal_bulk
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_issue_requests
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_so_reversal_bulk_uom
       IMPORTING
-        iv_sales_document TYPE vbap-vbeln
-        iv_item_number    TYPE vbap-posnr
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_issue_requests_in_unit
-        iv_test_run       TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln
+        iv_item_number     TYPE vbap-posnr
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -339,21 +351,23 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_goods_issue_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_goods_issue_reversal_bulk
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -379,21 +393,23 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_goods_issue_bulk_unit
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests_in_unit
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
     METHODS post_goods_issue_rev_bulk_unit
       IMPORTING
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests_in_unit
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -430,12 +446,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_goods_issue_bulk
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -463,6 +480,7 @@ CLASS zcl_reservation_issue_service DEFINITION
         is_header              TYPE zif_goods_movement_api=>ty_header
         it_reservation_numbers TYPE ty_cc_reservation_numbers
         iv_test_run            TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure     TYPE abap_bool DEFAULT abap_false
       RETURNING
         VALUE(rs_result)       TYPE ty_bulk_issue_result
       RAISING
@@ -492,12 +510,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_remaining_items
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_item_keys       TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -514,12 +533,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_goods_issue_bulk_unit
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests_in_unit
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -536,12 +556,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_issue_rev_bulk
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -558,12 +579,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_issue_rev_bulk_unit
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_requests      TYPE ty_issue_requests_in_unit
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_issue_requests_in_unit
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -600,12 +622,13 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_cc_rev_remaining_bulk
       IMPORTING
-        iv_cost_center   TYPE rkpf-kostl
-        is_header        TYPE zif_goods_movement_api=>ty_header
-        it_item_keys     TYPE zif_cc_reservation_read_repo=>ty_item_keys
-        iv_test_run      TYPE abap_bool DEFAULT abap_false
+        iv_cost_center     TYPE rkpf-kostl
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_item_keys       TYPE zif_cc_reservation_read_repo=>ty_item_keys
+        iv_test_run        TYPE abap_bool DEFAULT abap_false
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(rs_result) TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -643,14 +666,15 @@ CLASS zcl_reservation_issue_service DEFINITION
 
     METHODS post_reservation_movement_bulk
       IMPORTING
-        is_header         TYPE zif_goods_movement_api=>ty_header
-        it_requests       TYPE ty_movement_requests
-        iv_test_run       TYPE abap_bool
-        iv_is_reversal    TYPE abap_bool
-        iv_sales_document TYPE vbap-vbeln OPTIONAL
-        iv_sales_item     TYPE vbap-posnr OPTIONAL
+        is_header          TYPE zif_goods_movement_api=>ty_header
+        it_requests        TYPE ty_movement_requests
+        iv_test_run        TYPE abap_bool
+        iv_is_reversal     TYPE abap_bool
+        iv_stop_on_failure TYPE abap_bool DEFAULT abap_false
+        iv_sales_document  TYPE vbap-vbeln OPTIONAL
+        iv_sales_item      TYPE vbap-posnr OPTIONAL
       RETURNING
-        VALUE(rs_result)  TYPE ty_bulk_issue_result
+        VALUE(rs_result)   TYPE ty_bulk_issue_result
       RAISING
         zcx_invalid_goods_movement.
 
@@ -776,23 +800,28 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_so_issue_bulk.
-    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run
-      iv_is_reversal    = abap_false
-      iv_sales_document = iv_sales_document
-      iv_sales_item     = iv_item_number ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure
+      iv_is_reversal     = abap_false
+      iv_sales_document  = iv_sales_document
+      iv_sales_item      = iv_item_number ).
   ENDMETHOD.
 
   METHOD post_so_issue_remaining.
     DATA lt_requests TYPE ty_issue_requests.
-    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -817,11 +846,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDIF.
 
     rs_result = post_so_issue_bulk(
-      iv_sales_document = iv_sales_document
-      iv_item_number    = iv_item_number
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run ).
+      iv_sales_document  = iv_sales_document
+      iv_item_number     = iv_item_number
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_so_issue_remaining_atomic.
@@ -902,8 +932,10 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
         ENDIF.
 
-        DATA(lv_open_quantity) = ls_reservation_item-required_quantity
-          - ls_reservation_item-withdrawn_quantity.
+        DATA(lv_open_quantity) =
+          zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+            iv_required_quantity  = ls_reservation_item-required_quantity
+            iv_withdrawn_quantity = ls_reservation_item-withdrawn_quantity ).
         IF lv_open_quantity = 0.
           CONTINUE.
         ENDIF.
@@ -1025,8 +1057,9 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         APPEND VALUE #(
           reservation_number = ls_reservation_read-reservation_number
           reservation_item   = ls_reservation_item-item_number
-          base_quantity      = ls_reservation_item-required_quantity
-            - ls_reservation_item-withdrawn_quantity
+          base_quantity      = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+            iv_required_quantity  = ls_reservation_item-required_quantity
+            iv_withdrawn_quantity = ls_reservation_item-withdrawn_quantity )
           base_unit          = ls_reservation_item-base_unit
           base_unit_iso      = ls_reservation_item-base_unit_iso
           storage_location   = ls_reservation_item-storage_location
@@ -1044,6 +1077,8 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests_in_unit.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -1064,11 +1099,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_so_issue_bulk_uom(
-      iv_sales_document = iv_sales_document
-      iv_item_number    = iv_item_number
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run ).
+      iv_sales_document  = iv_sales_document
+      iv_item_number     = iv_item_number
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_so_issue_rem_items_atomic.
@@ -1198,6 +1234,8 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests_in_unit.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -1218,11 +1256,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_so_reversal_bulk_uom(
-      iv_sales_document = iv_sales_document
-      iv_item_number    = iv_item_number
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run ).
+      iv_sales_document  = iv_sales_document
+      iv_item_number     = iv_item_number
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_so_rev_remaining_atomic.
@@ -1321,6 +1360,8 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests_in_unit.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -1341,11 +1382,12 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_so_reversal_bulk_uom(
-      iv_sales_document = iv_sales_document
-      iv_item_number    = iv_item_number
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run ).
+      iv_sales_document  = iv_sales_document
+      iv_item_number     = iv_item_number
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_so_rev_rem_items_atomic.
@@ -1382,48 +1424,57 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_so_issue_bulk_uom.
-    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run
-      iv_is_reversal    = abap_false
-      iv_sales_document = iv_sales_document
-      iv_sales_item     = iv_item_number ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_false
+      iv_sales_document  = iv_sales_document
+      iv_sales_item      = iv_item_number ).
   ENDMETHOD.
 
   METHOD post_so_reversal_bulk.
-    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run
-      iv_is_reversal    = abap_true
-      iv_sales_document = iv_sales_document
-      iv_sales_item     = iv_item_number ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_sales_document  = iv_sales_document
+      iv_sales_item      = iv_item_number ).
   ENDMETHOD.
 
   METHOD post_so_reversal_bulk_uom.
-    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL.
+    IF iv_sales_document IS INITIAL OR iv_item_number IS INITIAL
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header         = is_header
-      it_requests       = lt_requests
-      iv_test_run       = iv_test_run
-      iv_is_reversal    = abap_true
-      iv_sales_document = iv_sales_document
-      iv_sales_item     = iv_item_number ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_stop_on_failure = iv_stop_on_failure
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_sales_document  = iv_sales_document
+      iv_sales_item      = iv_item_number ).
   ENDMETHOD.
 
   METHOD post_sales_order_reversal.
@@ -1466,21 +1517,33 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_goods_issue_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_false ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_false
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_goods_issue_reversal_bulk.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_true ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_goods_issue_in_unit.
@@ -1502,21 +1565,33 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_goods_issue_bulk_unit.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_false ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_false
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_goods_issue_rev_bulk_unit.
+    IF iv_stop_on_failure <> abap_true
+        AND iv_stop_on_failure <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_true ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_goods_issue_atomic_unit.
@@ -1538,6 +1613,10 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_cc_goods_issue.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     validate_cc_item_scope(
       iv_cost_center = iv_cost_center
@@ -1550,15 +1629,22 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_cc_goods_issue_bulk.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     validate_cc_item_scope(
       iv_cost_center = iv_cost_center
       it_requests    = lt_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_false ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_false
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD preview_cc_issue_remaining.
@@ -1675,7 +1761,9 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests.
 
     IF it_reservation_numbers IS INITIAL
-        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false ).
+        OR ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -1692,10 +1780,11 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_cc_goods_issue_bulk(
-      iv_cost_center = iv_cost_center
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run ).
+      iv_cost_center     = iv_cost_center
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_cc_issue_remaining_atomic.
@@ -1763,6 +1852,8 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests_in_unit.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -1782,13 +1873,18 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_cc_goods_issue_bulk_unit(
-      iv_cost_center = iv_cost_center
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run ).
+      iv_cost_center     = iv_cost_center
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_cc_goods_issue_in_unit.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     validate_cc_item_scope(
       iv_cost_center = iv_cost_center
@@ -1801,18 +1897,29 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_cc_goods_issue_bulk_unit.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     validate_cc_item_scope(
       iv_cost_center = iv_cost_center
       it_requests    = lt_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_false ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_false
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_cc_issue_rev.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     validate_cc_reversal_scope(
       iv_cost_center = iv_cost_center
@@ -1825,18 +1932,29 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_cc_issue_rev_bulk.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_base_requests( it_requests ).
     validate_cc_reversal_scope(
       iv_cost_center = iv_cost_center
       it_requests    = lt_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_true ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_cc_issue_rev_unit.
+    IF iv_test_run <> abap_true AND iv_test_run <> abap_false.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     validate_cc_reversal_scope(
       iv_cost_center = iv_cost_center
@@ -1849,15 +1967,22 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD post_cc_issue_rev_bulk_unit.
+    IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
     DATA(lt_requests) = normalize_unit_requests( it_requests ).
     validate_cc_reversal_scope(
       iv_cost_center = iv_cost_center
       it_requests    = lt_requests ).
     rs_result = post_reservation_movement_bulk(
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run
-      iv_is_reversal = abap_true ).
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_is_reversal     = abap_true
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_cc_issue_rev_atomic.
@@ -2004,6 +2129,8 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_requests TYPE ty_issue_requests_in_unit.
 
     IF ( iv_test_run <> abap_true AND iv_test_run <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false )
         OR is_header-posting_date IS INITIAL
         OR is_header-document_date IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -2023,10 +2150,11 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     ENDLOOP.
 
     rs_result = post_cc_issue_rev_bulk_unit(
-      iv_cost_center = iv_cost_center
-      is_header      = is_header
-      it_requests    = lt_requests
-      iv_test_run    = iv_test_run ).
+      iv_cost_center     = iv_cost_center
+      is_header          = is_header
+      it_requests        = lt_requests
+      iv_test_run        = iv_test_run
+      iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
   METHOD post_reservation_movement_bulk.
@@ -2037,6 +2165,7 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     DATA lt_reservation_numbers TYPE STANDARD TABLE OF
       bapi2093_res_key-reserv_no WITH EMPTY KEY.
     DATA lt_group_requests TYPE ty_movement_requests.
+    DATA lv_stop_processing TYPE abap_bool.
     FIELD-SYMBOLS <ls_item> TYPE ty_bulk_issue_item.
 
     IF is_header-posting_date IS INITIAL
@@ -2048,7 +2177,9 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         OR ( iv_test_run <> abap_true
           AND iv_test_run <> abap_false )
         OR ( iv_is_reversal <> abap_true
-          AND iv_is_reversal <> abap_false ).
+          AND iv_is_reversal <> abap_false )
+        OR ( iv_stop_on_failure <> abap_true
+          AND iv_stop_on_failure <> abap_false ).
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
 
@@ -2080,6 +2211,13 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
     LOOP AT lt_reservation_numbers INTO DATA(lv_reservation_number).
       APPEND INITIAL LINE TO rs_result-items ASSIGNING <ls_item>.
       <ls_item>-reservation_number = lv_reservation_number.
+
+      IF lv_stop_processing = abap_true.
+        <ls_item>-is_skipped = abap_true.
+        ADD 1 TO rs_result-skipped_count.
+        CONTINUE.
+      ENDIF.
+
       <ls_item>-is_attempted = abap_true.
 
       CLEAR lt_group_requests.
@@ -2110,9 +2248,16 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
         IF iv_test_run = abap_false.
           <ls_item>-is_committed = abap_true.
         ENDIF.
+        IF <ls_item>-is_committed = abap_true.
+          rs_result-is_committed = abap_true.
+        ENDIF.
       ELSE.
         ADD 1 TO rs_result-failed_count.
         rs_result-is_successful = abap_false.
+        IF iv_stop_on_failure = abap_true.
+          lv_stop_processing = abap_true.
+          rs_result-stopped_on_failure = abap_true.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -2420,8 +2565,9 @@ CLASS zcl_reservation_issue_service IMPLEMENTATION.
       DATA(lv_available_quantity) = COND mard-labst(
         WHEN iv_is_reversal = abap_true
           THEN ls_reservation_item-withdrawn_quantity
-        ELSE ls_reservation_item-required_quantity
-          - ls_reservation_item-withdrawn_quantity ).
+        ELSE zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+          iv_required_quantity  = ls_reservation_item-required_quantity
+          iv_withdrawn_quantity = ls_reservation_item-withdrawn_quantity ) ).
       IF lv_requested_base_quantity <= 0
           OR lv_requested_base_quantity > lv_available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.

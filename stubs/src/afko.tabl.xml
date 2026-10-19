@@ -59,6 +59,38 @@
           <INTTYPE>D</INTTYPE>
           <INTLEN>000016</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>GSTRS</FIELDNAME>
+          <POSITION>0006</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>GLTRS</FIELDNAME>
+          <POSITION>0007</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>GSUZS</FIELDNAME>
+          <POSITION>0008</POSITION>
+          <DATATYPE>TIMS</DATATYPE>
+          <LENG>000006</LENG>
+          <INTTYPE>T</INTTYPE>
+          <INTLEN>000004</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>GLUZS</FIELDNAME>
+          <POSITION>0009</POSITION>
+          <DATATYPE>TIMS</DATATYPE>
+          <LENG>000006</LENG>
+          <INTTYPE>T</INTTYPE>
+          <INTLEN>000004</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

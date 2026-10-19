@@ -14,6 +14,8 @@ CLASS lcl_project_stock_repo_double DEFINITION FINAL.
     DATA mt_stocks TYPE zif_project_stock_repository=>ty_stocks.
     DATA mt_reservations TYPE
       zif_project_stock_repository=>ty_reservations.
+
+
 ENDCLASS.
 
 CLASS lcl_project_stock_repo_double IMPLEMENTATION.
@@ -188,7 +190,26 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS rejects_duplicate_wbs_input FOR TESTING.
     METHODS empty_wbs_reserv_skips_repo FOR TESTING.
     METHODS allocates_project_stock_fefo FOR TESTING.
+    METHODS restricts_wbs_fefo_scope FOR TESTING.
+    METHODS scopes_wbs_location FOR TESTING.
+    METHODS previews_scoped_wbs_fefo_atp FOR TESTING.
+    METHODS previews_advanced_scoped_atp FOR TESTING.
+    METHODS scopes_xfer_fefo FOR TESTING.
+    METHODS scopes_xfer_location FOR TESTING.
+    METHODS rejects_xfer_scope FOR TESTING.
+    METHODS rejects_wbs_location_scopes FOR TESTING.
+    METHODS rejects_location_overflow FOR TESTING.
+    METHODS rejects_fefo_avail_overflow FOR TESTING.
+    METHODS rejects_fefo_atp_overflow FOR TESTING.
+    METHODS allocates_projected_fefo FOR TESTING.
+    METHODS forwards_fefo_receipt_adapters FOR TESTING.
+    METHODS rejects_unmatched_receipts FOR TESTING.
+    METHODS rejects_receipt_expiry FOR TESTING.
+    METHODS ranks_project_fefo_locs FOR TESTING.
     METHODS prioritizes_project_fefo FOR TESTING.
+    METHODS preserves_fefo_row_full_rule FOR TESTING.
+    METHODS rank_prio_fefo_loc FOR TESTING.
+    METHODS prioritizes_project_fefo_date FOR TESTING.
     METHODS prioritizes_project_location FOR TESTING.
     METHODS allocates_fefo_per_demand_date FOR TESTING.
     METHODS repeats_id_fefo_date FOR TESTING.
@@ -207,6 +228,7 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS previews_xfer_loc_prio_atp FOR TESTING.
     METHODS rejects_bad_project_atp_rule FOR TESTING.
     METHODS allocates_dated_fefo_priority FOR TESTING.
+    METHODS rank_date_fefo_loc FOR TESTING.
     METHODS rejects_bad_dated_fefo FOR TESTING.
     METHODS rejects_batch_expiry_conflict FOR TESTING.
     METHODS rejects_invalid_batch_expiry FOR TESTING.
@@ -217,16 +239,28 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS allocates_dated_transfer_fefo FOR TESTING.
     METHODS repeats_id_dated_xfer_fefo FOR TESTING.
     METHODS prioritizes_wbs_transfer_fefo FOR TESTING.
+    METHODS preserves_xfer_fefo_row_rule FOR TESTING.
+    METHODS preserves_xfer_loc_row_rule FOR TESTING.
     METHODS rejects_bad_transfer_fefo_date FOR TESTING.
     METHODS previews_wbs_location_xfer FOR TESTING.
     METHODS prioritizes_wbs_loc_transfer FOR TESTING.
     METHODS previews_dated_loc_xfer FOR TESTING.
     METHODS repeats_id_dated_loc_xfer FOR TESTING.
     METHODS allocates_unbatched_stock FOR TESTING.
+    METHODS allocates_projected_location FOR TESTING.
+    METHODS forwards_location_receipts FOR TESTING.
+    METHODS rejects_unmatched_loc_receipt FOR TESTING.
+    METHODS rejects_loc_receipt_overflow FOR TESTING.
     METHODS allocates_dated_location_prio FOR TESTING.
     METHODS repeats_id_location_date FOR TESTING.
+    METHODS ranks_dated_wbs_loc FOR TESTING.
     METHODS rejects_bad_dated_location FOR TESTING.
     METHODS shares_stock_between_demands FOR TESTING.
+    METHODS scopes_priority_wbs_fefo FOR TESTING.
+    METHODS scopes_dated_wbs_fefo FOR TESTING.
+    METHODS scopes_priority_wbs_location FOR TESTING.
+    METHODS scopes_dated_wbs_location FOR TESTING.
+    METHODS rejects_advanced_wbs_scopes FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_project_stock_service IMPLEMENTATION.
@@ -1462,6 +1496,9 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = lt_results[ 2 ]-coverage-project_stock_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
       act = mo_repository->mv_wbs_stock_read_calls ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
@@ -1669,6 +1706,12 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       ( material              = 'MAT-1'
         plant                 = '1000'
         wbs_element           = 'PRJ-100-001'
+        storage_location      = '0003'
+        batch                 = 'B-UNDATED'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
         batch                 = 'B-UNLOCATED'
         expiration_date       = '20261201'
         unrestricted_quantity = '100.000' )
@@ -1713,7 +1756,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '24.000' )
       act = ls_result-allocation-allocations[ 1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = CONV mard-labst( '37.000' )
+      exp = CONV mard-labst( '42.000' )
       act = ls_result-allocation-allocations[ 1 ]-allocation-available_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
@@ -1730,6 +1773,181 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '17.000' )
       act = ls_result-allocation-batch_allocations[ 2 ]-batch_allocation-allocated_quantity ).
+
+    DATA(ls_policy_result) = mo_cut->preview_fefo(
+      it_demands                 = VALUE #(
+        ( request_id           = 'WBS-STRICT'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '1.000'
+          unit                 = 'EA'
+          require_known_expiry = abap_true )
+        ( request_id            = 'WBS-ALLOW-UNDATED'
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          requested_quantity    = '40.000'
+          unit                  = 'EA'
+          allow_undated_batches = abap_true ) )
+      iv_as_of_date              = '20261013'
+      iv_include_undated_batches = abap_false ).
+    DATA(ls_strict_summary) = ls_policy_result-allocation-allocations[ 1 ]-allocation.
+    DATA(ls_allow_summary) = ls_policy_result-allocation-allocations[ 2 ]-allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_strict_summary-require_known_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_allow_summary-allow_undated_batches ).
+    cl_abap_unit_assert=>assert_true(
+      act = line_exists( ls_policy_result-allocation-batch_allocations[
+        batch_allocation-request_id = 'WBS-ALLOW-UNDATED'
+        batch_allocation-batch = 'B-UNDATED' ] ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_policy_result-allocation-batch_allocations[
+        batch_allocation-batch = 'B-UNDATED' ]-batch_allocation-allow_undated_batches ).
+
+    DATA(lv_stock_reads_before_conflict) =
+      mo_repository->mv_wbs_stock_read_calls.
+    DATA(lv_policy_conflict_rejected) = abap_false.
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands    = VALUE #(
+            ( request_id            = 'WBS-POLICY-CONFLICT'
+              wbs_element           = 'PRJ-100-001'
+              material              = 'MAT-1'
+              plant                 = '1000'
+              requested_quantity    = '1.000'
+              unit                  = 'EA'
+              require_known_expiry  = abap_true
+              allow_undated_batches = abap_true ) )
+          iv_as_of_date = '20261013' ).
+      CATCH zcx_invalid_stock_request.
+        lv_policy_conflict_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_policy_conflict_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_stock_reads_before_conflict
+      act = mo_repository->mv_wbs_stock_read_calls ).
+  ENDMETHOD.
+
+  METHOD ranks_project_fefo_locs.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '3.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '5.000' ) ) ).
+    DATA(lt_location_priorities) =
+      VALUE zcl_stock_service=>ty_request_location_priorities(
+        ( request_id       = 'WBS-RANK'
+          storage_location = '0002'
+          priority_rank    = 1 ) ).
+    DATA(ls_result) = mo_cut->preview_fefo(
+      it_demands                     = VALUE #(
+        ( request_id              = 'WBS-RANK'
+          wbs_element             = 'PRJ-100-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          storage_location        = '0001'
+          allow_location_fallback = abap_true
+          requested_quantity      = '4.000'
+          unit                    = 'EA' ) )
+      it_storage_location_priority   = VALUE #( ( '0002' ) ( '0001' ) )
+      it_request_location_priorities = lt_location_priorities
+      iv_as_of_date                  = '20261014' ).
+    DATA(ls_preferred_split) =
+      ls_result-allocation-batch_allocations[ 1 ]-batch_allocation.
+    DATA(ls_fallback_split) =
+      ls_result-allocation-batch_allocations[ 2 ]-batch_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_preferred_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_preferred_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_fallback_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_fallback_split-allocated_quantity ).
+
+    DATA(lv_stock_reads_before_bad_rank) =
+      mo_repository->mv_wbs_stock_read_calls.
+    DATA(lv_uom_reads_before_bad_rank) =
+      mo_uom_repository->get_read_count( ).
+    DATA(lv_bad_rank_rejected) = abap_false.
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands                     = VALUE #(
+            ( request_id         = 'WBS-RANK'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_request_location_priorities = VALUE #(
+            ( request_id       = 'UNKNOWN'
+              storage_location = '0002'
+              priority_rank    = 1 ) )
+          iv_as_of_date                  = '20261014' ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_rank_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_rank_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_stock_reads_before_bad_rank
+      act = mo_repository->mv_wbs_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_bad_rank
+      act = mo_uom_repository->get_read_count( ) ).
+
+    DATA(lv_reads_before_missing_loc) =
+      mo_repository->mv_wbs_stock_read_calls.
+    DATA(lv_uom_before_missing_loc) =
+      mo_uom_repository->get_read_count( ).
+    DATA(lv_missing_preference_rejected) = abap_false.
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands    = VALUE #(
+            ( request_id              = 'WBS-FALLBACK-MISSING-LOCATION'
+              wbs_element             = 'PRJ-100-001'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              allow_location_fallback = abap_true
+              requested_quantity      = '1.000'
+              unit                    = 'EA' ) )
+          iv_as_of_date = '20261014' ).
+      CATCH zcx_invalid_stock_request.
+        lv_missing_preference_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_missing_preference_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_reads_before_missing_loc
+      act = mo_repository->mv_wbs_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_before_missing_loc
+      act = mo_uom_repository->get_read_count( ) ).
   ENDMETHOD.
 
   METHOD prioritizes_project_fefo.
@@ -1758,13 +1976,14 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           priority           = 1
           requested_quantity = '12.000'
           unit               = 'EA' )
-        ( request_id         = 'SHARED'
-          wbs_element        = 'PRJ-100-001'
-          material           = 'MAT-1'
-          plant              = '1000'
-          priority           = 10
-          requested_quantity = '15.000'
-          unit               = 'EA' )
+        ( request_id           = 'SHARED'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          priority             = 10
+          requested_quantity   = '15.000'
+          unit                 = 'EA'
+          require_known_expiry = abap_true )
         ( request_id         = 'SHARED'
           wbs_element        = 'PRJ-100-001'
           material           = 'MAT-1'
@@ -1802,6 +2021,9 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '15.000' )
       act = ls_first_high_summary-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_first_high_summary-require_known_expiry ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_low_summary-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -1816,6 +2038,9 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-SOON'
       act = ls_first_high_split-split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_first_high_split-split-batch_allocation-require_known_expiry ).
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-batch_allocations[ 2 ]-priority ).
@@ -1839,6 +2064,301 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-wbs_assignments[ 3 ]-priority ).
   ENDMETHOD.
 
+  METHOD rank_prio_fefo_loc.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '3.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '5.000' ) ) ).
+    DATA(lt_location_priorities) =
+      VALUE zcl_stock_service=>ty_request_location_priorities(
+        ( request_id       = 'WBS-PRIO'
+          storage_location = '0002'
+          priority_rank    = 1 ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo_priority(
+      it_demands                     = VALUE #(
+        ( request_id              = 'WBS-PRIO'
+          wbs_element             = 'PRJ-100-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          priority                = 10
+          storage_location        = '0001'
+          allow_location_fallback = abap_true
+          requested_quantity      = '4.000'
+          unit                    = 'EA' )
+        ( request_id         = 'WBS-PRIO'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          priority           = 5
+          requested_quantity = '4.000'
+          unit               = 'EA' ) )
+      it_request_location_priorities = lt_location_priorities
+      iv_as_of_date                  = '20261014' ).
+    DATA(ls_first_ranked_split) =
+      ls_result-batch_allocations[ 1 ]-split-batch_allocation.
+    DATA(ls_second_ranked_split) =
+      ls_result-batch_allocations[ 2 ]-split-batch_allocation.
+    DATA(ls_third_ranked_split) =
+      ls_result-batch_allocations[ 3 ]-split-batch_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_first_ranked_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_first_ranked_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_second_ranked_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_second_ranked_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_third_ranked_split-storage_location ).
+  ENDMETHOD.
+
+  METHOD prioritizes_project_fefo_date.
+    DATA(lv_as_of_date) = CONV d( '20261013' ).
+    DATA(lv_early_date) = CONV d( '20261014' ).
+    DATA(lv_late_date) = CONV d( '20261015' ).
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'P-SOON'
+        expiration_date       = '20261020'
+        unrestricted_quantity = '4.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'P-LATER'
+        expiration_date       = '20261120'
+        unrestricted_quantity = '8.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        batch                 = 'T-SOON'
+        expiration_date       = '20261020'
+        unrestricted_quantity = '4.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        batch                 = 'T-LATER'
+        expiration_date       = '20261120'
+        unrestricted_quantity = '8.000' ) ) ).
+    mo_availability_api->set_result( is_result = VALUE #(
+      is_check_relevant  = abap_true
+      is_fully_available = abap_true ) ).
+    DATA(lt_demands) = VALUE zcl_project_stock_service=>ty_priority_fefo_demands(
+      ( request_id         = 'LATE-HIGH'
+        priority           = 10
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '6.000'
+        unit               = 'EA'
+        fefo_as_of_date    = lv_late_date )
+      ( request_id         = 'EARLY-LOW'
+        priority           = 1
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '6.000'
+        unit               = 'EA'
+        fefo_as_of_date    = lv_early_date )
+      ( request_id         = 'EARLY-HIGH'
+        priority           = 5
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '6.000'
+        unit               = 'EA'
+        fefo_as_of_date    = lv_early_date ) ).
+    DATA(lt_missing_date) = lt_demands.
+    lt_missing_date[ 1 ]-fefo_as_of_date = space.
+    DATA lv_missing_date_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_fefo_priority(
+          it_demands            = lt_missing_date
+          iv_as_of_date         = lv_as_of_date
+          iv_prioritize_by_date = abap_true ).
+      CATCH zcx_invalid_stock_request.
+        lv_missing_date_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_missing_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_wbs_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_reservation_read_calls ).
+
+    DATA(ls_wbs_result) = mo_cut->preview_fefo_priority(
+      it_demands            = lt_demands
+      iv_as_of_date         = lv_as_of_date
+      iv_prioritize_by_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-HIGH'
+      act = ls_wbs_result-allocations[
+        1 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_wbs_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_wbs_result-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-LOW'
+      act = ls_wbs_result-allocations[
+        2 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-HIGH'
+      act = ls_wbs_result-allocations[
+        3 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_wbs_result-allocations[
+        3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_result-batch_allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = ls_wbs_result-batch_allocations[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P-SOON'
+      act = ls_wbs_result-batch_allocations[
+        2 ]-split-batch_allocation-batch ).
+
+    DATA(ls_wbs_atp_result) = mo_cut->preview_fefo_priority_atp(
+      it_demands            = lt_demands
+      iv_check_rule         = 'A'
+      iv_atp_check_date     = lv_early_date
+      iv_as_of_date         = lv_as_of_date
+      iv_prioritize_by_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        3 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(lt_transfer_demands) =
+      VALUE zcl_project_stock_service=>ty_priority_transfer_fefo_demands(
+        ( request_id              = 'LATE-HIGH'
+          priority                = 10
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-LATE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '6.000'
+          unit                    = 'EA'
+          fefo_as_of_date         = lv_late_date )
+        ( request_id              = 'EARLY-LOW'
+          priority                = 1
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-LOW'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '6.000'
+          unit                    = 'EA'
+          fefo_as_of_date         = lv_early_date )
+        ( request_id              = 'EARLY-HIGH'
+          priority                = 5
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-HIGH'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '6.000'
+          unit                    = 'EA'
+          fefo_as_of_date         = lv_early_date ) ).
+    DATA(ls_transfer_result) = mo_cut->preview_transfer_fefo_priority(
+      it_demands            = lt_transfer_demands
+      iv_as_of_date         = lv_as_of_date
+      iv_prioritize_by_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LATE-HIGH'
+      act = ls_transfer_result-allocations[
+        1 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_transfer_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_transfer_result-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-LOW'
+      act = ls_transfer_result-allocations[
+        2 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EARLY-HIGH'
+      act = ls_transfer_result-allocations[
+        3 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_transfer_result-allocations[
+        3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_result-batch_allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = ls_transfer_result-batch_allocations[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'T-SOON'
+      act = ls_transfer_result-batch_allocations[
+        2 ]-split-batch_allocation-batch ).
+
+    DATA(ls_transfer_atp_result) = mo_cut->preview_transfer_fefo_prio_atp(
+      it_demands            = lt_transfer_demands
+      iv_check_rule         = 'A'
+      iv_atp_check_date     = lv_early_date
+      iv_as_of_date         = lv_as_of_date
+      iv_prioritize_by_date = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        3 ]-allocation-allocation-allocated_quantity ).
+  ENDMETHOD.
+
   METHOD prioritizes_project_location.
     mo_repository->set_stocks( it_stocks = VALUE #(
       ( material              = 'MAT-1'
@@ -1850,10 +2370,10 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         plant                 = '1000'
         wbs_element           = 'PRJ-100-001'
         storage_location      = '0002'
-        unrestricted_quantity = '10.000' ) ) ).
+        unrestricted_quantity = '3.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_by_location_priority(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id         = 'SHARED'
           priority           = 1
           wbs_element        = 'PRJ-100-001'
@@ -1861,13 +2381,15 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant              = '1000'
           requested_quantity = '5.000'
           unit               = 'EA' )
-        ( request_id         = 'SHARED'
-          priority           = 10
-          wbs_element        = 'PRJ-100-001'
-          material           = 'MAT-1'
-          plant              = '1000'
-          requested_quantity = '10.000'
-          unit               = 'EA' )
+        ( request_id              = 'SHARED'
+          priority                = 10
+          wbs_element             = 'PRJ-100-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          storage_location        = '0002'
+          allow_location_fallback = abap_true
+          requested_quantity      = '10.000'
+          unit                    = 'EA' )
         ( request_id         = 'SHARED'
           priority           = 10
           wbs_element        = 'PRJ-100-001'
@@ -1875,7 +2397,14 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant              = '1000'
           requested_quantity = '10.000'
           unit               = 'EA' ) )
-      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) ) ).
+      it_storage_location_priority   = VALUE #( ( '0002' ) ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 2 ) ) ).
     DATA(ls_low_allocation) = ls_result-allocations[ 1 ].
     DATA(ls_first_high_allocation) = ls_result-allocations[ 2 ].
     DATA(ls_second_high_allocation) = ls_result-allocations[ 3 ].
@@ -1883,7 +2412,8 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     DATA(ls_first_high_summary) = ls_first_high_allocation-allocation-allocation.
     DATA(ls_second_high_summary) = ls_second_high_allocation-allocation-allocation.
     DATA(ls_first_high_split) = ls_result-storage_allocations[ 1 ].
-    DATA(ls_second_high_split) = ls_result-storage_allocations[ 2 ].
+    DATA(ls_first_high_fallback_split) = ls_result-storage_allocations[ 2 ].
+    DATA(ls_second_high_split) = ls_result-storage_allocations[ 3 ].
 
     cl_abap_unit_assert=>assert_equals(
       exp = 3
@@ -1901,14 +2431,23 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '10.000' )
       act = ls_first_high_summary-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = CONV mard-labst( '10.000' )
+      exp = CONV mard-labst( '3.000' )
       act = ls_second_high_summary-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 3
       act = lines( ls_result-storage_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_first_high_split-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_first_high_split-split-storage_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_first_high_fallback_split-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = ls_first_high_fallback_split-split-storage_allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
       act = ls_second_high_split-split-storage_allocation-storage_location ).
@@ -2325,7 +2864,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_location_priority_atp(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id         = 'SHARED'
           priority           = 1
           wbs_element        = 'PRJ-100-001'
@@ -2340,10 +2879,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant              = '1000'
           requested_quantity = '1.000'
           unit               = 'EA' ) )
-      iv_check_rule                = 'A'
-      it_storage_location_priority = VALUE #(
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
         ( '0002' )
-        ( '0001' ) ) ).
+        ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2356,11 +2902,11 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_result-local_estimate-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0002'
       act = ls_result-local_estimate-storage_allocations[
         1 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0002'
+      exp = '0001'
       act = ls_result-local_estimate-storage_allocations[
         2 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
@@ -2399,13 +2945,20 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       ( material              = 'MAT-1'
         plant                 = '1000'
         wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        batch                 = 'B-1'
+        expiration_date       = lv_expiration_date
+        unrestricted_quantity = '1.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
         storage_location      = '0001'
         batch                 = 'B-2'
         expiration_date       = lv_second_expiration_date
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_fefo_atp(
-      it_demands        = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'XFER-1'
           source_wbs_element      = 'PRJ-SOURCE-001'
           destination_wbs_element = 'PRJ-TARGET-1'
@@ -2420,8 +2973,18 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule     = 'A'
-      iv_atp_check_date = lv_atp_check_date ).
+      iv_check_rule                  = 'A'
+      iv_atp_check_date              = lv_atp_check_date
+      it_storage_location_priority   = VALUE #(
+        ( '0001' )
+        ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'XFER-1'
+          storage_location = '0002'
+          priority_rank    = 1 )
+        ( request_id       = 'XFER-2'
+          storage_location = '0001'
+          priority_rank    = 1 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2435,9 +2998,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-local_estimate-allocation-batch_allocations[
         1 ]-batch_allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-2'
+      exp = 'B-1'
       act = ls_result-local_estimate-allocation-batch_allocations[
         2 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-local_estimate-allocation-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-local_estimate-allocation-batch_allocations[
+        2 ]-batch_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'PRJ-TARGET-1'
       act = ls_result-local_estimate-transfer_assignments[
@@ -2477,7 +3048,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_loc_atp(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'XFER-1'
           source_wbs_element      = 'PRJ-SOURCE-001'
           destination_wbs_element = 'PRJ-TARGET-1'
@@ -2492,10 +3063,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule                = 'A'
-      it_storage_location_priority = VALUE #(
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
         ( '0002' )
-        ( '0001' ) ) ).
+        ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'XFER-1'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'XFER-2'
+          storage_location = '0002'
+          priority_rank    = 1 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2505,11 +3083,11 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( ls_result-local_estimate-allocation-storage_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0002'
+      exp = '0001'
       act = ls_result-local_estimate-allocation-storage_allocations[
         1 ]-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0002'
       act = ls_result-local_estimate-allocation-storage_allocations[
         2 ]-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
@@ -2556,13 +3134,20 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       ( material              = 'MAT-1'
         plant                 = '1000'
         wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        batch                 = 'B-1'
+        expiration_date       = lv_first_expiry
+        unrestricted_quantity = '1.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
         storage_location      = '0001'
         batch                 = 'B-2'
         expiration_date       = lv_second_expiry
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_fefo_prio_atp(
-      it_demands        = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'SHARED'
           priority                = 1
           source_wbs_element      = 'PRJ-SOURCE-001'
@@ -2579,8 +3164,18 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule     = 'A'
-      iv_atp_check_date = lv_atp_check_date ).
+      iv_check_rule                  = 'A'
+      iv_atp_check_date              = lv_atp_check_date
+      it_storage_location_priority   = VALUE #(
+        ( '0001' )
+        ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2593,13 +3188,21 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_result-local_estimate-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-2'
+      exp = 'B-1'
       act = ls_result-local_estimate-batch_allocations[
         1 ]-split-batch_allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-1'
       act = ls_result-local_estimate-batch_allocations[
         2 ]-split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-local_estimate-batch_allocations[
+        2 ]-split-batch_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'PRJ-TARGET-1'
       act = ls_result-local_estimate-transfer_assignments[
@@ -2639,7 +3242,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_loc_prio_atp(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'SHARED'
           priority                = 1
           source_wbs_element      = 'PRJ-SOURCE-001'
@@ -2656,10 +3259,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule                = 'A'
-      it_storage_location_priority = VALUE #(
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
         ( '0002' )
-        ( '0001' ) ) ).
+        ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -2672,11 +3282,11 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_result-local_estimate-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0002'
       act = ls_result-local_estimate-storage_allocations[
         1 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0002'
+      exp = '0001'
       act = ls_result-local_estimate-storage_allocations[
         2 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
@@ -3036,7 +3646,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_by_location_date_atp(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id         = 'SHARED'
           required_date      = lv_required_date
           wbs_element        = 'PRJ-100-001'
@@ -3051,10 +3661,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant              = '1000'
           requested_quantity = '1.000'
           unit               = 'EA' ) )
-      iv_check_rule                = 'A'
-      it_storage_location_priority = VALUE #(
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
         ( '0002' )
-        ( '0001' ) ) ).
+        ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -3068,11 +3685,11 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( ls_result-local_estimate-storage_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0002'
+      exp = '0001'
       act = ls_result-local_estimate-storage_allocations[
         1 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0002'
       act = ls_result-local_estimate-storage_allocations[
         2 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
@@ -3117,13 +3734,20 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       ( material              = 'MAT-1'
         plant                 = '1000'
         wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        batch                 = 'B-1'
+        expiration_date       = lv_first_expiry
+        unrestricted_quantity = '1.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
         storage_location      = '0001'
         batch                 = 'B-2'
         expiration_date       = lv_second_expiry
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_fefo_date_atp(
-      it_demands    = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'SHARED'
           required_date           = lv_required_date
           source_wbs_element      = 'PRJ-SOURCE-001'
@@ -3140,7 +3764,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule = 'A' ).
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
+        ( '0001' )
+        ( '0002' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -3158,9 +3792,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-local_estimate-batch_allocations[
         1 ]-split-batch_allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-2'
+      exp = 'B-1'
       act = ls_result-local_estimate-batch_allocations[
         2 ]-split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-local_estimate-batch_allocations[
+        2 ]-split-batch_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'PRJ-TARGET-1'
       act = ls_result-local_estimate-transfer_assignments[
@@ -3206,7 +3848,7 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_loc_date_atp(
-      it_demands                   = VALUE #(
+      it_demands                     = VALUE #(
         ( request_id              = 'SHARED'
           required_date           = lv_required_date
           source_wbs_element      = 'PRJ-SOURCE-001'
@@ -3223,10 +3865,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant                   = '1000'
           requested_quantity      = '1.000'
           unit                    = 'EA' ) )
-      iv_check_rule                = 'A'
-      it_storage_location_priority = VALUE #(
+      iv_check_rule                  = 'A'
+      it_storage_location_priority   = VALUE #(
         ( '0002' )
-        ( '0001' ) ) ).
+        ( '0001' ) )
+      it_request_location_priorities = VALUE #(
+        ( request_id       = 'SHARED'
+          storage_location = '0001'
+          priority_rank    = 1 )
+        ( request_id       = 'SHARED'
+          storage_location = '0002'
+          priority_rank    = 2 ) ) ).
     DATA(lt_requests) = mo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -3244,11 +3893,11 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( ls_result-local_estimate-storage_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0002'
+      exp = '0001'
       act = ls_result-local_estimate-storage_allocations[
         1 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '0001'
+      exp = '0002'
       act = ls_result-local_estimate-storage_allocations[
         2 ]-split-storage_allocation-storage_location ).
     cl_abap_unit_assert=>assert_equals(
@@ -3623,10 +4272,16 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         storage_location      = '0001'
         batch                 = 'B-3'
         expiration_date       = lv_third_expiry
+        unrestricted_quantity = '1.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-UNDATED'
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_fefo_by_date(
-      it_demands = VALUE #(
+      it_demands                 = VALUE #(
         ( request_id         = 'REQ-LATE'
           required_date      = lv_late_date
           priority           = 99
@@ -3643,14 +4298,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           plant              = '1000'
           requested_quantity = '1.000'
           unit               = 'EA' )
-        ( request_id         = 'REQ-EARLY-HIGH'
-          required_date      = lv_early_date
-          priority           = 5
-          wbs_element        = 'PRJ-100-001'
-          material           = 'MAT-1'
-          plant              = '1000'
-          requested_quantity = '1.000'
-          unit               = 'EA' ) ) ).
+        ( request_id            = 'REQ-EARLY-HIGH'
+          required_date         = lv_early_date
+          priority              = 5
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          batch                 = 'B-UNDATED'
+          requested_quantity    = '1.000'
+          unit                  = 'EA'
+          allow_undated_batches = abap_true ) )
+      iv_include_undated_batches = abap_false ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 3
@@ -3668,24 +4326,102 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-allocations[
         3 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-3'
-      act = ls_result-batch_allocations[
-        1 ]-split-batch_allocation-batch ).
+      exp = abap_true
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'REQ-EARLY-HIGH'
+        ]-allocation-allocation-allow_undated_batches ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-2'
+      exp = 'B-UNDATED'
       act = ls_result-batch_allocations[
-        2 ]-split-batch_allocation-batch ).
+        split-batch_allocation-request_id = 'REQ-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-split-batch_allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-1'
+      exp = abap_true
       act = ls_result-batch_allocations[
-        3 ]-split-batch_allocation-batch ).
+        split-batch_allocation-request_id = 'REQ-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-split-batch_allocation-allow_undated_batches ).
     cl_abap_unit_assert=>assert_equals(
       exp = lv_early_date
       act = ls_result-batch_allocations[
-        3 ]-required_date ).
+        split-batch_allocation-request_id = 'REQ-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-required_date ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
-      act = ls_result-batch_allocations[ 3 ]-priority ).
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'REQ-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-priority ).
+  ENDMETHOD.
+
+  METHOD rank_date_fefo_loc.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261230'
+        unrestricted_quantity = '3.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SAME'
+        expiration_date       = '20261230'
+        unrestricted_quantity = '5.000' ) ) ).
+    DATA(lt_location_priorities) =
+      VALUE zcl_stock_service=>ty_request_location_priorities(
+        ( request_id       = 'WBS-DATE'
+          storage_location = '0002'
+          priority_rank    = 1 ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo_by_date(
+      it_demands                     = VALUE #(
+        ( request_id              = 'WBS-DATE'
+          required_date           = '20261201'
+          priority                = 10
+          wbs_element             = 'PRJ-100-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          storage_location        = '0001'
+          allow_location_fallback = abap_true
+          requested_quantity      = '4.000'
+          unit                    = 'EA' )
+        ( request_id         = 'WBS-DATE'
+          required_date      = '20261201'
+          priority           = 5
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' ) )
+      it_request_location_priorities = lt_location_priorities
+      iv_as_of_date                  = '20261014' ).
+    DATA(ls_first_split_row) = ls_result-batch_allocations[ 1 ].
+    DATA(ls_second_split_row) = ls_result-batch_allocations[ 2 ].
+    DATA(ls_third_split_row) = ls_result-batch_allocations[ 3 ].
+    DATA(ls_first_split) = ls_first_split_row-split-batch_allocation.
+    DATA(ls_second_split) = ls_second_split_row-split-batch_allocation.
+    DATA(ls_third_split) = ls_third_split_row-split-batch_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_first_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_first_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_second_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_second_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_third_split-storage_location ).
   ENDMETHOD.
 
   METHOD rejects_bad_dated_fefo.
@@ -3829,10 +4565,16 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         storage_location      = '0001'
         batch                 = 'B-3'
         expiration_date       = '20261212'
+        unrestricted_quantity = '1.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-UNDATED'
         unrestricted_quantity = '1.000' ) ) ).
 
     DATA(ls_result) = mo_cut->preview_transfer_fefo_by_date(
-      it_demands    = VALUE #(
+      it_demands                 = VALUE #(
         ( request_id              = 'XFER-LATE'
           required_date           = '20261205'
           priority                = 99
@@ -3841,7 +4583,8 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           material                = 'MAT-1'
           plant                   = '1000'
           requested_quantity      = '1.000'
-          unit                    = 'EA' )
+          unit                    = 'EA'
+          require_known_expiry    = abap_true )
         ( request_id              = 'XFER-EARLY-LOW'
           required_date           = '20261201'
           priority                = 1
@@ -3858,26 +4601,39 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           destination_wbs_element = 'PRJ-TARGET-003'
           material                = 'MAT-1'
           plant                   = '1000'
+          batch                   = 'B-UNDATED'
           requested_quantity      = '1.000'
-          unit                    = 'EA' ) )
-      iv_as_of_date = '20261001' ).
+          unit                    = 'EA'
+          allow_undated_batches   = abap_true ) )
+      iv_as_of_date              = '20261001'
+      iv_include_undated_batches = abap_false ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 'XFER-LATE'
       act = ls_result-allocations[
         1 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-3'
-      act = ls_result-batch_allocations[
-        1 ]-split-batch_allocation-batch ).
+      exp = abap_true
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'XFER-LATE'
+        ]-allocation-allocation-require_known_expiry ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-2'
-      act = ls_result-batch_allocations[
-        2 ]-split-batch_allocation-batch ).
+      exp = abap_true
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'XFER-EARLY-HIGH'
+        ]-allocation-allocation-allow_undated_batches ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 'B-1'
+      exp = 'B-UNDATED'
       act = ls_result-batch_allocations[
-        3 ]-split-batch_allocation-batch ).
+        split-batch_allocation-request_id = 'XFER-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-split-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'XFER-EARLY-HIGH'
+        split-batch_allocation-batch = 'B-UNDATED'
+        ]-split-batch_allocation-allow_undated_batches ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'PRJ-TARGET-001'
       act = ls_result-transfer_assignments[
@@ -3887,9 +4643,40 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-batch_allocations[
         3 ]-required_date ).
     cl_abap_unit_assert=>assert_equals(
+      exp = '20261201'
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'XFER-EARLY-HIGH'
+        ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = ls_result-batch_allocations[
-        3 ]-priority ).
+        split-batch_allocation-request_id = 'XFER-EARLY-HIGH'
+        ]-priority ).
+
+    DATA(lv_reads_before_conflict) = mo_repository->mv_wbs_stock_read_calls.
+    DATA(lv_conflict_rejected) = abap_false.
+    TRY.
+        mo_cut->preview_transfer_fefo(
+          it_demands    = VALUE #(
+            ( request_id              = 'XFER-CONFLICT'
+              source_wbs_element      = 'PRJ-100-001'
+              destination_wbs_element = 'PRJ-TARGET-CONFLICT'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              requested_quantity      = '1.000'
+              unit                    = 'EA'
+              require_known_expiry    = abap_true
+              allow_undated_batches   = abap_true ) )
+          iv_as_of_date = '20261001' ).
+      CATCH zcx_invalid_stock_request.
+        lv_conflict_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_conflict_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_reads_before_conflict
+      act = mo_repository->mv_wbs_stock_read_calls ).
   ENDMETHOD.
 
   METHOD repeats_id_dated_xfer_fefo.
@@ -3995,7 +4782,8 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
           material                = 'MAT-1'
           plant                   = '1000'
           requested_quantity      = '15.000'
-          unit                    = 'EA' )
+          unit                    = 'EA'
+          require_known_expiry    = abap_true )
         ( request_id              = 'SHARED'
           priority                = 10
           source_wbs_element      = 'PRJ-SOURCE-001'
@@ -4025,6 +4813,15 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '12.000' )
       act = ls_low_summary-allocation-shortfall_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_first_high_summary-allocation-require_known_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_first_batch_split-split-batch_allocation-require_known_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_second_batch_split-split-batch_allocation-require_known_expiry ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '15.000' )
       act = ls_first_high_summary-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -4050,6 +4847,247 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-transfer_assignments[ 3 ]-priority ).
+  ENDMETHOD.
+
+  METHOD preserves_xfer_fefo_row_rule.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        batch                 = 'B-1'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '2.000' ) ) ).
+
+    DATA(ls_base_result) = mo_cut->preview_transfer_fefo(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_as_of_date            = '20261015'
+      iv_require_full_quantity = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'STRICT'
+        ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'STRICT'
+        ]-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'PARTIAL'
+        ]-allocation-allocated_quantity ).
+
+    DATA(ls_priority_result) = mo_cut->preview_transfer_fefo_priority(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          priority                = 20
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          priority                = 10
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_as_of_date            = '20261015'
+      iv_require_full_quantity = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'PARTIAL'
+        ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_result) = mo_cut->preview_transfer_fefo_by_date(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          required_date           = '20261016'
+          priority                = 20
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          required_date           = '20261016'
+          priority                = 10
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_as_of_date            = '20261015'
+      iv_require_full_quantity = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'PARTIAL'
+        ]-allocation-allocation-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD preserves_xfer_loc_row_rule.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '2.000' ) ) ).
+
+    DATA(ls_base_result) = mo_cut->preview_transfer_by_location(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_require_full_quantity = abap_false ).
+    DATA(ls_priority_result) = mo_cut->preview_transfer_loc_priority(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          priority                = 20
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          priority                = 10
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_require_full_quantity = abap_false ).
+    DATA(ls_dated_result) = mo_cut->preview_transfer_location_date(
+      it_demands               = VALUE #(
+        ( request_id              = 'STRICT'
+          required_date           = '20261015'
+          priority                = 20
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-STRICT'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '3.000'
+          require_full_quantity   = abap_true
+          unit                    = 'EA' )
+        ( request_id              = 'PARTIAL'
+          required_date           = '20261016'
+          priority                = 10
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-PARTIAL'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '2.000'
+          unit                    = 'EA' ) )
+      iv_require_full_quantity = abap_false ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'STRICT'
+        ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'STRICT'
+        ]-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_base_result-allocation-allocations[
+        allocation-request_id = 'PARTIAL'
+        ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_priority_result-allocations[
+        allocation-allocation-request_id = 'PARTIAL'
+        ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'STRICT'
+        ]-allocation-allocation-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_dated_result-allocations[
+        allocation-allocation-request_id = 'PARTIAL'
+        ]-allocation-allocation-allocated_quantity ).
   ENDMETHOD.
 
   METHOD rejects_bad_transfer_fefo_date.
@@ -4192,6 +5230,335 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-allocation-allocations[ 2 ]-allocation-shortfall_quantity ).
   ENDMETHOD.
 
+  METHOD allocates_projected_fefo.
+    DATA(ls_result) = mo_cut->preview_fefo(
+      it_demands                  = VALUE #(
+        ( request_id         = 'REQ-EARLY'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' )
+        ( request_id         = 'REQ-LATER'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          fefo_as_of_date    = '20261020' )
+        ( request_id         = 'REQ-OTHER-WBS'
+          wbs_element        = 'PRJ-OTHER'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          fefo_as_of_date    = '20261020' ) )
+      it_projected_batch_receipts = VALUE #(
+        ( wbs_element      = 'PRJ-100-001'
+          material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'B-RECEIPT'
+          expiration_date  = '20261231'
+          receipt_date     = '20261018'
+          base_quantity    = '4.000' ) )
+      iv_as_of_date               = '20261013' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocation-allocations[
+        2 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-RECEIPT'
+      act = ls_result-allocation-batch_allocations[
+        1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = ls_result-allocation-batch_allocations[
+        1 ]-available_from_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        3 ]-allocation-available_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_unmatched_receipts.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands                  = VALUE #(
+            ( request_id         = 'REQ-ONE'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_projected_batch_receipts = VALUE #(
+            ( wbs_element      = 'PRJ-OTHER'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-RECEIPT'
+              expiration_date  = '20261231'
+              receipt_date     = '20261018'
+              base_quantity    = '1.000' ) )
+          iv_as_of_date               = '20261013' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_reservation_read_calls ).
+  ENDMETHOD.
+
+  METHOD rejects_receipt_expiry.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands                  = VALUE #(
+            ( request_id         = 'REQ-ONE'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' )
+            ( request_id         = 'REQ-TWO'
+              wbs_element        = 'PRJ-OTHER'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_projected_batch_receipts = VALUE #(
+            ( wbs_element      = 'PRJ-100-001'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-SAME'
+              expiration_date  = '20261231'
+              receipt_date     = '20261018'
+              base_quantity    = '1.000' )
+            ( wbs_element      = 'PRJ-OTHER'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              batch            = 'B-SAME'
+              expiration_date  = '20261230'
+              receipt_date     = '20261018'
+              base_quantity    = '1.000' ) )
+          iv_as_of_date               = '20261013' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+  ENDMETHOD.
+
+  METHOD forwards_fefo_receipt_adapters.
+    DATA(lt_receipts) = VALUE zcl_project_stock_service=>ty_projected_batch_receipts(
+        ( wbs_element      = 'PRJ-100-001'
+          material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          batch            = 'B-RECEIPT'
+          expiration_date  = '20261231'
+          receipt_date     = '20261018'
+          base_quantity    = '4.000' ) ).
+    DATA(lt_priority_demands) = VALUE zcl_project_stock_service=>ty_priority_fefo_demands(
+        ( request_id         = 'REQ-PRIORITY'
+          priority           = 1
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA'
+          fefo_as_of_date    = '20261020' ) ).
+    DATA(lt_dated_demands) = VALUE zcl_project_stock_service=>ty_dated_fefo_demands(
+        ( request_id         = 'REQ-DATED'
+          required_date      = '20261020'
+          priority           = 1
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' ) ).
+    DATA(lt_base_demands) = VALUE zcl_project_stock_service=>ty_demands(
+      ( request_id         = 'REQ-ATP'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '4.000'
+        unit               = 'EA'
+        fefo_as_of_date    = '20261020' ) ).
+    DATA(lt_transfer_demands) = VALUE zcl_project_stock_service=>ty_transfer_demands(
+        ( request_id              = 'REQ-XFER'
+          source_wbs_element      = 'PRJ-100-001'
+          destination_wbs_element = 'PRJ-200-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '4.000'
+          unit                    = 'EA'
+          fefo_as_of_date         = '20261020' ) ).
+    DATA(lt_priority_transfer_demands) = VALUE zcl_project_stock_service=>ty_priority_transfer_fefo_demands(
+        ( request_id              = 'REQ-XFER-PRIORITY'
+          priority                = 1
+          source_wbs_element      = 'PRJ-100-001'
+          destination_wbs_element = 'PRJ-200-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '4.000'
+          unit                    = 'EA'
+          fefo_as_of_date         = '20261020' ) ).
+    DATA(lt_dated_transfer_demands) = VALUE zcl_project_stock_service=>ty_dated_transfer_demands(
+        ( request_id              = 'REQ-XFER-DATE'
+          required_date           = '20261020'
+          priority                = 1
+          source_wbs_element      = 'PRJ-100-001'
+          destination_wbs_element = 'PRJ-200-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '4.000'
+          unit                    = 'EA' ) ).
+
+    DATA(ls_priority_result) = mo_cut->preview_fefo_priority(
+      it_demands                  = lt_priority_demands
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_priority_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_result) = mo_cut->preview_fefo_by_date(
+      it_demands                  = lt_dated_demands
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_atp_result) = mo_cut->preview_fefo_atp(
+      it_demands                  = lt_base_demands
+      iv_check_rule               = 'A'
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_atp_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+
+    DATA(ls_priority_atp_result) = mo_cut->preview_fefo_priority_atp(
+      it_demands                  = lt_priority_demands
+      iv_check_rule               = 'A'
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_priority_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_atp_result) = mo_cut->preview_fefo_by_date_atp(
+      it_demands                  = lt_dated_demands
+      iv_check_rule               = 'A'
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_result) = mo_cut->preview_transfer_fefo(
+      it_demands                  = lt_transfer_demands
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_result-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = ls_transfer_result-allocation-batch_allocations[
+        1 ]-available_from_date ).
+
+    DATA(ls_transfer_atp_result) = mo_cut->preview_transfer_fefo_atp(
+      it_demands                  = lt_transfer_demands
+      iv_check_rule               = 'A'
+      it_projected_batch_receipts = lt_receipts
+      iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_atp_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+
+    DATA(ls_priority_transfer_result) =
+      mo_cut->preview_transfer_fefo_priority(
+        it_demands                  = lt_priority_transfer_demands
+        it_projected_batch_receipts = lt_receipts
+        iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_priority_transfer_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_prio_xfer_atp) =
+      mo_cut->preview_transfer_fefo_prio_atp(
+        it_demands                  = lt_priority_transfer_demands
+        iv_check_rule               = 'A'
+        it_projected_batch_receipts = lt_receipts
+        iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_prio_xfer_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_transfer_result) =
+      mo_cut->preview_transfer_fefo_by_date(
+        it_demands                  = lt_dated_transfer_demands
+        it_projected_batch_receipts = lt_receipts
+        iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_transfer_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_transfer_atp_result) =
+      mo_cut->preview_transfer_fefo_date_atp(
+        it_demands                  = lt_dated_transfer_demands
+        iv_check_rule               = 'A'
+        it_projected_batch_receipts = lt_receipts
+        iv_as_of_date               = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_transfer_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+  ENDMETHOD.
+
   METHOD allocates_dated_location_prio.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
@@ -4217,14 +5584,16 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
 
     DATA(ls_result) = mo_cut->preview_by_location_date(
       it_demands = VALUE #(
-        ( request_id         = 'LOC-LATE'
-          required_date      = lv_late_date
-          priority           = 99
-          wbs_element        = 'PRJ-100-001'
-          material           = 'MAT-1'
-          plant              = '1000'
-          requested_quantity = '1.000'
-          unit               = 'EA' )
+        ( request_id              = 'LOC-LATE'
+          required_date           = lv_late_date
+          priority                = 99
+          wbs_element             = 'PRJ-100-001'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          storage_location        = '0002'
+          allow_location_fallback = abap_true
+          requested_quantity      = '1.000'
+          unit                    = 'EA' )
         ( request_id         = 'LOC-EARLY-LOW'
           required_date      = lv_early_date
           priority           = 1
@@ -4331,6 +5700,92 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         1 ]-required_date ).
   ENDMETHOD.
 
+  METHOD ranks_dated_wbs_loc.
+    DATA lv_required_date TYPE d.
+    DATA lv_raised TYPE abap_bool.
+
+    lv_required_date = sy-datum + 6.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '3.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' ) ) ).
+
+    TRY.
+        mo_cut->preview_by_location_date(
+          it_demands                     = VALUE #(
+            ( request_id         = 'LOC-RANK-VALID'
+              required_date      = lv_required_date
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_request_location_priorities = VALUE #(
+            ( request_id       = 'LOC-RANK-UNKNOWN'
+              storage_location = '0002'
+              priority_rank    = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+
+    DATA(lt_location_priorities) =
+      VALUE zcl_stock_service=>ty_request_location_priorities(
+        ( request_id       = 'LOC-RANK-DUP'
+          storage_location = '0002'
+          priority_rank    = 1 ) ).
+    DATA(ls_result) = mo_cut->preview_by_location_date(
+      it_demands                     = VALUE #(
+        ( request_id         = 'LOC-RANK-DUP'
+          required_date      = lv_required_date
+          priority           = 10
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' )
+        ( request_id         = 'LOC-RANK-DUP'
+          required_date      = lv_required_date
+          priority           = 5
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' ) )
+      it_request_location_priorities = lt_location_priorities ).
+    DATA(ls_first_split) =
+      ls_result-storage_allocations[ 1 ]-split-storage_allocation.
+    DATA(ls_second_split) =
+      ls_result-storage_allocations[ 2 ]-split-storage_allocation.
+    DATA(ls_third_split) =
+      ls_result-storage_allocations[ 3 ]-split-storage_allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_first_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_second_split-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mspr-prlab( '1.000' )
+      act = ls_second_split-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_third_split-storage_location ).
+  ENDMETHOD.
+
   METHOD rejects_bad_dated_location.
     DATA lv_raised TYPE abap_bool.
 
@@ -4424,6 +5879,304 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '18.000' )
       act = ls_result-allocation-storage_allocations[ 1 ]-storage_allocation-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD allocates_projected_location.
+    DATA(ls_result) = mo_cut->preview_by_location(
+      it_demands                     = VALUE #(
+        ( request_id         = 'LOC-EARLY'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '4.000'
+          unit               = 'EA' )
+        ( request_id          = 'LOC-LATER'
+          wbs_element         = 'PRJ-100-001'
+          material            = 'MAT-1'
+          plant               = '1000'
+          requested_quantity  = '4.000'
+          unit                = 'EA'
+          location_as_of_date = '20261020' )
+        ( request_id          = 'LOC-OTHER-WBS'
+          wbs_element         = 'PRJ-OTHER'
+          material            = 'MAT-1'
+          plant               = '1000'
+          requested_quantity  = '4.000'
+          unit                = 'EA'
+          location_as_of_date = '20261020' ) )
+      it_projected_location_receipts = VALUE #(
+        ( wbs_element      = 'PRJ-100-001'
+          material         = 'MAT-1'
+          plant            = '1000'
+          storage_location = '0001'
+          receipt_date     = '20261018'
+          base_quantity    = '4.000' ) )
+      iv_as_of_date                  = '20261013' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocation-allocations[
+        2 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-allocation-allocations[
+        3 ]-allocation-available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = ls_result-allocation-storage_allocations[
+        1 ]-available_from_date ).
+  ENDMETHOD.
+
+  METHOD forwards_location_receipts.
+    DATA(lt_receipts) = VALUE zcl_project_stock_service=>ty_projected_location_receipts(
+      ( wbs_element      = 'PRJ-100-001'
+        material         = 'MAT-1'
+        plant            = '1000'
+        storage_location = '0001'
+        receipt_date     = '20261018'
+        base_quantity    = '4.000' ) ).
+    DATA(lt_priority_demands) = VALUE zcl_project_stock_service=>ty_priority_location_demands(
+      ( request_id          = 'LOC-PRIORITY'
+        priority            = 1
+        wbs_element         = 'PRJ-100-001'
+        material            = 'MAT-1'
+        plant               = '1000'
+        requested_quantity  = '4.000'
+        unit                = 'EA'
+        location_as_of_date = '20261020' ) ).
+    DATA(lt_dated_demands) = VALUE zcl_project_stock_service=>ty_dated_location_demands(
+      ( request_id         = 'LOC-DATE'
+        required_date      = '20261020'
+        priority           = 1
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '4.000'
+        unit               = 'EA' ) ).
+    DATA(lt_base_demands) = VALUE zcl_project_stock_service=>ty_demands(
+      ( request_id          = 'LOC-ATP'
+        wbs_element         = 'PRJ-100-001'
+        material            = 'MAT-1'
+        plant               = '1000'
+        requested_quantity  = '4.000'
+        unit                = 'EA'
+        location_as_of_date = '20261020' ) ).
+    DATA(lt_transfer_demands) = VALUE zcl_project_stock_service=>ty_transfer_demands(
+      ( request_id              = 'LOC-TRANSFER'
+        source_wbs_element      = 'PRJ-100-001'
+        destination_wbs_element = 'PRJ-100-002'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '4.000'
+        unit                    = 'EA'
+        location_as_of_date     = '20261020' ) ).
+    DATA(lt_priority_transfer_demands) = VALUE zcl_project_stock_service=>ty_priority_location_transfer_demands(
+      ( request_id              = 'LOC-TRANSFER-PRIORITY'
+        priority                = 1
+        source_wbs_element      = 'PRJ-100-001'
+        destination_wbs_element = 'PRJ-100-002'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '4.000'
+        unit                    = 'EA'
+        location_as_of_date     = '20261020' ) ).
+    DATA(lt_dated_transfer_demands) = VALUE zcl_project_stock_service=>ty_dated_location_transfer_demands(
+      ( request_id              = 'LOC-TRANSFER-DATE'
+        required_date           = '20261020'
+        priority                = 1
+        source_wbs_element      = 'PRJ-100-001'
+        destination_wbs_element = 'PRJ-100-002'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '4.000'
+        unit                    = 'EA' ) ).
+
+    DATA(ls_priority_result) = mo_cut->preview_by_location_priority(
+      it_demands                     = lt_priority_demands
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_priority_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_result) = mo_cut->preview_by_location_date(
+      it_demands                     = lt_dated_demands
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_atp_result) = mo_cut->preview_by_location_atp(
+      it_demands                     = lt_base_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_atp_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+
+    DATA(ls_priority_atp_result) = mo_cut->preview_location_priority_atp(
+      it_demands                     = lt_priority_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_priority_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_dated_atp_result) = mo_cut->preview_by_location_date_atp(
+      it_demands                     = lt_dated_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_dated_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_result) = mo_cut->preview_transfer_by_location(
+      it_demands                     = lt_transfer_demands
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_result-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_priority_result) = mo_cut->preview_transfer_loc_priority(
+      it_demands                     = lt_priority_transfer_demands
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_priority_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_date_result) = mo_cut->preview_transfer_location_date(
+      it_demands                     = lt_dated_transfer_demands
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_date_result-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_atp_result) = mo_cut->preview_transfer_loc_atp(
+      it_demands                     = lt_transfer_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_atp_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+
+    DATA(ls_xfer_prio_atp) = mo_cut->preview_transfer_loc_prio_atp(
+      it_demands                     = lt_priority_transfer_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_xfer_prio_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+
+    DATA(ls_transfer_date_atp_result) = mo_cut->preview_transfer_loc_date_atp(
+      it_demands                     = lt_dated_transfer_demands
+      iv_check_rule                  = 'A'
+      it_projected_location_receipts = lt_receipts
+      iv_as_of_date                  = '20261013' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_transfer_date_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD rejects_unmatched_loc_receipt.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_by_location(
+          it_demands                     = VALUE #(
+            ( request_id         = 'LOC-ONE'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_projected_location_receipts = VALUE #(
+            ( wbs_element      = 'PRJ-OTHER'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              receipt_date     = '20261018'
+              base_quantity    = '1.000' ) )
+          iv_as_of_date                  = '20261013' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_reservation_read_calls ).
+  ENDMETHOD.
+
+  METHOD rejects_loc_receipt_overflow.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_by_location(
+          it_demands                     = VALUE #(
+            ( request_id         = 'LOC-OVERFLOW'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '1.000'
+              unit               = 'EA' ) )
+          it_projected_location_receipts = VALUE #(
+            ( wbs_element      = 'PRJ-100-001'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              receipt_date     = '20261018'
+              base_quantity    = '6000000000.000' )
+            ( wbs_element      = 'PRJ-100-001'
+              material         = 'MAT-1'
+              plant            = '1000'
+              storage_location = '0001'
+              receipt_date     = '20261018'
+              base_quantity    = '6000000000.000' ) )
+          iv_as_of_date                  = '20261020' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
   ENDMETHOD.
 
   METHOD filters_reservations_by_date.
@@ -4868,4 +6621,1121 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-transfer_assignments[
         2 ]-destination_wbs_element ).
   ENDMETHOD.
+  METHOD rejects_location_overflow.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '9999999999.999' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '9999999999.999' ) ) ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_by_location(
+          it_demands = VALUE #( (
+            request_id         = 'LOCATION-OVERFLOW'
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_fefo_avail_overflow.
+    DATA lv_early_expiry TYPE d.
+    DATA lv_late_expiry TYPE d.
+    DATA lv_rejected TYPE abap_bool.
+    lv_early_expiry = sy-datum + 30.
+    lv_late_expiry = sy-datum + 31.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-EARLY'
+        expiration_date       = lv_early_expiry
+        unrestricted_quantity = '9999999999.999' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-LATE'
+        expiration_date       = lv_late_expiry
+        unrestricted_quantity = '9999999999.999' ) ) ).
+
+    TRY.
+        mo_cut->preview_fefo(
+          it_demands    = VALUE #( (
+            request_id         = 'FEFO-OVERFLOW'
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          iv_as_of_date = sy-datum ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_fefo_atp_overflow.
+    DATA lv_atp_check_date TYPE d.
+    DATA lv_expiration_date TYPE d.
+    DATA lv_rejected TYPE abap_bool.
+    lv_atp_check_date = sy-datum + 5.
+    lv_expiration_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-WBS-1'
+        expiration_date       = lv_expiration_date
+        unrestricted_quantity = '9999999999.999' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-002'
+        storage_location      = '0001'
+        batch                 = 'B-WBS-2'
+        expiration_date       = lv_expiration_date
+        unrestricted_quantity = '9999999999.999' ) ) ).
+
+    TRY.
+        mo_cut->preview_fefo_atp(
+          it_demands        = VALUE #(
+            ( request_id         = 'FEFO-ATP-1'
+              wbs_element        = 'PRJ-100-001'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '9999999999.999'
+              unit               = 'EA' )
+            ( request_id         = 'FEFO-ATP-2'
+              wbs_element        = 'PRJ-100-002'
+              material           = 'MAT-1'
+              plant              = '1000'
+              requested_quantity = '9999999999.999'
+              unit               = 'EA' ) )
+          iv_check_rule     = 'A'
+          iv_atp_check_date = lv_atp_check_date
+          iv_as_of_date     = sy-datum ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_availability_api->get_requests( ) ).
+  ENDMETHOD.
+
+  METHOD restricts_wbs_fefo_scope.
+    DATA lv_expiry_date TYPE d.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-1'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-2'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0003'
+        batch                 = 'B-3'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo(
+      it_demands                   = VALUE #(
+        ( request_id         = 'FEFO-SCOPE-A'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '3.000'
+          unit               = 'EA' )
+        ( request_id         = 'FEFO-SCOPE-B'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '3.000'
+          unit               = 'EA' ) )
+      it_allowed_storage_locations = VALUE #( ( '0002' ) ( '0003' ) )
+      it_request_locations         = VALUE #(
+        ( request_id = 'FEFO-SCOPE-A' storage_location = '0001' )
+        ( request_id = 'FEFO-SCOPE-A' storage_location = '0002' )
+        ( request_id = 'FEFO-SCOPE-B' storage_location = '0001' )
+        ( request_id = 'FEFO-SCOPE-B' storage_location = '0003' ) )
+      iv_as_of_date                = sy-datum ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-allocation-batch_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-allocation-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = ls_result-allocation-batch_allocations[
+        2 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_result-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD scopes_wbs_location.
+    DATA ls_location_scope_result TYPE
+      zcl_project_stock_service=>ty_location_result.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0003'
+        unrestricted_quantity = '5.000' ) ) ).
+
+    ls_location_scope_result = mo_cut->preview_by_location(
+      it_demands                   = VALUE #(
+        ( request_id         = 'LOC-SCOPE-A'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '3.000'
+          unit               = 'EA' )
+        ( request_id         = 'LOC-SCOPE-B'
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '3.000'
+          unit               = 'EA' ) )
+      it_allowed_storage_locations = VALUE #( ( '0002' ) ( '0003' ) )
+      it_request_locations         = VALUE #(
+        ( request_id = 'LOC-SCOPE-A' storage_location = '0001' )
+        ( request_id = 'LOC-SCOPE-A' storage_location = '0002' )
+        ( request_id = 'LOC-SCOPE-B' storage_location = '0001' )
+        ( request_id = 'LOC-SCOPE-B' storage_location = '0003' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines(
+        ls_location_scope_result-allocation-storage_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_location_scope_result-allocation-storage_allocations[
+        1 ]-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = ls_location_scope_result-allocation-storage_allocations[
+        2 ]-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( ls_location_scope_result-request_locations ) ).
+  ENDMETHOD.
+
+
+  METHOD previews_scoped_wbs_fefo_atp.
+    DATA lv_expiry_date TYPE d.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-1'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '9.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-2'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '3.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo_atp(
+      it_demands           = VALUE #( (
+        request_id         = 'FEFO-ATP-SCOPE'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '3.000'
+        unit               = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #(
+        ( request_id       = 'FEFO-ATP-SCOPE'
+          storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(lt_atp_requests) = mo_availability_api->get_requests( ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-local_estimate-allocation-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_atp_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_atp_requests[ 1 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-local_estimate-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD rejects_wbs_location_scopes.
+    DATA ls_fefo_result TYPE zcl_project_stock_service=>ty_result.
+    DATA ls_location_result TYPE
+      zcl_project_stock_service=>ty_location_result.
+    DATA lv_rejected TYPE abap_bool.
+    DATA(lv_stock_reads_before) = mo_repository->mv_stock_read_calls.
+
+    TRY.
+        ls_fefo_result = mo_cut->preview_fefo(
+          it_demands           = VALUE #( (
+            request_id         = 'SCOPE-KNOWN'
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          it_request_locations = VALUE #( (
+            request_id       = 'SCOPE-UNKNOWN'
+            storage_location = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_stock_reads_before
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_uom_repository->get_read_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        ls_location_result = mo_cut->preview_by_location(
+          it_demands           = VALUE #( (
+            request_id         = 'SCOPE-DUPLICATE'
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          it_request_locations = VALUE #(
+            ( request_id       = 'SCOPE-DUPLICATE'
+              storage_location = '0001' )
+            ( request_id       = 'SCOPE-DUPLICATE'
+              storage_location = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_stock_reads_before
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_uom_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+
+  METHOD scopes_priority_wbs_fefo.
+    DATA lv_expiry_date TYPE d.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-OTHER'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SCOPED'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo_priority(
+      it_demands           = VALUE #( (
+        request_id         = 'PRIO-FEFO-SCOPE'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        priority           = 3
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'PRIO-FEFO-SCOPE'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD scopes_dated_wbs_fefo.
+    DATA lv_required_date TYPE d.
+    DATA lv_expiry_date TYPE d.
+    lv_required_date = sy-datum + 5.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-OTHER'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SCOPED'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_fefo_by_date(
+      it_demands           = VALUE #( (
+        request_id         = 'DATE-FEFO-SCOPE'
+        required_date      = lv_required_date
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'DATE-FEFO-SCOPE'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD scopes_priority_wbs_location.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_by_location_priority(
+      it_demands           = VALUE #( (
+        request_id         = 'PRIO-LOC-SCOPE'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        priority           = 3
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'PRIO-LOC-SCOPE'
+        storage_location = '0002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD scopes_dated_wbs_location.
+    DATA lv_required_date TYPE d.
+    lv_required_date = sy-datum + 5.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_by_location_date(
+      it_demands           = VALUE #( (
+        request_id         = 'DATE-LOC-SCOPE'
+        required_date      = lv_required_date
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'DATE-LOC-SCOPE'
+        storage_location = '0002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_result-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-request_locations ) ).
+  ENDMETHOD.
+
+  METHOD rejects_advanced_wbs_scopes.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_fefo_priority(
+          it_demands           = VALUE #( (
+            request_id         = 'KNOWN-SCOPE'
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            priority           = 1
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          it_request_locations = VALUE #( (
+            request_id       = 'UNKNOWN-SCOPE'
+            storage_location = '0002' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_uom_repository->get_read_count( ) ).
+
+    CLEAR lv_raised.
+    TRY.
+        mo_cut->preview_by_location_date(
+          it_demands           = VALUE #( (
+            request_id         = 'DUP-SCOPE'
+            required_date      = sy-datum
+            wbs_element        = 'PRJ-100-001'
+            material           = 'MAT-1'
+            plant              = '1000'
+            requested_quantity = '1.000'
+            unit               = 'EA' ) )
+          it_request_locations = VALUE #(
+            ( request_id       = 'DUP-SCOPE'
+              storage_location = '0001' )
+            ( request_id       = 'DUP-SCOPE'
+              storage_location = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_uom_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+
+  METHOD previews_advanced_scoped_atp.
+    DATA lv_required_date TYPE d.
+    DATA lv_expiry_date TYPE d.
+    lv_required_date = sy-datum + 5.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-OTHER'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        batch                 = 'B-SCOPED'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_priority_fefo) = mo_cut->preview_fefo_priority_atp(
+      it_demands           = VALUE #( (
+        request_id         = 'ATP-PRIO-FEFO'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        priority           = 5
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'ATP-PRIO-FEFO'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_dated_fefo) = mo_cut->preview_fefo_by_date_atp(
+      it_demands           = VALUE #( (
+        request_id         = 'ATP-DATE-FEFO'
+        required_date      = lv_required_date
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'ATP-DATE-FEFO'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' ) ) ).
+    DATA(ls_priority_location) = mo_cut->preview_location_priority_atp(
+      it_demands           = VALUE #( (
+        request_id         = 'ATP-PRIO-LOC'
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        priority           = 5
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'ATP-PRIO-LOC'
+        storage_location = '0002' ) ) ).
+    DATA(ls_dated_location) = mo_cut->preview_by_location_date_atp(
+      it_demands           = VALUE #( (
+        request_id         = 'ATP-DATE-LOC'
+        required_date      = lv_required_date
+        wbs_element        = 'PRJ-100-001'
+        material           = 'MAT-1'
+        plant              = '1000'
+        requested_quantity = '2.000'
+        unit               = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'ATP-DATE-LOC'
+        storage_location = '0002' ) ) ).
+
+    DATA(lt_atp_requests) = mo_availability_api->get_requests( ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority_fefo-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated_fefo-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority_location-local_estimate-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated_location-local_estimate-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_priority_fefo-local_estimate-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_dated_fefo-local_estimate-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_priority_location-local_estimate-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_dated_location-local_estimate-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_atp_requests ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_requests[ 1 ]-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_atp_requests[ 4 ]-requested_quantity ).
+  ENDMETHOD.
+
+
+  METHOD scopes_xfer_fefo.
+    DATA lv_required_date TYPE d.
+    DATA lv_expiry_date TYPE d.
+    lv_required_date = sy-datum + 5.
+    lv_expiry_date = sy-datum + 30.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        batch                 = 'B-OTHER'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        batch                 = 'B-SCOPED'
+        expiration_date       = lv_expiry_date
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_base) = mo_cut->preview_transfer_fefo(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-BASE'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-BASE'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_priority) = mo_cut->preview_transfer_fefo_priority(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-PRIORITY'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        priority                = 5
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-PRIORITY'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_dated) = mo_cut->preview_transfer_fefo_by_date(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-DATE'
+        required_date           = lv_required_date
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-DATE'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_base_atp) = mo_cut->preview_transfer_fefo_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-BASE-ATP'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-BASE-ATP'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_priority_atp) = mo_cut->preview_transfer_fefo_prio_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-PRIO-ATP'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        priority                = 5
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-PRIO-ATP'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+    DATA(ls_dated_atp) = mo_cut->preview_transfer_fefo_date_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-FEFO-DATE-ATP'
+        required_date           = lv_required_date
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-FEFO-DATE-ATP'
+        storage_location = '0002' ) )
+      iv_as_of_date        = sy-datum ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_base-allocation-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-TARGET-001'
+      act = ls_base-transfer_assignments[ 1 ]-destination_wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_base-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_priority-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_dated-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_base_atp-local_estimate-allocation-batch_allocations[
+        1 ]-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority_atp-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated_atp-local_estimate-batch_allocations[
+        1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( mo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD scopes_xfer_location.
+    DATA lv_required_date TYPE d.
+    lv_required_date = sy-datum + 5.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        unrestricted_quantity = '5.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '5.000' ) ) ).
+
+    DATA(ls_base) = mo_cut->preview_transfer_by_location(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-BASE'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-BASE'
+        storage_location = '0002' ) ) ).
+    DATA(ls_priority) = mo_cut->preview_transfer_loc_priority(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-PRIORITY'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        priority                = 5
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-PRIORITY'
+        storage_location = '0002' ) ) ).
+    DATA(ls_dated) = mo_cut->preview_transfer_location_date(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-DATE'
+        required_date           = lv_required_date
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-DATE'
+        storage_location = '0002' ) ) ).
+    DATA(ls_base_atp) = mo_cut->preview_transfer_loc_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-BASE-ATP'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-BASE-ATP'
+        storage_location = '0002' ) ) ).
+    DATA(ls_priority_atp) = mo_cut->preview_transfer_loc_prio_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-PRIO-ATP'
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        priority                = 5
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-PRIO-ATP'
+        storage_location = '0002' ) ) ).
+    DATA(ls_dated_atp) = mo_cut->preview_transfer_loc_date_atp(
+      it_demands           = VALUE #( (
+        request_id              = 'XFER-LOC-DATE-ATP'
+        required_date           = lv_required_date
+        source_wbs_element      = 'PRJ-SOURCE-001'
+        destination_wbs_element = 'PRJ-TARGET-001'
+        material                = 'MAT-1'
+        plant                   = '1000'
+        requested_quantity      = '2.000'
+        unit                    = 'EA' ) )
+      iv_check_rule        = 'A'
+      it_request_locations = VALUE #( (
+        request_id       = 'XFER-LOC-DATE-ATP'
+        storage_location = '0002' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_base-allocation-storage_allocations[
+        1 ]-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'PRJ-TARGET-001'
+      act = ls_base-transfer_assignments[ 1 ]-destination_wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_base-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_priority-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_dated-request_locations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_base_atp-local_estimate-allocation-storage_allocations[
+        1 ]-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_priority_atp-local_estimate-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = ls_dated_atp-local_estimate-storage_allocations[
+        1 ]-split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( mo_availability_api->get_requests( ) ) ).
+  ENDMETHOD.
+
+  METHOD rejects_xfer_scope.
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->preview_transfer_fefo_priority(
+          it_demands           = VALUE #( (
+            request_id              = 'XFER-KNOWN'
+            source_wbs_element      = 'PRJ-SOURCE-001'
+            destination_wbs_element = 'PRJ-TARGET-001'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            priority                = 1
+            requested_quantity      = '1.000'
+            unit                    = 'EA' ) )
+          it_request_locations = VALUE #( (
+            request_id       = 'XFER-UNKNOWN'
+            storage_location = '0002' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_repository->mv_stock_read_calls ).
+    cl_abap_unit_assert=>assert_initial(
+      act = mo_uom_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD preserves_fefo_row_full_rule.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-AVAILABLE'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '2.000' ) ) ).
+
+    DATA(ls_priority_result) = mo_cut->preview_fefo_priority(
+      it_demands               = VALUE #(
+        ( request_id         = 'PARTIAL-ROW'
+          priority           = 1
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id            = 'STRICT-ROW'
+          priority              = 10
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          requested_quantity    = '3.000'
+          require_full_quantity = abap_true
+          unit                  = 'EA' ) )
+      iv_as_of_date            = '20261014'
+      iv_require_full_quantity = abap_false ).
+    DATA(ls_priority_partial) =
+      ls_priority_result-allocations[ 1 ]-allocation-allocation.
+    DATA(ls_priority_strict) =
+      ls_priority_result-allocations[ 2 ]-allocation-allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_priority_partial-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_priority_partial-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_priority_strict-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_priority_strict-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_priority_strict-require_full_quantity ).
+
+    DATA(ls_dated_result) = mo_cut->preview_fefo_by_date(
+      it_demands               = VALUE #(
+        ( request_id         = 'DATED-PARTIAL'
+          required_date      = '20261102'
+          priority           = 1
+          wbs_element        = 'PRJ-100-001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          requested_quantity = '2.000'
+          unit               = 'EA' )
+        ( request_id            = 'DATED-STRICT'
+          required_date         = '20261101'
+          priority              = 10
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          requested_quantity    = '3.000'
+          require_full_quantity = abap_true
+          unit                  = 'EA' ) )
+      iv_as_of_date            = '20261014'
+      iv_require_full_quantity = abap_false ).
+    DATA(ls_dated_partial) =
+      ls_dated_result-allocations[ 1 ]-allocation-allocation.
+    DATA(ls_dated_strict) =
+      ls_dated_result-allocations[ 2 ]-allocation-allocation.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_dated_partial-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_dated_partial-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_dated_strict-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_dated_strict-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_dated_strict-require_full_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261102'
+      act = ls_dated_result-allocations[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DATED-STRICT'
+      act = ls_dated_result-allocations[ 2 ]-allocation-allocation-request_id ).
+  ENDMETHOD.
+
 ENDCLASS.

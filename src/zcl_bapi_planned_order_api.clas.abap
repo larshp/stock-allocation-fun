@@ -31,12 +31,17 @@ CLASS zcl_bapi_planned_order_api IMPLEMENTATION.
     DATA ls_header_data TYPE bapiplaf_i1.
     DATA lv_planned_order TYPE plaf-plnum.
     DATA ls_return TYPE bapireturn1.
+    DATA lv_test_run TYPE c LENGTH 1.
 
     ls_header_data = map_request( is_request ).
+    IF iv_test_run = abap_true.
+      lv_test_run = abap_true.
+    ENDIF.
 
     CALL FUNCTION 'BAPI_PLANNEDORDER_CREATE'
       EXPORTING
         headerdata   = ls_header_data
+        testrun      = lv_test_run
       IMPORTING
         plannedorder = lv_planned_order
         return       = ls_return.
@@ -45,11 +50,13 @@ CLASS zcl_bapi_planned_order_api IMPLEMENTATION.
     rs_result-message-type = ls_return-type.
     rs_result-message-message = ls_return-message.
     rs_result-is_successful = abap_true.
+    rs_result-is_test_run = iv_test_run.
 
     IF ls_return-type = 'A'
         OR ls_return-type = 'E'
         OR ls_return-type = 'X'
-        OR lv_planned_order IS INITIAL.
+        OR ( lv_planned_order IS INITIAL
+          AND iv_test_run <> abap_true ).
       rs_result-is_successful = abap_false.
     ENDIF.
   ENDMETHOD.

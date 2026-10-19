@@ -75,6 +75,7 @@ CLASS zcl_bapi_project_reservation IMPLEMENTATION.
     ENDLOOP.
 
     IF iv_test_run <> abap_true
+        AND rs_result-is_successful = abap_true
         AND rs_result-reservation_number IS INITIAL.
       APPEND VALUE #(
         type    = 'E'

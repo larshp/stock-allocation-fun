@@ -34,6 +34,8 @@ INTERFACE zif_sales_order_api PUBLIC.
     END OF ty_item_rejection.
   TYPES ty_item_rejections TYPE STANDARD TABLE OF
     ty_item_rejection WITH EMPTY KEY.
+  TYPES ty_item_number TYPE c LENGTH 6.
+  TYPES ty_item_numbers TYPE STANDARD TABLE OF ty_item_number WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_rejected_item,
       item_number            TYPE c LENGTH 6,
@@ -131,6 +133,14 @@ INTERFACE zif_sales_order_api PUBLIC.
       iv_test_run        TYPE abap_bool
     RETURNING
       VALUE(rs_result)   TYPE ty_write_result.
+
+  METHODS delete_order_items
+    IMPORTING
+      iv_sales_document TYPE ty_sales_document
+      it_item_numbers   TYPE ty_item_numbers
+      iv_test_run       TYPE abap_bool
+    RETURNING
+      VALUE(rs_result)  TYPE ty_write_result.
 
   METHODS commit
     RETURNING

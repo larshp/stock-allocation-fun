@@ -64,7 +64,7 @@
           <POSITION>0006</POSITION>
           <DATATYPE>CHAR</DATATYPE>
           <LENG>000001</LENG>
-          <INTTYPE>C</INTYPE>
+          <INTTYPE>C</INTTYPE>
           <INTLEN>000002</INTLEN>
         </DD03P>
         <DD03P>
@@ -90,6 +90,54 @@
           <LENG>000008</LENG>
           <INTTYPE>C</INTTYPE>
           <INTLEN>000016</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>AUART</FIELDNAME>
+          <POSITION>0010</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>ERDAT</FIELDNAME>
+          <POSITION>0011</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>ERNAM</FIELDNAME>
+          <POSITION>0012</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000012</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000024</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>AEDAT</FIELDNAME>
+          <POSITION>0013</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>AENAM</FIELDNAME>
+          <POSITION>0014</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000012</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000024</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>KTEXT</FIELDNAME>
+          <POSITION>0015</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000040</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000080</INTLEN>
         </DD03P>
       </DD03P_TABLE>
     </asx:values>

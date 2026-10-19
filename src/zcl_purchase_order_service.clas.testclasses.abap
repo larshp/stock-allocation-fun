@@ -346,8 +346,11 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS rejects_missing_order_number FOR TESTING.
     METHODS rolls_back_commit_error FOR TESTING.
     METHODS creates_orders_in_bulk FOR TESTING.
+    METHODS stops_bulk_order_create FOR TESTING.
+    METHODS stops_last_po_failure FOR TESTING.
     METHODS simulates_bulk_order_creates FOR TESTING.
     METHODS validates_bulk_before_writing FOR TESTING.
+    METHODS rejects_bad_bulk_stop_flags FOR TESTING.
     METHODS creates_orders_atomically FOR TESTING.
     METHODS rolls_back_atomic_create_error FOR TESTING.
     METHODS fails_atomic_create_commit FOR TESTING.
@@ -355,9 +358,11 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS validates_atomic_test_mode FOR TESTING.
     METHODS marks_selected_items_deleted FOR TESTING.
     METHODS continues_bulk_item_deletion FOR TESTING.
+    METHODS stops_bulk_item_deletion FOR TESTING.
     METHODS validates_delete_batch_first FOR TESTING.
     METHODS marks_items_delivery_complete FOR TESTING.
     METHODS continues_complete_bulk FOR TESTING.
+    METHODS stops_bulk_delivery_complete FOR TESTING.
     METHODS validates_complete_batch FOR TESTING.
     METHODS reads_purchase_order_details FOR TESTING.
     METHODS reads_orders_in_bulk FOR TESTING.
@@ -368,6 +373,7 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS rejects_po_unit_overflow FOR TESTING.
     METHODS groups_suggestions_by_vendor FOR TESTING.
     METHODS continues_vendor_batch FOR TESTING.
+    METHODS stops_suggestion_bulk_batch FOR TESTING.
     METHODS validates_vendor_groups FOR TESTING.
     METHODS skips_empty_vendor_batch FOR TESTING.
     METHODS creates_suggestion_pos_atomic FOR TESTING.
@@ -379,12 +385,14 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS validates_pr_items_first FOR TESTING.
     METHODS groups_selected_prs_by_vendor FOR TESTING.
     METHODS continues_pr_po_batch FOR TESTING.
+    METHODS stops_requisition_bulk_batch FOR TESTING.
     METHODS validates_selected_pr_groups FOR TESTING.
     METHODS creates_pr_pos_atomic FOR TESTING.
     METHODS rolls_back_pr_po_batch FOR TESTING.
     METHODS changes_order_schedules FOR TESTING.
     METHODS rejects_bad_schedule_dates FOR TESTING.
     METHODS continues_schedule_batch FOR TESTING.
+    METHODS stops_bulk_schedule_change FOR TESTING.
     METHODS validates_schedule_batch_first FOR TESTING.
     METHODS changes_schedules_atomic FOR TESTING.
     METHODS simulates_po_change FOR TESTING.
@@ -393,6 +401,9 @@ CLASS ltcl_purchase_order_service DEFINITION FINAL
     METHODS rejects_bad_change_test_flag FOR TESTING.
     METHODS changes_item_quantities FOR TESTING.
     METHODS continues_quantity_bulk FOR TESTING.
+    METHODS stops_bulk_quantity_change FOR TESTING.
+    METHODS stops_base_quantity_bulk FOR TESTING.
+    METHODS stops_base_schedule_bulk FOR TESTING.
     METHODS changes_quantities_atomic FOR TESTING.
     METHODS rolls_back_quantity_batch FOR TESTING.
     METHODS fails_quantity_commit FOR TESTING.
@@ -915,6 +926,86 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
       act = mo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_order_create.
+    mo_api->set_write_results(
+      it_results = VALUE #(
+        ( is_successful         = abap_true
+          purchase_order_number = '4500000101' )
+        ( messages              = VALUE #( (
+          type    = 'E'
+          message = 'Second order rejected' ) ) )
+        ( is_successful         = abap_true
+          purchase_order_number = '4500000103' ) ) ).
+    DATA(ls_request) = build_request( ).
+
+    DATA(ls_result) = mo_cut->create_orders_bulk(
+      it_requests        = VALUE #(
+        ( ls_request )
+        ( ls_request )
+        ( ls_request ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-order_results[ 3 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_last_po_failure.
+    DATA(lo_api) = NEW lcl_purchase_order_api_double( ).
+    lo_api->set_write_results(
+      it_results = VALUE #(
+        ( is_successful         = abap_true
+          purchase_order_number = '4500000101' )
+        ( messages              = VALUE #( (
+          type    = 'E'
+          message = 'Final order rejected' ) ) ) ) ).
+    lo_api->set_commit_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_purchase_order_service( io_api = lo_api ).
+    DATA(ls_request) = build_request( ).
+
+    DATA(ls_result) = lo_cut->create_orders_bulk(
+      it_requests        = VALUE #( ( ls_request ) ( ls_request ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD simulates_bulk_order_creates.
     DATA(ls_request) = build_request( ).
     ls_request-is_test_run = abap_true.
@@ -957,6 +1048,79 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_bulk_stop_flags.
+    DATA(ls_request) = build_request( ).
+    DATA lv_exception_raised TYPE abap_bool.
+
+    TRY.
+        mo_cut->create_orders_bulk(
+          it_requests        = VALUE #( ( ls_request ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    CLEAR lv_exception_raised.
+
+    TRY.
+        mo_cut->delete_orders_items_bulk(
+          it_deletions       = VALUE #( (
+            purchase_order_number = '4500000201'
+            item_numbers          = VALUE #( ( '00010' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    CLEAR lv_exception_raised.
+
+    TRY.
+        mo_cut->change_qty_from_base_bulk(
+          it_changes         = VALUE #( (
+            purchase_order_number = '4500000201'
+            item_changes          = VALUE #( (
+              item_number   = '00010'
+              base_quantity = '1.000' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    CLEAR lv_exception_raised.
+
+    TRY.
+        mo_cut->change_base_schedules_bulk(
+          it_changes         = VALUE #( (
+            purchase_order_number = '4500000201'
+            schedule_changes      = VALUE #( (
+              item_number     = '00010'
+              schedule_line   = '0001'
+              change_quantity = abap_true
+              base_quantity   = '12.000' ) ) ) )
+          iv_stop_on_failure = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_exception_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_exception_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_api->get_item_change_count( ) ).
   ENDMETHOD.
 
   METHOD creates_orders_atomically.
@@ -1173,6 +1337,45 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
       act = mo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_item_deletion.
+    mo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Item cannot be deleted' ) ) )
+        ( is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->delete_orders_items_bulk(
+      it_deletions       = VALUE #(
+        ( purchase_order_number = '4500000201'
+          item_numbers          = VALUE #( ( '00010' ) ) )
+        ( purchase_order_number = '4500000202'
+          item_numbers          = VALUE #( ( '00020' ) ) )
+        ( purchase_order_number = '4500000203'
+          item_numbers          = VALUE #( ( '00030' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_item_change_count( ) ).
+  ENDMETHOD.
+
   METHOD validates_delete_batch_first.
     DATA lv_exception_raised TYPE abap_bool.
 
@@ -1265,6 +1468,45 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_bulk_delivery_complete.
+    mo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Delivery complete rejected' ) ) )
+        ( is_successful = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->mark_delivery_complete_bulk(
+      it_changes         = VALUE #(
+        ( purchase_order_number = '4500000301'
+          item_numbers          = VALUE #( ( '00010' ) ) )
+        ( purchase_order_number = '4500000302'
+          item_numbers          = VALUE #( ( '00020' ) ) )
+        ( purchase_order_number = '4500000303'
+          item_numbers          = VALUE #( ( '00030' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_item_change_count( ) ).
   ENDMETHOD.
 
   METHOD validates_complete_batch.
@@ -1711,6 +1953,62 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_suggestion_bulk_batch.
+    DATA(ls_header) = build_request( ).
+    CLEAR: ls_header-items, ls_header-vendor, ls_header-purchasing_org.
+    DATA(lt_suggestions) = VALUE
+      zcl_prod_comp_service=>ty_comp_replenishments(
+        ( material                = 'MAT-1'
+          plant                   = '1000'
+          base_unit               = 'EA'
+          required_date           = '20261101'
+          procurement_type        = 'F'
+          source_vendor           = '0000100001'
+          source_purchasing_org   = '1000'
+          source_info_record      = '0000001234'
+          suggested_base_quantity = '5.000' )
+        ( material                = 'MAT-2'
+          plant                   = '2000'
+          base_unit               = 'EA'
+          required_date           = '20261108'
+          procurement_type        = 'F'
+          source_vendor           = '0000100002'
+          source_purchasing_org   = '2000'
+          source_info_record      = '0000005678'
+          suggested_base_quantity = '3.000' ) ).
+    mo_api->set_write_results(
+      it_results = VALUE #(
+        ( messages = VALUE #( (
+          type    = 'E'
+          message = 'First vendor order rejected' ) ) )
+        ( is_successful         = abap_true
+          purchase_order_number = '4500000502' ) ) ).
+
+    DATA(ls_result) = mo_cut->create_from_suggestions_bulk(
+      is_header          = ls_header
+      it_suggestions     = lt_suggestions
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = ls_result-order_results[ 2 ]-submitted_items[ 1 ]-source_request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_create_count( ) ).
   ENDMETHOD.
 
   METHOD validates_vendor_groups.
@@ -2274,6 +2572,60 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
       act = mo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_requisition_bulk_batch.
+    DATA(ls_header) = build_request( ).
+    CLEAR: ls_header-items, ls_header-vendor, ls_header-purchasing_org.
+    DATA lt_selected_items TYPE
+      zcl_purchase_order_service=>ty_selected_requisition_items.
+    APPEND build_selected_pr_item(
+      iv_requisition_number = '0010001001'
+      iv_vendor             = '0000100001'
+      iv_purchasing_org     = '1000'
+      iv_item_number        = '00010'
+      iv_material           = 'MAT-1'
+      iv_quantity           = '5.000'
+      iv_ordered_quantity   = 0 ) TO lt_selected_items.
+    APPEND build_selected_pr_item(
+      iv_requisition_number = '0010001002'
+      iv_vendor             = '0000100002'
+      iv_purchasing_org     = '2000'
+      iv_item_number        = '00010'
+      iv_material           = 'MAT-2'
+      iv_quantity           = '3.000'
+      iv_ordered_quantity   = 0 ) TO lt_selected_items.
+    mo_api->set_write_results(
+      it_results = VALUE #(
+        ( messages = VALUE #( (
+          type    = 'E'
+          message = 'First requisition order rejected' ) ) )
+        ( is_successful         = abap_true
+          purchase_order_number = '4500000602' ) ) ).
+
+    DATA(ls_result) = mo_cut->create_from_requisitions_bulk(
+      is_header          = ls_header
+      it_selected_items  = lt_selected_items
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010001002/00010'
+      act = ls_result-order_results[ 2 ]-submitted_items[ 1 ]-source_request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_api->get_create_count( ) ).
+  ENDMETHOD.
+
   METHOD validates_selected_pr_groups.
     DATA(ls_header) = build_request( ).
     CLEAR: ls_header-items, ls_header-vendor, ls_header-purchasing_org.
@@ -2569,6 +2921,58 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
       act = mo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
+  METHOD stops_bulk_schedule_change.
+    mo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Schedule update rejected' ) ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(lt_changes) = VALUE zcl_purchase_order_service=>ty_order_schedule_changes(
+      ( purchase_order_number = '4500000101'
+        schedule_changes      = VALUE #( (
+          item_number          = '00010'
+          schedule_line        = '0001'
+          change_delivery_date = abap_true
+          delivery_date        = '20261201' ) ) )
+      ( purchase_order_number = '4500000102'
+        schedule_changes      = VALUE #( (
+          item_number     = '00020'
+          schedule_line   = '0002'
+          change_quantity = abap_true
+          quantity        = '6.000' ) ) )
+      ( purchase_order_number = '4500000103'
+        schedule_changes      = VALUE #( (
+          item_number          = '00030'
+          schedule_line        = '0003'
+          change_delivery_date = abap_true
+          delivery_date        = '20261203' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->change_order_schedules_bulk(
+      it_changes         = lt_changes
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_item_change_count( ) ).
+  ENDMETHOD.
+
   METHOD validates_schedule_batch_first.
     DATA(lt_changes) = VALUE zcl_purchase_order_service=>ty_order_schedule_changes(
         ( purchase_order_number = '4500000101'
@@ -2833,6 +3237,230 @@ CLASS ltcl_purchase_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_api->get_rollback_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_bulk_quantity_change.
+    mo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Quantity update rejected' ) ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(lt_changes) = VALUE zcl_purchase_order_service=>ty_order_qty_changes(
+      ( purchase_order_number = '4500000101'
+        item_changes          = VALUE #( (
+          item_number = '00010'
+          quantity    = '8.000' ) ) )
+      ( purchase_order_number = '4500000102'
+        item_changes          = VALUE #( (
+          item_number = '00020'
+          quantity    = '6.000' ) ) )
+      ( purchase_order_number = '4500000103'
+        item_changes          = VALUE #( (
+          item_number = '00030'
+          quantity    = '4.000' ) ) ) ).
+
+    DATA(ls_result) = mo_cut->change_item_quantities_bulk(
+      it_changes         = lt_changes
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_api->get_item_change_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_base_quantity_bulk.
+    DATA(lo_api) = NEW lcl_purchase_order_api_double( ).
+    lo_api->set_commit_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    lo_api->set_read_results(
+      it_results = VALUE #(
+        ( purchase_order_number = '4500000101'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00010'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) )
+        ( purchase_order_number = '4500000102'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00020'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) )
+        ( purchase_order_number = '4500000103'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00030'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) ) ) ).
+    lo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Second quantity update rejected' ) ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_po_uom_repository( ).
+    lo_uom_repository->set_material_data(
+      iv_material         = 'MAT-PO'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_purchase_order_service(
+      io_api           = lo_api
+      io_uom_converter = lo_converter ).
+
+    DATA(ls_result) = lo_cut->change_qty_from_base_bulk(
+      it_changes         = VALUE #(
+        ( purchase_order_number = '4500000101'
+          item_changes          = VALUE #( (
+            item_number   = '00010'
+            base_quantity = '24.000' ) ) )
+        ( purchase_order_number = '4500000102'
+          item_changes          = VALUE #( (
+            item_number   = '00020'
+            base_quantity = '36.000' ) ) )
+        ( purchase_order_number = '4500000103'
+          item_changes          = VALUE #( (
+            item_number   = '00030'
+            base_quantity = '48.000' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = ls_result-order_results[ 1 ]-submitted_item_quantities[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_item_change_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_base_schedule_bulk.
+    DATA(lo_api) = NEW lcl_purchase_order_api_double( ).
+    lo_api->set_commit_result(
+      is_result = VALUE #( is_successful = abap_true ) ).
+    lo_api->set_read_results(
+      it_results = VALUE #(
+        ( purchase_order_number = '4500000101'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00010'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) )
+        ( purchase_order_number = '4500000102'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00020'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) )
+        ( purchase_order_number = '4500000103'
+          is_successful         = abap_true
+          items                 = VALUE #( (
+            item_number = '00030'
+            material    = 'MAT-PO'
+            unit        = 'BOX' ) ) ) ) ).
+    lo_api->set_item_change_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true )
+        ( messages      = VALUE #( (
+          type    = 'E'
+          message = 'Second schedule update rejected' ) ) )
+        ( is_successful = abap_true ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_po_uom_repository( ).
+    lo_uom_repository->set_material_data(
+      iv_material         = 'MAT-PO'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_purchase_order_service(
+      io_api           = lo_api
+      io_uom_converter = lo_converter ).
+
+    DATA(ls_result) = lo_cut->change_base_schedules_bulk(
+      it_changes         = VALUE #(
+        ( purchase_order_number = '4500000101'
+          schedule_changes      = VALUE #( (
+            item_number     = '00010'
+            schedule_line   = '0001'
+            change_quantity = abap_true
+            base_quantity   = '24.000' ) ) )
+        ( purchase_order_number = '4500000102'
+          schedule_changes      = VALUE #( (
+            item_number     = '00020'
+            schedule_line   = '0002'
+            change_quantity = abap_true
+            base_quantity   = '36.000' ) ) )
+        ( purchase_order_number = '4500000103'
+          schedule_changes      = VALUE #( (
+            item_number     = '00030'
+            schedule_line   = '0003'
+            change_quantity = abap_true
+            base_quantity   = '48.000' ) ) ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2.000'
+      act = ls_result-order_results[ 1 ]-submitted_schedules[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-order_results[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lo_api->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_item_change_count( ) ).
   ENDMETHOD.
 
   METHOD changes_quantities_atomic.

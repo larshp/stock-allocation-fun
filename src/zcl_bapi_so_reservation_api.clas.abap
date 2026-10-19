@@ -134,6 +134,16 @@ CLASS zcl_bapi_so_reservation_api IMPLEMENTATION.
         EXIT.
       ENDIF.
 
+      IF iv_test_run <> abap_true
+          AND lv_reservation IS INITIAL.
+        rs_result-is_successful = abap_false.
+        APPEND VALUE #(
+          type    = 'E'
+          message = 'Sales-order reservation BAPI returned no reservation number' )
+          TO rs_result-messages.
+        EXIT.
+      ENDIF.
+
       APPEND VALUE #(
         request_id         = ls_request-request_id
         reservation_number = lv_reservation

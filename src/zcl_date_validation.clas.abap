@@ -9,6 +9,11 @@ CLASS zcl_date_validation DEFINITION
         iv_date            TYPE d
       RETURNING
         VALUE(rv_is_valid) TYPE abap_bool.
+    CLASS-METHODS is_valid_time
+      IMPORTING
+        iv_time            TYPE t
+      RETURNING
+        VALUE(rv_is_valid) TYPE abap_bool.
 ENDCLASS.
 
 CLASS zcl_date_validation IMPLEMENTATION.
@@ -44,6 +49,24 @@ CLASS zcl_date_validation IMPLEMENTATION.
     ENDCASE.
 
     IF lv_day < 1 OR lv_day > lv_max_day.
+      RETURN.
+    ENDIF.
+
+    rv_is_valid = abap_true.
+  ENDMETHOD.
+
+  METHOD is_valid_time.
+    IF iv_time+0(2) CN '0123456789'
+        OR iv_time+2(2) CN '0123456789'
+        OR iv_time+4(2) CN '0123456789'.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_hours) = CONV i( iv_time+0(2) ).
+    DATA(lv_minutes) = CONV i( iv_time+2(2) ).
+    DATA(lv_seconds) = CONV i( iv_time+4(2) ).
+
+    IF lv_hours > 23 OR lv_minutes > 59 OR lv_seconds > 59.
       RETURN.
     ENDIF.
 

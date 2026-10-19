@@ -116,6 +116,7 @@ INTERFACE zif_purchase_requisition_api PUBLIC.
       messages               TYPE ty_messages,
       is_successful          TYPE abap_bool,
       is_test_run            TYPE abap_bool,
+      is_skipped             TYPE abap_bool,
       bapi_was_called        TYPE abap_bool,
       is_committed           TYPE abap_bool,
     END OF ty_result.

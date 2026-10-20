@@ -111,6 +111,9 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     METHODS set_batch_stock_status
       IMPORTING
         it_status TYPE zif_stock_repository=>ty_batch_stock_statuses.
+    METHODS set_batch_bulk_response
+      IMPORTING
+        it_status TYPE zif_stock_repository=>ty_batch_status_bulk_results.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
@@ -183,6 +186,9 @@ CLASS lcl_stock_repository_double DEFINITION FINAL.
     DATA mt_location_stock_status TYPE zif_stock_repository=>ty_stock_status_locations.
     DATA mt_batch_stock_status TYPE zif_stock_repository=>ty_batch_stock_statuses.
     DATA mv_use_batch_status_override TYPE abap_bool.
+    DATA mt_batch_bulk_response TYPE
+      zif_stock_repository=>ty_batch_status_bulk_results.
+    DATA mv_use_batch_bulk_response TYPE abap_bool.
     DATA mt_sales_order_reservations TYPE
       zif_stock_repository=>ty_sales_order_reservations.
     DATA mt_open_res_bulk_resp TYPE
@@ -302,6 +308,11 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
   METHOD set_batch_stock_status.
     mt_batch_stock_status = it_status.
     mv_use_batch_status_override = abap_true.
+  ENDMETHOD.
+
+  METHOD set_batch_bulk_response.
+    mt_batch_bulk_response = it_status.
+    mv_use_batch_bulk_response = abap_true.
   ENDMETHOD.
 
   METHOD get_read_count.
@@ -742,6 +753,23 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
       requests              = it_requests
       excluded_reservations = it_excluded_reservations )
       TO mt_batch_bulk_calls.
+    IF mv_use_batch_bulk_response = abap_true.
+      LOOP AT it_requests INTO DATA(ls_bulk_request).
+        READ TABLE mt_batch_bulk_response
+          INTO DATA(ls_bulk_response)
+          WITH KEY request_id = ls_bulk_request-request_id.
+        IF sy-subrc = 0.
+          APPEND ls_bulk_response TO rt_status.
+        ELSE.
+          APPEND VALUE #(
+            request_id = ls_bulk_request-request_id
+            material   = ls_bulk_request-material
+            plant      = ls_bulk_request-plant )
+            TO rt_status.
+        ENDIF.
+      ENDLOOP.
+      RETURN.
+    ENDIF.
     DATA(lt_batch_status) = mt_batch_stock_status.
     IF mv_use_batch_status_override <> abap_true.
       LOOP AT mt_batch_stock INTO DATA(ls_batch_stock).
@@ -1212,14 +1240,152 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_scope_receipt_range FOR TESTING.
     METHODS reports_batch_expiry_exposure FOR TESTING
       RAISING zcx_invalid_stock_request.
+    METHODS reports_expiry_source_spans FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_expiry_status FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_expired_age_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_upcoming_lead_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_after_window_lead_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_expiry_day_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
     METHODS reports_expiry_risk_buckets FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_after_window_bands FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_expired_age_buckets FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_expired_age_uom FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS groups_expiry_exclusions FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS rejects_bad_expiry_horizon FOR TESTING.
     METHODS reports_expiry_exposure_uom FOR TESTING
       RAISING zcx_invalid_stock_request.
+    METHODS filters_uncovered_due_horizon FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rejects_bad_uncovered_age_band FOR TESTING.
+    METHODS filters_uncovered_sequence FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_uncovered_date_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_uncovered_reservation FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_uncovered_outcome FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_uncovered_shortage_pct FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS omits_uncovered_details FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS pages_uncovered_expiry FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS pages_uncovered_uom FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rejects_bad_uncovered_page FOR TESTING.
+    METHODS pages_resv_alloc_summaries FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_outcome FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_cov_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_share_ranges FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_short_pct_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_qty_ranges FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_short_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_date_bucket FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_due_horizon FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_sequence FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_reservation FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_resv_alloc_date_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS omits_resv_alloc_summaries FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS pages_allocation_details FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS pages_allocation_uom FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS summarizes_open_resv_dates FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS summarizes_open_resv_horizons FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS omits_allocation_details FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_reservation FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_pass FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_val_type FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_stock_keys FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_expiry_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_expiry_status FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_allocation_expiry_days FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_exp_day_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_expiry_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_after_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_age_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_quantity FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_expiry_source FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS summarizes_alloc_expiry_status FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS summarizes_alloc_due_src_bands FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS classifies_alloc_exp_due FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS leaves_max_exp_gap_initial FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS leaves_req_exp_gap_initial FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_req_exp_gap_uom FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS summarizes_alloc_exp_gap_bands FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_expiry_due FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_expiry_gap FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_alloc_exp_gap_band FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_sequence FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_date_bucket FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_due_horizon FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_allocation_date_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rejects_bad_resv_alloc_page FOR TESTING.
+    METHODS rejects_bad_allocation_page FOR TESTING.
     METHODS rejects_bad_expiry_uom_dates FOR TESTING.
+    METHODS uncovered_bulk_fixture
+      RETURNING
+        VALUE(rt_status) TYPE
+          zif_stock_repository=>ty_batch_status_bulk_results.
+    METHODS allocation_bulk_fixture
+      RETURNING
+        VALUE(rt_status) TYPE
+          zif_stock_repository=>ty_batch_status_bulk_results.
 ENDCLASS.
 
 CLASS ltcl_stock_service IMPLEMENTATION.
@@ -1634,7 +1800,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               material       = 'MAT-1'
               plant          = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1655,7 +1821,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant          = '1000'
               unit           = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1671,7 +1837,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant          = '1000'
               unit           = 'CASE' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1737,7 +1903,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         lo_cut->get_stock_status_bulk(
           it_requests = VALUE #( ( material = 'MAT-1' plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1749,7 +1915,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests = VALUE #(
             ( request_id = 'REQ-1' plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1761,7 +1927,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests = VALUE #(
             ( request_id = 'REQ-1' material = 'MAT-1' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1774,7 +1940,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' material = 'MAT-1' plant = '1000' )
             ( request_id = 'REQ-1' material = 'MAT-2' plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1807,7 +1973,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     TRY.
         lo_cut->get_stock_status_bulk( it_requests = lt_requests ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1819,7 +1985,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     TRY.
         lo_cut->get_stock_status_bulk( it_requests = lt_requests ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1875,7 +2041,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests = VALUE #(
             ( request_id = 'LOC-1' plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -1888,7 +2054,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'LOC-1' material = 'MAT-1' plant = '1000' )
             ( request_id = 'LOC-1' material = 'MAT-2' plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2191,7 +2357,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant        = '1000'
           iv_through_date = '00000000' ).
       CATCH zcx_invalid_stock_request.
-        lv_invalid_request_rejected = abap_true.
+        lv_invalid_request_rejected  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2204,7 +2370,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_through_date          = '20261023'
           iv_include_fixed_planned = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_invalid_request_rejected = abap_true.
+        lv_invalid_request_rejected  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2272,7 +2438,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant        = '1000'
           iv_through_date = '00000000' ).
       CATCH zcx_invalid_stock_request.
-        lv_invalid_request_rejected = abap_true.
+        lv_invalid_request_rejected  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2549,7 +2715,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_include_po_receipts      = abap_true
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2565,7 +2731,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_include_po_receipts      = abap_true
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2586,7 +2752,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
                 include_po_receipts      = abap_true
                 include_po_confirmations = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2759,7 +2925,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant        = '2000'
               through_date = '20261024' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2780,7 +2946,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests            = VALUE #( )
           iv_include_po_receipts = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2803,7 +2969,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               through_date = '20261024' ) )
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -2821,7 +2987,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000' ) )
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3014,7 +3180,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               through_date = '20261023'
               options      = VALUE #( include_po_receipts = 'Y' ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3038,7 +3204,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               through_date = '20261024'
               options      = VALUE #( include_prod_receipts = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3056,7 +3222,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               options    = VALUE #( include_po_receipts = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3271,7 +3437,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests            = VALUE #( )
           iv_include_po_receipts = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3290,7 +3456,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               through_date = '20261023' ) )
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3315,7 +3481,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               unit         = 'BOX' ) )
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3332,7 +3498,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               unit         = 'ZZZ' ) )
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3471,7 +3637,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               unit         = 'BOX'
               options      = VALUE #( include_po_receipts = 'Y' ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3493,7 +3659,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               through_date = '20261023'
               options      = VALUE #( include_po_receipts = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3519,7 +3685,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               unit         = 'BOX'
               options      = VALUE #( include_prod_receipts = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3536,7 +3702,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               unit         = 'ZZZ'
               options      = VALUE #( include_po_receipts = abap_true ) ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3711,7 +3877,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_unit                  = 'BOX'
           iv_include_fixed_planned = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3732,7 +3898,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_unit                = 'ZZZ'
           iv_include_po_receipts = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3806,7 +3972,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_stock_status(
       is_status = VALUE #(
-        unrestricted_quantity = CONV mard-labst( '9999999999.999' ) ) ).
+        unrestricted_quantity        = CONV mard-labst( '9999999999.999' ) ) ).
     DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
     lo_uom_repository->set_conversion(
       iv_base_unit        = 'EA'
@@ -3826,7 +3992,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'BOX' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -3838,7 +4004,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_stock_status(
       is_status = VALUE #(
-        unrestricted_quantity = '1.000' ) ).
+        unrestricted_quantity        = '1.000' ) ).
     DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
     lo_uom_repository->set_conversion(
       iv_base_unit        = 'EA'
@@ -3858,7 +4024,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'BOX' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -3961,7 +4127,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               material   = 'MAT-1'
               plant      = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3980,7 +4146,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '2000'
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -3995,7 +4161,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4219,7 +4385,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               material   = 'MAT-1'
               plant      = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4238,7 +4404,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '2000'
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4253,7 +4419,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4380,7 +4546,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests = VALUE #(
             ( material = 'MAT-1' plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4392,7 +4558,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_requests = VALUE #(
             ( request_id = 'BAT-1' material = 'MAT-1' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4405,7 +4571,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'BAT-1' material = 'MAT-1' plant = '1000' )
             ( request_id = 'BAT-1' material = 'MAT-2' plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4535,7 +4701,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               material   = 'MAT-1'
               plant      = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4554,7 +4720,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '2000'
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4569,7 +4735,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               unit       = 'CASE' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4805,7 +4971,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               as_of_date = '20260923' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4820,7 +4986,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant      = '1000'
               min_days   = 0 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4836,7 +5002,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               as_of_date = '20260923'
               min_days   = -1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4857,7 +5023,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               as_of_date = '20260923'
               min_days   = 0 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4981,7 +5147,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               as_of_date = '20260923'
               min_days   = 0 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -4998,7 +5164,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               min_days   = 0
               unit       = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -5089,7 +5255,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_min_days = -1 ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -5125,7 +5291,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_material = space
           iv_plant    = '1000' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -5137,7 +5303,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_material = 'MAT-1'
           iv_plant    = space ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -5150,7 +5316,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant                = '1000'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -5221,7 +5387,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_require_full_quantity = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -5352,7 +5518,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity       = '1.000'
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -5788,7 +5954,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_include_undated_batches = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -5863,9 +6029,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_row_strict) = lo_cut->allocate_by_expiry(
       it_demands    = VALUE #(
         ( request_id = 'ROW-STRICT'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true ) )
       iv_as_of_date = '20261001' ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
@@ -5880,12 +6046,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_mixed_policy) = lo_cut->allocate_by_expiry(
       it_demands    = VALUE #(
         ( request_id = 'ROW-STRICT-FIRST'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true )
         ( request_id = 'ROW-FLEXIBLE-SECOND'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '3.000' ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '3.000' ) )
       iv_as_of_date = '20261001' ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
@@ -5904,9 +6070,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_strict_safety_stock) = lo_cut->allocate_by_expiry(
       it_demands              = VALUE #(
         ( request_id = 'STRICT-SAFETY'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '2.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '2.000'
+          require_known_expiry       = abap_true ) )
       iv_as_of_date           = '20261001'
       iv_protect_safety_stock = abap_true ).
     cl_abap_unit_assert=>assert_equals(
@@ -5916,9 +6082,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_quality_policy) = lo_cut->allocate_quality_by_expiry(
       it_demands    = VALUE #(
         ( request_id = 'QUALITY-STRICT'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true ) )
       iv_as_of_date = '20261001' ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
@@ -5930,9 +6096,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_quality_allow_override) = lo_cut->allocate_quality_by_expiry(
       it_demands                 = VALUE #(
         ( request_id = 'QUALITY-ALLOW'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '3.000'
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '3.000'
+          allow_undated_batches      = abap_true ) )
       iv_as_of_date              = '20261001'
       iv_include_undated_batches = abap_false ).
     cl_abap_unit_assert=>assert_equals(
@@ -5970,9 +6136,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_unit_strict_policy) = lo_cut->allocate_by_expiry_in_units(
       it_demands    = VALUE #(
         ( request_id = 'UNIT-ROW-STRICT'
-          material = 'MAT-1' plant = '1000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) )
       iv_as_of_date = '20261001' ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
@@ -5987,9 +6153,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_unit_allow_override) = lo_cut->allocate_by_expiry_in_units(
       it_demands                 = VALUE #(
         ( request_id            = 'UNIT-ROW-ALLOW'
-          material              = 'MAT-1' plant = '1000'
-          requested_quantity    = '2.000' requested_unit = 'BOX'
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          allow_undated_batches      = abap_true ) )
       iv_as_of_date              = '20261001'
       iv_include_undated_batches = abap_false ).
     cl_abap_unit_assert=>assert_equals(
@@ -6002,10 +6168,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_priority_allow_override) = lo_cut->allocate_fefo_uom_priority(
       it_demands                 = VALUE #(
         ( request_id            = 'PRIORITY-ROW-ALLOW'
-          material              = 'MAT-1' plant = '1000'
-          priority              = 5 requested_quantity = '2.000'
-          requested_unit        = 'BOX'
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' plant = '1000'
+          priority                   = 5 requested_quantity = '2.000'
+          requested_unit             = 'BOX'
+          allow_undated_batches      = abap_true ) )
       iv_as_of_date              = '20261001'
       iv_include_undated_batches = abap_false ).
     cl_abap_unit_assert=>assert_equals(
@@ -6015,18 +6181,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(lv_uom_reads_before_conflict) =
       lo_uom_repository->get_read_count( ).
     DATA(lv_stock_reads_before_conflict) = lo_repository->get_read_count( ).
-    lv_rejected = abap_false.
+    lv_rejected                      = abap_false.
     TRY.
         lo_cut->allocate_by_expiry_in_units(
           it_demands    = VALUE #(
             ( request_id = 'CONFLICTING-POLICY'
-              material = 'MAT-1' plant = '1000'
-              requested_quantity = '1.000' requested_unit = 'BOX'
-              require_known_expiry = abap_true
-              allow_undated_batches = abap_true ) )
+              material               = 'MAT-1' plant = '1000'
+              requested_quantity     = '1.000' requested_unit = 'BOX'
+              require_known_expiry   = abap_true
+              allow_undated_batches  = abap_true ) )
           iv_as_of_date = '20261001' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6080,7 +6246,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'BAD-FEFO-FLAG' source_plant = '2000' ) )
           iv_include_undated_batches = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6188,12 +6354,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_policy_result) = lo_cut->allocate_plants_by_expiry(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-EXPIRY'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000'
-          require_known_expiry = abap_true )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000'
+          require_known_expiry       = abap_true )
         ( request_id = 'ALLOW-UNDATED'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000' ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000' ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-EXPIRY' source_plant = '2000' )
         ( request_id = 'ALLOW-UNDATED' source_plant = '2000' ) )
@@ -6217,9 +6383,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_priority_result) = lo_cut->allocate_plants_fefo_priority(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-PRIORITY'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000' priority = 2
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000' priority = 2
+          require_known_expiry       = abap_true ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-PRIORITY' source_plant = '2000' ) )
       iv_as_of_date = '20261001' ).
@@ -6233,9 +6399,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_unit_policy_result) = lo_cut->allocate_plants_fefo_in_units(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-UNIT'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-UNIT' source_plant = '2000' ) )
       iv_as_of_date = '20261001' ).
@@ -6249,9 +6415,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_priority_uom_result) = lo_cut->allocate_plants_fefo_uom_prio(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-UOM-PRIORITY'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          priority = 2 require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          priority                   = 2 require_known_expiry = abap_true ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-UOM-PRIORITY' source_plant = '2000' ) )
       iv_as_of_date = '20261001' ).
@@ -6265,9 +6431,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_date_policy_result) = lo_cut->allocate_plants_fefo_by_date(
       it_demands = VALUE #(
         ( request_id = 'KNOWN-DATE'
-          material = 'MAT-1' target_plant = '9000'
-          required_date = '20261001' requested_quantity = '5.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          required_date              = '20261001' requested_quantity = '5.000'
+          require_known_expiry       = abap_true ) )
       it_sources = VALUE #(
         ( request_id = 'KNOWN-DATE' source_plant = '2000' ) ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -6280,10 +6446,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_date_uom_policy_result) = lo_cut->allocate_plants_fefo_date_uom(
       it_demands = VALUE #(
         ( request_id = 'KNOWN-DATE-UOM'
-          material = 'MAT-1' target_plant = '9000'
-          required_date = '20261001'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          required_date              = '20261001'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) )
       it_sources = VALUE #(
         ( request_id = 'KNOWN-DATE-UOM' source_plant = '2000' ) ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -6296,9 +6462,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_atp_fefo_result) = lo_atp_cut->allocate_plants_fefo_atp(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-FEFO-ATP'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-FEFO-ATP' source_plant = '2000' ) )
       iv_check_rule = 'A'
@@ -6313,9 +6479,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_uom_atp_fefo_result) = lo_atp_cut->allocate_plants_fefo_uom_atp(
       it_demands    = VALUE #(
         ( request_id = 'KNOWN-UOM-FEFO-ATP'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          priority = 1 require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          priority                   = 1 require_known_expiry = abap_true ) )
       it_sources    = VALUE #(
         ( request_id = 'KNOWN-UOM-FEFO-ATP' source_plant = '2000' ) )
       iv_check_rule = 'A'
@@ -6331,16 +6497,16 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_allow_override_result) = lo_cut->allocate_plants_by_expiry(
       it_demands                 = VALUE #(
         ( request_id = 'STRICT-OVERRIDE'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000'
-          require_known_expiry = abap_true )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000'
+          require_known_expiry       = abap_true )
         ( request_id = 'ALLOW-OVERRIDE'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000'
-          allow_undated_batches = abap_true )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000'
+          allow_undated_batches      = abap_true )
         ( request_id = 'INHERIT-STRICT'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000' ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000' ) )
       it_sources                 = VALUE #(
         ( request_id = 'STRICT-OVERRIDE' source_plant = '2000' )
         ( request_id = 'ALLOW-OVERRIDE' source_plant = '2000' )
@@ -6369,9 +6535,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_priority_allow_result) = lo_cut->allocate_plants_fefo_priority(
       it_demands                 = VALUE #(
         ( request_id = 'PRIORITY-ALLOW'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000' priority = 2
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000' priority = 2
+          allow_undated_batches      = abap_true ) )
       it_sources                 = VALUE #(
         ( request_id = 'PRIORITY-ALLOW' source_plant = '2000' ) )
       iv_as_of_date              = '20261001'
@@ -6383,10 +6549,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_date_atp_allow_result) = lo_atp_cut->allocate_plants_fefo_date_atp(
       it_demands                 = VALUE #(
         ( request_id = 'DATE-ATP-ALLOW'
-          material = 'MAT-1' target_plant = '9000'
-          required_date = '20261001'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          required_date              = '20261001'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          allow_undated_batches      = abap_true ) )
       it_sources                 = VALUE #(
         ( request_id = 'DATE-ATP-ALLOW' source_plant = '2000' ) )
       iv_check_rule              = 'A'
@@ -6401,9 +6567,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_uom_atp_allow_result) = lo_atp_cut->allocate_plants_fefo_uom_atp(
       it_demands                 = VALUE #(
         ( request_id = 'UOM-ATP-ALLOW'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          priority = 1 allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          priority                   = 1 allow_undated_batches = abap_true ) )
       it_sources                 = VALUE #(
         ( request_id = 'UOM-ATP-ALLOW' source_plant = '2000' ) )
       iv_check_rule              = 'A'
@@ -6422,15 +6588,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         lo_cut->allocate_plants_by_expiry(
           it_demands    = VALUE #(
             ( request_id = 'CONFLICTING-POLICY'
-              material = 'MAT-1' target_plant = '9000'
-              requested_quantity = '1.000'
-              require_known_expiry = abap_true
-              allow_undated_batches = abap_true ) )
+              material               = 'MAT-1' target_plant = '9000'
+              requested_quantity     = '1.000'
+              require_known_expiry   = abap_true
+              allow_undated_batches  = abap_true ) )
           it_sources    = VALUE #(
             ( request_id = 'CONFLICTING-POLICY' source_plant = '2000' ) )
           iv_as_of_date = '20261001' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected_conflict = abap_true.
+        lv_rejected_conflict         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6446,13 +6612,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         lo_cut->allocate_across_plants(
           it_demands = VALUE #(
             ( request_id = 'ORDINARY-BASE'
-              material = 'MAT-1' target_plant = '9000'
-              requested_quantity = '1.000'
-              allow_undated_batches = abap_true ) )
+              material               = 'MAT-1' target_plant = '9000'
+              requested_quantity     = '1.000'
+              allow_undated_batches  = abap_true ) )
           it_sources = VALUE #(
             ( request_id = 'ORDINARY-BASE' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected_non_fefo_policy = abap_true.
+        lv_rejected_non_fefo_policy  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6461,18 +6627,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = lv_stock_reads_before_non_fefo
       act = lo_repository->get_read_count( ) ).
 
-    lv_rejected_non_fefo_policy = abap_false.
+    lv_rejected_non_fefo_policy      = abap_false.
     TRY.
         lo_cut->allocate_plants_by_date(
           it_demands = VALUE #(
             ( request_id = 'ORDINARY-DATE'
-              material = 'MAT-1' target_plant = '9000'
-              required_date = '20261001' requested_quantity = '1.000'
-              require_known_expiry = abap_true ) )
+              material               = 'MAT-1' target_plant = '9000'
+              required_date          = '20261001' requested_quantity = '1.000'
+              require_known_expiry   = abap_true ) )
           it_sources = VALUE #(
             ( request_id = 'ORDINARY-DATE' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected_non_fefo_policy = abap_true.
+        lv_rejected_non_fefo_policy  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6482,18 +6648,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_repository->get_read_count( ) ).
 
     DATA(lv_uom_reads_before_non_fefo) = lo_uom_repository->get_read_count( ).
-    lv_rejected_non_fefo_policy = abap_false.
+    lv_rejected_non_fefo_policy      = abap_false.
     TRY.
         lo_cut->allocate_plants_in_units(
           it_demands = VALUE #(
             ( request_id = 'ORDINARY-UOM'
-              material = 'MAT-1' target_plant = '9000'
-              requested_quantity = '1.000' requested_unit = 'BOX'
-              allow_undated_batches = abap_true ) )
+              material               = 'MAT-1' target_plant = '9000'
+              requested_quantity     = '1.000' requested_unit = 'BOX'
+              allow_undated_batches  = abap_true ) )
           it_sources = VALUE #(
             ( request_id = 'ORDINARY-UOM' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected_non_fefo_policy = abap_true.
+        lv_rejected_non_fefo_policy  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6502,19 +6668,19 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = lv_uom_reads_before_non_fefo
       act = lo_uom_repository->get_read_count( ) ).
 
-    lv_rejected_non_fefo_policy = abap_false.
+    lv_rejected_non_fefo_policy      = abap_false.
     TRY.
         lo_cut->allocate_plants_date_units(
           it_demands = VALUE #(
             ( request_id = 'ORDINARY-DATE-UOM'
-              material = 'MAT-1' target_plant = '9000'
-              required_date = '20261001'
-              requested_quantity = '1.000' requested_unit = 'BOX'
-              allow_undated_batches = abap_true ) )
+              material               = 'MAT-1' target_plant = '9000'
+              required_date          = '20261001'
+              requested_quantity     = '1.000' requested_unit = 'BOX'
+              allow_undated_batches  = abap_true ) )
           it_sources = VALUE #(
             ( request_id = 'ORDINARY-DATE-UOM' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected_non_fefo_policy = abap_true.
+        lv_rejected_non_fefo_policy  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -6528,9 +6694,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_safe_allow_override) = lo_cut->allocate_plants_by_expiry(
       it_demands                 = VALUE #(
         ( request_id = 'SAFE-ALLOW-UNDATED'
-          material = 'MAT-1' target_plant = '9000'
-          requested_quantity = '5.000'
-          allow_undated_batches = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          requested_quantity         = '5.000'
+          allow_undated_batches      = abap_true ) )
       it_sources                 = VALUE #(
         ( request_id = 'SAFE-ALLOW-UNDATED' source_plant = '2000' ) )
       iv_as_of_date              = '20261001'
@@ -6788,7 +6954,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_include_po_receipts      = abap_true
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_conflict_rejected = abap_true.
+        lv_conflict_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -7109,7 +7275,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -7487,7 +7653,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'CASE' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7517,7 +7683,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant              = '1000'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7572,7 +7738,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_required_date      = lv_required_date
           iv_requested_quantity = '1.000' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7603,7 +7769,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               required_date      = '20260230'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7639,7 +7805,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7665,7 +7831,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant      = '1000'
           iv_as_of_date = '20260230' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -7957,7 +8123,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'EA' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8101,7 +8267,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule     = 'A'
           iv_atp_check_date = '20261017' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8127,7 +8293,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               ( confirmed_quantity = '1.000' ) )
             is_check_relevant  = abap_true ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8139,9 +8305,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         lo_cut->get_atp_confirmation_split(
           iv_requested_base_quantity = '-1.000'
           is_atp_result              = VALUE #(
-            is_check_relevant = abap_true ) ).
+            is_check_relevant        = abap_true ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8166,7 +8332,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_required_date      = '20261231'
           iv_requested_quantity = '1.000' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8235,7 +8401,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant              = '1000'
           iv_requested_quantity = '-1.000' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8354,7 +8520,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant              = '1000'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_rejected = abap_true.
+        lv_duplicate_rejected        = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -8510,7 +8676,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-FEFO-OPTION' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -8547,7 +8713,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'XPLANT-RANGE' source_plant = '2000' )
             ( request_id = 'XPLANT-RANGE' source_plant = '3000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -8583,7 +8749,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id    = 'XPLANT-RCPT-RANGE'
               required_date = '20261231' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -8772,7 +8938,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'UNKNOWN' source_plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -8799,7 +8965,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'SAME-BASE' source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8816,7 +8982,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id   = 'SAME-LOCATION-DATE'
               source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8832,7 +8998,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'SAME-DATE' source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8847,7 +9013,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'SAME-FEFO' source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8863,7 +9029,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'SAME-FEFO-DATE' source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8879,7 +9045,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'SAME-BATCH' source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
     CLEAR lv_raised.
@@ -8897,7 +9063,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id   = 'SAME-BATCH-DATE'
               source_plant = '1000' ) ) ).
     CATCH zcx_invalid_stock_request.
-      lv_raised = abap_true.
+      lv_raised                      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_true( lv_raised ).
 
@@ -8939,7 +9105,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id   = 'DATE-XPLANT-OVERFLOW'
               source_plant = '3000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -8978,7 +9144,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               source_plant = '2000' ) )
           iv_include_po_confirmations = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_true( lv_rejected ).
@@ -9263,7 +9429,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'BAD-DATE' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_date_rejected = abap_true.
+        lv_bad_date_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -9411,7 +9577,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20260230'
               base_quantity    = '3.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_receipt_rejected = abap_true.
+        lv_bad_receipt_rejected      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -9526,7 +9692,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20260230'
               base_quantity    = '4.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_receipt_rejected = abap_true.
+        lv_bad_receipt_rejected      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -9736,7 +9902,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'UNKNOWN-UOM' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -9878,7 +10044,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'BAD-RULE' source_plant = '2000' ) )
           iv_check_rule = '' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -10238,7 +10404,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -10310,9 +10476,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( '0001' ) )
       it_source_locations          = VALUE #(
         ( request_id = 'REQ-BOX' source_plant = '2000'
-          storage_location = '0001' )
+          storage_location           = '0001' )
         ( request_id = 'REQ-EA' source_plant = '2000'
-          storage_location = '0001' ) ) ).
+          storage_location           = '0001' ) ) ).
     DATA(lt_requests) = lo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -10457,9 +10623,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
     DATA lv_expiration_date TYPE d.
-    lv_early_date = sy-datum.
-    lv_late_date = sy-datum + 1.
-    lv_expiration_date = sy-datum + 30.
+    lv_early_date                    = sy-datum.
+    lv_late_date                     = sy-datum + 1.
+    lv_expiration_date               = sy-datum + 30.
 
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stocks(
@@ -10512,7 +10678,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         cl_abap_unit_assert=>fail(
           msg = 'Invalid cross-plant batch date was accepted' ).
       CATCH zcx_invalid_stock_request.
-        lv_invalid_date_rejected = abap_true.
+        lv_invalid_date_rejected     = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -10611,7 +10777,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -10782,7 +10948,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -10854,7 +11020,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'BAD-RULE' source_plant = '2000' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -10883,7 +11049,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule              = 'A'
           iv_include_undated_batches = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -11051,7 +11217,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11095,7 +11261,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE zcl_stock_service=>ty_plant_sources(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11122,7 +11288,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '2.000' ) )
           it_sources = VALUE zcl_stock_service=>ty_plant_sources( ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11327,7 +11493,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               base_quantity    = '1.000' ) )
           iv_as_of_date               = '20261020' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11571,7 +11737,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20261301'
               base_quantity    = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11774,7 +11940,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11800,7 +11966,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11830,7 +11996,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               storage_location = '0001'
               priority_rank    = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11916,7 +12082,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -11988,7 +12154,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           it_allowed_storage_locations = VALUE #( ( '' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12013,7 +12179,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12056,9 +12222,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( request_id = 'REQ-B' source_plant = '2000' ) )
       it_source_locations = VALUE #(
         ( request_id = 'REQ-A' source_plant = '2000'
-          storage_location = '0001' )
+          storage_location           = '0001' )
         ( request_id = 'REQ-B' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 2
@@ -12104,9 +12270,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           it_source_locations = VALUE #(
             ( request_id = 'REQ-1' source_plant = '3000'
-              storage_location = '0001' ) ) ).
+              storage_location       = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12130,9 +12296,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '3000' ) )
           it_source_locations = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000'
-              storage_location = '0001' ) ) ).
+              storage_location       = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12206,11 +12372,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( '0003' ) )
       it_source_locations          = VALUE #(
         ( request_id = 'REQ-LATE' source_plant = '2000'
-          storage_location = '0002' )
+          storage_location           = '0002' )
         ( request_id = 'REQ-EARLY' source_plant = '2000'
-          storage_location = '0001' )
+          storage_location           = '0001' )
         ( request_id = 'REQ-STRICT' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 3
@@ -12271,7 +12437,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       iv_min_days         = 5
       it_source_locations = VALUE #(
         ( request_id = 'REQ-STRICT' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_restricted_result-allocations[ 1 ]-allocation-available_quantity ).
@@ -12354,7 +12520,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12444,11 +12610,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( '0003' ) )
       it_source_locations          = VALUE #(
         ( request_id = 'REQ-LATE' source_plant = '2000'
-          storage_location = '0002' )
+          storage_location           = '0002' )
         ( request_id = 'REQ-EARLY' source_plant = '2000'
-          storage_location = '0001' )
+          storage_location           = '0001' )
         ( request_id = 'REQ-STRICT' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
     DATA(lt_requests) = lo_availability_api->get_requests( ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -12521,7 +12687,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       iv_include_undated_batches = abap_false
       it_source_locations        = VALUE #(
         ( request_id = 'STRICT-SHELF' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_restricted_result-local_estimate-allocations[ 1 ]-allocation-available_quantity ).
@@ -12623,7 +12789,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_check_rule = '' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -12896,7 +13062,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-DUP' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -12924,7 +13090,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-DUP-UOM' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -13164,7 +13330,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               storage_location = '0003'
               priority_rank    = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -13410,7 +13576,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               storage_location = '0003'
               priority_rank    = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -13716,7 +13882,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-DUP' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_rejected = abap_true.
+        lv_duplicate_rejected        = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -13837,7 +14003,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               base_quantity    = '1.000' ) )
           iv_as_of_date               = '20261020' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -13873,7 +14039,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -13912,7 +14078,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date = '20260923'
           iv_min_days   = -1 ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -13940,7 +14106,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           iv_min_days = -1 ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -14168,7 +14334,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-DUP' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -14430,7 +14596,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               storage_location = '0003'
               priority_rank    = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -14523,9 +14689,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
     DATA lv_expiration_date TYPE d.
-    lv_early_date = sy-datum.
-    lv_late_date = sy-datum + 1.
-    lv_expiration_date = sy-datum + 30.
+    lv_early_date                    = sy-datum.
+    lv_late_date                     = sy-datum + 1.
+    lv_expiration_date               = sy-datum + 30.
 
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stocks(
@@ -14666,10 +14832,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_receipt_expiration_date TYPE mcha-vfdat.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
-    lv_receipt_date = sy-datum + 2.
-    lv_receipt_expiration_date = sy-datum + 4.
-    lv_early_date = sy-datum + 1.
-    lv_late_date = sy-datum + 3.
+    lv_receipt_date                  = sy-datum + 2.
+    lv_receipt_expiration_date       = sy-datum + 4.
+    lv_early_date                    = sy-datum + 1.
+    lv_late_date                     = sy-datum + 3.
 
     DATA(ls_not_yet_available) = lo_cut->allocate_plants_by_batch(
       it_demands                  = VALUE #(
@@ -14806,9 +14972,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_expiration_date TYPE mcha-vfdat.
     DATA lv_expired_date TYPE d.
     DATA lv_rejected TYPE abap_bool.
-    lv_eligible_date = sy-datum + 9.
-    lv_expiration_date = sy-datum + 10.
-    lv_expired_date = sy-datum + 10.
+    lv_eligible_date                 = sy-datum + 9.
+    lv_expiration_date               = sy-datum + 10.
+    lv_expired_date                  = sy-datum + 10.
     lo_repository->set_batch_stocks(
       it_stock = VALUE #(
         ( storage_location   = '0001'
@@ -14864,7 +15030,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'NO-CUTOFF' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -14939,9 +15105,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_strict_expiry) = lo_cut->allocate_plants_by_batch(
       it_demands = VALUE #(
         ( request_id = 'STRICT-EXPIRY'
-          material = 'MAT-1' target_plant = '9000'
-          batch = 'B-1' requested_quantity = '4.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          batch                      = 'B-1' requested_quantity = '4.000'
+          require_known_expiry       = abap_true ) )
       it_sources = VALUE #(
         ( request_id = 'STRICT-EXPIRY' source_plant = '2000' ) ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -14975,9 +15141,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_dated_batch_policy) = lo_cut->allocate_plants_by_batch(
       it_demands = VALUE #(
         ( request_id = 'DATED-SPLIT'
-          material = 'MAT-1' target_plant = '9000'
-          batch = 'B-DATED' requested_quantity = '4.000'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' target_plant = '9000'
+          batch                      = 'B-DATED' requested_quantity = '4.000'
+          require_known_expiry       = abap_true ) )
       it_sources = VALUE #(
         ( request_id = 'DATED-SPLIT' source_plant = '2000' ) ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -14990,9 +15156,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_mixed_policy) = lo_cut->allocate_plants_by_batch(
       it_demands = VALUE #(
         ( request_id = 'STRICT-FIRST'
-          material = 'MAT-1' target_plant = '9000'
-          batch = 'B-1' requested_quantity = '4.000'
-          require_known_expiry = abap_true )
+          material                   = 'MAT-1' target_plant = '9000'
+          batch                      = 'B-1' requested_quantity = '4.000'
+          require_known_expiry       = abap_true )
         ( request_id         = 'FLEXIBLE-SECOND'
           material           = 'MAT-1'
           target_plant       = '9000'
@@ -15480,9 +15646,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_strict) = lo_cut->allocate_by_batch(
       it_demands = VALUE #(
         ( request_id = 'SINGLE-STRICT'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true ) ) ).
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_single_strict-allocations[ 1 ]-available_quantity ).
@@ -15493,9 +15659,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_mixed) = lo_cut->allocate_by_batch(
       it_demands = VALUE #(
         ( request_id = 'SINGLE-STRICT-FIRST'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true )
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true )
         ( request_id         = 'SINGLE-FLEXIBLE-SECOND'
           material           = 'MAT-1'
           plant              = '2000'
@@ -15517,9 +15683,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_dated_split) = lo_cut->allocate_by_batch(
       it_demands = VALUE #(
         ( request_id = 'SINGLE-DATED-SPLIT'
-          material = 'MAT-1' plant = '2000' batch = 'B-DATED'
-          requested_quantity = '4.000'
-          require_known_expiry = abap_true ) ) ).
+          material                   = 'MAT-1' plant = '2000' batch = 'B-DATED'
+          requested_quantity         = '4.000'
+          require_known_expiry       = abap_true ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_single_dated_split-batch_allocations[ 1 ]-require_known_expiry ).
@@ -15527,9 +15693,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_priority_strict) = lo_cut->allocate_by_batch_priority(
       it_demands = VALUE #(
         ( request_id = 'SINGLE-PRIORITY-STRICT'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          priority = 1 requested_quantity = '2.000'
-          require_known_expiry = abap_true ) ) ).
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          priority                   = 1 requested_quantity = '2.000'
+          require_known_expiry       = abap_true ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_single_priority_strict-allocations[ 1 ]-allocation-require_known_expiry ).
@@ -15564,9 +15730,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_unit_strict) = lo_cut->allocate_by_batch_in_units(
       it_demands = VALUE #(
         ( request_id = 'SINGLE-UNIT-STRICT'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) ) ).
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          requested_quantity         = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_single_unit_strict-allocations[ 1 ]-allocation-require_known_expiry ).
@@ -15595,9 +15761,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       lo_cut->allocate_by_batch_uom_priority(
         it_demands = VALUE #(
           ( request_id = 'SINGLE-UOM-PRIORITY-STRICT'
-            material = 'MAT-1' plant = '2000' batch = 'B-1'
-            priority = 1 requested_quantity = '2.000'
-            requested_unit = 'BOX' require_known_expiry = abap_true ) ) ).
+            material                 = 'MAT-1' plant = '2000' batch = 'B-1'
+            priority                 = 1 requested_quantity = '2.000'
+            requested_unit           = 'BOX' require_known_expiry = abap_true ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_single_uom_priority_strict-allocations[ 1 ]-allocation-allocation-require_known_expiry ).
@@ -15638,9 +15804,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_atp_strict) = lo_cut->allocate_by_batch_atp(
       it_demands    = VALUE #(
         ( request_id = 'SINGLE-ATP-STRICT'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          requested_quantity = '2.000' requested_unit = 'EA'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          requested_quantity         = '2.000' requested_unit = 'EA'
+          require_known_expiry       = abap_true ) )
       iv_check_rule = 'A' ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -15670,9 +15836,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(ls_single_uom_atp_strict) = lo_cut->allocate_by_batch_uom_atp_prio(
       it_demands    = VALUE #(
         ( request_id = 'SINGLE-UOM-ATP-STRICT'
-          material = 'MAT-1' plant = '2000' batch = 'B-1'
-          priority = 1 requested_quantity = '2.000' requested_unit = 'BOX'
-          require_known_expiry = abap_true ) )
+          material                   = 'MAT-1' plant = '2000' batch = 'B-1'
+          priority                   = 1 requested_quantity = '2.000' requested_unit = 'BOX'
+          require_known_expiry       = abap_true ) )
       iv_check_rule = 'A' ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -15719,7 +15885,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id   = 'XPLANT-CONFLICTING-EXPIRY-POLICY'
               source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -15730,7 +15896,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = lv_stock_reads
       act = lo_repository->get_read_count( ) ).
-    lv_rejected = abap_false.
+    lv_rejected                      = abap_false.
     TRY.
         lo_cut->allocate_by_batch_in_units(
           it_demands = VALUE #(
@@ -15743,7 +15909,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               require_known_expiry  = abap_true
               allow_undated_batches = abap_true ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -15754,7 +15920,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = lv_stock_reads
       act = lo_repository->get_read_count( ) ).
-    lv_rejected = abap_false.
+    lv_rejected                      = abap_false.
     TRY.
         lo_cut->allocate_plants_batch_in_units(
           it_demands                 = VALUE #(
@@ -15768,7 +15934,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'INVALID' source_plant = '2000' ) )
           iv_include_undated_batches = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -15796,7 +15962,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -15917,7 +16083,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '1000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16033,7 +16199,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16153,7 +16319,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       io_stock_repository = lo_repository
       io_uom_converter    = lo_converter ).
     DATA lv_expiration_date TYPE mcha-vfdat.
-    lv_expiration_date = sy-datum + 100.
+    lv_expiration_date               = sy-datum + 100.
 
     DATA(ls_result) = lo_cut->allocate_plants_batch_in_units(
       it_demands                  = VALUE #(
@@ -16218,7 +16384,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = sy-datum
               base_quantity    = '4.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16254,7 +16420,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16316,7 +16482,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(lo_cut) = NEW zcl_stock_service(
       io_stock_repository = lo_repository ).
     DATA lv_receipt_date TYPE d.
-    lv_receipt_date = sy-datum + 2.
+    lv_receipt_date                  = sy-datum + 2.
 
     DATA(ls_result) = lo_cut->allocate_plants_by_batch(
       it_demands                  = VALUE #(
@@ -16567,9 +16733,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'ORD-1' source_plant = '2000'
-          storage_location = '0001' )
+          storage_location           = '0001' )
         ( request_id = 'ORD-2' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_location_result-allocations[ 1 ]-available_quantity ).
@@ -16596,7 +16762,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'BATCH-1' source_plant = '2000'
-          storage_location = '0001' ) ) ).
+          storage_location           = '0001' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_batch_result-allocations[ 1 ]-available_quantity ).
@@ -16616,7 +16782,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'FEFO-1' source_plant = '2000'
-          storage_location = '0001' ) )
+          storage_location           = '0001' ) )
       iv_as_of_date                = '20260923' ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
@@ -16638,7 +16804,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'ORD-BOX' source_plant = '2000'
-          storage_location = '0001' ) ) ).
+          storage_location           = '0001' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
       act = ls_location_uom_result-location_allocations[ 1 ]-allocation-storage_location ).
@@ -16657,7 +16823,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'BATCH-BOX' source_plant = '2000'
-          storage_location = '0001' ) ) ).
+          storage_location           = '0001' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
       act = ls_batch_uom_result-location_allocations[ 1 ]-allocation-storage_location ).
@@ -16675,7 +16841,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority = lt_location_priority
       it_source_locations          = VALUE #(
         ( request_id = 'FEFO-BOX' source_plant = '2000'
-          storage_location = '0001' ) )
+          storage_location           = '0001' ) )
       iv_as_of_date                = '20260923' ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
@@ -16694,7 +16860,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_allowed_storage_locations = lt_allowed_locations
       it_source_locations          = VALUE #(
         ( request_id = 'ORD-SAFE' source_plant = '2000'
-          storage_location = '0002' ) ) ).
+          storage_location           = '0002' ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '48.000' )
       act = ls_scoped_safety_result-allocations[ 1 ]-available_quantity ).
@@ -16720,11 +16886,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           it_source_locations = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000'
-              storage_location = '0001' )
+              storage_location       = '0001' )
             ( request_id = 'REQ-1' source_plant = '2000'
-              storage_location = '0001' ) ) ).
+              storage_location       = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16754,11 +16920,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'REQ-1' source_plant = '2000' ) )
           it_source_locations = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000'
-              storage_location = '0001' )
+              storage_location       = '0001' )
             ( request_id = 'REQ-1' source_plant = '2000'
-              storage_location = '0001' ) ) ).
+              storage_location       = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -16977,7 +17143,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule            = 'A'
           iv_require_full_quantity = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -17715,7 +17881,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources = VALUE #(
             ( request_id = 'REQ-1' source_plant = '2000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_raised = abap_true.
+        lv_raised                    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -17923,9 +18089,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( '0003' ) )
       it_request_location_priorities = VALUE #(
         ( request_id = 'REQ-1' storage_location = '0002'
-          priority_rank = 1 )
+          priority_rank              = 1 )
         ( request_id = 'REQ-2' storage_location = '0003'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-1'
@@ -17955,7 +18121,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         ( '0002' ) )
       it_request_location_priorities = VALUE #(
         ( request_id = 'REQ-BOX' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -17983,9 +18149,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0001'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18004,11 +18170,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'REQ-1' storage_location = '0001'
-              priority_rank = 1 )
+              priority_rank          = 1 )
             ( request_id = 'REQ-1' storage_location = '0001'
-              priority_rank = 2 ) ) ).
+              priority_rank          = 2 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18027,9 +18193,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'REQ-1' storage_location = '0001'
-              priority_rank = 0 ) ) ).
+              priority_rank          = 0 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18060,9 +18226,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0001'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18086,9 +18252,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0001'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18136,7 +18302,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       ( '0002' ) ).
     DATA(lt_request_order) = VALUE zcl_stock_service=>ty_request_location_priorities(
       ( request_id = 'DATE-REQ' storage_location = '0002'
-        priority_rank = 1 ) ).
+        priority_rank                = 1 ) ).
 
     DATA(ls_base_result) = lo_cut->allocate_location_by_date(
       it_demands                     = VALUE #(
@@ -18158,7 +18324,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_base_result-storage_allocations[ 2 ]-storage_allocation-storage_location ).
 
     DATA lv_receipt_date TYPE d.
-    lv_receipt_date = sy-datum + 1.
+    lv_receipt_date                  = sy-datum + 1.
     DATA(ls_receipt_result) = lo_cut->allocate_location_by_date(
       it_demands                     = VALUE #(
         ( request_id         = 'DATE-RECEIPT-REQ'
@@ -18175,9 +18341,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'DATE-RECEIPT-REQ' storage_location = '0003'
-          priority_rank = 1 )
+          priority_rank              = 1 )
         ( request_id = 'DATE-RECEIPT-REQ' storage_location = '0002'
-          priority_rank = 2 ) ) ).
+          priority_rank              = 2 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0003'
       act = ls_receipt_result-storage_allocations[
@@ -18216,7 +18382,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'DATE-ATP-REQ' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_base_atp_result-local_estimate-storage_allocations[
@@ -18234,7 +18400,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'DATE-UOM-ATP-REQ' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_uom_atp_result-local_estimate-storage_allocations[
@@ -18388,7 +18554,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'REQ-REPEAT' storage_location = '0001'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-REPEAT'
       act = ls_result-allocations[ 1 ]-request_id ).
@@ -18440,7 +18606,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'REQ-UOM-REPEAT' storage_location = '0001'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = ls_uom_result-allocations[ 1 ]-allocation-priority ).
@@ -18470,7 +18636,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_uom_result-storage_allocations[ 2 ]-priority ).
 
     DATA lv_atp_check_date TYPE d.
-    lv_atp_check_date = sy-datum + 5.
+    lv_atp_check_date                = sy-datum + 5.
     DATA(ls_atp_result) = lo_cut->allocate_location_uom_atp_prio(
       it_demands                     = VALUE #(
         ( request_id         = 'REQ-LOW-ATP'
@@ -18490,7 +18656,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'REQ-HIGH-ATP' storage_location = '0001'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     DATA(lt_atp_requests) = lo_availability_api->get_requests( ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
@@ -18642,7 +18808,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18661,7 +18827,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_allowed_storage_locations = VALUE #(
             ( space ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18694,7 +18860,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_allowed_storage_locations = VALUE #(
             ( '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -18798,7 +18964,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -18819,7 +18985,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_storage_location_priority = VALUE #(
             ( space ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -18843,7 +19009,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -18874,7 +19040,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( '0001' )
             ( '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -19189,7 +19355,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       ( '0002' ) ).
     DATA(lt_request_order) = VALUE zcl_stock_service=>ty_request_location_priorities(
       ( request_id = 'BATCH-REQ' storage_location = '0002'
-        priority_rank = 1 ) ).
+        priority_rank                = 1 ) ).
 
     DATA(ls_base_result) = lo_cut->allocate_by_batch(
       it_demands                     = VALUE #(
@@ -19249,7 +19415,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'BATCH-REPEAT' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = ls_priority_result-batch_allocations[ 1 ]-priority ).
@@ -19281,7 +19447,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'BATCH-UOM-REPEAT' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = ls_priority_unit_result-batch_allocations[ 1 ]-priority ).
@@ -19302,7 +19468,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'BATCH-ATP-REQ' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_atp_result-local_estimate-batch_allocations[
@@ -19321,7 +19487,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_shared_order
       it_request_location_priorities = VALUE #(
         ( request_id = 'BATCH-UOM-ATP-REQ' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_priority_atp_result-local_estimate-batch_allocations[
@@ -19493,9 +19659,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -19516,9 +19682,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -19687,8 +19853,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
   METHOD prioritizes_batch_date_atp.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
-    lv_early_date = sy-datum.
-    lv_late_date = sy-datum + 1.
+    lv_early_date                    = sy-datum.
+    lv_late_date                     = sy-datum + 1.
 
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stocks(
@@ -19917,10 +20083,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_due_date TYPE d.
     DATA lv_future_date TYPE d.
     DATA lv_expiration_date TYPE d.
-    lv_early_date = sy-datum + 3.
-    lv_due_date = sy-datum + 5.
-    lv_future_date = sy-datum + 6.
-    lv_expiration_date = sy-datum + 50.
+    lv_early_date                    = sy-datum + 3.
+    lv_due_date                      = sy-datum + 5.
+    lv_future_date                   = sy-datum + 6.
+    lv_expiration_date               = sy-datum + 50.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stocks(
       it_stock = VALUE #(
@@ -19981,9 +20147,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_due_date TYPE d.
     DATA lv_future_date TYPE d.
     DATA lv_expiration_date TYPE d.
-    lv_due_date = sy-datum + 5.
-    lv_future_date = sy-datum + 6.
-    lv_expiration_date = sy-datum + 50.
+    lv_due_date                      = sy-datum + 5.
+    lv_future_date                   = sy-datum + 6.
+    lv_expiration_date               = sy-datum + 50.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
     lo_uom_repository->set_conversion(
@@ -20079,7 +20245,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20261301'
               base_quantity    = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -20117,7 +20283,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               fallback_to_other_locations = 'Y'
               requested_quantity          = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_location_rejected = abap_true.
+        lv_location_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_location_in_units(
@@ -20129,7 +20295,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity          = '1.000'
               requested_unit              = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_location_unit_rejected = abap_true.
+        lv_location_unit_rejected    = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_batch(
@@ -20141,7 +20307,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               fallback_to_other_locations = 'Y'
               requested_quantity          = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_rejected = abap_true.
+        lv_batch_rejected            = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_batch_in_units(
@@ -20154,7 +20320,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity          = '1.000'
               requested_unit              = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_unit_rejected = abap_true.
+        lv_batch_unit_rejected       = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_expiry(
@@ -20166,7 +20332,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity          = '1.000' ) )
           iv_as_of_date = '20261015' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_rejected = abap_true.
+        lv_fefo_rejected             = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_expiry_in_units(
@@ -20179,7 +20345,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit              = 'BOX' ) )
           iv_as_of_date = '20261015' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_unit_rejected = abap_true.
+        lv_fefo_unit_rejected        = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -20232,7 +20398,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_location_rejected = abap_true.
+        lv_location_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_location_in_units(
@@ -20244,7 +20410,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_location_unit_rejected = abap_true.
+        lv_location_unit_rejected    = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_batch(
@@ -20256,7 +20422,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_rejected = abap_true.
+        lv_batch_rejected            = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_batch_in_units(
@@ -20269,7 +20435,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_unit_rejected = abap_true.
+        lv_batch_unit_rejected       = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_expiry(
@@ -20281,7 +20447,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date           = '20261015'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_rejected = abap_true.
+        lv_fefo_rejected             = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_expiry_in_units(
@@ -20294,7 +20460,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date           = '20261015'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_unit_rejected = abap_true.
+        lv_fefo_unit_rejected        = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -20348,7 +20514,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity   = '1.000'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_request_rejected = abap_true.
+        lv_request_rejected          = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_request_by_date(
@@ -20358,21 +20524,21 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity   = '1.000'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_request_date_rejected = abap_true.
+        lv_request_date_rejected     = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_demands_by_date(
           it_demands              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_demands_date_rejected = abap_true.
+        lv_demands_date_rejected     = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_date_demands_in_units(
           it_demands              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_units_rejected = abap_true.
+        lv_date_units_rejected       = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_date_demands_atp(
@@ -20380,7 +20546,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_atp_rejected = abap_true.
+        lv_date_atp_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_request_date_atp(
@@ -20402,21 +20568,21 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_unit       = 'BOX'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_request_unit_rejected = abap_true.
+        lv_request_unit_rejected     = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_demands_in_units(
           it_demands              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_demands_units_rejected = abap_true.
+        lv_demands_units_rejected    = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_demands(
           it_demands              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_demands_rejected = abap_true.
+        lv_demands_rejected          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -20483,7 +20649,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_plants_rejected = abap_true.
+        lv_plants_rejected           = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_by_date(
@@ -20491,7 +20657,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_rejected = abap_true.
+        lv_date_rejected             = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_date_units(
@@ -20505,7 +20671,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_units_rejected = abap_true.
+        lv_date_units_rejected       = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_date_atp(
@@ -20514,7 +20680,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_atp_rejected = abap_true.
+        lv_date_atp_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_by_expiry(
@@ -20523,7 +20689,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date           = '20261015'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_rejected = abap_true.
+        lv_fefo_rejected             = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_fefo_date_atp(
@@ -20532,7 +20698,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_date_atp_rejected = abap_true.
+        lv_fefo_date_atp_rejected    = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_by_batch(
@@ -20540,7 +20706,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_rejected = abap_true.
+        lv_batch_rejected            = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_date_batch_atp(
@@ -20549,7 +20715,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_batch_atp_rejected = abap_true.
+        lv_date_batch_atp_rejected   = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_batch_in_units(
@@ -20563,7 +20729,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_units_rejected = abap_true.
+        lv_batch_units_rejected      = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_in_units(
@@ -20576,7 +20742,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_sources              = VALUE #( )
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_units_rejected = abap_true.
+        lv_units_rejected            = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_atp(
@@ -20585,7 +20751,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_atp_rejected = abap_true.
+        lv_atp_rejected              = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_batch_atp(
@@ -20594,7 +20760,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule           = 'A'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_atp_rejected = abap_true.
+        lv_batch_atp_rejected        = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_fefo_atp(
@@ -20604,7 +20770,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date           = '20261015'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_atp_rejected = abap_true.
+        lv_fefo_atp_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_fefo_in_units(
@@ -20618,7 +20784,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date           = '20261015'
           iv_protect_safety_stock = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_units_rejected = abap_true.
+        lv_fefo_units_rejected       = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -20702,7 +20868,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA lv_entrypoint_rejections TYPE i.
     FIELD-SYMBOLS <lv_flag> TYPE abap_bool.
 
-    lt_flag_names = VALUE #(
+    lt_flag_names                    = VALUE #(
       ( 'INCLUDE_PO_RECEIPTS' )
       ( 'INCLUDE_PO_CONFIRMATIONS' )
       ( 'INCLUDE_STO_IN_TRANSIT' )
@@ -20716,7 +20882,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       ( 'INCLUDE_SCHED_AGMT_RECEIPTS' ) ).
 
     LOOP AT lt_flag_names INTO DATA(lv_flag_name).
-      ls_flags = VALUE #(
+      ls_flags                       = VALUE #(
         include_po_receipts         = abap_false
         include_po_confirmations    = abap_false
         include_sto_in_transit      = abap_false
@@ -20730,8 +20896,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         include_sched_agmt_receipts = abap_false ).
       ASSIGN COMPONENT lv_flag_name OF STRUCTURE ls_flags TO <lv_flag>.
       cl_abap_unit_assert=>assert_equals(
-        exp = 0
-        act = sy-subrc ).
+      exp = 0
+      act = sy-subrc ).
       <lv_flag> = 'Y'.
 
       TRY.
@@ -20889,7 +21055,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity    = '1.000'
           iv_require_full_quantity = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_request_rejected = abap_true.
+        lv_request_rejected          = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_plants_date_batch_atp(
@@ -20898,7 +21064,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule            = 'A'
           iv_require_full_quantity = 'Y' ).
       CATCH zcx_invalid_stock_request.
-        lv_date_batch_atp_rejected = abap_true.
+        lv_date_batch_atp_rejected   = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_expiry(
@@ -21232,7 +21398,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               plant              = '1000'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -21512,7 +21678,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-BASE' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -21535,7 +21701,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-UOM' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -21553,7 +21719,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-PRIORITY' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -21572,7 +21738,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-PRIORITY-UOM' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -21603,7 +21769,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-ATP' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -21623,7 +21789,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'FEFO-PRIORITY-ATP' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -21805,9 +21971,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -21832,7 +21998,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_request_locations = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -21853,7 +22019,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'FEFO-UOM' storage_location = '0002' )
             ( request_id = 'FEFO-UOM' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -21874,7 +22040,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_request_locations = VALUE #(
             ( request_id = 'FEFO-UOM' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -22153,7 +22319,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               base_quantity    = '1.000' ) )
           iv_as_of_date               = '20261001' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -22462,7 +22628,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               base_quantity    = '1.000' ) )
           iv_as_of_date               = '20261001' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -22593,7 +22759,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-BASE' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -22616,7 +22782,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-UOM' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -22634,7 +22800,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-PRIORITY' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -22653,7 +22819,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-PRIORITY-UOM' storage_location = '0002'
-          priority_rank = 1 ) )
+          priority_rank              = 1 ) )
       iv_as_of_date                  = '20261001' ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -22684,7 +22850,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-ATP' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -22704,7 +22870,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       it_storage_location_priority   = lt_location_priority
       it_request_location_priorities = VALUE #(
         ( request_id = 'QI-PRIORITY-ATP' storage_location = '0002'
-          priority_rank = 1 ) ) ).
+          priority_rank              = 1 ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
@@ -22884,9 +23050,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           it_request_location_priorities = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002'
-              priority_rank = 1 ) ) ).
+              priority_rank          = 1 ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -22911,7 +23077,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_request_locations = VALUE #(
             ( request_id = 'UNKNOWN' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -22932,7 +23098,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id = 'QI-UOM' storage_location = '0002' )
             ( request_id = 'QI-UOM' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -22953,7 +23119,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_request_locations = VALUE #(
             ( request_id = 'QI-UOM' storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals( exp = abap_true act = lv_rejected ).
     cl_abap_unit_assert=>assert_equals(
@@ -23013,7 +23179,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_allowed_storage_locations = VALUE #( ( '0002' ) )
           iv_as_of_date                = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected                  = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -23276,7 +23442,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_rejected = abap_true.
+        lv_duplicate_rejected        = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -23298,7 +23464,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_uom_duplicate_rejected = abap_true.
+        lv_uom_duplicate_rejected    = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -23313,7 +23479,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
 
   METHOD compares_quality_fefo_atp.
     DATA lv_as_of_date TYPE d.
-    lv_as_of_date = '20260923'.
+    lv_as_of_date                    = '20260923'.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
@@ -23361,7 +23527,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule = space
           iv_as_of_date = lv_as_of_date ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -23427,7 +23593,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
 
   METHOD prioritizes_quality_fefo_atp.
     DATA lv_as_of_date TYPE d.
-    lv_as_of_date = '20260923'.
+    lv_as_of_date                    = '20260923'.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
@@ -23483,7 +23649,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule = space
           iv_as_of_date = lv_as_of_date ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -23584,7 +23750,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
 
   METHOD prioritizes_fefo_date_atp.
     DATA lv_as_of_date TYPE d.
-    lv_as_of_date = '20260923'.
+    lv_as_of_date                    = '20260923'.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
@@ -23656,7 +23822,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_as_of_date         = lv_as_of_date
           iv_prioritize_by_date = abap_true ).
       CATCH zcx_invalid_stock_request.
-        lv_missing_date_rejected = abap_true.
+        lv_missing_date_rejected     = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -24137,7 +24303,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_rejected = abap_true.
+        lv_duplicate_rejected        = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -24159,7 +24325,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'BOX' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_uom_duplicate_rejected = abap_true.
+        lv_uom_duplicate_rejected    = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -24321,7 +24487,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_min_days = -1 ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -24612,7 +24778,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '-1.000' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -24909,7 +25075,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'EA' ) )
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -24934,7 +25100,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule     = 'A'
           iv_atp_check_date = '20260230' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25062,7 +25228,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '0.001'
               requested_unit     = 'TNY' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25080,7 +25246,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity = '0.001'
           iv_requested_unit     = 'TNY' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25101,7 +25267,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '0.001'
               requested_unit     = 'TNY' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25136,7 +25302,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '9999999999.999'
               requested_unit     = 'PAL' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25169,7 +25335,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_requested_quantity = '1.000'
           iv_requested_unit     = 'BOX' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25209,7 +25375,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'CASE' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25250,7 +25416,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_unit     = 'CSH' ) )
           iv_as_of_date = '20260923' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25292,7 +25458,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'CSH' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25331,7 +25497,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id       = 'SCOPE-UNKNOWN'
               storage_location = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_unknown_rejected = abap_true.
+        lv_unknown_rejected          = abap_true.
     ENDTRY.
     TRY.
         DATA(ls_duplicate_result) = lo_cut->allocate_by_location_in_units(
@@ -25347,7 +25513,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id       = 'SCOPE-DUPLICATE'
               storage_location = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_rejected = abap_true.
+        lv_duplicate_rejected        = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25422,7 +25588,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               ( request_id       = 'DATED-SCOPE-UNKNOWN'
                 storage_location = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_dated_unknown_rejected = abap_true.
+        lv_dated_unknown_rejected    = abap_true.
     ENDTRY.
     TRY.
         DATA(ls_dated_preferred_result) =
@@ -25439,7 +25605,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               ( request_id       = 'DATED-PREFERRED-SCOPE'
                 storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_dated_preferred_rejected = abap_true.
+        lv_dated_preferred_rejected  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -25464,7 +25630,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
             ( request_id       = 'BATCH-SCOPE-UNKNOWN'
               storage_location = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_scope_unknown_rejected = abap_true.
+        lv_scope_unknown_rejected    = abap_true.
     ENDTRY.
     TRY.
         DATA(ls_batch_scope_duplicate) =
@@ -25482,7 +25648,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               ( request_id       = 'BATCH-SCOPE-DUPLICATE'
                 storage_location = '0001' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_scope_duplicate_rejected = abap_true.
+        lv_scope_duplicate_rejected  = abap_true.
     ENDTRY.
     TRY.
         DATA(ls_batch_scope_preferred) =
@@ -25499,7 +25665,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               ( request_id       = 'BATCH-PREFERRED-SCOPE'
                 storage_location = '0002' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_scope_preferred_rejected = abap_true.
+        lv_scope_preferred_rejected  = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -25547,7 +25713,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'CSH' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25579,7 +25745,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'BOX' ).
       CATCH zcx_invalid_stock_request.
-        lv_exception_raised = abap_true.
+        lv_exception_raised          = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25613,7 +25779,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'CSH' ).
       CATCH zcx_invalid_stock_request.
-        lv_location_exception = abap_true.
+        lv_location_exception        = abap_true.
     ENDTRY.
     TRY.
         lo_cut->get_stock_by_batch_in_unit(
@@ -25621,7 +25787,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'CSH' ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_exception = abap_true.
+        lv_batch_exception           = abap_true.
     ENDTRY.
     TRY.
         lo_cut->get_fefo_batch_status_in_unit(
@@ -25629,7 +25795,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_plant    = '1000'
           iv_unit     = 'CSH' ).
       CATCH zcx_invalid_stock_request.
-        lv_fefo_exception = abap_true.
+        lv_fefo_exception            = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -25707,7 +25873,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_demands    = lt_demands
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -25973,7 +26139,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_demands    = lt_demands
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26105,7 +26271,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               required_date      = '20260230'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_date_rejected = abap_true.
+        lv_bad_date_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_location_by_date(
@@ -26121,7 +26287,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               required_date      = '20261211'
               requested_quantity = '1.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_ids_rejected = abap_true.
+        lv_duplicate_ids_rejected    = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26220,7 +26386,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20260230'
               base_quantity    = '3.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_receipt_rejected = abap_true.
+        lv_bad_receipt_rejected      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26277,8 +26443,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
   METHOD alloc_dated_loc_rcpt_uom.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
-    lv_early_date = '20261205'.
-    lv_late_date = '20261210'.
+    lv_early_date                    = '20261205'.
+    lv_late_date                     = '20261210'.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_location_stocks(
       it_stock = VALUE #(
@@ -26343,7 +26509,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20260230'
               base_quantity    = '4.000' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_receipt_rejected = abap_true.
+        lv_bad_receipt_rejected      = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26485,7 +26651,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_date_rejected = abap_true.
+        lv_bad_date_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_location_by_date_uom(
@@ -26503,7 +26669,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000'
               requested_unit     = 'BOX' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_duplicate_ids_rejected = abap_true.
+        lv_duplicate_ids_rejected    = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26593,8 +26759,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
   METHOD compares_dated_location_atp.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
-    lv_early_date = sy-datum + 1.
-    lv_late_date = sy-datum + 2.
+    lv_early_date                    = sy-datum + 1.
+    lv_late_date                     = sy-datum + 2.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_stock( iv_quantity = '10.000' ).
     DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
@@ -26642,7 +26808,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_demands    = lt_demands
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26740,8 +26906,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
   METHOD compares_dated_loc_base_atp.
     DATA lv_early_date TYPE d.
     DATA lv_late_date TYPE d.
-    lv_early_date = sy-datum + 1.
-    lv_late_date = sy-datum + 2.
+    lv_early_date                    = sy-datum + 1.
+    lv_late_date                     = sy-datum + 2.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     lo_repository->set_location_stocks(
       it_stock = VALUE #(
@@ -26789,7 +26955,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_demands    = lt_demands
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_location_date_atp(
@@ -26801,7 +26967,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               requested_quantity = '1.000' ) )
           iv_check_rule = 'A' ).
       CATCH zcx_invalid_stock_request.
-        lv_missing_unit_rejected = abap_true.
+        lv_missing_unit_rejected     = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26954,7 +27120,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           it_demands    = lt_demands
           iv_check_rule = space ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_rule_rejected = abap_true.
+        lv_bad_rule_rejected         = abap_true.
     ENDTRY.
     TRY.
         lo_cut->allocate_by_location_atp(
@@ -26962,7 +27128,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           iv_check_rule     = 'A'
           iv_atp_check_date = '20260230' ).
       CATCH zcx_invalid_stock_request.
-        lv_bad_date_rejected = abap_true.
+        lv_bad_date_rejected         = abap_true.
     ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
@@ -26981,7 +27147,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_availability_api->get_check_count( ) ).
 
     DATA lv_check_date TYPE d.
-    lv_check_date = sy-datum + 5.
+    lv_check_date                    = sy-datum + 5.
     DATA(ls_result) = lo_cut->allocate_by_location_atp(
       it_demands        = lt_demands
       iv_check_rule     = 'A'
@@ -27140,7 +27306,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               receipt_date     = '20261021'
               base_quantity    = '9999999999.999' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_batch_receipt_rejected = abap_true.
+        lv_batch_receipt_rejected    = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -27312,6 +27478,69 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1
       act = lt_results[ 1 ]-other_expiry_source_row_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-expired_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-after_window_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-after_window_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-after_window_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lt_results[ 1 ]-plant_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 13
+      act = lt_results[ 1 ]-plant_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-plant_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-plant_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-global_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9
+      act = lt_results[ 1 ]-global_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-global_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-global_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_results[ 1 ]-other_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_results[ 1 ]-other_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-other_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-other_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 12
       act = lt_results[ 1 ]-first_expiry_unrestricted_qty ).
     cl_abap_unit_assert=>assert_equals(
@@ -27383,6 +27612,1649 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_batch_bulk_call_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_statuses(
+        ( source_group              = 'P'
+          expiry_status             = 'E'
+          row_count                 = 1
+          first_expiration_date     = '20261017'
+          last_expiration_date      = '20261017'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 10
+          available_qty             = 6
+          quality_qty               = 2
+          blocked_qty               = 0
+        )
+        ( source_group              = 'P'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261018'
+          last_expiration_date      = '20261018'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 3
+          available_qty             = 0
+          quality_qty               = 0
+          blocked_qty               = 0
+        )
+        ( source_group              = 'P'
+          expiry_status             = 'A'
+          row_count                 = 1
+          first_expiration_date     = '20261024'
+          last_expiration_date      = '20261024'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 7
+          available_qty             = 7
+          quality_qty               = 0
+          blocked_qty               = 0
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'E'
+          row_count                 = 1
+          first_expiration_date     = '20261017'
+          last_expiration_date      = '20261017'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 2
+          available_qty             = 3
+          quality_qty               = 1
+          blocked_qty               = 2
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261018'
+          last_expiration_date      = '20261018'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 2
+          available_qty             = 3
+          quality_qty               = 1
+          blocked_qty               = 2
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'A'
+          row_count                 = 1
+          first_expiration_date     = '20261024'
+          last_expiration_date      = '20261024'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 4
+          available_qty             = 3
+          quality_qty               = 1
+          blocked_qty               = 0
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'E'
+          row_count                 = 0
+          first_expiration_date     = '00000000'
+          last_expiration_date      = '00000000'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 0
+          available_qty             = 0
+          quality_qty               = 0
+          blocked_qty               = 0
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261023'
+          last_expiration_date      = '20261023'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 5
+          available_qty             = 5
+          quality_qty               = 0
+          blocked_qty               = 0
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'A'
+          row_count                 = 0
+          first_expiration_date     = '00000000'
+          last_expiration_date      = '00000000'
+          expiration_date_span_days = 0
+          unrestricted_qty          = 0
+          available_qty             = 0
+          quality_qty               = 0
+          blocked_qty               = 0
+        )
+      )
+      act = lt_results[ 1 ]-expiry_src_statuses ).
+  ENDMETHOD.
+
+  METHOD filters_expiry_day_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'EXPIRED'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'TODAY'
+          batch_managed          = abap_true
+          expiration_date        = '20261018'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'DAY-2'
+          batch_managed          = abap_true
+          expiration_date        = '20261020'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'DAY-7'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'DAY-8'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 1 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_range) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DAYS-RANGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 2
+          filter_expiry_days_from = abap_true expiry_days_from = -1
+          filter_expiry_days_to = abap_true expiry_days_to = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_range[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-is_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-filter_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1 act = lt_range[ 1 ]-expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-expiry_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-filter_expiry_days_to ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-FROM-ONLY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_days_from = abap_true expiry_days_from = 0 ) ) ).
+    DATA(lt_after_day) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-AFTER-DAY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_status = abap_true expiry_status = 'A'
+          filter_expiry_days_from = abap_true expiry_days_from = 8
+          filter_expiry_days_to = abap_true expiry_days_to = 8 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_after_day[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DAY-8' act = lt_after_day[ 1 ]-batches[ 1 ]-batch ).
+
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-TO-ONLY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_days_to = abap_true expiry_days_to = -1 ) ) ).
+    DATA(lt_today_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-TODAY-ONLY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_days_from = abap_true expiry_days_from = 0
+          filter_expiry_days_to = abap_true expiry_days_to = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_from_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_from_only[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_to_only[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_today_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'TODAY' act = lt_today_only[ 1 ]-batches[ 1 ]-batch ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DAYS-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_source = abap_true expiry_source = 'P'
+          filter_expiry_days_from = abap_true expiry_days_from = -1
+          filter_expiry_days_to = abap_true expiry_days_to = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1 act = lt_uom_results[ 1 ]-expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_uom_results[ 1 ]-expiry_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom_results[ 1 ]-filter_expiry_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_uom_results[ 1 ]-batches ) ).
+
+    DATA(lv_inverted_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    DATA(lv_bad_uom_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-DAYS-INVERTED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_expiry_days_from = abap_true expiry_days_from = 3
+              filter_expiry_days_to = abap_true expiry_days_to = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-DAYS-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' expiry_days_from = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-DAYS-UOM-INACTIVE' material = 'MAT-1'
+              plant = '1000' unit = 'BOX' as_of_date = '20261018'
+              through_date = '20261025' expiry_days_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_uom_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inverted_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_uom_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_expiry_status.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'EXP-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-ASOF'
+          batch_managed          = abap_true
+          expiration_date        = '20261018'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-THROUGH'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'SRC-X'
+          batch_managed          = abap_true
+          expiration_date        = '20261027'
+          expiration_date_source = 'X'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'SRC-BLANK'
+          batch_managed         = abap_true
+          expiration_date       = '20261028'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'NO-DATE'
+          batch_managed         = abap_true
+          unrestricted_quantity = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id           = 'FILTER-E'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'E' )
+        ( request_id           = 'FILTER-U'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'U' )
+        ( request_id           = 'FILTER-A'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' )
+        ( request_id           = 'FILTER-U-GLOBAL'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'G'
+          filter_expiry_status = abap_true
+          expiry_status        = 'U' )
+        ( request_id           = 'FILTER-A-OTHER'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'O'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' )
+        ( request_id           = 'FILTER-A-BLANK'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = ''
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'FILTER-E' ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'FILTER-E' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_base_results[ request_id = 'FILTER-E' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'E'
+      act = lt_base_results[ request_id = 'FILTER-E' ]-expiry_status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base_results[ request_id = 'FILTER-E' ]-filter_expiry_status ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'FILTER-U' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'FILTER-U' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-ASOF'
+      act = lt_base_results[ request_id = 'FILTER-U' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-THROUGH'
+      act = lt_base_results[ request_id = 'FILTER-U' ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'FILTER-U' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'FILTER-U-GLOBAL' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-THROUGH'
+      act = lt_base_results[ request_id = 'FILTER-U-GLOBAL' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'FILTER-U-GLOBAL' ]-global_expiry_source_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'FILTER-A-OTHER' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'FILTER-A-OTHER' ]-other_expiry_source_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SRC-X'
+      act = lt_base_results[ request_id = 'FILTER-A-OTHER' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SRC-BLANK'
+      act = lt_base_results[ request_id = 'FILTER-A-OTHER' ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'FILTER-A-BLANK' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SRC-BLANK'
+      act = lt_base_results[ request_id = 'FILTER-A-BLANK' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_base_results[ request_id = 'FILTER-A' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-1'
+      act = lt_base_results[ request_id = 'FILTER-A' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ request_id = 'FILTER-A' ]-batches[ 1 ]-status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'FILTER-A' ]-undated_batch_row_count ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id           = 'FILTER-UOM'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'G'
+          filter_expiry_status = abap_true
+          expiry_status        = 'U' )
+        ( request_id           = 'FILTER-UOM-A'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'G'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' )
+        ( request_id           = 'FILTER-UOM-O'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'O'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_expiry_status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_uom_results[ 1 ]-expiry_status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_uom_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-THROUGH'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 1 ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ request_id = 'FILTER-UOM-A' ]-batches[ 1 ]-base_row-status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ request_id = 'FILTER-UOM-A' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_uom_results[ request_id = 'FILTER-UOM-O' ]-expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_uom_results[ request_id = 'FILTER-UOM-O' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'X'
+      act = lt_uom_results[ request_id = 'FILTER-UOM-O' ]-batches[ 1 ]-base_row-expiration_date_source ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'BAD-EXPIRY-SOURCE'
+              material             = 'MAT-1'
+              plant                = '1000'
+              as_of_date           = '20261018'
+              through_date         = '20261025'
+              filter_expiry_source = abap_true
+              expiry_source        = 'Q' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'BAD-EXPIRY-STATUS'
+              material             = 'MAT-1'
+              plant                = '1000'
+              as_of_date           = '20261018'
+              through_date         = '20261025'
+              filter_expiry_status = abap_true
+              expiry_status        = 'D' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected                = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id    = 'DISABLED-EXPIRY-STATUS'
+              material      = 'MAT-1'
+              plant         = '1000'
+              as_of_date    = '20261018'
+              through_date  = '20261025'
+              expiry_status = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected         = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    DATA(lv_uom_reads_before_invalid) =
+      lo_uom_repository->get_read_count( ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'BAD-UOM-EXPIRY-SOURCE'
+              material             = 'MAT-1'
+              plant                = '1000'
+              unit                 = 'BOX'
+              as_of_date           = '20261018'
+              through_date         = '20261025'
+              filter_expiry_source = abap_true
+              expiry_source        = 'Q' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'BAD-UOM-EXPIRY-STATUS'
+              material             = 'MAT-1'
+              plant                = '1000'
+              unit                 = 'BOX'
+              as_of_date           = '20261018'
+              through_date         = '20261025'
+              filter_expiry_status = abap_true
+              expiry_status        = 'D' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected                = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id    = 'DISABLED-UOM-EXPIRY-STATUS'
+              material      = 'MAT-1'
+              plant         = '1000'
+              unit          = 'BOX'
+              as_of_date    = '20261018'
+              through_date  = '20261025'
+              expiry_status = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected         = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_expired_age_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'AGE-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-7'
+          batch_managed          = abap_true
+          expiration_date        = '20261011'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-8'
+          batch_managed          = abap_true
+          expiration_date        = '20261010'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-30'
+          batch_managed          = abap_true
+          expiration_date        = '20260918'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-31'
+          batch_managed          = abap_true
+          expiration_date        = '20260917'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-90'
+          batch_managed          = abap_true
+          expiration_date        = '20260720'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AGE-91'
+          batch_managed          = abap_true
+          expiration_date        = '20260719'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'NOT-EXPIRED'
+          batch_managed          = abap_true
+          expiration_date        = '20261018'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-WINDOW'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'AGE-UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id             = 'AGE-1-7'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          filter_expiry_age_band = abap_true
+          expiry_age_band        = '1' )
+        ( request_id             = 'AGE-2'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          filter_expiry_age_band = abap_true
+          expiry_age_band        = '2' )
+        ( request_id             = 'AGE-2-GLOBAL'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          filter_expiry_source   = abap_true
+          expiry_source          = 'G'
+          filter_expiry_age_band = abap_true
+          expiry_age_band        = '2' )
+        ( request_id             = 'AGE-31-90'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          filter_expiry_age_band = abap_true
+          expiry_age_band        = '3' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AGE-1-7' ]-expired_1_7_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'AGE-1-7' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base_results[ request_id = 'AGE-2' ]-filter_expiry_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_base_results[ request_id = 'AGE-2' ]-expiry_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AGE-2' ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AGE-2' ]-expired_8_30_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'AGE-2' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AGE-30'
+      act = lt_base_results[ request_id = 'AGE-2' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'AGE-2-GLOBAL' ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'AGE-2-GLOBAL' ]-expired_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AGE-30'
+      act = lt_base_results[ request_id = 'AGE-2-GLOBAL' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AGE-31-90' ]-expired_31_90_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'AGE-31-90' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'AGE-2' ]-undated_batch_row_count ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id             = 'AGE-UOM-4'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          unit                   = 'BOX'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          filter_expiry_source   = abap_true
+          expiry_source          = 'G'
+          filter_expiry_age_band = abap_true
+          expiry_age_band        = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_expiry_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_uom_results[ 1 ]-expiry_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AGE-91'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'E'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-status ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'BAD-AGE-BAND'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              filter_expiry_age_band = abap_true
+              expiry_age_band        = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id      = 'DISABLED-AGE-BAND'
+              material        = 'MAT-1'
+              plant           = '1000'
+              as_of_date      = '20261018'
+              through_date    = '20261025'
+              expiry_age_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    DATA(lv_uom_reads_before_invalid) =
+      lo_uom_repository->get_read_count( ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'BAD-UOM-AGE-BAND'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              unit                   = 'BOX'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              filter_expiry_age_band = abap_true
+              expiry_age_band        = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id      = 'DISABLED-UOM-AGE-BAND'
+              material        = 'MAT-1'
+              plant           = '1000'
+              unit            = 'BOX'
+              as_of_date      = '20261018'
+              through_date    = '20261025'
+              expiry_age_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_upcoming_lead_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'UP-0'
+          batch_managed          = abap_true
+          expiration_date        = '20261018'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-7'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-8'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-30'
+          batch_managed          = abap_true
+          expiration_date        = '20261117'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-31'
+          batch_managed          = abap_true
+          expiration_date        = '20261118'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-90'
+          batch_managed          = abap_true
+          expiration_date        = '20270116'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-91'
+          batch_managed          = abap_true
+          expiration_date        = '20270117'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'EXPIRED'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'PAST-THROUGH'
+          batch_managed          = abap_true
+          expiration_date        = '20270118'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'UP-UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'UP-BAND-1'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '1' )
+        ( request_id                  = 'UP-BAND-2'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '2' )
+        ( request_id                  = 'UP-BAND-2-GLOBAL'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_source        = abap_true
+          expiry_source               = 'G'
+          filter_expiry_status        = abap_true
+          expiry_status               = 'U'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '2' )
+        ( request_id                  = 'UP-BAND-3'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '3' )
+        ( request_id                  = 'UP-BAND-4'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '4' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base_results[ request_id = 'UP-BAND-1' ]-filter_expiry_upcoming_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_base_results[ request_id = 'UP-BAND-1' ]-expiry_upcoming_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'UP-BAND-1' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-0'
+      act = lt_base_results[ request_id = 'UP-BAND-1' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-7'
+      act = lt_base_results[ request_id = 'UP-BAND-1' ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'UP-BAND-2' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'UP-BAND-3' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'UP-BAND-4' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'UP-BAND-2-GLOBAL' ]-upcoming_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-30'
+      act = lt_base_results[ request_id = 'UP-BAND-2-GLOBAL' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'UP-BAND-4' ]-undated_batch_row_count ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'UP-BAND-UOM'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          unit                        = 'BOX'
+          as_of_date                  = '20261018'
+          through_date                = '20270117'
+          filter_expiry_source        = abap_true
+          expiry_source               = 'G'
+          filter_expiry_status        = abap_true
+          expiry_status               = 'U'
+          filter_expiry_upcoming_band = abap_true
+          expiry_upcoming_band        = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_expiry_upcoming_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_uom_results[ 1 ]-expiry_upcoming_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UP-91'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-status ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'BAD-UPCOMING-BAND'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20270117'
+              filter_expiry_upcoming_band = abap_true
+              expiry_upcoming_band        = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'DISABLED-UPCOMING-BAND'
+              material             = 'MAT-1'
+              plant                = '1000'
+              as_of_date           = '20261018'
+              through_date         = '20270117'
+              expiry_upcoming_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    DATA(lv_uom_reads_before_invalid) =
+      lo_uom_repository->get_read_count( ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'BAD-UOM-UPCOMING-BAND'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              unit                        = 'BOX'
+              as_of_date                  = '20261018'
+              through_date                = '20270117'
+              filter_expiry_upcoming_band = abap_true
+              expiry_upcoming_band        = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id           = 'DISABLED-UOM-UPCOMING-BAND'
+              material             = 'MAT-1'
+              plant                = '1000'
+              unit                 = 'BOX'
+              as_of_date           = '20261018'
+              through_date         = '20270117'
+              expiry_upcoming_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_after_window_lead_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'UP-0'
+          batch_managed          = abap_true
+          expiration_date        = '20261018'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-7'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-8'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-30'
+          batch_managed          = abap_true
+          expiration_date        = '20261117'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-31'
+          batch_managed          = abap_true
+          expiration_date        = '20261118'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-90'
+          batch_managed          = abap_true
+          expiration_date        = '20270116'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-91'
+          batch_managed          = abap_true
+          expiration_date        = '20270117'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'EXPIRED'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-1'
+          batch_managed          = abap_true
+          expiration_date        = '20270118'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-7'
+          batch_managed          = abap_true
+          expiration_date        = '20270124'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-8'
+          batch_managed          = abap_true
+          expiration_date        = '20270125'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-30'
+          batch_managed          = abap_true
+          expiration_date        = '20270216'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-31'
+          batch_managed          = abap_true
+          expiration_date        = '20270217'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-90'
+          batch_managed          = abap_true
+          expiration_date        = '20270417'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-91'
+          batch_managed          = abap_true
+          expiration_date        = '20270418'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'AFTER-UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'AFTER-BAND-1'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '1' )
+        ( request_id                   = 'AFTER-BAND-2'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '2' )
+        ( request_id                   = 'AFTER-BAND-2-GLOBAL'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_source         = abap_true
+          expiry_source                = 'G'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '1' )
+        ( request_id                   = 'AFTER-BAND-3'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '3' )
+        ( request_id                   = 'AFTER-BAND-4'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '4' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base_results[ request_id = 'AFTER-BAND-1' ]-filter_exp_after_window_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_base_results[ request_id = 'AFTER-BAND-1' ]-expiry_after_window_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_base_results[ request_id = 'AFTER-BAND-1' ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-1'
+      act = lt_base_results[ request_id = 'AFTER-BAND-1' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-7'
+      act = lt_base_results[ request_id = 'AFTER-BAND-1' ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AFTER-BAND-2' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ request_id = 'AFTER-BAND-3' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'AFTER-BAND-4' ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ request_id = 'AFTER-BAND-2-GLOBAL' ]-after_window_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-1'
+      act = lt_base_results[ request_id = 'AFTER-BAND-2-GLOBAL' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ request_id = 'AFTER-BAND-4' ]-undated_batch_row_count ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'AFTER-BAND-UOM'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          unit                         = 'BOX'
+          as_of_date                   = '20261018'
+          through_date                 = '20270117'
+          filter_expiry_source         = abap_true
+          expiry_source                = 'G'
+          filter_expiry_status         = abap_true
+          expiry_status                = 'A'
+          filter_exp_after_window_band = abap_true
+          expiry_after_window_band     = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_exp_after_window_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_uom_results[ 1 ]-expiry_after_window_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-91'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-status ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'BAD-AFTER-WINDOW-BAND'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20270117'
+              filter_exp_after_window_band = abap_true
+              expiry_after_window_band     = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'DISABLED-AFTER-WINDOW-BAND'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20270117'
+              expiry_after_window_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    DATA(lv_uom_reads_before_invalid) =
+      lo_uom_repository->get_read_count( ).
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'BAD-UOM-AFTER-WINDOW-BAND'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              unit                         = 'BOX'
+              as_of_date                   = '20261018'
+              through_date                 = '20270117'
+              filter_exp_after_window_band = abap_true
+              expiry_after_window_band     = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'DISABLED-UOM-AFTER-WINDOW-BAND'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              unit                     = 'BOX'
+              as_of_date               = '20261018'
+              through_date             = '20270117'
+              expiry_after_window_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_uom_reads_before_invalid
+      act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD reports_expiry_source_spans.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'EXP-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261011'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'EXP-2'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261019'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'UP-2'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-1'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'AFTER-2'
+          batch_managed          = abap_true
+          expiration_date        = '20261101'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'EXPIRY-SPANS'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    DATA(ls_base_expired_status) =
+      lt_base_results[ 1 ]-expiry_src_statuses[ 1 ].
+    DATA(ls_base_upcoming_status) =
+      lt_base_results[ 1 ]-expiry_src_statuses[ 2 ].
+    DATA(ls_base_after_status) =
+      lt_base_results[ 1 ]-expiry_src_statuses[ 3 ].
+    DATA(ls_base_empty_status) =
+      lt_base_results[ 1 ]-expiry_src_statuses[ 4 ].
+    DATA(ls_base_expiry_age) =
+      lt_base_results[ 1 ]-expiry_src_age_bands[ 1 ].
+    DATA(ls_base_upcoming_window) =
+      lt_base_results[ 1 ]-upcoming_src_bands[ 1 ].
+    DATA(ls_base_after_window) =
+      lt_base_results[ 1 ]-after_window_src_bands[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_expired_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_upcoming_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_after_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_base_empty_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_expiry_age-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_upcoming_window-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_base_after_window-expiration_date_span_days ).
+
+    DATA(lt_unit_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'EXPIRY-SPANS-UOM'
+          material     = 'MAT-1'
+          plant        = '1000'
+          unit         = 'BOX'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    DATA(ls_unit_expired_status) =
+      lt_unit_results[ 1 ]-expiry_src_statuses[ 1 ].
+    DATA(ls_unit_upcoming_status) =
+      lt_unit_results[ 1 ]-expiry_src_statuses[ 2 ].
+    DATA(ls_unit_after_status) =
+      lt_unit_results[ 1 ]-expiry_src_statuses[ 3 ].
+    DATA(ls_unit_empty_status) =
+      lt_unit_results[ 1 ]-expiry_src_statuses[ 4 ].
+    DATA(ls_unit_expiry_age) =
+      lt_unit_results[ 1 ]-expiry_src_age_bands[ 1 ].
+    DATA(ls_unit_upcoming_window) =
+      lt_unit_results[ 1 ]-upcoming_src_bands[ 1 ].
+    DATA(ls_unit_after_window) =
+      lt_unit_results[ 1 ]-after_window_src_bands[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_expired_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_upcoming_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_after_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_unit_empty_status-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_expiry_age-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_upcoming_window-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = ls_unit_after_window-expiration_date_span_days ).
   ENDMETHOD.
 
   METHOD reports_expiry_risk_buckets.
@@ -27395,6 +29267,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-7'
           batch_managed               = abap_true
           expiration_date             = '20261025'
+          expiration_date_source      = 'P'
           unrestricted_quantity       = 1
           available_quantity          = 1
           quality_inspection_quantity = 1
@@ -27403,6 +29276,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-8'
           batch_managed               = abap_true
           expiration_date             = '20261026'
+          expiration_date_source      = 'P'
           unrestricted_quantity       = 2
           available_quantity          = 2
           quality_inspection_quantity = 2
@@ -27411,6 +29285,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-30'
           batch_managed               = abap_true
           expiration_date             = '20261117'
+          expiration_date_source      = 'P'
           unrestricted_quantity       = 5
           available_quantity          = 3
           quality_inspection_quantity = 4
@@ -27419,6 +29294,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-31'
           batch_managed               = abap_true
           expiration_date             = '20261118'
+          expiration_date_source      = 'P'
           unrestricted_quantity       = 10
           available_quantity          = 8
           quality_inspection_quantity = 2
@@ -27427,6 +29303,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-90'
           batch_managed               = abap_true
           expiration_date             = '20270116'
+          expiration_date_source      = 'G'
           unrestricted_quantity       = 11
           available_quantity          = 9
           quality_inspection_quantity = 3
@@ -27435,6 +29312,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch                       = 'DAY-91'
           batch_managed               = abap_true
           expiration_date             = '20270117'
+          expiration_date_source      = 'O'
           unrestricted_quantity       = 13
           available_quantity          = 10
           quality_inspection_quantity = 5
@@ -27511,6 +29389,825 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 18
       act = lt_results[ 1 ]-upcoming_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
+        ( source_group = 'P' window_band = '1' row_count = 1
+          first_expiration_date = '20261025' last_expiration_date = '20261025'
+          unrestricted_qty           = 1 available_qty = 1
+          quality_qty                = 1 blocked_qty = 1 )
+        ( source_group = 'P' window_band = '2' row_count = 2
+          first_expiration_date = '20261026' last_expiration_date = '20261117'
+          expiration_date_span_days = 22
+          unrestricted_qty           = 7 available_qty = 5
+          quality_qty                = 6 blocked_qty = 8 )
+        ( source_group = 'P' window_band = '3' row_count = 1
+          first_expiration_date = '20261118' last_expiration_date = '20261118'
+          unrestricted_qty           = 10 available_qty = 8
+          quality_qty                = 2 blocked_qty = 1 )
+        ( source_group = 'P' window_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' window_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' window_band = '2' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' window_band = '3' row_count = 1
+          first_expiration_date = '20270116' last_expiration_date = '20270116'
+          unrestricted_qty           = 11 available_qty = 9
+          quality_qty                = 3 blocked_qty = 2 )
+        ( source_group = 'G' window_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '2' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '3' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '4' row_count = 1
+          first_expiration_date = '20270117' last_expiration_date = '20270117'
+          unrestricted_qty           = 13 available_qty = 10
+          quality_qty                = 5 blocked_qty = 6 )
+      )
+      act = lt_results[ 1 ]-upcoming_src_bands ).
+  ENDMETHOD.
+
+  METHOD reports_after_window_bands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'AFTER-1'
+          batch_managed              = abap_true expiration_date = '20261019'
+          expiration_date_source     = 'G' unrestricted_quantity = 1
+          available_quantity         = 2 quality_inspection_quantity = 3
+          blocked_quantity           = 4 )
+        ( storage_location = '0001' batch = 'AFTER-7'
+          batch_managed              = abap_true expiration_date = '20261025'
+          expiration_date_source     = 'G' unrestricted_quantity = 2
+          available_quantity         = 3 quality_inspection_quantity = 4
+          blocked_quantity           = 5 )
+        ( storage_location = '0001' batch = 'AFTER-8'
+          batch_managed              = abap_true expiration_date = '20261026'
+          unrestricted_quantity      = 3 available_quantity = 4
+          quality_inspection_quantity = 5 blocked_quantity = 6 )
+        ( storage_location = '0001' batch = 'AFTER-30'
+          batch_managed              = abap_true expiration_date = '20261117'
+          expiration_date_source     = 'P' unrestricted_quantity = 4
+          available_quantity         = 5 quality_inspection_quantity = 6
+          blocked_quantity           = 7 )
+        ( storage_location = '0001' batch = 'AFTER-31'
+          batch_managed              = abap_true expiration_date = '20261118'
+          expiration_date_source     = 'G' unrestricted_quantity = 5
+          available_quantity         = 6 quality_inspection_quantity = 7
+          blocked_quantity           = 8 )
+        ( storage_location = '0001' batch = 'AFTER-90'
+          batch_managed              = abap_true expiration_date = '20270116'
+          unrestricted_quantity      = 6 available_quantity = 7
+          quality_inspection_quantity = 8 blocked_quantity = 9 )
+        ( storage_location = '0001' batch = 'AFTER-91'
+          batch_managed              = abap_true expiration_date = '20270117'
+          expiration_date_source     = 'P' unrestricted_quantity = 7
+          available_quantity         = 8 quality_inspection_quantity = 9
+          blocked_quantity           = 10 ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'AFTER-BANDS'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261018' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_results[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 28 act = lt_results[ 1 ]-after_window_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 35 act = lt_results[ 1 ]-after_window_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42 act = lt_results[ 1 ]-after_window_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 49 act = lt_results[ 1 ]-after_window_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
+        ( source_group = 'P' window_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'P' window_band = '2' row_count = 1
+          first_expiration_date = '20261117' last_expiration_date = '20261117'
+          unrestricted_qty           = 4 available_qty = 5
+          quality_qty                = 6 blocked_qty = 7 )
+        ( source_group = 'P' window_band = '3' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'P' window_band = '4' row_count = 1
+          first_expiration_date = '20270117' last_expiration_date = '20270117'
+          unrestricted_qty           = 7 available_qty = 8
+          quality_qty                = 9 blocked_qty = 10 )
+        ( source_group = 'G' window_band = '1' row_count = 2
+          first_expiration_date = '20261019' last_expiration_date = '20261025'
+          expiration_date_span_days = 6
+          unrestricted_qty           = 3 available_qty = 5
+          quality_qty                = 7 blocked_qty = 9 )
+        ( source_group = 'G' window_band = '2' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' window_band = '3' row_count = 1
+          first_expiration_date = '20261118' last_expiration_date = '20261118'
+          unrestricted_qty           = 5 available_qty = 6
+          quality_qty                = 7 blocked_qty = 8 )
+        ( source_group = 'G' window_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' window_band = '2' row_count = 1
+          first_expiration_date = '20261026' last_expiration_date = '20261026'
+          unrestricted_qty           = 3 available_qty = 4
+          quality_qty                = 5 blocked_qty = 6 )
+        ( source_group = 'O' window_band = '3' row_count = 1
+          first_expiration_date = '20270116' last_expiration_date = '20270116'
+          unrestricted_qty           = 6 available_qty = 7
+          quality_qty                = 8 blocked_qty = 9 )
+        ( source_group = 'O' window_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+      )
+      act = lt_results[ 1 ]-after_window_src_bands ).
+  ENDMETHOD.
+
+  METHOD reports_expired_age_buckets.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location            = '0001'
+          batch                       = 'PAST-1'
+          batch_managed               = abap_true
+          expiration_date             = '20261017'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 1
+          available_quantity          = 2
+          quality_inspection_quantity = 3
+          blocked_quantity            = 4 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-7'
+          batch_managed               = abap_true
+          expiration_date             = '20261011'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 7
+          available_quantity          = 6
+          quality_inspection_quantity = 5
+          blocked_quantity            = 4 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-8'
+          batch_managed               = abap_true
+          expiration_date             = '20261010'
+          expiration_date_source      = ''
+          unrestricted_quantity       = 8
+          available_quantity          = 7
+          quality_inspection_quantity = 6
+          blocked_quantity            = 5 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-30'
+          batch_managed               = abap_true
+          expiration_date             = '20260918'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 30
+          available_quantity          = 20
+          quality_inspection_quantity = 10
+          blocked_quantity            = 5 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-31'
+          batch_managed               = abap_true
+          expiration_date             = '20260917'
+          expiration_date_source      = 'G'
+          unrestricted_quantity       = 31
+          available_quantity          = 30
+          quality_inspection_quantity = 20
+          blocked_quantity            = 10 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-90'
+          batch_managed               = abap_true
+          expiration_date             = '20260720'
+          expiration_date_source      = ''
+          unrestricted_quantity       = 90
+          available_quantity          = 60
+          quality_inspection_quantity = 30
+          blocked_quantity            = 15 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-91'
+          batch_managed               = abap_true
+          expiration_date             = '20260719'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 91
+          available_quantity          = 70
+          quality_inspection_quantity = 35
+          blocked_quantity            = 20 )
+        ( storage_location            = '0001'
+          batch                       = 'TODAY'
+          batch_managed               = abap_true
+          expiration_date             = '20261018'
+          unrestricted_quantity       = 1
+          available_quantity          = 1
+          quality_inspection_quantity = 1
+          blocked_quantity            = 1 )
+      ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'AGED-EXPIRY'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261018' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_1_7_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_1_7_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_1_7_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_1_7_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_1_7_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_8_30_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 38
+      act = lt_results[ 1 ]-expired_8_30_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 27
+      act = lt_results[ 1 ]-expired_8_30_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 16
+      act = lt_results[ 1 ]-expired_8_30_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_results[ 1 ]-expired_8_30_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_31_90_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 121
+      act = lt_results[ 1 ]-expired_31_90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 90
+      act = lt_results[ 1 ]-expired_31_90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 50
+      act = lt_results[ 1 ]-expired_31_90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 25
+      act = lt_results[ 1 ]-expired_31_90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_ov90_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 91
+      act = lt_results[ 1 ]-expired_ov90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 70
+      act = lt_results[ 1 ]-expired_ov90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 35
+      act = lt_results[ 1 ]-expired_ov90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lt_results[ 1 ]-expired_ov90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_7d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-expired_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-expired_30d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 46
+      act = lt_results[ 1 ]-expired_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 35
+      act = lt_results[ 1 ]-expired_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lt_results[ 1 ]-expired_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 18
+      act = lt_results[ 1 ]-expired_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_results[ 1 ]-expired_90d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 167
+      act = lt_results[ 1 ]-expired_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 125
+      act = lt_results[ 1 ]-expired_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 74
+      act = lt_results[ 1 ]-expired_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 43
+      act = lt_results[ 1 ]-expired_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_ages(
+        ( source_group = 'P' age_band = '1' row_count = 2
+          first_expiration_date = '20261011' last_expiration_date = '20261017'
+          expiration_date_span_days = 6
+          unrestricted_qty           = 8 available_qty = 8
+          quality_qty                = 8 blocked_qty = 8 )
+        ( source_group = 'P' age_band = '2' row_count = 1
+          first_expiration_date = '20260918' last_expiration_date = '20260918'
+          unrestricted_qty           = 30 available_qty = 20
+          quality_qty                = 10 blocked_qty = 5 )
+        ( source_group = 'P' age_band = '3' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'P' age_band = '4' row_count = 1
+          first_expiration_date = '20260719' last_expiration_date = '20260719'
+          unrestricted_qty           = 91 available_qty = 70
+          quality_qty                = 35 blocked_qty = 20 )
+        ( source_group = 'G' age_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' age_band = '2' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'G' age_band = '3' row_count = 1
+          first_expiration_date = '20260917' last_expiration_date = '20260917'
+          unrestricted_qty           = 31 available_qty = 30
+          quality_qty                = 20 blocked_qty = 10 )
+        ( source_group = 'G' age_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' age_band = '1' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+        ( source_group = 'O' age_band = '2' row_count = 1
+          first_expiration_date = '20261010' last_expiration_date = '20261010'
+          unrestricted_qty           = 8 available_qty = 7
+          quality_qty                = 6 blocked_qty = 5 )
+        ( source_group = 'O' age_band = '3' row_count = 1
+          first_expiration_date = '20260720' last_expiration_date = '20260720'
+          unrestricted_qty           = 90 available_qty = 60
+          quality_qty                = 30 blocked_qty = 15 )
+        ( source_group = 'O' age_band = '4' row_count = 0
+          unrestricted_qty           = 0 available_qty = 0
+          quality_qty                = 0 blocked_qty = 0 )
+      )
+      act = lt_results[ 1 ]-expiry_src_age_bands ).
+  ENDMETHOD.
+
+  METHOD reports_expired_age_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location            = '0001'
+          batch                       = 'PAST-1'
+          batch_managed               = abap_true
+          expiration_date             = '20261017'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 12
+          available_quantity          = 24
+          quality_inspection_quantity = 36
+          blocked_quantity            = 48 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-7'
+          batch_managed               = abap_true
+          expiration_date             = '20261011'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 84
+          available_quantity          = 72
+          quality_inspection_quantity = 60
+          blocked_quantity            = 48 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-8'
+          batch_managed               = abap_true
+          expiration_date             = '20261010'
+          expiration_date_source      = ''
+          unrestricted_quantity       = 96
+          available_quantity          = 84
+          quality_inspection_quantity = 72
+          blocked_quantity            = 60 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-30'
+          batch_managed               = abap_true
+          expiration_date             = '20260918'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 360
+          available_quantity          = 240
+          quality_inspection_quantity = 120
+          blocked_quantity            = 60 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-31'
+          batch_managed               = abap_true
+          expiration_date             = '20260917'
+          expiration_date_source      = 'G'
+          unrestricted_quantity       = 372
+          available_quantity          = 360
+          quality_inspection_quantity = 240
+          blocked_quantity            = 120 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-90'
+          batch_managed               = abap_true
+          expiration_date             = '20260720'
+          expiration_date_source      = ''
+          unrestricted_quantity       = 1080
+          available_quantity          = 720
+          quality_inspection_quantity = 360
+          blocked_quantity            = 180 )
+        ( storage_location            = '0001'
+          batch                       = 'PAST-91'
+          batch_managed               = abap_true
+          expiration_date             = '20260719'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 1092
+          available_quantity          = 840
+          quality_inspection_quantity = 420
+          blocked_quantity            = 240 )
+        ( storage_location            = '0001'
+          batch                       = 'TODAY'
+          batch_managed               = abap_true
+          expiration_date             = '20261018'
+          unrestricted_quantity       = 12
+          available_quantity          = 12
+          quality_inspection_quantity = 12
+          blocked_quantity            = 12 )
+      ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'AGED-EXPIRY-UOM'
+          material     = 'MAT-1'
+          plant        = '1000'
+          unit         = 'BOX'
+          as_of_date   = '20261018'
+          through_date = '20261018' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_1_7_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_1_7_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_1_7_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_1_7_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_1_7_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_1_7_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_1_7_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_1_7_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_1_7_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_8_30_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 456 )
+      act = lt_results[ 1 ]-base_8_30_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 38 )
+      act = lt_results[ 1 ]-src_8_30_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 324 )
+      act = lt_results[ 1 ]-base_8_30_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 27 )
+      act = lt_results[ 1 ]-src_8_30_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 192 )
+      act = lt_results[ 1 ]-base_8_30_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 16 )
+      act = lt_results[ 1 ]-src_8_30_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 120 )
+      act = lt_results[ 1 ]-base_8_30_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 10 )
+      act = lt_results[ 1 ]-src_8_30_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_31_90_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1452 )
+      act = lt_results[ 1 ]-base_31_90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 121 )
+      act = lt_results[ 1 ]-src_31_90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1080 )
+      act = lt_results[ 1 ]-base_31_90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 90 )
+      act = lt_results[ 1 ]-src_31_90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 600 )
+      act = lt_results[ 1 ]-base_31_90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 50 )
+      act = lt_results[ 1 ]-src_31_90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 300 )
+      act = lt_results[ 1 ]-base_31_90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 25 )
+      act = lt_results[ 1 ]-src_31_90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_ov90_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-expired_7d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_exp_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_exp_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_exp_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_exp_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_exp_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_exp_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 96 )
+      act = lt_results[ 1 ]-base_exp_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 8 )
+      act = lt_results[ 1 ]-src_exp_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-expired_30d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 552 )
+      act = lt_results[ 1 ]-base_exp_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 46 )
+      act = lt_results[ 1 ]-src_exp_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 420 )
+      act = lt_results[ 1 ]-base_exp_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 35 )
+      act = lt_results[ 1 ]-src_exp_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 288 )
+      act = lt_results[ 1 ]-base_exp_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 24 )
+      act = lt_results[ 1 ]-src_exp_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 216 )
+      act = lt_results[ 1 ]-base_exp_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 18 )
+      act = lt_results[ 1 ]-src_exp_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_results[ 1 ]-expired_90d_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2004 )
+      act = lt_results[ 1 ]-base_exp_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 167 )
+      act = lt_results[ 1 ]-src_exp_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1500 )
+      act = lt_results[ 1 ]-base_exp_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 125 )
+      act = lt_results[ 1 ]-src_exp_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 888 )
+      act = lt_results[ 1 ]-base_exp_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 74 )
+      act = lt_results[ 1 ]-src_exp_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 516 )
+      act = lt_results[ 1 ]-base_exp_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 43 )
+      act = lt_results[ 1 ]-src_exp_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1092 )
+      act = lt_results[ 1 ]-base_ov90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 91 )
+      act = lt_results[ 1 ]-src_ov90_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 840 )
+      act = lt_results[ 1 ]-base_ov90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 70 )
+      act = lt_results[ 1 ]-src_ov90_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 420 )
+      act = lt_results[ 1 ]-base_ov90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 35 )
+      act = lt_results[ 1 ]-src_ov90_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 240 )
+      act = lt_results[ 1 ]-base_ov90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 20 )
+      act = lt_results[ 1 ]-src_ov90_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_age_uoms(
+        ( source_group = 'P' age_band = '1' row_count = 2
+          first_expiration_date      = '20261011'
+          last_expiration_date       = '20261017'
+          expiration_date_span_days = 6
+          base_unrestricted_qty      = CONV mchb-clabs( 96 )
+          unit_unrestricted_qty      = CONV mard-labst( '8' )
+          base_available_qty         = CONV mchb-clabs( 96 )
+          unit_available_qty         = CONV mard-labst( '8' )
+          base_quality_qty           = CONV mchb-cinsm( 96 )
+          unit_quality_qty           = CONV mard-labst( '8' )
+          base_blocked_qty           = CONV mchb-cspem( 96 )
+          unit_blocked_qty           = CONV mard-labst( '8' ) )
+        ( source_group = 'P' age_band = '2' row_count = 1
+          first_expiration_date      = '20260918'
+          last_expiration_date       = '20260918'
+          base_unrestricted_qty      = CONV mchb-clabs( 360 )
+          unit_unrestricted_qty      = CONV mard-labst( '30' )
+          base_available_qty         = CONV mchb-clabs( 240 )
+          unit_available_qty         = CONV mard-labst( '20' )
+          base_quality_qty           = CONV mchb-cinsm( 120 )
+          unit_quality_qty           = CONV mard-labst( '10' )
+          base_blocked_qty           = CONV mchb-cspem( 60 )
+          unit_blocked_qty           = CONV mard-labst( '5' ) )
+        ( source_group = 'P' age_band = '3' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+        ( source_group = 'P' age_band = '4' row_count = 1
+          first_expiration_date      = '20260719'
+          last_expiration_date       = '20260719'
+          base_unrestricted_qty      = CONV mchb-clabs( 1092 )
+          unit_unrestricted_qty      = CONV mard-labst( '91' )
+          base_available_qty         = CONV mchb-clabs( 840 )
+          unit_available_qty         = CONV mard-labst( '70' )
+          base_quality_qty           = CONV mchb-cinsm( 420 )
+          unit_quality_qty           = CONV mard-labst( '35' )
+          base_blocked_qty           = CONV mchb-cspem( 240 )
+          unit_blocked_qty           = CONV mard-labst( '20' ) )
+        ( source_group = 'G' age_band = '1' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+        ( source_group = 'G' age_band = '2' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+        ( source_group = 'G' age_band = '3' row_count = 1
+          first_expiration_date      = '20260917'
+          last_expiration_date       = '20260917'
+          base_unrestricted_qty      = CONV mchb-clabs( 372 )
+          unit_unrestricted_qty      = CONV mard-labst( '31' )
+          base_available_qty         = CONV mchb-clabs( 360 )
+          unit_available_qty         = CONV mard-labst( '30' )
+          base_quality_qty           = CONV mchb-cinsm( 240 )
+          unit_quality_qty           = CONV mard-labst( '20' )
+          base_blocked_qty           = CONV mchb-cspem( 120 )
+          unit_blocked_qty           = CONV mard-labst( '10' ) )
+        ( source_group = 'G' age_band = '4' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+        ( source_group = 'O' age_band = '1' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+        ( source_group = 'O' age_band = '2' row_count = 1
+          first_expiration_date      = '20261010'
+          last_expiration_date       = '20261010'
+          base_unrestricted_qty      = CONV mchb-clabs( 96 )
+          unit_unrestricted_qty      = CONV mard-labst( '8' )
+          base_available_qty         = CONV mchb-clabs( 84 )
+          unit_available_qty         = CONV mard-labst( '7' )
+          base_quality_qty           = CONV mchb-cinsm( 72 )
+          unit_quality_qty           = CONV mard-labst( '6' )
+          base_blocked_qty           = CONV mchb-cspem( 60 )
+          unit_blocked_qty           = CONV mard-labst( '5' ) )
+        ( source_group = 'O' age_band = '3' row_count = 1
+          first_expiration_date      = '20260720'
+          last_expiration_date       = '20260720'
+          base_unrestricted_qty      = CONV mchb-clabs( 1080 )
+          unit_unrestricted_qty      = CONV mard-labst( '90' )
+          base_available_qty         = CONV mchb-clabs( 720 )
+          unit_available_qty         = CONV mard-labst( '60' )
+          base_quality_qty           = CONV mchb-cinsm( 360 )
+          unit_quality_qty           = CONV mard-labst( '30' )
+          base_blocked_qty           = CONV mchb-cspem( 180 )
+          unit_blocked_qty           = CONV mard-labst( '15' ) )
+        ( source_group = 'O' age_band = '4' row_count = 0
+          base_unrestricted_qty      = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty      = CONV mard-labst( '0' )
+          base_available_qty         = CONV mchb-clabs( 0 )
+          unit_available_qty         = CONV mard-labst( '0' )
+          base_quality_qty           = CONV mchb-cinsm( 0 )
+          unit_quality_qty           = CONV mard-labst( '0' )
+          base_blocked_qty           = CONV mchb-cspem( 0 )
+          unit_blocked_qty           = CONV mard-labst( '0' ) )
+      )
+      act = lt_results[ 1 ]-expiry_src_age_bands ).
   ENDMETHOD.
 
   METHOD groups_expiry_exclusions.
@@ -27629,7 +30326,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               as_of_date   = '20261018'
               through_date = '20261017' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected           = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -27770,6 +30467,105 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1
       act = lt_results[ 1 ]-other_expiry_source_row_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expired_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-expired_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-upcoming_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-after_window_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-after_window_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-after_window_other_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_results[ 1 ]-base_plant_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_results[ 1 ]-src_plant_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_results[ 1 ]-base_plant_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_plant_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_plant_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_plant_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_plant_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_plant_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_results[ 1 ]-base_global_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_results[ 1 ]-src_global_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_results[ 1 ]-base_global_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_results[ 1 ]-src_global_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_global_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_global_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_results[ 1 ]-base_global_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_global_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_other_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_other_exp_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_other_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_other_exp_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_results[ 1 ]-base_other_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-src_other_exp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_other_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_other_exp_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 36 )
       act = lt_results[ 1 ]-base_fexp_unrestricted_qty ).
     cl_abap_unit_assert=>assert_equals(
@@ -27895,6 +30691,379 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_status_uoms(
+        ( source_group              = 'P'
+          expiry_status             = 'E'
+          row_count                 = 1
+          first_expiration_date     = '20261017'
+          last_expiration_date      = '20261017'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty     = CONV mard-labst( '2' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 6 )
+          unit_quality_qty          = CONV mard-labst( '0.5' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'P'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261020'
+          last_expiration_date      = '20261020'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 12 )
+          unit_unrestricted_qty     = CONV mard-labst( '1' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 0 )
+          unit_quality_qty          = CONV mard-labst( '0' )
+          base_blocked_qty          = CONV mchb-cspem( 0 )
+          unit_blocked_qty          = CONV mard-labst( '0' )
+        )
+        ( source_group              = 'P'
+          expiry_status             = 'A'
+          row_count                 = 1
+          first_expiration_date     = '20261028'
+          last_expiration_date      = '20261028'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty     = CONV mard-labst( '2' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 6 )
+          unit_quality_qty          = CONV mard-labst( '0.5' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'E'
+          row_count                 = 1
+          first_expiration_date     = '20261017'
+          last_expiration_date      = '20261017'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 12 )
+          unit_unrestricted_qty     = CONV mard-labst( '1' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 6 )
+          unit_quality_qty          = CONV mard-labst( '0.5' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261020'
+          last_expiration_date      = '20261020'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty     = CONV mard-labst( '2' )
+          base_available_qty        = CONV mchb-clabs( 24 )
+          unit_available_qty        = CONV mard-labst( '2' )
+          base_quality_qty          = CONV mchb-cinsm( 12 )
+          unit_quality_qty          = CONV mard-labst( '1' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'G'
+          expiry_status             = 'A'
+          row_count                 = 1
+          first_expiration_date     = '20261028'
+          last_expiration_date      = '20261028'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 12 )
+          unit_unrestricted_qty     = CONV mard-labst( '1' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 6 )
+          unit_quality_qty          = CONV mard-labst( '0.5' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'E'
+          row_count                 = 0
+          first_expiration_date     = '00000000'
+          last_expiration_date      = '00000000'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty     = CONV mard-labst( '0' )
+          base_available_qty        = CONV mchb-clabs( 0 )
+          unit_available_qty        = CONV mard-labst( '0' )
+          base_quality_qty          = CONV mchb-cinsm( 0 )
+          unit_quality_qty          = CONV mard-labst( '0' )
+          base_blocked_qty          = CONV mchb-cspem( 0 )
+          unit_blocked_qty          = CONV mard-labst( '0' )
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'U'
+          row_count                 = 1
+          first_expiration_date     = '20261026'
+          last_expiration_date      = '20261026'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty     = CONV mard-labst( '2' )
+          base_available_qty        = CONV mchb-clabs( 12 )
+          unit_available_qty        = CONV mard-labst( '1' )
+          base_quality_qty          = CONV mchb-cinsm( 6 )
+          unit_quality_qty          = CONV mard-labst( '0.5' )
+          base_blocked_qty          = CONV mchb-cspem( 12 )
+          unit_blocked_qty          = CONV mard-labst( '1' )
+        )
+        ( source_group              = 'O'
+          expiry_status             = 'A'
+          row_count                 = 0
+          first_expiration_date     = '00000000'
+          last_expiration_date      = '00000000'
+          expiration_date_span_days = 0
+          base_unrestricted_qty     = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty     = CONV mard-labst( '0' )
+          base_available_qty        = CONV mchb-clabs( 0 )
+          unit_available_qty        = CONV mard-labst( '0' )
+          base_quality_qty          = CONV mchb-cinsm( 0 )
+          unit_quality_qty          = CONV mard-labst( '0' )
+          base_blocked_qty          = CONV mchb-cspem( 0 )
+          unit_blocked_qty          = CONV mard-labst( '0' )
+        )
+      )
+      act = lt_results[ 1 ]-expiry_src_statuses ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
+        ( source_group = 'P' window_band = '1' row_count = 1
+first_expiration_date      = '20261020'
+          last_expiration_date       = '20261020'
+          base_unrestricted_qty = CONV mchb-clabs( 12 )
+          unit_unrestricted_qty = CONV mard-labst( '1' )
+          base_available_qty  = CONV mchb-clabs( 12 )
+          unit_available_qty  = CONV mard-labst( '1' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'P' window_band = '2' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'P' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'P' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '1' row_count = 1
+first_expiration_date      = '20261020'
+          last_expiration_date       = '20261020'
+          base_unrestricted_qty = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty = CONV mard-labst( '2' )
+          base_available_qty  = CONV mchb-clabs( 24 )
+          unit_available_qty  = CONV mard-labst( '2' )
+          base_quality_qty    = CONV mchb-cinsm( 12 )
+          unit_quality_qty    = CONV mard-labst( '1' )
+          base_blocked_qty    = CONV mchb-cspem( 12 )
+          unit_blocked_qty    = CONV mard-labst( '1' ) )
+        ( source_group = 'G' window_band = '2' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '1' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '2' row_count = 1
+first_expiration_date      = '20261026'
+          last_expiration_date       = '20261026'
+          base_unrestricted_qty = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty = CONV mard-labst( '2' )
+          base_available_qty  = CONV mchb-clabs( 12 )
+          unit_available_qty  = CONV mard-labst( '1' )
+          base_quality_qty    = CONV mchb-cinsm( 6 )
+          unit_quality_qty    = CONV mard-labst( '0.5' )
+          base_blocked_qty    = CONV mchb-cspem( 12 )
+          unit_blocked_qty    = CONV mard-labst( '1' ) )
+        ( source_group = 'O' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+      )
+      act = lt_results[ 1 ]-upcoming_src_bands ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
+        ( source_group = 'P' window_band = '1' row_count = 1
+first_expiration_date      = '20261028'
+          last_expiration_date       = '20261028'
+          base_unrestricted_qty = CONV mchb-clabs( 24 )
+          unit_unrestricted_qty = CONV mard-labst( '2' )
+          base_available_qty  = CONV mchb-clabs( 12 )
+          unit_available_qty  = CONV mard-labst( '1' )
+          base_quality_qty    = CONV mchb-cinsm( 6 )
+          unit_quality_qty    = CONV mard-labst( '0.5' )
+          base_blocked_qty    = CONV mchb-cspem( 12 )
+          unit_blocked_qty    = CONV mard-labst( '1' ) )
+        ( source_group = 'P' window_band = '2' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'P' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'P' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '1' row_count = 1
+first_expiration_date      = '20261028'
+          last_expiration_date       = '20261028'
+          base_unrestricted_qty = CONV mchb-clabs( 12 )
+          unit_unrestricted_qty = CONV mard-labst( '1' )
+          base_available_qty  = CONV mchb-clabs( 12 )
+          unit_available_qty  = CONV mard-labst( '1' )
+          base_quality_qty    = CONV mchb-cinsm( 6 )
+          unit_quality_qty    = CONV mard-labst( '0.5' )
+          base_blocked_qty    = CONV mchb-cspem( 12 )
+          unit_blocked_qty    = CONV mard-labst( '1' ) )
+        ( source_group = 'G' window_band = '2' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'G' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '1' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '2' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '3' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+        ( source_group = 'O' window_band = '4' row_count = 0
+          base_unrestricted_qty = CONV mchb-clabs( 0 )
+          unit_unrestricted_qty = CONV mard-labst( '0' )
+          base_available_qty  = CONV mchb-clabs( 0 )
+          unit_available_qty  = CONV mard-labst( '0' )
+          base_quality_qty    = CONV mchb-cinsm( 0 )
+          unit_quality_qty    = CONV mard-labst( '0' )
+          base_blocked_qty    = CONV mchb-cspem( 0 )
+          unit_blocked_qty    = CONV mard-labst( '0' ) )
+      )
+      act = lt_results[ 1 ]-after_window_src_bands ).
   ENDMETHOD.
 
   METHOD rejects_bad_expiry_uom_dates.
@@ -27922,7 +31091,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
               as_of_date   = '20261018'
               through_date = '20261017' ) ) ).
       CATCH zcx_invalid_stock_request.
-        lv_rejected = abap_true.
+        lv_rejected           = abap_true.
     ENDTRY.
 
     cl_abap_unit_assert=>assert_equals(
@@ -27936,4 +31105,10278 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_uom_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD uncovered_bulk_fixture.
+    rt_status                 = VALUE #(
+      ( request_id                    = 'EXP-PAGE'
+        material                      = 'MAT-1'
+        plant                         = '1000'
+        open_reservation_row_count    = 3
+        uncovered_open_resv_quantity  = 72
+        uncovered_open_resv_row_count = 3
+        uncovered_open_resv_keys      = VALUE #(
+          ( reservation_number = '0000000100' reservation_item = '0001' )
+          ( reservation_number = '0000000200' reservation_item = '0001' )
+          ( reservation_number = '0000000300' reservation_item = '0001' ) )
+        uncovered_open_reservations   = VALUE #(
+          ( reservation_number  = '0000000300'
+            reservation_item    = '0001'
+            allocation_sequence = 3
+            required_date       = '20261022'
+            required_quantity   = 36
+            open_quantity       = 36
+            uncovered_quantity  = 36 )
+          ( reservation_number  = '0000000100'
+            reservation_item    = '0001'
+            allocation_sequence = 1
+            required_date       = '20261020'
+            required_quantity   = 12
+            open_quantity       = 12
+            uncovered_quantity  = 12 )
+          ( reservation_number  = '0000000200'
+            reservation_item    = '0001'
+            allocation_sequence = 2
+            required_date       = '20261021'
+            required_quantity   = 24
+            open_quantity       = 24
+            uncovered_quantity  = 24 ) ) ) ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_due_horizon.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-uncovered_open_resv_row_count = 14.
+    ls_status-uncovered_open_resv_quantity = 14.
+    ls_status-uncovered_open_resv_keys = VALUE #(
+      ( reservation_number = '0000000100' reservation_item = '0001' )
+      ( reservation_number = '0000000200' reservation_item = '0001' )
+      ( reservation_number = '0000000300' reservation_item = '0001' )
+      ( reservation_number = '0000000400' reservation_item = '0001' )
+      ( reservation_number = '0000000500' reservation_item = '0001' )
+      ( reservation_number = '0000000600' reservation_item = '0001' )
+      ( reservation_number = '0000000700' reservation_item = '0001' )
+      ( reservation_number = '0000000800' reservation_item = '0001' )
+      ( reservation_number = '0000000900' reservation_item = '0001' )
+      ( reservation_number = '0000001000' reservation_item = '0001' )
+      ( reservation_number = '0000001100' reservation_item = '0001' )
+      ( reservation_number = '0000001200' reservation_item = '0001' )
+      ( reservation_number = '0000001300' reservation_item = '0001' )
+      ( reservation_number = '0000001400' reservation_item = '0001' ) ).
+    ls_status-uncovered_open_reservations = VALUE #(
+      ( reservation_number = '0000000100' reservation_item = '0001'
+        required_date         = '20261017' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000200' reservation_item = '0001'
+        required_date         = '20261018' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000300' reservation_item = '0001'
+        required_date         = '20261020' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000400' reservation_item = '0001'
+        required_date         = '20261025' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000500' reservation_item = '0001'
+        required_date         = '20261117' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000600' reservation_item = '0001'
+        required_date         = '20270116' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000700' reservation_item = '0001'
+        required_date         = '20270117' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000000800' reservation_item = '0001'
+        required_quantity     = 1 open_quantity = 1 uncovered_quantity = 1 )
+      ( reservation_number = '0000000900' reservation_item = '0001'
+        required_date         = '20261011' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000001000' reservation_item = '0001'
+        required_date         = '20261010' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000001100' reservation_item = '0001'
+        required_date         = '20260918' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000001200' reservation_item = '0001'
+        required_date         = '20260917' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000001300' reservation_item = '0001'
+        required_date         = '20260720' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 )
+      ( reservation_number = '0000001400' reservation_item = '0001'
+        required_date         = '20260719' required_quantity = 1 open_quantity = 1
+        uncovered_quantity    = 1 ) ).
+    CLEAR lt_status.
+    ls_status-request_id = 'UNC-HORIZON-O'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-T'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-1'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-2'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-3'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-4'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-U'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-O-ALL'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-1-NEXT'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-AGE-2'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-AGE-RANGE'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-AGE-FROM'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'UNC-HORIZON-AGE-TO'. APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'UNC-HORIZON-O' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = 'O' )
+        ( request_id = 'UNC-HORIZON-T' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = 'T' )
+        ( request_id = 'UNC-HORIZON-1' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' )
+        ( request_id = 'UNC-HORIZON-2' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '2' )
+        ( request_id = 'UNC-HORIZON-3' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '3' )
+        ( request_id = 'UNC-HORIZON-4' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '4' )
+        ( request_id = 'UNC-HORIZON-U' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = 'U' )
+        ( request_id = 'UNC-HORIZON-O-ALL' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          filter_uncovered_due_horizon = abap_true uncovered_due_horizon = 'O' )
+        ( request_id = 'UNC-HORIZON-AGE-2' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_age_band = abap_true
+          uncovered_age_band = '2' )
+        ( request_id = 'UNC-HORIZON-AGE-RANGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = 'O' filter_uncovered_age_band = abap_true
+          uncovered_age_band = '2'
+          filter_overdue_age_days_from = abap_true overdue_age_days_from = 8
+          filter_overdue_age_days_to = abap_true overdue_age_days_to = 30 )
+        ( request_id = 'UNC-HORIZON-AGE-FROM' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_overdue_age_days_from = abap_true
+          overdue_age_days_from = 30 )
+        ( request_id = 'UNC-HORIZON-AGE-TO' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_overdue_age_days_to = abap_true
+          overdue_age_days_to = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals( exp = 12 act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results[ 1 ]-filtered_uncov_due_horizons ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[ 1 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[ 1 ]-open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 2 ]-filtered_uncov_due_horizons[ 2 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 2 ]-filtered_uncov_due_horizons[ 2 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 2 ]-filtered_uncov_due_horizons[ 2 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[ 2 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[ 2 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261025'
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-partial_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 3 ]-filtered_uncov_due_horizons[ 3 ]-fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[ 2 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 4 ]-filtered_uncov_due_horizons[ 4 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 5 ]-filtered_uncov_due_horizons[ 5 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 6 ]-filtered_uncov_due_horizons[ 6 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 7 ]-filtered_uncov_due_horizons[ 7 ]-row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 7 ]-filtered_uncov_due_horizons[ 7 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 7 ]-filtered_uncov_due_horizons[ 7 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 2 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'T'
+      act = lt_results[ 2 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 3 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_results[ 4 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3'
+      act = lt_results[ 5 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_results[ 6 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_results[ 7 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ 8 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results[ 8 ]-uncovered_open_reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 1 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 2 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 3 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 4 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 5 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 6 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_results[ 8 ]-uncovered_open_reservations[ 7 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 8 ]-uncovered_open_reservations[ 1 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_results[ 8 ]-uncovered_open_reservations[ 2 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8 act = lt_results[ 8 ]-uncovered_open_reservations[ 3 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 30 act = lt_results[ 8 ]-uncovered_open_reservations[ 4 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 31 act = lt_results[ 8 ]-uncovered_open_reservations[ 5 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 90 act = lt_results[ 8 ]-uncovered_open_reservations[ 6 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 91 act = lt_results[ 8 ]-uncovered_open_reservations[ 7 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_results[ 1 ]-filtered_uncov_overdue_ages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-partial_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-unalloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 2 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20260918'
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 2 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 2 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_uncov_overdue_ages[ 4 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 9 ]-filter_uncovered_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_results[ 9 ]-uncovered_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 9 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001000'
+      act = lt_results[ 9 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 2 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 2 ]-unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 2 ]-unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 2 ]-partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 1 ]-row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 9 ]-filtered_uncov_overdue_ages[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 10 ]-filter_overdue_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8 act = lt_results[ 10 ]-overdue_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_results[ 10 ]-filter_overdue_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 30 act = lt_results[ 10 ]-overdue_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_results[ 10 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001000'
+      act = lt_results[ 10 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_results[ 10 ]-filtered_uncov_overdue_ages[ 2 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20260918'
+      act = lt_results[ 10 ]-filtered_uncov_overdue_ages[ 2 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_results[ 10 ]-filtered_uncov_overdue_ages[ 2 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lt_results[ 11 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001100'
+      act = lt_results[ 11 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 12 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 12 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 12 ]-overdue_age_days_to ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 2 ]-uncovered_open_reservations[ 1 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 2 ]-uncovered_open_reservations[ 1 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 7 ]-uncovered_open_reservations[ 1 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 3 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 3 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 3 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_results[ 3 ]-next_uncovered_cursor_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000500'
+      act = lt_results[ 4 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000600'
+      act = lt_results[ 5 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000700'
+      act = lt_results[ 6 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000800'
+      act = lt_results[ 7 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+
+    DATA(lt_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'UNC-HORIZON-1-NEXT' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1 filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' filter_uncovered_cursor = abap_true
+          uncovered_cursor_number = '0000000300'
+          uncovered_cursor_item = '0001' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_next_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_next_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_next_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261025'
+      act = lt_next_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000400'
+      act = lt_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+
+    DATA lv_bad_horizon_rejected TYPE abap_bool.
+    DATA lv_inactive_horizon_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk( it_requests = VALUE #(
+          ( request_id = 'UNC-HORIZON-BAD' material = 'MAT-1' plant = '1000'
+            as_of_date        = '20261018' through_date = '20261025'
+            filter_uncovered_due_horizon = abap_true
+            uncovered_due_horizon = '9' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_horizon_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk( it_requests = VALUE #(
+          ( request_id = 'UNC-HORIZON-INACTIVE' material = 'MAT-1'
+            plant             = '1000' as_of_date = '20261018' through_date = '20261025'
+            uncovered_due_horizon = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_horizon_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_horizon_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_horizon_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_uncovered_age_band.
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = NEW lcl_stock_repository_double( ) ).
+    DATA lv_bad_flag_rejected TYPE abap_bool.
+    DATA lv_bad_age_rejected TYPE abap_bool.
+    DATA lv_inactive_age_rejected TYPE abap_bool.
+    DATA lv_bad_age_days_flag TYPE abap_bool.
+    DATA lv_nonpositive_age_days TYPE abap_bool.
+    DATA lv_inverted_age_days TYPE abap_bool.
+    DATA lv_inactive_age_days TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-AGE-BAD-FLAG' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261025'
+              filter_uncovered_age_band = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_flag_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-AGE-BAD-CODE' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261025'
+              filter_uncovered_age_band = abap_true
+              uncovered_age_band = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_age_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-AGE-INACTIVE' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261025'
+              uncovered_age_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_age_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_age_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_age_rejected ).
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-OVERDUE-AGE-BAD-FLAG' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018' through_date = '20261025'
+              filter_overdue_age_days_from = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_age_days_flag = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-OVERDUE-AGE-ZERO' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018' through_date = '20261025'
+              filter_overdue_age_days_from = abap_true
+              overdue_age_days_from = 0 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_nonpositive_age_days = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-OVERDUE-AGE-INVERTED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018' through_date = '20261025'
+              filter_overdue_age_days_from = abap_true
+              overdue_age_days_from = 8
+              filter_overdue_age_days_to = abap_true
+              overdue_age_days_to = 7 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_age_days = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'UNC-OVERDUE-AGE-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018' through_date = '20261025'
+              overdue_age_days_to = 7 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_age_days = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_age_days_flag ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_nonpositive_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inverted_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_age_days ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_sequence.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = uncovered_bulk_fixture( ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1
+          filter_uncovered_sequence = abap_true uncovered_sequence = 2
+          filter_uncovered_due_horizon = abap_true uncovered_due_horizon = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_results[ 1 ]-uncovered_open_resv_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_uncovered_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-uncovered_sequence ).
+
+    DATA lv_bad_sequence_rejected TYPE abap_bool.
+    DATA lv_inactive_sequence_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-SEQUENCE-BAD' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              filter_uncovered_sequence = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_sequence_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-SEQUENCE-INACTIVE' material = 'MAT-1'
+              plant           = '1000' as_of_date = '20261018' through_date = '20261025'
+              uncovered_sequence = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_sequence_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_sequence_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_sequence_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_date_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-uncovered_open_resv_row_count = 4.
+    ls_status-uncovered_open_resv_quantity = 73.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001' )
+      TO ls_status-uncovered_open_resv_keys.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      open_quantity      = 1
+      uncovered_quantity = 1 )
+      TO ls_status-uncovered_open_reservations.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          uncovered_required_date_from = '20261021'
+          uncovered_required_date_to = '20261022' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_results[ 1 ]-uncovered_required_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_results[ 1 ]-uncovered_required_date_to ).
+
+    DATA(lt_one_sided) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          uncovered_required_date_from = '20261022' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_one_sided[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_one_sided[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+
+    DATA lv_inverted_bounds_rejected TYPE abap_bool.
+    DATA lv_bad_date_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-RANGE-BAD' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              uncovered_required_date_from = '20261022'
+              uncovered_required_date_to = '20261021' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_bounds_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-RANGE-DATE' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              uncovered_required_date_from = '20260230' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_date_rejected  = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_bounds_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_date_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_reservation.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = uncovered_bulk_fixture( ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1
+          filter_uncovered_reservation = abap_true
+          uncovered_reservation_number = '0000000200'
+          uncovered_reservation_item = '0001'
+          filter_uncovered_sequence = abap_true uncovered_sequence = 2
+          filter_uncovered_due_horizon = abap_true uncovered_due_horizon = '1'
+          uncovered_required_date_from = '20261021'
+          uncovered_required_date_to = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_uncovered_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-uncovered_reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-uncovered_reservation_item ).
+
+    DATA lv_missing_key_rejected TYPE abap_bool.
+    DATA lv_inactive_key_rejected TYPE abap_bool.
+    DATA lv_cursor_mismatch_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-RESV-BAD' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              filter_uncovered_reservation = abap_true
+              uncovered_reservation_item = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_missing_key_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-RESV-INACTIVE' material = 'MAT-1'
+              plant           = '1000' as_of_date = '20261018' through_date = '20261025'
+              uncovered_reservation_number = '0000000100'
+              uncovered_reservation_item = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_key_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-RESV-CURSOR' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              maximum_uncovered_rows = 1
+              filter_uncovered_reservation = abap_true
+              uncovered_reservation_number = '0000000200'
+              uncovered_reservation_item = '0001'
+              filter_uncovered_cursor = abap_true
+              uncovered_cursor_number = '0000000100'
+              uncovered_cursor_item = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_cursor_mismatch_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_missing_key_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_key_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_cursor_mismatch_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_outcome.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-uncovered_open_resv_quantity = 68.
+    LOOP AT ls_status-uncovered_open_reservations
+        ASSIGNING FIELD-SYMBOL(<ls_uncovered_row>).
+      IF <ls_uncovered_row>-reservation_number = '0000000100'.
+        <ls_uncovered_row>-allocated_quantity = 4.
+        <ls_uncovered_row>-matched_quantity = 4.
+        <ls_uncovered_row>-uncovered_quantity = 8.
+      ENDIF.
+    ENDLOOP.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_partial) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1
+          filter_uncovered_outcome = abap_true
+          uncovered_outcome   = 'P'
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_partial[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-matched_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-fallback_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_partial[ 1 ]-filtered_uncov_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_partial[ 1 ]-filtered_uncov_unalloc_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_partial[ 1 ]-filtered_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_partial[ 1 ]-filtered_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_partial[ 1 ]-filtered_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_partial[ 1 ]-filtered_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-filtered_uncov_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_partial[ 1 ]-filtered_uncov_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_partial[ 1 ]-filtered_uncov_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_partial[ 1 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_partial[ 1 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_partial[ 1 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_partial[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_partial[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_partial[ 1 ]-uncovered_open_reservations[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_partial[ 1 ]-filter_uncovered_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_partial[ 1 ]-uncovered_outcome ).
+
+    DATA(lt_mixed) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_mixed[ 1 ]-filtered_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_mixed[ 1 ]-filtered_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_mixed[ 1 ]-filtered_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_mixed[ 1 ]-filtered_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '5.56' )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed[ 1 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_mixed[ 1 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed[ 1 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_mixed[ 1 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_mixed[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_fallback_pct ).
+    DATA(lt_unallocated) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          maximum_uncovered_rows = 1
+          filter_uncovered_outcome = abap_true
+          uncovered_outcome   = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_unallocated[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_unallocated[ 1 ]-filtered_uncov_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_unallocated[ 1 ]-filtered_uncov_unalloc_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_unallocated[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_unallocated[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_unallocated[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_unallocated[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_unallocated[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_unallocated[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_unallocated[ 1 ]-is_uncovered_truncated ).
+
+    DATA lv_bad_outcome_rejected TYPE abap_bool.
+    DATA lv_inactive_outcome_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-OUTCOME-BAD' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              filter_uncovered_outcome = abap_true
+              uncovered_outcome = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_outcome_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-OUTCOME-INACTIVE' material = 'MAT-1'
+              plant           = '1000' as_of_date = '20261018' through_date = '20261025'
+              uncovered_outcome = 'P' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_outcome_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_outcome_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_outcome_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_uncovered_shortage_pct.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    LOOP AT ls_status-uncovered_open_reservations
+        ASSIGNING FIELD-SYMBOL(<ls_uncovered_row>).
+      CASE <ls_uncovered_row>-reservation_number.
+        WHEN '0000000100'.
+          <ls_uncovered_row>-allocation_shortage_pct = 20.
+        WHEN '0000000200'.
+          <ls_uncovered_row>-allocation_shortage_pct = 50.
+        WHEN '0000000300'.
+          <ls_uncovered_row>-allocation_shortage_pct = 80.
+      ENDCASE.
+    ENDLOOP.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_unfiltered) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 20 )
+      act = lt_unfiltered[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 50 )
+      act = lt_unfiltered[ 1 ]-uncovered_open_reservations[ 2 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 80 )
+      act = lt_unfiltered[ 1 ]-uncovered_open_reservations[ 3 ]-allocation_shortage_pct ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_uncovered_rows    = 1
+          filter_uncovered_pct_from = abap_true
+          uncovered_pct_from        = 50
+          filter_uncovered_pct_to   = abap_true
+          uncovered_pct_to          = 80 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 50 )
+      act = lt_first_page[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_uncovered_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 50 )
+      act = lt_first_page[ 1 ]-uncovered_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_uncovered_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 80 )
+      act = lt_first_page[ 1 ]-uncovered_pct_to ).
+
+    DATA(lt_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_uncovered_rows    = 1
+          filter_uncovered_cursor   = abap_true
+          uncovered_cursor_number   = lt_first_page[ 1 ]-next_uncovered_cursor_number
+          uncovered_cursor_item     = lt_first_page[ 1 ]-next_uncovered_cursor_item
+          filter_uncovered_pct_from = abap_true
+          uncovered_pct_from        = 50
+          filter_uncovered_pct_to   = abap_true
+          uncovered_pct_to          = 80 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_next_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 80 )
+      act = lt_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_next_page[ 1 ]-is_uncovered_truncated ).
+
+    DATA(lt_quantity_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_uncovered_rows    = 1
+          filter_uncovered_qty_from = abap_true
+          uncovered_qty_from        = 24
+          filter_uncovered_qty_to   = abap_true
+          uncovered_qty_to          = 36 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_quantity_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_quantity_page[ 1 ]-filtered_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_quantity_page[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_quantity_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_quantity_page[ 1 ]-uncovered_open_reservations[ 1 ]-uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_quantity_page[ 1 ]-filter_uncovered_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_quantity_page[ 1 ]-uncovered_qty_from ).
+
+    DATA(lt_quantity_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_uncovered_rows    = 1
+          filter_uncovered_cursor   = abap_true
+          uncovered_cursor_number   = lt_quantity_page[ 1 ]-next_uncovered_cursor_number
+          uncovered_cursor_item     = lt_quantity_page[ 1 ]-next_uncovered_cursor_item
+          filter_uncovered_qty_from = abap_true
+          uncovered_qty_from        = 24
+          filter_uncovered_qty_to   = abap_true
+          uncovered_qty_to          = 36 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_quantity_next_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_quantity_next_page[ 1 ]-filtered_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_quantity_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 36 )
+      act = lt_quantity_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-uncovered_quantity ).
+
+    DATA(lt_quantity_uom_page) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          unit                      = 'BOX'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          filter_uncovered_qty_from = abap_true
+          uncovered_qty_from        = 24
+          filter_uncovered_qty_to   = abap_true
+          uncovered_qty_to          = 24 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_quantity_uom_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_quantity_uom_page[ 1 ]-base_filtered_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_quantity_uom_page[ 1 ]-src_filtered_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_quantity_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_quantity_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_quantity_uom_page[ 1 ]-filter_uncovered_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_quantity_uom_page[ 1 ]-uncovered_qty_to ).
+
+    DATA(lt_open_qty_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'EXP-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_uncovered_rows     = 1
+          filter_uncovered_open_from = abap_true
+          uncovered_open_qty_from    = 24
+          filter_uncovered_open_to   = abap_true
+          uncovered_open_qty_to      = 36 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_qty_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_unalloc_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_open_qty_page[ 1 ]-filtered_open_demand_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng(
+        lt_open_qty_page[ 1 ]-filtered_open_demand_qty
+          - lt_open_qty_page[ 1 ]-filtered_uncovered_qty )
+      act = lt_open_qty_page[ 1 ]-filtered_uncovered_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_open_qty_page[ 1 ]-filtered_uncov_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng(
+        lt_open_qty_page[ 1 ]-filtered_uncov_matched_qty
+          + lt_open_qty_page[ 1 ]-filtered_uncov_fallback_qty )
+      act = lt_open_qty_page[ 1 ]-filtered_uncovered_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_open_qty_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_page[ 1 ]-uncovered_open_reservations[ 1 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_open_qty_page[ 1 ]-filter_uncovered_open_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_page[ 1 ]-uncovered_open_qty_from ).
+
+    DATA(lt_open_qty_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'EXP-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_uncovered_rows     = 1
+          filter_uncovered_cursor    = abap_true
+          uncovered_cursor_number    = lt_open_qty_page[ 1 ]-next_uncovered_cursor_number
+          uncovered_cursor_item      = lt_open_qty_page[ 1 ]-next_uncovered_cursor_item
+          filter_uncovered_open_from = abap_true
+          uncovered_open_qty_from    = 24
+          filter_uncovered_open_to   = abap_true
+          uncovered_open_qty_to      = 36 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_qty_next_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_unalloc_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_open_qty_next_page[ 1 ]-filtered_open_demand_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_open_qty_next_page[ 1 ]-filtered_uncov_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_open_qty_next_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+
+    DATA(lt_open_qty_uom_page) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'EXP-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          unit                       = 'BOX'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_uncovered_open_from = abap_true
+          uncovered_open_qty_from    = 24
+          filter_uncovered_open_to   = abap_true
+          uncovered_open_qty_to      = 24 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_open_qty_uom_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-unalloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-base_open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-source_open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-base_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-source_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-base_uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-source_uncovered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-base_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-source_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_due_horizons[ 3 ]-fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_unalloc_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_open_qty_uom_page[ 1 ]-filtered_uncov_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-base_filtered_open_demand_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-base_filtered_uncov_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_open_qty_uom_page[ 1 ]-src_filtered_uncov_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-base_matched_quantity
+      act = lt_open_qty_uom_page[ 1 ]-base_uncov_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-source_matched_quantity
+      act = lt_open_qty_uom_page[ 1 ]-src_uncov_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-base_fallback_quantity
+      act = lt_open_qty_uom_page[ 1 ]-base_uncov_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-source_fallback_quantity
+      act = lt_open_qty_uom_page[ 1 ]-src_uncov_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_open_qty_uom_page[ 1 ]-src_filtered_open_demand_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_open_qty_uom_page[ 1 ]-filter_uncovered_open_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_open_qty_uom_page[ 1 ]-uncovered_open_qty_to ).
+
+    DATA(lt_uom_page) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'EXP-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          unit                      = 'BOX'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_uncovered_rows    = 1
+          filter_uncovered_pct_from = abap_true
+          uncovered_pct_from        = 80 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_uom_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_page[ 1 ]-filter_uncovered_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 80 )
+      act = lt_uom_page[ 1 ]-uncovered_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_uom_page[ 1 ]-filter_uncovered_pct_to ).
+
+    DATA lv_bad_open_qty_bound_rejected TYPE abap_bool.
+    DATA lv_inactive_open_rejected TYPE abap_bool.
+    DATA lv_inverted_open_rejected TYPE abap_bool.
+    DATA lv_uom_bad_open_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'EXP-OPEN-QTY-BAD'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_uncovered_open_to = abap_true
+              uncovered_open_qty_to    = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_open_qty_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'EXP-OPEN-QTY-INACTIVE'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              uncovered_open_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_open_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'EXP-OPEN-QTY-ORDER'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_uncovered_open_from = abap_true
+              uncovered_open_qty_from    = 30
+              filter_uncovered_open_to   = abap_true
+              uncovered_open_qty_to      = 20 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_open_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'EXP-OPEN-QTY-UOM-BAD'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              unit                     = 'BOX'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_uncovered_open_to = abap_true
+              uncovered_open_qty_to    = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_uom_bad_open_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_open_qty_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_open_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_open_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_uom_bad_open_rejected ).
+
+    DATA lv_bad_qty_bound_rejected TYPE abap_bool.
+    DATA lv_inactive_qty_bound_rejected TYPE abap_bool.
+    DATA lv_inverted_qty_range_rejected TYPE abap_bool.
+    DATA lv_uom_bad_qty_bound_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'EXP-QTY-BAD'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              filter_uncovered_qty_to = abap_true
+              uncovered_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_qty_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id         = 'EXP-QTY-INACTIVE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              as_of_date         = '20261018'
+              through_date       = '20261025'
+              uncovered_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_qty_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                = 'EXP-QTY-ORDER'
+              material                  = 'MAT-1'
+              plant                     = '1000'
+              as_of_date                = '20261018'
+              through_date              = '20261025'
+              filter_uncovered_qty_from = abap_true
+              uncovered_qty_from        = 30
+              filter_uncovered_qty_to   = abap_true
+              uncovered_qty_to          = 20 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_qty_range_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'EXP-QTY-UOM-BAD'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              unit                    = 'BOX'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              filter_uncovered_qty_to = abap_true
+              uncovered_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_uom_bad_qty_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_qty_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_qty_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_qty_range_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_uom_bad_qty_bound_rejected ).
+
+    DATA lv_out_of_range_rejected TYPE abap_bool.
+    DATA lv_inactive_value_rejected TYPE abap_bool.
+    DATA lv_descending_range_rejected TYPE abap_bool.
+    DATA lv_uom_out_of_range_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'EXP-PAGE-BAD'
+              material              = 'MAT-1' plant = '1000'
+              as_of_date            = '20261018' through_date = '20261025'
+              filter_uncovered_pct_from = abap_true
+              uncovered_pct_from    = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_out_of_range_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'EXP-PAGE-INACTIVE'
+              material              = 'MAT-1' plant = '1000'
+              as_of_date            = '20261018' through_date = '20261025'
+              uncovered_pct_to      = 20 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_value_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'EXP-PAGE-ORDER'
+              material              = 'MAT-1' plant = '1000'
+              as_of_date            = '20261018' through_date = '20261025'
+              filter_uncovered_pct_from = abap_true
+              uncovered_pct_from    = 81
+              filter_uncovered_pct_to = abap_true
+              uncovered_pct_to      = 80 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_descending_range_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'EXP-PAGE-BAD'
+              material              = 'MAT-1' plant = '1000' unit = 'BOX'
+              as_of_date            = '20261018' through_date = '20261025'
+              filter_uncovered_pct_to = abap_true
+              uncovered_pct_to      = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_uom_out_of_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_out_of_range_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_value_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_descending_range_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_uom_out_of_range_rejected ).
+  ENDMETHOD.
+
+  METHOD omits_uncovered_details.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = uncovered_bulk_fixture( ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date          = '20261018' through_date = '20261025'
+          omit_uncovered_detail_rows = abap_true
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-omit_uncovered_detail_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 1 ]-uncovered_open_reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 1 ]-uncovered_open_resv_keys ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_results[ 1 ]-uncovered_open_resv_quantity ).
+
+    DATA lv_paged_omit_rejected TYPE abap_bool.
+    DATA lv_cursor_omit_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-OMIT-PAGED' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              maximum_uncovered_rows = 1
+              omit_uncovered_detail_rows = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_paged_omit_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-OMIT-CURSOR' material = 'MAT-1' plant = '1000'
+              as_of_date      = '20261018' through_date = '20261025'
+              maximum_uncovered_rows = 1
+              filter_uncovered_cursor = abap_true
+              uncovered_cursor_number = '0000000100'
+              uncovered_cursor_item = '0001'
+              omit_uncovered_detail_rows = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_cursor_omit_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_paged_omit_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_cursor_omit_rejected ).
+  ENDMETHOD.
+
+  METHOD pages_uncovered_expiry.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id             = 'EXP-PAGE'
+          material               = 'MAT-1'
+          plant                  = '1000'
+          as_of_date             = '20261018'
+          through_date           = '20261025'
+          maximum_uncovered_rows = 2 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-uncovered_open_reservations[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-uncovered_open_resv_keys[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-uncovered_open_resv_keys[ 2 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-next_uncovered_cursor_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_first_page[ 1 ]-next_uncovered_cursor_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-future_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_first_page[ 1 ]-uncovered_open_resv_quantity ).
+
+    DATA(lt_second_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id              = 'EXP-PAGE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          as_of_date              = '20261018'
+          through_date            = '20261025'
+          maximum_uncovered_rows  = 2
+          filter_uncovered_cursor = abap_true
+          uncovered_cursor_number =
+            lt_first_page[ 1 ]-next_uncovered_cursor_number
+          uncovered_cursor_item   =
+            lt_first_page[ 1 ]-next_uncovered_cursor_item ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_second_page[ 1 ]-filter_uncovered_cursor ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_second_page[ 1 ]-uncovered_cursor_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_second_page[ 1 ]-uncovered_cursor_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_second_page[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_second_page[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_second_page[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_second_page[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_second_page[ 1 ]-uncovered_open_resv_keys[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_second_page[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    DATA(lt_unpaged) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'EXP-PAGE'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_unpaged[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_unpaged[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_unpaged[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_unpaged[ 1 ]-uncovered_open_reservations[ 3 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_unpaged[ 1 ]-uncovered_open_resv_keys[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_unpaged[ 1 ]-uncovered_open_resv_keys[ 3 ]-reservation_number ).
+  ENDMETHOD.
+
+  METHOD pages_uncovered_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = uncovered_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'EXP-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          unit                         = 'BOX'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_uncovered_rows       = 1
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon        = '1' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-maximum_uncovered_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_uncovered_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-uncovered_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-is_uncovered_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-next_uncovered_cursor_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-next_uncovered_cursor_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-uncovered_open_resv_keys[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-uncovered_open_reservations[ 1 ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_results[ 1 ]-base_uncovered_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_results[ 1 ]-src_uncovered_open_resv_qty ).
+
+    DATA(lt_omitted_uom) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          unit                = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1'
+          filter_uncovered_sequence = abap_true
+          uncovered_sequence  = 1
+          filter_uncovered_reservation = abap_true
+          uncovered_reservation_number = '0000000100'
+          uncovered_reservation_item = '0001'
+          filter_uncovered_outcome = abap_true
+          uncovered_outcome   = 'U'
+          uncovered_required_date_from = '20261020'
+          uncovered_required_date_to = '20261020'
+          omit_uncovered_detail_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted_uom[ 1 ]-omit_uncovered_detail_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted_uom[ 1 ]-filter_uncovered_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_omitted_uom[ 1 ]-uncovered_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted_uom[ 1 ]-filter_uncovered_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_omitted_uom[ 1 ]-uncovered_reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_omitted_uom[ 1 ]-uncovered_reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted_uom[ 1 ]-filter_uncovered_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_omitted_uom[ 1 ]-uncovered_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_omitted_uom[ 1 ]-uncovered_required_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_omitted_uom[ 1 ]-uncovered_required_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_omitted_uom[ 1 ]-total_uncovered_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_omitted_uom[ 1 ]-returned_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_omitted_uom[ 1 ]-uncovered_open_reservations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_omitted_uom[ 1 ]-base_uncovered_open_resv_qty ).
+
+    DATA(ls_mixed_status) = lt_status[ 1 ].
+    ls_mixed_status-uncovered_open_resv_quantity = 68.
+    LOOP AT ls_mixed_status-uncovered_open_reservations
+        ASSIGNING FIELD-SYMBOL(<ls_mixed_uncovered_row>).
+      IF <ls_mixed_uncovered_row>-reservation_number = '0000000100'.
+        <ls_mixed_uncovered_row>-allocated_quantity = 4.
+        <ls_mixed_uncovered_row>-matched_quantity = 4.
+        <ls_mixed_uncovered_row>-uncovered_quantity = 8.
+      ENDIF.
+    ENDLOOP.
+    MODIFY lt_status FROM ls_mixed_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lt_mixed_uom) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed_uom[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_mixed_uom[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed_uom[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_mixed_uom[ 1 ]-filtered_uncov_due_horizons[ 3 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed_uom[ 1 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_mixed_uom[ 1 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mixed_uom[ 1 ]-partial_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_mixed_uom[ 1 ]-partial_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_mixed_uom[ 1 ]-base_uncov_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_mixed_uom[ 1 ]-src_uncov_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_mixed_uom[ 1 ]-base_uncov_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_mixed_uom[ 1 ]-src_uncov_unalloc_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_mixed_uom[ 1 ]-base_uncov_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 60 )
+      act = lt_mixed_uom[ 1 ]-base_uncov_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_mixed_uom[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_mixed_uom[ 1 ]-uncovered_open_reservations[ 2 ]-allocation_outcome ).
+
+    DATA(ls_overdue_status) = lt_status[ 1 ].
+    LOOP AT ls_overdue_status-uncovered_open_reservations
+        ASSIGNING FIELD-SYMBOL(<ls_overdue_uncovered_row>).
+      IF <ls_overdue_uncovered_row>-reservation_number = '0000000100'.
+        <ls_overdue_uncovered_row>-required_date = '20261017'.
+      ENDIF.
+    ENDLOOP.
+    MODIFY lt_status FROM ls_overdue_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lt_overdue_uom) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_uncovered_due_horizon = abap_true
+          uncovered_due_horizon = 'O'
+          filter_uncovered_age_band = abap_true
+          uncovered_age_band = '1'
+          filter_overdue_age_days_from = abap_true
+          overdue_age_days_from = 1
+          filter_overdue_age_days_to = abap_true
+          overdue_age_days_to = 7 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_overdue_uom[ 1 ]-uncovered_open_reservations[ 1 ]-overdue_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_overdue_uom[ 1 ]-uncovered_open_reservations[ 1 ]-overdue_age_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_overdue_uom[ 1 ]-filter_overdue_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_overdue_uom[ 1 ]-overdue_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_overdue_uom[ 1 ]-filter_overdue_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_overdue_uom[ 1 ]-overdue_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-partial_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-unalloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-base_open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-source_open_demand_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-base_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-source_partial_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-base_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-partial_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 1 ]-partial_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_overdue_uom[ 1 ]-filtered_uncov_overdue_ages[ 4 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_overdue_uom[ 1 ]-filter_uncovered_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_overdue_uom[ 1 ]-uncovered_age_band ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_uncovered_page.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_zero_limit_rejected TYPE abap_bool.
+    DATA lv_unused_cursor_rejected TYPE abap_bool.
+    DATA lv_oversize_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'EXP-BAD-PAGE-1'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              maximum_uncovered_rows  = 0
+              filter_uncovered_cursor = abap_true
+              uncovered_cursor_number = '0000000100'
+              uncovered_cursor_item   = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_zero_limit_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'EXP-BAD-PAGE-2'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              maximum_uncovered_rows  = 2
+              uncovered_cursor_number = '0000000100'
+              uncovered_cursor_item   = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_unused_cursor_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'EXP-BAD-PAGE-3'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              maximum_uncovered_rows = 501 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_oversize_rejected  = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_zero_limit_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_unused_cursor_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_oversize_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+
+  METHOD allocation_bulk_fixture.
+    rt_status                 = VALUE #(
+      ( request_id                    = 'ALLOC-PAGE'
+        material                      = 'MAT-1'
+        plant                         = '1000'
+        open_reservation_row_count    = 2
+        open_reservation_quantity     = 21
+        matched_allocation_quantity   = 18
+        fallback_allocation_quantity  = 3
+        matched_allocation_row_count  = 3
+        fallback_allocation_row_count = 1
+        fully_allocated_resv_count    = 2
+        fully_alloc_resv_open_qty     = 21
+        part_alloc_resv_open_qty      = 0
+        unalloc_resv_open_qty         = 0
+        resv_allocation_summaries     = VALUE #(
+          ( reservation_number      = '0000000100'
+            reservation_item        = '0001'
+            allocation_sequence     = 1
+            required_date           = '20261020'
+            required_quantity       = 13
+            open_quantity           = 13
+            allocated_quantity      = 13
+            matched_quantity        = 10
+            fallback_quantity       = 3
+            allocation_coverage_pct = 100
+            allocation_shortage_pct = 0
+            matched_share_pct       = CONV decfloat34( '76.92' )
+            fallback_share_pct      = CONV decfloat34( '23.08' )
+            allocation_outcome      = 'F' )
+          ( reservation_number      = '0000000200'
+            reservation_item        = '0001'
+            allocation_sequence     = 2
+            required_date           = '20261021'
+            required_quantity       = 8
+            open_quantity           = 8
+            allocated_quantity      = 8
+            matched_quantity        = 8
+            allocation_coverage_pct = 100
+            allocation_shortage_pct = 0
+            matched_share_pct       = 100
+            fallback_share_pct      = 0
+            allocation_outcome      = 'F' ) )
+        allocation_details            = VALUE #(
+          ( reservation_number     = '0000000100'
+            reservation_item       = '0001'
+            allocation_sequence    = 1
+            required_date          = '20261020'
+            allocation_pass        = 'M'
+            storage_location       = '0001'
+            batch                  = 'A'
+            expiration_date        = '20261020'
+            expiration_date_source = 'P'
+            quantity               = 6 )
+          ( reservation_number     = '0000000100'
+            reservation_item       = '0001'
+            allocation_sequence    = 1
+            required_date          = '20261020'
+            allocation_pass        = 'M'
+            storage_location       = '0002'
+            batch                  = 'B'
+            valuation_type         = 'V'
+            expiration_date        = '20261021'
+            expiration_date_source = 'G'
+            quantity               = 4 )
+          ( reservation_number     = '0000000100'
+            reservation_item       = '0001'
+            allocation_sequence    = 1
+            required_date          = '20261020'
+            allocation_pass        = 'F'
+            storage_location       = '0001'
+            batch                  = 'C'
+            expiration_date        = '20261022'
+            expiration_date_source = ''
+            quantity               = 3 )
+          ( reservation_number     = '0000000200'
+            reservation_item       = '0001'
+            allocation_sequence    = 2
+            required_date          = '20261021'
+            allocation_pass        = 'M'
+            storage_location       = '0001'
+            batch                  = 'A'
+            expiration_date        = '20261020'
+            expiration_date_source = 'G'
+            quantity               = 8 ) ) ) ).
+  ENDMETHOD.
+
+  METHOD pages_resv_alloc_summaries.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id              = 'ALLOC-PAGE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          as_of_date              = '20261018'
+          through_date            = '20261025'
+          maximum_resv_alloc_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-days_until_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-fully_allocated_resv_count ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          maximum_resv_alloc_rows  = 1
+          filter_resv_alloc_cursor = abap_true
+          resv_alloc_cursor_number =
+            lt_first_page[ 1 ]-next_resv_alloc_cursor_number
+          resv_alloc_cursor_item   =
+            lt_first_page[ 1 ]-next_resv_alloc_cursor_item ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_last_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_short_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-uncovered_quantity = 3.
+    APPEND VALUE #(
+      reservation_number      = '0000000300'
+      reservation_item        = '0001'
+      allocation_sequence     = 3
+      required_date           = '20261022'
+      open_quantity           = 4
+      uncovered_quantity      = 4
+      allocation_coverage_pct = 0
+      allocation_shortage_pct = 100
+      allocation_outcome      = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_alloc_short_from = abap_true
+          resv_alloc_short_from        = 3
+          filter_resv_alloc_short_to   = abap_true
+          resv_alloc_short_to          = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_alloc_short_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-resv_alloc_short_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_alloc_short_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_first_page[ 1 ]-resv_alloc_short_to ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_alloc_cursor     = abap_true
+          resv_alloc_cursor_number     = '0000000200'
+          resv_alloc_cursor_item       = '0001'
+          filter_resv_alloc_short_from = abap_true
+          resv_alloc_short_from        = 3
+          filter_resv_alloc_short_to   = abap_true
+          resv_alloc_short_to          = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_last_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_cov_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_coverage_pct = CONV decfloat34( '62.5' ).
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_shortage_pct = CONV decfloat34( '37.5' ).
+    APPEND VALUE #(
+      reservation_number      = '0000000300'
+      reservation_item        = '0001'
+      allocation_sequence     = 3
+      required_date           = '20261022'
+      required_quantity       = 4
+      open_quantity           = 4
+      uncovered_quantity      = 4
+      allocation_coverage_pct = 0
+      allocation_shortage_pct = 100
+      allocation_outcome      = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_zero_coverage) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          filter_resv_alloc_cov_to = abap_true
+          resv_alloc_coverage_to   = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_zero_coverage[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_zero_coverage[ 1 ]-filter_resv_alloc_cov_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_zero_coverage[ 1 ]-resv_alloc_coverage_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_zero_coverage[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_band) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_alloc_cov_from = abap_true
+          resv_alloc_coverage_from   = 60
+          filter_resv_alloc_cov_to   = abap_true
+          resv_alloc_coverage_to     = 70 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_band[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_band[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '62.5' )
+      act = lt_band[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_coverage_pct ).
+  ENDMETHOD.
+
+  METHOD filters_resv_share_ranges.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    APPEND VALUE #(
+      reservation_number      = '0000000300'
+      reservation_item        = '0001'
+      allocation_sequence     = 3
+      required_date           = '20261022'
+      required_quantity       = 4
+      open_quantity           = 4
+      allocated_quantity      = 4
+      fallback_quantity       = 4
+      uncovered_quantity      = 0
+      allocation_coverage_pct = 100
+      allocation_shortage_pct = 0
+      matched_share_pct       = 0
+      fallback_share_pct      = 100
+      allocation_outcome      = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_fallback_pct_from = abap_true
+          resv_fallback_pct_from        = CONV decfloat34( '23.08' )
+          filter_resv_fallback_pct_to   = abap_true
+          resv_fallback_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '23.08' )
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-fallback_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_fallback_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '23.08' )
+      act = lt_first_page[ 1 ]-resv_fallback_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_fallback_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_first_page[ 1 ]-resv_fallback_pct_to ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_cursor      = abap_true
+          resv_alloc_cursor_number      = '0000000100'
+          resv_alloc_cursor_item        = '0001'
+          filter_resv_fallback_pct_from = abap_true
+          resv_fallback_pct_from        = CONV decfloat34( '23.08' )
+          filter_resv_fallback_pct_to   = abap_true
+          resv_fallback_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_last_page[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_matched_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_matched_pct_from = abap_true
+          resv_matched_pct_from        = CONV decfloat34( '76.92' )
+          filter_resv_matched_pct_to   = abap_true
+          resv_matched_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_matched_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_matched_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '76.92' )
+      act = lt_matched_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-matched_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_matched_first_page[ 1 ]-filter_resv_matched_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '76.92' )
+      act = lt_matched_first_page[ 1 ]-resv_matched_pct_from ).
+
+    DATA(lt_matched_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_alloc_cursor     = abap_true
+          resv_alloc_cursor_number     = '0000000100'
+          resv_alloc_cursor_item       = '0001'
+          filter_resv_matched_pct_from = abap_true
+          resv_matched_pct_from        = CONV decfloat34( '76.92' )
+          filter_resv_matched_pct_to   = abap_true
+          resv_matched_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_matched_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_matched_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_zero_matched) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_matched_pct_to = abap_true
+          resv_matched_pct_to        = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_zero_matched[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_zero_matched[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_zero_fallback) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'ALLOC-PAGE'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20261025'
+          filter_resv_fallback_pct_to = abap_true
+          resv_fallback_pct_to        = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_zero_fallback[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_zero_fallback[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_zero_fallback[ 1 ]-filter_resv_fallback_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_zero_fallback[ 1 ]-resv_fallback_pct_to ).
+
+    DATA(lt_matched_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          unit                         = 'BOX'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          filter_resv_matched_pct_from = abap_true
+          resv_matched_pct_from        = 100
+          filter_resv_matched_pct_to   = abap_true
+          resv_matched_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_matched_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_matched_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_matched_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-matched_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_matched_uom_results[ 1 ]-filter_resv_matched_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_matched_uom_results[ 1 ]-resv_matched_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_matched_uom_results[ 1 ]-filter_resv_matched_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_matched_uom_results[ 1 ]-resv_matched_pct_to ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_fallback_pct_from = abap_true
+          resv_fallback_pct_from        = 100
+          filter_resv_fallback_pct_to   = abap_true
+          resv_fallback_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-fallback_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_resv_fallback_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_uom_results[ 1 ]-resv_fallback_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_resv_fallback_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_uom_results[ 1 ]-resv_fallback_pct_to ).
+
+    DATA(lv_bad_bound_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'ALLOC-PAGE'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20261025'
+              filter_resv_fallback_pct_to = abap_true
+              resv_fallback_pct_to        = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_bound_rejected ).
+
+    DATA(lv_inactive_bound_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-PAGE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_fallback_pct_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_bound_rejected ).
+
+    DATA(lv_inverted_range_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-PAGE'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_fallback_pct_from = abap_true
+              resv_fallback_pct_from        = 80
+              filter_resv_fallback_pct_to   = abap_true
+              resv_fallback_pct_to          = 70 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_range_rejected ).
+    DATA(lv_bad_match_bound_rej) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-PAGE'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_matched_pct_to = abap_true
+              resv_matched_pct_to        = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_match_bound_rej = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_match_bound_rej ).
+
+    DATA(lv_inactive_match_bound_rej) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'ALLOC-PAGE'
+              material              = 'MAT-1'
+              plant                 = '1000'
+              as_of_date            = '20261018'
+              through_date          = '20261025'
+              resv_matched_pct_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_match_bound_rej = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_match_bound_rej ).
+
+    DATA(lv_inverted_match_range_rej) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-PAGE'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              filter_resv_matched_pct_from = abap_true
+              resv_matched_pct_from        = 80
+              filter_resv_matched_pct_to   = abap_true
+              resv_matched_pct_to          = 70 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_match_range_rej = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_match_range_rej ).
+  ENDMETHOD.
+
+  METHOD filters_resv_short_pct_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-allocated_quantity = 5.
+    ls_status-resv_allocation_summaries[ 2 ]-matched_quantity = 5.
+    ls_status-resv_allocation_summaries[ 2 ]-uncovered_quantity = 3.
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_coverage_pct =
+      CONV decfloat34( '62.5' ).
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_shortage_pct =
+      CONV decfloat34( '37.5' ).
+    ls_status-resv_allocation_summaries[ 2 ]-matched_share_pct =
+      CONV decfloat34( '62.5' ).
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    APPEND VALUE #(
+      reservation_number      = '0000000300'
+      reservation_item        = '0001'
+      allocation_sequence     = 3
+      required_date           = '20261022'
+      required_quantity       = 4
+      open_quantity           = 4
+      uncovered_quantity      = 4
+      allocation_coverage_pct = 0
+      allocation_shortage_pct = 100
+      matched_share_pct       = 0
+      fallback_share_pct      = 0
+      allocation_outcome      = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_short_pct_from = abap_true
+          resv_short_pct_from        = CONV decfloat34( '37.5' )
+          filter_resv_short_pct_to   = abap_true
+          resv_short_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '37.5' )
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_short_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '37.5' )
+      act = lt_first_page[ 1 ]-resv_short_pct_from ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_alloc_cursor   = abap_true
+          resv_alloc_cursor_number   = '0000000200'
+          resv_alloc_cursor_item     = '0001'
+          filter_resv_short_pct_from = abap_true
+          resv_short_pct_from        = CONV decfloat34( '37.5' )
+          filter_resv_short_pct_to   = abap_true
+          resv_short_pct_to          = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_zero_shortage) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          filter_resv_short_pct_to = abap_true
+          resv_short_pct_to        = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_zero_shortage[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_zero_shortage[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          unit                       = 'BOX'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_short_pct_from = abap_true
+          resv_short_pct_from        = 100 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_resv_short_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_uom_results[ 1 ]-resv_short_pct_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_uom_results[ 1 ]-filtered_resv_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_uom_results[ 1 ]-filtered_resv_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_uom_results[ 1 ]-filtered_resv_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_uom_results[ 1 ]-filtered_resv_fallback_pct ).
+
+    DATA(lv_bad_short_pct_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-PAGE'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_resv_short_pct_to = abap_true
+              resv_short_pct_to        = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_short_pct_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_short_pct_bound ).
+
+    DATA(lv_inactive_short_pct_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-PAGE'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              resv_short_pct_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_short_pct_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_short_pct_bound ).
+
+    DATA(lv_inverted_short_pct_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-PAGE'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_short_pct_from = abap_true
+              resv_short_pct_from        = 80
+              filter_resv_short_pct_to   = abap_true
+              resv_short_pct_to          = 70 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_short_pct_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_short_pct_range ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_qty_ranges.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    APPEND VALUE #(
+      reservation_number      = '0000000300'
+      reservation_item        = '0001'
+      allocation_sequence     = 3
+      required_date           = '20261022'
+      required_quantity       = 7
+      withdrawn_quantity      = 3
+      open_quantity           = 4
+      allocated_quantity      = 4
+      fallback_quantity       = 4
+      allocation_coverage_pct = 100
+      allocation_shortage_pct = 0
+      matched_share_pct       = 0
+      fallback_share_pct      = 100
+      allocation_outcome      = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_fallback_qty_from = abap_true
+          resv_fallback_qty_from        = 3
+          filter_resv_fallback_qty_to   = abap_true
+          resv_fallback_qty_to          = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-fallback_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-filter_resv_fallback_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_first_page[ 1 ]-resv_fallback_qty_from ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_cursor      = abap_true
+          resv_alloc_cursor_number      = '0000000100'
+          resv_alloc_cursor_item        = '0001'
+          filter_resv_fallback_qty_from = abap_true
+          resv_fallback_qty_from        = 3
+          filter_resv_fallback_qty_to   = abap_true
+          resv_fallback_qty_to          = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-fallback_quantity ).
+
+    DATA(lt_matched_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_matched_qty_from = abap_true
+          resv_matched_qty_from        = 8
+          filter_resv_matched_qty_to   = abap_true
+          resv_matched_qty_to          = 10 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_matched_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_matched_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 10 )
+      act = lt_matched_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-matched_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_matched_first_page[ 1 ]-filter_resv_matched_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_matched_first_page[ 1 ]-resv_matched_qty_from ).
+
+    DATA(lt_matched_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          maximum_resv_alloc_rows      = 1
+          filter_resv_alloc_cursor     = abap_true
+          resv_alloc_cursor_number     = '0000000100'
+          resv_alloc_cursor_item       = '0001'
+          filter_resv_matched_qty_from = abap_true
+          resv_matched_qty_from        = 8
+          filter_resv_matched_qty_to   = abap_true
+          resv_matched_qty_to          = 10 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_matched_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_matched_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_matched_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-matched_quantity ).
+
+    DATA(lt_alloc_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_alloc_qty_from = abap_true
+          resv_alloc_qty_from        = 8
+          filter_resv_alloc_qty_to   = abap_true
+          resv_alloc_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_alloc_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 18 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '85.71' )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '14.29' )
+      act = lt_alloc_first_page[ 1 ]-filtered_resv_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_alloc_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 13 )
+      act = lt_alloc_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_alloc_first_page[ 1 ]-filter_resv_alloc_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_alloc_first_page[ 1 ]-resv_alloc_qty_from ).
+
+    DATA(lt_alloc_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_alloc_cursor   = abap_true
+          resv_alloc_cursor_number   = '0000000100'
+          resv_alloc_cursor_item     = '0001'
+          filter_resv_alloc_qty_from = abap_true
+          resv_alloc_qty_from        = 8
+          filter_resv_alloc_qty_to   = abap_true
+          resv_alloc_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_alloc_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 18 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '85.71' )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '14.29' )
+      act = lt_alloc_last_page[ 1 ]-filtered_resv_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_alloc_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_alloc_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocated_quantity ).
+
+    DATA(lt_open_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'ALLOC-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_resv_alloc_rows   = 1
+          filter_resv_open_qty_from = abap_true
+          resv_open_qty_from        = 8
+          filter_resv_open_qty_to   = abap_true
+          resv_open_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_open_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 13 )
+      act = lt_open_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_open_first_page[ 1 ]-filter_resv_open_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_open_first_page[ 1 ]-resv_open_qty_from ).
+
+    DATA(lt_open_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'ALLOC-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_resv_alloc_rows   = 1
+          filter_resv_alloc_cursor  = abap_true
+          resv_alloc_cursor_number  = '0000000100'
+          resv_alloc_cursor_item    = '0001'
+          filter_resv_open_qty_from = abap_true
+          resv_open_qty_from        = 8
+          filter_resv_open_qty_to   = abap_true
+          resv_open_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_open_last_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_open_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_open_last_page[ 1 ]-resv_alloc_summaries[ 1 ]-open_quantity ).
+
+    DATA(lt_required_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          maximum_resv_alloc_rows  = 1
+          filter_resv_req_qty_from = abap_true
+          resv_req_qty_from        = 7
+          filter_resv_req_qty_to   = abap_true
+          resv_req_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_required_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_required_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 13 )
+      act = lt_required_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-required_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_required_first_page[ 1 ]-filter_resv_req_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_required_first_page[ 1 ]-resv_req_qty_from ).
+
+    DATA(lt_required_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          maximum_resv_alloc_rows  = 1
+          filter_resv_alloc_cursor = abap_true
+          resv_alloc_cursor_number = '0000000100'
+          resv_alloc_cursor_item   = '0001'
+          filter_resv_req_qty_from = abap_true
+          resv_req_qty_from        = 7
+          filter_resv_req_qty_to   = abap_true
+          resv_req_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_required_next_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_required_next_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_required_next_page[ 1 ]-resv_alloc_summaries[ 1 ]-required_quantity ).
+
+    DATA(lt_demand_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_req_qty_from      = abap_true
+          resv_req_qty_from             = 7
+          filter_resv_withdraw_qty_from = abap_true
+          resv_withdraw_qty_from        = 3 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_demand_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_demand_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_demand_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_required_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-enmng( 3 )
+      act = lt_demand_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_withdrawn_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_demand_uom_results[ 1 ]-filter_resv_req_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_demand_uom_results[ 1 ]-resv_req_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_demand_uom_results[ 1 ]-filter_resv_withdraw_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-enmng( 3 )
+      act = lt_demand_uom_results[ 1 ]-resv_withdraw_qty_from ).
+
+    DATA(lt_zero_fallback) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'ALLOC-PAGE'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20261025'
+          filter_resv_fallback_qty_to = abap_true
+          resv_fallback_qty_to        = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_zero_fallback[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_zero_fallback[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_matched_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          unit                       = 'BOX'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_matched_qty_to = abap_true
+          resv_matched_qty_to        = 0 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_matched_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_matched_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_matched_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_matched_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_matched_uom_results[ 1 ]-filter_resv_matched_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_matched_uom_results[ 1 ]-resv_matched_qty_to ).
+
+    DATA(lt_alloc_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id               = 'ALLOC-PAGE'
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          unit                     = 'BOX'
+          as_of_date               = '20261018'
+          through_date             = '20261025'
+          filter_resv_alloc_qty_to = abap_true
+          resv_alloc_qty_to        = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_alloc_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_alloc_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_alloc_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_alloc_uom_results[ 1 ]-filter_resv_alloc_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_alloc_uom_results[ 1 ]-resv_alloc_qty_to ).
+
+    DATA(lt_alloc_uom_total) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          unit                       = 'BOX'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_alloc_qty_from = abap_true
+          resv_alloc_qty_from        = 8
+          filter_resv_alloc_qty_to   = abap_true
+          resv_alloc_qty_to          = 13 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_alloc_uom_total[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_uom_total[ 1 ]-base_filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_alloc_uom_total[ 1 ]-src_filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 18 )
+      act = lt_alloc_uom_total[ 1 ]-base_filtered_resv_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.5' )
+      act = lt_alloc_uom_total[ 1 ]-src_filtered_resv_matched_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_alloc_uom_total[ 1 ]-base_filtered_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.25' )
+      act = lt_alloc_uom_total[ 1 ]-src_filtered_fallback_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_alloc_uom_total[ 1 ]-base_filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_alloc_uom_total[ 1 ]-filtered_resv_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_alloc_uom_total[ 1 ]-filtered_resv_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '85.71' )
+      act = lt_alloc_uom_total[ 1 ]-filtered_resv_matched_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '14.29' )
+      act = lt_alloc_uom_total[ 1 ]-filtered_resv_fallback_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_alloc_uom_total[ 1 ]-src_filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_alloc_uom_total[ 1 ]-base_filtered_resv_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_alloc_uom_total[ 1 ]-src_filtered_resv_short_qty ).
+
+    DATA(lt_open_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id              = 'ALLOC-PAGE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          unit                    = 'BOX'
+          as_of_date              = '20261018'
+          through_date            = '20261025'
+          filter_resv_open_qty_to = abap_true
+          resv_open_qty_to        = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_open_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_open_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_open_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_open_uom_results[ 1 ]-filter_resv_open_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_open_uom_results[ 1 ]-resv_open_qty_to ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_fallback_qty_from = abap_true
+          resv_fallback_qty_from        = 4
+          filter_resv_fallback_qty_to   = abap_true
+          resv_fallback_qty_to          = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_uom_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_fallback_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_resv_fallback_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_uom_results[ 1 ]-resv_fallback_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_resv_fallback_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_uom_results[ 1 ]-resv_fallback_qty_to ).
+
+    DATA(lv_bad_bound_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'ALLOC-PAGE'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20261025'
+              filter_resv_fallback_qty_to = abap_true
+              resv_fallback_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_bound_rejected ).
+
+    DATA(lv_inactive_bound_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-PAGE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_fallback_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_bound_rejected ).
+
+    DATA(lv_inverted_range_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-PAGE'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_fallback_qty_from = abap_true
+              resv_fallback_qty_from        = 5
+              filter_resv_fallback_qty_to   = abap_true
+              resv_fallback_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_range_rejected ).
+    DATA(lv_bad_matched_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-PAGE'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_matched_qty_to = abap_true
+              resv_matched_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_matched_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_matched_qty_bound ).
+
+    DATA(lv_inactive_matched_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id            = 'ALLOC-PAGE'
+              material              = 'MAT-1'
+              plant                 = '1000'
+              as_of_date            = '20261018'
+              through_date          = '20261025'
+              resv_matched_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_matched_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_matched_qty_bound ).
+
+    DATA(lv_inverted_matched_qty_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-PAGE'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              filter_resv_matched_qty_from = abap_true
+              resv_matched_qty_from        = 5
+              filter_resv_matched_qty_to   = abap_true
+              resv_matched_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_matched_qty_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_matched_qty_range ).
+    DATA(lv_bad_alloc_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-PAGE'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_resv_alloc_qty_to = abap_true
+              resv_alloc_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_alloc_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_alloc_qty_bound ).
+
+    DATA(lv_inactive_alloc_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-PAGE'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              resv_alloc_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_alloc_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_alloc_qty_bound ).
+
+    DATA(lv_inverted_alloc_qty_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-PAGE'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_qty_from = abap_true
+              resv_alloc_qty_from        = 5
+              filter_resv_alloc_qty_to   = abap_true
+              resv_alloc_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_alloc_qty_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_alloc_qty_range ).
+    DATA(lv_bad_open_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'ALLOC-PAGE'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              filter_resv_open_qty_to = abap_true
+              resv_open_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_open_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_open_qty_bound ).
+
+    DATA(lv_inactive_open_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id         = 'ALLOC-PAGE'
+              material           = 'MAT-1'
+              plant              = '1000'
+              as_of_date         = '20261018'
+              through_date       = '20261025'
+              resv_open_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_open_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_open_qty_bound ).
+
+    DATA(lv_inverted_open_qty_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                = 'ALLOC-PAGE'
+              material                  = 'MAT-1'
+              plant                     = '1000'
+              as_of_date                = '20261018'
+              through_date              = '20261025'
+              filter_resv_open_qty_from = abap_true
+              resv_open_qty_from        = 5
+              filter_resv_open_qty_to   = abap_true
+              resv_open_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_open_qty_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_open_qty_range ).
+    DATA(lv_bad_req_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-PAGE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              filter_resv_req_qty_to = abap_true
+              resv_req_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_req_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_req_qty_bound ).
+
+    DATA(lv_inactive_req_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id        = 'ALLOC-PAGE'
+              material          = 'MAT-1'
+              plant             = '1000'
+              as_of_date        = '20261018'
+              through_date      = '20261025'
+              resv_req_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_req_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_req_qty_bound ).
+
+    DATA(lv_inverted_req_qty_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-PAGE'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_resv_req_qty_from = abap_true
+              resv_req_qty_from        = 5
+              filter_resv_req_qty_to   = abap_true
+              resv_req_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_req_qty_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_req_qty_range ).
+
+    DATA(lv_bad_withdraw_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'ALLOC-PAGE'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20261025'
+              filter_resv_withdraw_qty_to = abap_true
+              resv_withdraw_qty_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_withdraw_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_withdraw_qty_bound ).
+
+    DATA(lv_inactive_withdraw_qty_bound) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-PAGE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_withdraw_qty_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_withdraw_qty_bound = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_withdraw_qty_bound ).
+
+    DATA(lv_inverted_withdraw_qty_range) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-PAGE'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_withdraw_qty_from = abap_true
+              resv_withdraw_qty_from        = 5
+              filter_resv_withdraw_qty_to   = abap_true
+              resv_withdraw_qty_to          = 4 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_withdraw_qty_range = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_withdraw_qty_range ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_outcome.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                = 'ALLOC-PAGE'
+          material                  = 'MAT-1'
+          plant                     = '1000'
+          as_of_date                = '20261018'
+          through_date              = '20261025'
+          maximum_resv_alloc_rows   = 1
+          filter_resv_alloc_outcome = abap_true
+          resv_alloc_outcome        = 'P' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-fully_allocated_resv_count ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_date_bucket.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-open_reservation_row_count = 4.
+    ls_status-fully_allocated_resv_count = 4.
+    ls_status-resv_allocation_summaries[ 1 ]-required_date = '20261017'.
+    ls_status-resv_allocation_summaries[ 1 ]-open_quantity = 5.
+    ls_status-resv_allocation_summaries[ 2 ]-required_date = '20261018'.
+    ls_status-resv_allocation_summaries[ 2 ]-open_quantity = 4.
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261022'
+      open_quantity      = 7
+      allocation_outcome = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      open_quantity      = 5
+      allocation_outcome = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_overdue) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'O' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_overdue[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_overdue[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_due_today) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'T' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_due_today[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_due_today[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_future) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'F' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_future[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_future[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_undated) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_undated[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000400'
+      act = lt_undated[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA lv_bad_bucket_rejected TYPE abap_bool.
+    DATA lv_inactive_bucket_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-BUCKET-BAD'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_alloc_date_bucket = abap_true
+              resv_alloc_date_bucket        = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_bucket_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-BUCKET-INACTIVE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_alloc_date_bucket = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_bucket_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_bucket_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_bucket_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_due_horizon.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 1 ]-required_date = '20261017'.
+    ls_status-resv_allocation_summaries[ 2 ]-required_date = '20261018'.
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261025'
+      open_quantity      = 1
+      allocation_outcome = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      required_date      = '20261101'
+      open_quantity      = 2
+      allocation_outcome = 'P' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000500'
+      reservation_item   = '0001'
+      required_date      = '20261118'
+      open_quantity      = 3
+      allocation_outcome = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000600'
+      reservation_item   = '0001'
+      required_date      = '20270117'
+      open_quantity      = 4
+      allocation_outcome = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000700'
+      reservation_item   = '0001'
+      open_quantity      = 5
+      allocation_outcome = 'P' )
+      TO ls_status-resv_allocation_summaries.
+    CLEAR lt_status.
+    ls_status-request_id = 'HORIZON-O'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-T'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-1'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-2'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-3'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-4'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'HORIZON-U'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'HORIZON-O'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = 'O' )
+        ( request_id                    = 'HORIZON-T'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = 'T' )
+        ( request_id                    = 'HORIZON-1'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '1'
+          filter_resv_alloc_outcome     = abap_true
+          resv_alloc_outcome            = 'F'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'F' )
+        ( request_id                    = 'HORIZON-2'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '2' )
+        ( request_id                    = 'HORIZON-3'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '3' )
+        ( request_id                    = 'HORIZON-4'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '4' )
+        ( request_id                    = 'HORIZON-U'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 2 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 2 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 3 ]-filter_resv_alloc_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 3 ]-resv_alloc_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 3 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 3 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_results[ 3 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000400'
+      act = lt_results[ 4 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000500'
+      act = lt_results[ 5 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000600'
+      act = lt_results[ 6 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000700'
+      act = lt_results[ 7 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA lv_bad_horizon_rejected TYPE abap_bool.
+    DATA lv_inactive_horizon_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'HORIZON-BAD'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_alloc_due_horizon = abap_true
+              resv_alloc_due_horizon        = '9' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_horizon_rejected         = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'HORIZON-INACTIVE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_alloc_due_horizon = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_horizon_rejected    = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_horizon_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_horizon_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_sequence.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = allocation_bulk_fixture( ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_sequence    = abap_true
+          resv_alloc_sequence           = 2
+          filter_resv_alloc_outcome     = abap_true
+          resv_alloc_outcome            = 'F'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'F'
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '1'
+          resv_alloc_required_date_from = '20261021'
+          resv_alloc_required_date_to   = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_range_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_alloc_seq_from = abap_true
+          resv_alloc_seq_from        = 1
+          filter_resv_alloc_seq_to   = abap_true
+          resv_alloc_seq_to          = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_range_first_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_range_first_page[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_range_first_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_range_first_page[ 1 ]-filter_resv_alloc_seq_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_range_first_page[ 1 ]-resv_alloc_seq_from ).
+
+    DATA(lt_range_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_resv_alloc_rows    = 1
+          filter_resv_alloc_cursor   = abap_true
+          resv_alloc_cursor_number   = '0000000100'
+          resv_alloc_cursor_item     = '0001'
+          filter_resv_alloc_seq_from = abap_true
+          resv_alloc_seq_from        = 1
+          filter_resv_alloc_seq_to   = abap_true
+          resv_alloc_seq_to          = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_range_next_page[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_range_next_page[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_range_next_page[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+
+    DATA(lt_uom_range_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          unit                       = 'BOX'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_resv_alloc_seq_from = abap_true
+          resv_alloc_seq_from        = 2
+          filter_resv_alloc_seq_to   = abap_true
+          resv_alloc_seq_to          = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_range_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_range_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_range_results[ 1 ]-filter_resv_alloc_seq_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_range_results[ 1 ]-resv_alloc_seq_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_range_results[ 1 ]-filter_resv_alloc_seq_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_range_results[ 1 ]-resv_alloc_seq_to ).
+
+    DATA lv_bad_sequence_rejected TYPE abap_bool.
+    DATA lv_inactive_sequence_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SEQUENCE-BAD'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_sequence = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_sequence_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-SEQUENCE-INACTIVE'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              resv_alloc_sequence = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_sequence_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_sequence_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_sequence_rejected ).
+    DATA lv_bad_seq_bound_rejected TYPE abap_bool.
+    DATA lv_inactive_seq_bound_rejected TYPE abap_bool.
+    DATA lv_inverted_seq_range_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SEQUENCE-RANGE-BAD'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_seq_from = abap_true
+              resv_alloc_seq_from        = 0 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_seq_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id        = 'ALLOC-SEQUENCE-RANGE-INACTIVE'
+              material          = 'MAT-1'
+              plant             = '1000'
+              as_of_date        = '20261018'
+              through_date      = '20261025'
+              resv_alloc_seq_to = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_seq_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SEQUENCE-RANGE-ORDER'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_seq_from = abap_true
+              resv_alloc_seq_from        = 3
+              filter_resv_alloc_seq_to   = abap_true
+              resv_alloc_seq_to          = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_seq_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_seq_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_seq_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_seq_range_rejected ).
+
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_reservation.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_reservation = abap_true
+          resv_alloc_reservation_number = '0000000200'
+          resv_alloc_reservation_item   = '0001'
+          filter_resv_alloc_outcome     = abap_true
+          resv_alloc_outcome            = 'P' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-resv_alloc_reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-fully_allocated_resv_count ).
+  ENDMETHOD.
+
+  METHOD filters_resv_alloc_date_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 1 ]-required_date = space.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          resv_alloc_required_date_from = '20261021'
+          resv_alloc_required_date_to   = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-required_date ).
+  ENDMETHOD.
+
+  METHOD omits_resv_alloc_summaries.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          filter_resv_alloc_outcome    = abap_true
+          resv_alloc_outcome           = 'P'
+          omit_resv_alloc_summary_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-omit_resv_alloc_summary_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 1 ]-resv_alloc_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-fully_allocated_resv_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_results[ 1 ]-fully_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 1 ]-part_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 1 ]-unalloc_resv_open_qty ).
+  ENDMETHOD.
+
+  METHOD omits_allocation_details.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'ALLOC-PAGE'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20261025'
+          filter_allocation_pass      = abap_true
+          allocation_pass             = 'F'
+          omit_allocation_detail_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-omit_allocation_detail_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 1 ]-allocation_details ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-matched_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-fallback_allocation_row_count ).
+  ENDMETHOD.
+
+  METHOD pages_allocation_details.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id              = 'ALLOC-PAGE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          as_of_date              = '20261018'
+          through_date            = '20261025'
+          maximum_allocation_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_first_page[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_first_page[ 1 ]-filtered_allocation_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_first_page[ 1 ]-filtered_allocation_passes ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 18 )
+      act = lt_first_page[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_first_page[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_first_page[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-allocation_details[ 1 ]-days_until_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'M'
+      act = lt_first_page[ 1 ]-next_alloc_cursor_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_first_page[ 1 ]-next_alloc_cursor_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_first_page[ 1 ]-next_alloc_cursor_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = space
+      act = lt_first_page[ 1 ]-next_alloc_cursor_val_type ).
+
+    DATA(lt_second_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_allocation_rows    = 2
+          filter_allocation_cursor   = abap_true
+          allocation_cursor_number   =
+            lt_first_page[ 1 ]-next_alloc_cursor_number
+          allocation_cursor_item     =
+            lt_first_page[ 1 ]-next_alloc_cursor_item
+          allocation_cursor_pass     =
+            lt_first_page[ 1 ]-next_alloc_cursor_pass
+          allocation_cursor_location =
+            lt_first_page[ 1 ]-next_alloc_cursor_location
+          allocation_cursor_batch    =
+            lt_first_page[ 1 ]-next_alloc_cursor_batch
+          allocation_cursor_val_type =
+            lt_first_page[ 1 ]-next_alloc_cursor_val_type
+          allocation_cursor_exp_date =
+            lt_first_page[ 1 ]-next_alloc_cursor_exp_date ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_second_page[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_second_page[ 1 ]-filtered_allocation_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_second_page[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'M'
+      act = lt_second_page[ 1 ]-allocation_details[ 1 ]-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_second_page[ 1 ]-allocation_details[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_second_page[ 1 ]-allocation_details[ 2 ]-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_second_page[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 18
+      act = lt_second_page[ 1 ]-matched_allocation_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_second_page[ 1 ]-fallback_allocation_quantity ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-PAGE'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          maximum_allocation_rows    = 2
+          filter_allocation_cursor   = abap_true
+          allocation_cursor_number   =
+            lt_second_page[ 1 ]-next_alloc_cursor_number
+          allocation_cursor_item     =
+            lt_second_page[ 1 ]-next_alloc_cursor_item
+          allocation_cursor_pass     =
+            lt_second_page[ 1 ]-next_alloc_cursor_pass
+          allocation_cursor_location =
+            lt_second_page[ 1 ]-next_alloc_cursor_location
+          allocation_cursor_batch    =
+            lt_second_page[ 1 ]-next_alloc_cursor_batch
+          allocation_cursor_val_type =
+            lt_second_page[ 1 ]-next_alloc_cursor_val_type
+          allocation_cursor_exp_date =
+            lt_second_page[ 1 ]-next_alloc_cursor_exp_date ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_last_page[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_last_page[ 1 ]-filtered_allocation_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_last_page[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'M'
+      act = lt_last_page[ 1 ]-allocation_details[ 1 ]-allocation_pass ).
+  ENDMETHOD.
+
+  METHOD pages_allocation_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_resv_alloc_rows       = 1
+          filter_resv_alloc_outcome     = abap_true
+          resv_alloc_outcome            = 'F'
+          filter_resv_alloc_date_bucket = abap_true
+          resv_alloc_date_bucket        = 'F'
+          filter_resv_alloc_due_horizon = abap_true
+          resv_alloc_due_horizon        = '1'
+          filter_resv_alloc_sequence    = abap_true
+          resv_alloc_sequence           = 1
+          filter_resv_alloc_reservation = abap_true
+          resv_alloc_reservation_number = '0000000100'
+          resv_alloc_reservation_item   = '0001'
+          resv_alloc_required_date_from = '20261020'
+          resv_alloc_required_date_to   = '20261020'
+          filter_resv_alloc_cov_from    = abap_true
+          resv_alloc_coverage_from      = 90
+          filter_resv_alloc_cov_to      = abap_true
+          resv_alloc_coverage_to        = 100
+          filter_resv_alloc_short_to    = abap_true
+          resv_alloc_short_to           = 0
+          maximum_allocation_rows       = 1
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item   = '0001'
+          filter_allocation_pass        = abap_true
+          allocation_pass               = 'M'
+          filter_allocation_val_type    = abap_true
+          filter_allocation_location    = abap_true
+          allocation_location           = '0001'
+          filter_allocation_batch       = abap_true
+          allocation_batch              = 'A'
+          filter_allocation_sequence    = abap_true
+          allocation_sequence           = 1
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'F'
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '1'
+          allocation_required_date_from = '20261020'
+          allocation_required_date_to   = '20261020'
+          allocation_expiry_date_from   = '20261020'
+          allocation_expiry_date_to     = '20261020'
+          filter_allocation_expiry      = abap_true
+          allocation_expiry_status      = 'U'
+          filter_allocation_source      = abap_true
+          allocation_expiry_source      = 'P'
+          filter_allocation_expiry_due  = abap_true
+          allocation_expiry_due         = 'S'
+          filter_allocation_expiry_gap  = abap_true
+          allocation_expiry_gap_from    = 0
+          allocation_expiry_gap_to      = 0
+          filter_allocation_gap_band    = abap_true
+          allocation_gap_band           = 'Z' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_results[ 1 ]-resv_alloc_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_results[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_date_bucket ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_results[ 1 ]-resv_alloc_date_bucket ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-resv_alloc_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_results[ 1 ]-base_fully_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_results[ 1 ]-src_fully_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 1 ]-base_part_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_results[ 1 ]-src_part_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 0 )
+      act = lt_results[ 1 ]-base_unalloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_results[ 1 ]-src_unalloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_results[ 1 ]-resv_alloc_open_demand_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'F' ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'F' ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results[ 1 ]-open_resv_due_horizon_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '1' ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '1' ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-next_open_resv_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-next_open_resv_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-next_open_resv_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-days_until_next_open_resv_req ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-resv_alloc_reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-resv_alloc_reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-resv_alloc_required_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-resv_alloc_required_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_cov_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 90
+      act = lt_results[ 1 ]-resv_alloc_coverage_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_cov_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 100
+      act = lt_results[ 1 ]-resv_alloc_coverage_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_resv_alloc_short_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-resv_alloc_short_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_resv_alloc_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 13 )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.083' )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 100 )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '76.92' )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-matched_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '23.08' )
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-fallback_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-resv_alloc_summaries[ 1 ]-days_until_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 21 )
+      act = lt_results[ 1 ]-base_future_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.75' )
+      act = lt_results[ 1 ]-src_future_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-future_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-overdue_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-base_filtered_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-source_filtered_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results[ 1 ]-filtered_allocation_passes ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lines( lt_results[ 1 ]-filtered_alloc_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_expiry_sources
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_expiry_sources
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_expiry_sources
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_alloc_exp_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'D' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_exp_statuses
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_exp_statuses
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_exp_statuses
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lines( lt_results[ 1 ]-filtered_expiry_due_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 60
+      act = lines( lt_results[ 1 ]-filtered_alloc_src_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = '' gap_band = 'N4'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_src_gap_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_src_gap_bands
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_src_gap_bands
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-filtered_exp_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'U'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'U'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'U'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = '' expiry_status = 'D'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_statuses
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_statuses
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_statuses
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42
+      act = lines( lt_results[ 1 ]-filtered_alloc_due_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_src_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_src_bands
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_src_bands
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lines( lt_results[ 1 ]-filtered_alloc_due_horizons ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = '1' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = '1' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = '1' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_horizons
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_horizons
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_horizons
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_alloc_date_buckets ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'O' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_date_buckets
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_date_buckets
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_date_buckets
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 32
+      act = lines( lt_results[ 1 ]-filtered_alloc_risk_matrix ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'U' required_date_bucket = 'F'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'U' required_date_bucket = 'F'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'U' required_date_bucket = 'F'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_risk_matrix
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_risk_matrix
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_risk_matrix
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_expiry_due_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'S' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'S' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'S' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_expiry_due_relations
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_expiry_due_relations
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_expiry_due_relations
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-filtered_exp_src_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = 'P' expiry_due_relation = 'S'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = 'P' expiry_due_relation = 'S'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = 'P' expiry_due_relation = 'S'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = '' expiry_due_relation = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_relations
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_filtered_alloc_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_relations
+        NEXT quantity = quantity + summary-base_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-source_filtered_alloc_qty
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_relations
+        NEXT quantity = quantity + summary-source_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 60
+      act = lines( lt_results[ 1 ]-alloc_expiry_src_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.333' )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'G' gap_band = 'N1'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-allocation_expiry_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-allocation_expiry_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_results[ 1 ]-allocation_expiry_status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-allocation_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_expiry_due ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'S'
+      act = lt_results[ 1 ]-allocation_expiry_due ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_expiry_gap ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_gap_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_gap_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_gap_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_results[ 1 ]-allocation_gap_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-max_expiry_due_gap-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-max_expiry_due_gap-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-max_expiry_due_gap-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = lt_results[ 1 ]-max_expiry_due_gap-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-allocation_expiry_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 18 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.5' )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'F' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.25' )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'F' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lines( lt_results[ 1 ]-allocation_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'G' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'G' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'F' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.25' )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'F' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-alloc_expiry_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 60
+      act = lines( lt_results[ 1 ]-alloc_expiry_src_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'Z'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.333' )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'G' gap_band = 'N1'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'U'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'U'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'G' expiry_status = 'U'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'G' expiry_status = 'U'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42
+      act = lines( lt_results[ 1 ]-alloc_due_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'S'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiry_due_gap_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lines( lt_results[ 1 ]-expiry_due_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-expiry_due_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'M' ]-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'M' ]-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-days_until_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_reservation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-allocation_reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-allocation_reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'M'
+      act = lt_results[ 1 ]-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_val_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-allocation_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-allocation_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_results[ 1 ]-allocation_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_date_bucket ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_results[ 1 ]-allocation_date_bucket ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-allocation_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-allocation_required_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-allocation_required_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-matched_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-fallback_allocation_row_count ).
+    DATA(lt_omitted) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          unit                         = 'BOX'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          omit_resv_alloc_summary_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted[ 1 ]-omit_resv_alloc_summary_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_omitted[ 1 ]-total_resv_alloc_summary_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_omitted[ 1 ]-returned_resv_alloc_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_omitted[ 1 ]-resv_alloc_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_omitted[ 1 ]-is_resv_alloc_truncated ).
+    DATA(lt_omitted_details) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'ALLOC-PAGE'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          unit                        = 'BOX'
+          as_of_date                  = '20261018'
+          through_date                = '20261025'
+          omit_allocation_detail_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_omitted_details[ 1 ]-omit_allocation_detail_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_omitted_details[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_omitted_details[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_omitted_details[ 1 ]-allocation_details ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_omitted_details[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_omitted_details[ 1 ]-matched_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_omitted_details[ 1 ]-fallback_allocation_row_count ).  ENDMETHOD.
+
+  METHOD filters_allocation_reservation.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 2
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item   = '0001' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_first_page[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_first_page[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_first_page[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_first_page[ 1 ]-allocation_details[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_first_page[ 1 ]-matched_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-fallback_allocation_row_count ).
+
+    DATA(lt_last_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 2
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item   = '0001'
+          filter_allocation_cursor      = abap_true
+          allocation_cursor_number      =
+            lt_first_page[ 1 ]-next_alloc_cursor_number
+          allocation_cursor_item        =
+            lt_first_page[ 1 ]-next_alloc_cursor_item
+          allocation_cursor_pass        =
+            lt_first_page[ 1 ]-next_alloc_cursor_pass
+          allocation_cursor_location    =
+            lt_first_page[ 1 ]-next_alloc_cursor_location
+          allocation_cursor_batch       =
+            lt_first_page[ 1 ]-next_alloc_cursor_batch
+          allocation_cursor_val_type    =
+            lt_first_page[ 1 ]-next_alloc_cursor_val_type
+          allocation_cursor_exp_date    =
+            lt_first_page[ 1 ]-next_alloc_cursor_exp_date ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_last_page[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_last_page[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_last_page[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_last_page[ 1 ]-allocation_details[ 1 ]-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_last_page[ 1 ]-allocation_details[ 1 ]-batch ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_val_type.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = allocation_bulk_fixture( ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_valuated) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_val_type = abap_true
+          allocation_val_type = 'V' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_valuated[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_valuated[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_valuated[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_valuated[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'V'
+      act = lt_valuated[ 1 ]-allocation_details[ 1 ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_valuated[ 1 ]-matched_allocation_row_count ).
+
+    DATA(lt_blank) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item = '0001'
+          filter_allocation_pass = abap_true allocation_pass = 'M'
+          filter_allocation_val_type = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_blank[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_blank[ 1 ]-filter_allocation_val_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank[ 1 ]-allocation_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_blank[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank[ 1 ]-allocation_details[ 1 ]-valuation_type ).
+
+    DATA lv_inactive_value_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-VALTYPE-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_val_type = 'V' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_value_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_value_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_stock_keys.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    CLEAR ls_status-allocation_details[ 1 ]-storage_location.
+    CLEAR ls_status-allocation_details[ 3 ]-batch.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_stock_row) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_val_type = abap_true
+          allocation_val_type = 'V'
+          filter_allocation_location = abap_true
+          allocation_location = '0002'
+          filter_allocation_batch = abap_true
+          allocation_batch = 'B' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_stock_row[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_stock_row[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_stock_row[ 1 ]-allocation_details[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'V'
+      act = lt_stock_row[ 1 ]-allocation_details[ 1 ]-valuation_type ).
+
+    DATA(lt_blank_location) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item = '0001'
+          filter_allocation_pass = abap_true allocation_pass = 'M'
+          filter_allocation_location = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_blank_location[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank_location[ 1 ]-allocation_location ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank_location[ 1 ]-allocation_details[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_blank_location[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_blank_batch) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000100'
+          allocation_reservation_item = '0001'
+          filter_allocation_pass = abap_true allocation_pass = 'F'
+          filter_allocation_batch = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_blank_batch[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank_batch[ 1 ]-allocation_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_blank_batch[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA lv_inactive_batch_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-STOCKKEY-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_batch = 'A' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_batch_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_batch_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_expiry_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261022'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'UNDATED'
+      quantity           = 1 ) TO ls_status-allocation_details.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_exact_date) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          allocation_expiry_date_from   = '20261021'
+          allocation_expiry_date_to     = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_exact_date[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_exact_date[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_from_date) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          allocation_expiry_date_from   = '20261022' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_from_date[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_from_date[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_date_window) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-PAGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          allocation_expiry_date_from   = '20261020'
+          allocation_expiry_date_to     = '20261022' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_date_window[ 1 ]-total_allocation_detail_count ).
+
+    DATA lv_bad_date_rejected TYPE abap_bool.
+    DATA lv_inverted_bounds_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-EXP-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              allocation_expiry_date_from = '20261340' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_date_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-EXP-INVERTED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              allocation_expiry_date_from = '20261022'
+              allocation_expiry_date_to = '20261021' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_bounds_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_bounds_rejected ).
+  ENDMETHOD.
+
+  METHOD reports_allocation_expiry_days.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-EXP-DAYS'.
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-expiration_date = '20261018'.
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261030'.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAYS' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'A' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'B' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lt_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'C' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_details[
+        reservation_number = '0000000200' batch = 'A' ]-days_to_expiration ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAYS' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_uom_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'A' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'B' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lt_uom_results[ 1 ]-allocation_details[
+        reservation_number = '0000000100' batch = 'C' ]-days_to_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 1 ]-allocation_details[
+        reservation_number = '0000000200' batch = 'A' ]-days_to_expiration ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_exp_day_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-EXP-DAY-RANGE'.
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-expiration_date = '20261018'.
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261020'.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_range) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAY-RANGE' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261025' maximum_allocation_rows = 2
+          filter_alloc_expiry_days_from = abap_true
+          alloc_expiry_days_from = -1
+          filter_alloc_expiry_days_to = abap_true
+          alloc_expiry_days_to = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_range[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_range[ 1 ]-filter_alloc_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1 act = lt_range[ 1 ]-alloc_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-alloc_expiry_days_to ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAY-RANGE' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261025'
+          filter_alloc_expiry_days_from = abap_true
+          alloc_expiry_days_from = 0 ) ) ).
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAY-RANGE' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261025'
+          filter_alloc_expiry_days_to = abap_true
+          alloc_expiry_days_to = -1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_from_only[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_to_only[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_to_only[ 1 ]-allocation_details[ 1 ]-days_to_expiration ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-DAY-RANGE' material = 'MAT-1'
+          plant = '1000' unit = 'BOX' as_of_date = '20261018'
+          through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_alloc_expiry_days_from = abap_true
+          alloc_expiry_days_from = 0
+          filter_alloc_expiry_days_to = abap_true
+          alloc_expiry_days_to = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_alloc_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_uom_results[ 1 ]-alloc_expiry_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_uom_results[ 1 ]-alloc_expiry_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 1 ]-allocation_details[ 1 ]-days_to_expiration ).
+
+    DATA(lv_inverted_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    DATA(lv_bad_uom_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INVERTED-EXP-DAYS' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_alloc_expiry_days_from = abap_true
+              alloc_expiry_days_from = 2
+              filter_alloc_expiry_days_to = abap_true
+              alloc_expiry_days_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INACTIVE-EXP-DAYS' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' alloc_expiry_days_from = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_uom_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-UOM-EXP-DAYS' material = 'MAT-1'
+              plant = '1000' unit = 'BOX' as_of_date = '20261018'
+              through_date = '20261025' alloc_expiry_days_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_uom_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inverted_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_uom_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_expiry_status.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-expiration_date = '20261020'.
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261030'.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-EXP-E'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-U'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-A'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-D'. APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-EXP-E' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1 filter_allocation_expiry = abap_true
+          allocation_expiry_status      = 'E' )
+        ( request_id = 'ALLOC-EXP-U' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1 filter_allocation_expiry = abap_true
+          allocation_expiry_status      = 'U' )
+        ( request_id = 'ALLOC-EXP-A' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1 filter_allocation_expiry = abap_true
+          allocation_expiry_status      = 'A' )
+        ( request_id = 'ALLOC-EXP-D' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1 filter_allocation_expiry = abap_true
+          allocation_expiry_status      = 'D' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 2 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ 2 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 3 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_results[ 3 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 4 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 4 ]-allocation_details[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'D'
+      act = lt_results[ 4 ]-allocation_expiry_status ).
+
+    DATA lv_bad_status_rejected TYPE abap_bool.
+    DATA lv_inactive_status_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-EXP-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' filter_allocation_expiry = abap_true
+              allocation_expiry_status  = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_status_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-EXP-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_expiry_status = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_status_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_status_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_status_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_expiry_source.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-SRC-P'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-SRC-G'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-SRC-BLANK'. APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-SRC-P' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'P' )
+        ( request_id = 'ALLOC-SRC-G' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G' )
+        ( request_id = 'ALLOC-SRC-BLANK' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = '' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 2 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_results[ 2 ]-allocation_details[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 3 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 3 ]-allocation_details[ 1 ]-expiration_date_source ).
+
+    DATA lv_invalid_source_rejected TYPE abap_bool.
+    DATA lv_inactive_source_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-SRC-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_source = abap_true
+              allocation_expiry_source = 'O' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_source_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-SRC-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              allocation_expiry_source = 'P' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_source_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_source_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_source_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_expiry_due.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          filter_allocation_expiry_due = abap_true
+          allocation_expiry_due        = 'B' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_expiry_due ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ 1 ]-allocation_expiry_due ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+
+    DATA(lv_invalid_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-SHELF-INVALID' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_expiry_due = abap_true
+              allocation_expiry_due = 'O' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-SHELF-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              allocation_expiry_due = 'B' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_expiry_gap.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-PAGE'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          filter_allocation_expiry_gap = abap_true
+          allocation_expiry_gap_from   = 1
+          allocation_expiry_gap_to     = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_expiry_gap ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_gap_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_gap_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_allocation_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-reservation_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-filtered_max_before_exp_gap ).
+
+    DATA(lv_reversed_range_rejected) = abap_false.
+    DATA(lv_inactive_range_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-GAP-REVERSED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_expiry_gap = abap_true
+              allocation_expiry_gap_from = 2
+              allocation_expiry_gap_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_reversed_range_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'ALLOC-GAP-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              allocation_expiry_gap_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_reversed_range_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_range_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_alloc_exp_gap_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261011'.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-GAP-BAND'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                 = 'ALLOC-GAP-BAND'
+          material                   = 'MAT-1'
+          plant                      = '1000'
+          as_of_date                 = '20261018'
+          through_date               = '20261025'
+          filter_allocation_gap_band = abap_true
+          allocation_gap_band        = 'P2' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_gap_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P2'
+      act = lt_results[ 1 ]-allocation_gap_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results[ 1 ]-filtered_allocation_passes ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lines( lt_results[ 1 ]-filtered_alloc_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_expiry_sources
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_expiry_sources
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_alloc_exp_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'E' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'E' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_exp_statuses[
+        expiry_status = 'D' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_exp_statuses
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_exp_statuses
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lines( lt_results[ 1 ]-filtered_expiry_due_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_expiry_due_gap_bands[
+        gap_band = 'P2' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_expiry_due_gap_bands[
+        gap_band = 'P2' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 60
+      act = lines( lt_results[ 1 ]-filtered_alloc_src_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'P2'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'P2'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_src_gap_bands[
+        expiration_date_source = '' gap_band = 'N4'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_src_gap_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_src_gap_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-filtered_exp_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'E'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'E'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_exp_src_statuses[
+        expiration_date_source = '' expiry_status = 'D'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_statuses
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_statuses
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42
+      act = lines( lt_results[ 1 ]-filtered_alloc_due_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '1'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_src_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_src_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lines( lt_results[ 1 ]-filtered_alloc_due_horizons ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = '1' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = '1' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_due_horizons[
+        due_horizon_band = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_horizons
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_due_horizons
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_expiry_due_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_expiry_due_relations[
+        expiry_due_relation = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_expiry_due_relations
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_expiry_due_relations
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-filtered_exp_src_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = 'P' expiry_due_relation = 'B'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = 'P' expiry_due_relation = 'B'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_exp_src_relations[
+        expiration_date_source = '' expiry_due_relation = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-total_allocation_detail_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_relations
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-filtered_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_exp_src_relations
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_allocation_passes[
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P2'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiry_due_gap_band ).
+
+    DATA(lv_invalid_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-GAP-BAND-BAD'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_allocation_gap_band = abap_true
+              allocation_gap_band        = 'P5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-GAP-BAND-INACTIVE'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              allocation_gap_band = 'P1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_rejected ).
+  ENDMETHOD.
+
+  METHOD summarizes_alloc_expiry_status.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-expiration_date = '20261020'.
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261030'.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date_source.
+    ls_status-allocation_details[ 1 ]-required_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-required_date = '20261018'.
+    ls_status-allocation_details[ 3 ]-required_date = '20261020'.
+    ls_status-allocation_details[ 4 ]-required_date = '20261030'.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-EXP-E'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-U'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-A'. APPEND ls_status TO lt_status.
+    ls_status-request_id = 'ALLOC-EXP-D'. APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ALLOC-EXP-E' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' )
+        ( request_id = 'ALLOC-EXP-U' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' )
+        ( request_id = 'ALLOC-EXP-A' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' )
+        ( request_id = 'ALLOC-EXP-D' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-allocation_expiry_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'E' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'E' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'A' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'A' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'D' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'E' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'A' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'D' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-allocation_expiry_statuses[
+        expiry_status = 'D' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lines( lt_results[ 1 ]-allocation_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'P' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'G' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = 'G' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-allocation_expiry_sources[
+        expiration_date_source = '' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 24
+      act = lines( lt_results[ 1 ]-alloc_expiry_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'E'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'E'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'G' expiry_status = 'U'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'G' expiry_status = 'U'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = '' expiry_status = 'A'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = '' expiry_status = 'D'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-alloc_expiry_src_statuses[
+        expiration_date_source = 'P' expiry_status = 'E'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-alloc_expiry_src_statuses
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-alloc_expiry_src_statuses
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42
+      act = lines( lt_results[ 1 ]-alloc_due_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = 'O'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = 'O'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'G' due_horizon_band = 'T'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = '1'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = '2'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '3'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-alloc_due_src_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-alloc_due_src_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR status IN lt_results[ 1 ]-allocation_expiry_statuses
+        NEXT quantity = quantity + status-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR status IN lt_results[ 1 ]-allocation_expiry_statuses
+        NEXT row_count = row_count + status-row_count ) ).
+  ENDMETHOD.
+
+  METHOD summarizes_alloc_due_src_bands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0001'
+      allocation_sequence    = 3
+      required_date          = '20261017'
+      allocation_pass        = 'M'
+      storage_location       = '0003'
+      batch                  = 'D'
+      expiration_date        = '20261020'
+      expiration_date_source = 'P'
+      quantity               = 5 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0002'
+      allocation_sequence    = 4
+      required_date          = '20261018'
+      allocation_pass        = 'F'
+      storage_location       = '0003'
+      batch                  = 'E'
+      expiration_date        = '20261020'
+      expiration_date_source = 'G'
+      quantity               = 2 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number  = '0000000300'
+      reservation_item    = '0003'
+      allocation_sequence = 5
+      required_date       = '20261025'
+      allocation_pass     = 'M'
+      storage_location    = '0003'
+      batch               = 'F'
+      expiration_date     = '20261020'
+      quantity            = 3 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0004'
+      allocation_sequence    = 6
+      required_date          = '20261117'
+      allocation_pass        = 'F'
+      storage_location       = '0003'
+      batch                  = 'G'
+      expiration_date        = '20261020'
+      expiration_date_source = 'G'
+      quantity               = 4 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0005'
+      allocation_sequence    = 7
+      required_date          = '20261118'
+      allocation_pass        = 'M'
+      storage_location       = '0003'
+      batch                  = 'H'
+      expiration_date        = '20261020'
+      expiration_date_source = 'P'
+      quantity               = 6 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0006'
+      allocation_sequence    = 8
+      required_date          = '20270116'
+      allocation_pass        = 'F'
+      storage_location       = '0003'
+      batch                  = 'I'
+      expiration_date        = '20261020'
+      expiration_date_source = 'G'
+      quantity               = 7 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number  = '0000000300'
+      reservation_item    = '0007'
+      allocation_sequence = 9
+      required_date       = '20270117'
+      allocation_pass     = 'M'
+      storage_location    = '0003'
+      batch               = 'J'
+      expiration_date     = '20261020'
+      quantity            = 8 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number  = '0000000300'
+      reservation_item    = '0008'
+      allocation_sequence = 10
+      allocation_pass     = 'F'
+      storage_location    = '0003'
+      batch               = 'K'
+      quantity            = 9 ) TO ls_status-allocation_details.
+    ls_status-matched_allocation_quantity = 40.
+    ls_status-fallback_allocation_quantity = 25.
+    ls_status-matched_allocation_row_count = 7.
+    ls_status-fallback_allocation_row_count = 5.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-DUE-BANDS'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-DUE-BANDS'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 42
+      act = lines( lt_results[ 1 ]-alloc_due_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = 'O'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'G' due_horizon_band = 'T'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'G' due_horizon_band = '1'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'G' due_horizon_band = '2'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = '3'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'G' due_horizon_band = '3'
+        allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = '4'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = '' due_horizon_band = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-alloc_due_src_bands[
+        expiration_date_source = 'P' due_horizon_band = 'U'
+        allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-alloc_due_src_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-alloc_due_src_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-filtered_alloc_date_buckets ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'O' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'T' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 35
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'F' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'U' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_date_buckets[
+        allocation_date_bucket = 'U' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_date_buckets
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_date_buckets
+        NEXT row_count = row_count + summary-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 32
+      act = lines( lt_results[ 1 ]-filtered_alloc_risk_matrix ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'U' required_date_bucket = 'O'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 35 )
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'U' required_date_bucket = 'F'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'E' required_date_bucket = 'O'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 9 )
+      act = lt_results[ 1 ]-filtered_alloc_risk_matrix[
+        expiry_status = 'D' required_date_bucket = 'U'
+        allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_risk_matrix
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-filtered_alloc_risk_matrix
+        NEXT row_count = row_count + summary-row_count ) ).
+  ENDMETHOD.
+
+  METHOD classifies_alloc_exp_due.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-expiration_date = '20261019'.
+    ls_status-allocation_details[ 2 ]-expiration_date = '20261020'.
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261021'.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date.
+    CLEAR ls_status-allocation_details[ 4 ]-expiration_date_source.
+    ls_status-allocation_details[ 1 ]-required_date = '20261020'.
+    ls_status-allocation_details[ 2 ]-required_date = '20261020'.
+    ls_status-allocation_details[ 3 ]-required_date = '20261020'.
+    ls_status-allocation_details[ 4 ]-required_date = '20261021'.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-SHELF-LIFE'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-SHELF-LIFE'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-max_expiry_due_gap-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-max_expiry_due_gap-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-max_expiry_due_gap-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'M'
+      act = lt_results[ 1 ]-max_expiry_due_gap-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_results[ 1 ]-max_expiry_due_gap-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-max_expiry_due_gap-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'S'
+      act = lt_results[ 1 ]-allocation_details[ 2 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-allocation_details[ 2 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_results[ 1 ]-allocation_details[ 3 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_results[ 1 ]-allocation_details[ 3 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_results[ 1 ]-allocation_details[ 4 ]-expiry_due_relation ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-allocation_details[ 4 ]-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lines( lt_results[ 1 ]-expiry_due_relations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'S' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'A' allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'U' allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-expiry_due_relations[
+        expiry_due_relation = 'B' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 60
+      act = lines( lt_results[ 1 ]-alloc_expiry_src_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'P1'
+        allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'P' gap_band = 'P1'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = 'G' gap_band = 'Z'
+        allocation_pass = 'M' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-alloc_expiry_src_gap_bands[
+        expiration_date_source = '' gap_band = 'N1'
+        allocation_pass = 'F' ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-alloc_expiry_src_gap_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-alloc_expiry_src_gap_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+  ENDMETHOD.
+
+  METHOD leaves_max_exp_gap_initial.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    LOOP AT ls_status-allocation_details
+        ASSIGNING FIELD-SYMBOL(<ls_allocation_detail>).
+      <ls_allocation_detail>-required_date = '20261020'.
+      <ls_allocation_detail>-expiration_date = '20261021'.
+      <ls_allocation_detail>-expiration_date_source = 'P'.
+    ENDLOOP.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-NO-POSITIVE-GAP'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-NO-POSITIVE-GAP'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-max_expiry_due_gap ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-days_expiry_after_required ).
+  ENDMETHOD.
+
+  METHOD leaves_req_exp_gap_initial.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    LOOP AT ls_status-allocation_details
+        ASSIGNING FIELD-SYMBOL(<ls_allocation_detail>).
+      <ls_allocation_detail>-required_date = '20261022'.
+      <ls_allocation_detail>-expiration_date = '20261021'.
+    ENDLOOP.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-NO-REQUIRED-BEFORE-EXPIRY-GAP'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-NO-REQUIRED-BEFORE-EXPIRY-GAP'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-max_required_before_expiry_gap ).
+  ENDMETHOD.
+
+  METHOD reports_req_exp_gap_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 3 ]-expiration_date = '20261023'.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-REQUIRED-EXP-GAP-UOM'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-REQUIRED-EXP-GAP-UOM'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000200'
+          allocation_reservation_item   = '0001' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_results[ 1 ]-allocation_details ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-days_expiry_after_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000100'
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.25' )
+      act = lt_results[ 1 ]-max_required_before_expiry_gap-source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-days_required_after_expiry ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = lt_results[ 1 ]-filtered_max_due_after_exp_gap-source_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-filtered_max_before_exp_gap ).
+
+    DATA(lt_filtered_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id                   = 'ALLOC-REQUIRED-EXP-GAP-UOM'
+          material                     = 'MAT-1'
+          plant                        = '1000'
+          unit                         = 'BOX'
+          as_of_date                   = '20261018'
+          through_date                 = '20261025'
+          filter_allocation_expiry_gap = abap_true
+          allocation_expiry_gap_from   = -3
+          allocation_expiry_gap_to     = -3 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_filtered_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_filtered_results[ 1 ]-filtered_max_due_after_exp_gap ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_filtered_results[ 1 ]-filtered_max_before_exp_gap-days_expiry_after_required ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_filtered_results[ 1 ]-filtered_max_before_exp_gap-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_filtered_results[ 1 ]-filtered_max_before_exp_gap-base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.25' )
+      act = lt_filtered_results[ 1 ]-filtered_max_before_exp_gap-source_quantity ).
+  ENDMETHOD.
+
+  METHOD summarizes_alloc_exp_gap_bands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    DATA lt_gaps TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    DATA lv_gap TYPE i.
+    DATA lv_required_date TYPE d VALUE '20261020'.
+    DATA lv_expiration_date TYPE d.
+    DATA lv_allocation_pass TYPE c LENGTH 1.
+    lt_gaps = VALUE #(
+      ( 1 ) ( 7 ) ( 8 ) ( 30 ) ( 31 ) ( 90 ) ( 91 )
+      ( 0 ) ( -1 ) ( -7 ) ( -8 ) ( -30 ) ( -31 ) ( -90 ) ( -91 ) ).
+    CLEAR ls_status-allocation_details.
+    LOOP AT lt_gaps INTO lv_gap.
+      lv_expiration_date = lv_required_date - lv_gap.
+      IF sy-tabix MOD 2 = 0.
+        lv_allocation_pass = 'F'.
+      ELSE.
+        lv_allocation_pass = 'M'.
+      ENDIF.
+      APPEND VALUE #(
+        reservation_number     = '0000000100'
+        reservation_item       = '0001'
+        allocation_sequence    = sy-tabix
+        required_date          = lv_required_date
+        allocation_pass        = lv_allocation_pass
+        expiration_date        = lv_expiration_date
+        expiration_date_source = 'P'
+        quantity               = 1 ) TO ls_status-allocation_details.
+    ENDLOOP.
+    APPEND VALUE #(
+      reservation_number     = '0000000100'
+      reservation_item       = '0001'
+      allocation_sequence    = 16
+      required_date          = lv_required_date
+      allocation_pass        = 'F'
+      expiration_date_source = ''
+      quantity               = 1 ) TO ls_status-allocation_details.
+    ls_status-matched_allocation_quantity = 8.
+    ls_status-fallback_allocation_quantity = 8.
+    ls_status-matched_allocation_row_count = 8.
+    ls_status-fallback_allocation_row_count = 8.
+    CLEAR lt_status.
+    ls_status-request_id = 'ALLOC-EXP-GAP-BANDS'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-EXP-GAP-BANDS'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 20
+      act = lines( lt_results[ 1 ]-expiry_due_gap_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'P1' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'P2' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'P3' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'P4' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'P4' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'Z' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'N1' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'N2' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'N3' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'N4' allocation_pass = 'M' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-expiry_due_gap_bands[
+        gap_band = 'U' allocation_pass = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_quantity
+        + lt_results[ 1 ]-fallback_allocation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR summary IN lt_results[ 1 ]-expiry_due_gap_bands
+        NEXT quantity = quantity + summary-quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-matched_allocation_row_count
+        + lt_results[ 1 ]-fallback_allocation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR summary IN lt_results[ 1 ]-expiry_due_gap_bands
+        NEXT row_count = row_count + summary-row_count ) ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_pass.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id              = 'ALLOC-PAGE'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          as_of_date              = '20261018'
+          through_date            = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_pass  = abap_true
+          allocation_pass         = 'F' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-allocation_pass ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-matched_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-fallback_allocation_row_count ).
+  ENDMETHOD.
+
+  METHOD summarizes_open_resv_dates.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-open_reservation_row_count = 5.
+    ls_status-open_reservation_quantity = 24.
+    ls_status-uncovered_open_resv_quantity = 3.
+    ls_status-fully_allocated_resv_count = 2.
+    ls_status-partially_allocated_resv_count = 2.
+    ls_status-unallocated_resv_count = 1.
+    ls_status-resv_allocation_summaries[ 1 ]-required_date = '20261017'.
+    ls_status-resv_allocation_summaries[ 1 ]-open_quantity = 5.
+    ls_status-resv_allocation_summaries[ 1 ]-allocation_outcome = 'F'.
+    ls_status-resv_allocation_summaries[ 2 ]-required_date = '20261018'.
+    ls_status-resv_allocation_summaries[ 2 ]-open_quantity = 4.
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261022'
+      open_quantity      = 7
+      allocation_outcome = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      open_quantity      = 5
+      allocation_outcome = 'P' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000050'
+      reservation_item   = '0002'
+      required_date      = '20261018'
+      open_quantity      = 3
+      allocation_outcome = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    DATA(ls_no_demand_status) =
+      VALUE zif_stock_repository=>ty_batch_status_bulk_result(
+        request_id = 'ALLOC-NO-DEMAND'
+        material   = 'MAT-1'
+        plant      = '1000' ).
+    APPEND ls_no_demand_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-PAGE'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' )
+        ( request_id   = 'ALLOC-NO-DEMAND'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '87.5' )
+      act = lt_results[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '12.5' )
+      act = lt_results[ 1 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( 0 )
+      act = lt_results[ 2 ]-allocation_shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-overdue_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-overdue_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-due_today_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-due_today_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-future_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-future_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-undated_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-undated_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 1 ]-next_open_resv_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000050'
+      act = lt_results[ 1 ]-next_open_resv_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_results[ 1 ]-next_open_resv_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-days_until_next_open_resv_req ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_quantity
+      act = lt_results[ 1 ]-overdue_open_resv_qty
+        + lt_results[ 1 ]-due_today_open_resv_qty
+        + lt_results[ 1 ]-future_open_resv_qty
+        + lt_results[ 1 ]-undated_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_row_count
+      act = lt_results[ 1 ]-overdue_open_resv_row_count
+        + lt_results[ 1 ]-due_today_open_resv_row_count
+        + lt_results[ 1 ]-future_open_resv_row_count
+        + lt_results[ 1 ]-undated_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_results[ 1 ]-resv_alloc_open_demand_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'O' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'P' required_date_bucket = 'T' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'P' required_date_bucket = 'T' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'T' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'T' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'U' required_date_bucket = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'U' required_date_bucket = 'F' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'P' required_date_bucket = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'P' required_date_bucket = 'U' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR band IN lt_results[ 1 ]-resv_alloc_open_demand_bands
+        NEXT quantity = quantity + band-open_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR band IN lt_results[ 1 ]-resv_alloc_open_demand_bands
+        NEXT row_count = row_count + band-row_count ) ).
+  ENDMETHOD.
+
+  METHOD summarizes_open_resv_horizons.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-open_reservation_row_count = 7.
+    ls_status-open_reservation_quantity = 24.
+    ls_status-fully_allocated_resv_count = 2.
+    ls_status-partially_allocated_resv_count = 3.
+    ls_status-unallocated_resv_count = 2.
+    ls_status-fully_alloc_resv_open_qty = 6.
+    ls_status-part_alloc_resv_open_qty = 11.
+    ls_status-unalloc_resv_open_qty = 7.
+    ls_status-resv_allocation_summaries[ 1 ]-required_date = '20261017'.
+    ls_status-resv_allocation_summaries[ 1 ]-open_quantity = 5.
+    ls_status-resv_allocation_summaries[ 2 ]-required_date = '20261018'.
+    ls_status-resv_allocation_summaries[ 2 ]-open_quantity = 4.
+    ls_status-resv_allocation_summaries[ 2 ]-allocation_outcome = 'P'.
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261025'
+      open_quantity      = 1
+      allocation_outcome = 'F' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      required_date      = '20261101'
+      open_quantity      = 2
+      allocation_outcome = 'P' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000500'
+      reservation_item   = '0001'
+      required_date      = '20261118'
+      open_quantity      = 3
+      allocation_outcome = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000600'
+      reservation_item   = '0001'
+      required_date      = '20270117'
+      open_quantity      = 4
+      allocation_outcome = 'U' )
+      TO ls_status-resv_allocation_summaries.
+    APPEND VALUE #(
+      reservation_number = '0000000700'
+      reservation_item   = '0001'
+      open_quantity      = 5
+      allocation_outcome = 'P' )
+      TO ls_status-resv_allocation_summaries.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'ALLOC-PAGE'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results[ 1 ]-open_resv_due_horizon_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_quantity
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR band IN lt_results[ 1 ]-open_resv_due_horizon_bands
+        NEXT quantity = quantity + band-open_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR band IN lt_results[ 1 ]-open_resv_due_horizon_bands
+        NEXT row_count = row_count + band-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = 'O' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = 'T' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '1' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 2 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '2' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '3' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = '4' ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[
+        due_horizon_band = 'U' ]-open_quantity ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_sequence.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = allocation_bulk_fixture( ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_sequence    = abap_true
+          allocation_sequence           = 2
+          filter_allocation_pass        = abap_true
+          allocation_pass               = 'M'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'F'
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '1'
+          allocation_required_date_from = '20261021'
+          allocation_required_date_to   = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 1 ]-filter_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+
+    DATA lv_bad_sequence_rejected TYPE abap_bool.
+    DATA lv_inactive_sequence_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SEQUENCE-BAD'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_allocation_sequence = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_sequence_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-SEQUENCE-INACTIVE'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              allocation_sequence = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_sequence_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_sequence_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_sequence_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_due_horizon.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-required_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-required_date = '20261018'.
+    ls_status-allocation_details[ 3 ]-required_date = '20261022'.
+    CLEAR ls_status-allocation_details[ 4 ]-required_date.
+    APPEND VALUE #(
+      reservation_number = '0000000300'
+      reservation_item   = '0001'
+      required_date      = '20261025'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'D'
+      quantity           = 1 )
+      TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000000400'
+      reservation_item   = '0001'
+      required_date      = '20261101'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'E'
+      quantity           = 1 )
+      TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000000500'
+      reservation_item   = '0001'
+      required_date      = '20261118'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'F'
+      quantity           = 1 )
+      TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000000600'
+      reservation_item   = '0001'
+      required_date      = '20270117'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'G'
+      quantity           = 1 )
+      TO ls_status-allocation_details.
+    CLEAR lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-O'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-T'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-1'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-2'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-3'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-4'.
+    APPEND ls_status TO lt_status.
+    ls_status-request_id = 'TRACE-HORIZON-U'.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'TRACE-HORIZON-O'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = 'O' )
+        ( request_id                    = 'TRACE-HORIZON-T'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = 'T' )
+        ( request_id                    = 'TRACE-HORIZON-1'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '1'
+          filter_allocation_reservation = abap_true
+          allocation_reservation_number = '0000000300'
+          allocation_reservation_item   = '0001'
+          filter_allocation_pass        = abap_true
+          allocation_pass               = 'M'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'F'
+          allocation_required_date_from = '20261025'
+          allocation_required_date_to   = '20261025' )
+        ( request_id                    = 'TRACE-HORIZON-2'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '2' )
+        ( request_id                    = 'TRACE-HORIZON-3'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '3' )
+        ( request_id                    = 'TRACE-HORIZON-4'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = '4' )
+        ( request_id                    = 'TRACE-HORIZON-U'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          maximum_allocation_rows       = 1
+          filter_allocation_due_horizon = abap_true
+          allocation_due_horizon        = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_results[ 1 ]-allocation_details[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 2 ]-allocation_details[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 3 ]-filter_allocation_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 3 ]-allocation_due_horizon ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 3 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000300'
+      act = lt_results[ 3 ]-allocation_details[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261101'
+      act = lt_results[ 4 ]-allocation_details[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261118'
+      act = lt_results[ 5 ]-allocation_details[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270117'
+      act = lt_results[ 6 ]-allocation_details[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdter( '00000000' )
+      act = lt_results[ 7 ]-allocation_details[ 1 ]-required_date ).
+
+    DATA lv_bad_horizon_rejected TYPE abap_bool.
+    DATA lv_inactive_horizon_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'TRACE-HORIZON-BAD'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_allocation_due_horizon = abap_true
+              allocation_due_horizon        = '9' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_horizon_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'TRACE-HORIZON-INACTIVE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              allocation_due_horizon = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_horizon_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_horizon_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_horizon_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_expiry_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-EXP-BAND'.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'EXPIRED'
+      expiration_date        = '20261017'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000400'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'ASOF'
+      expiration_date        = '20261018'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000500'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'THROUGH'
+      expiration_date        = '20261025'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000600'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-8'
+      expiration_date        = '20261026'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000700'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-30'
+      expiration_date        = '20261117'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000800'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-31'
+      expiration_date        = '20261118'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000900'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-90'
+      expiration_date        = '20270116'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000001000'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-91'
+      expiration_date        = '20270117'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000001100'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-92'
+      expiration_date        = '20270118'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000001200'
+      reservation_item   = '0001'
+      required_date      = '20261020'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'UNDATED'
+      quantity           = 1 ) TO ls_status-allocation_details.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_band_1) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20270117'
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '1' ) ) ).
+    DATA(lt_band_2) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20270117'
+          maximum_allocation_rows = 1
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '2' ) ) ).
+    DATA(lt_band_3) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20270117'
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '3' ) ) ).
+    DATA(lt_band_4) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20270117'
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6 act = lt_band_1[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_2[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_2[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_band_2[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_3[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_4[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_band_1[ 1 ]-filter_allocation_expiry_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1' act = lt_band_1[ 1 ]-allocation_expiry_band ).
+
+    DATA(lt_composed) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20270117'
+          maximum_allocation_rows = 1
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '2' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_composed[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DAY-8' act = lt_composed[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-EXP-BAND' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20270117'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_allocation_expiry_band = abap_true
+          allocation_expiry_band = '2' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_allocation_expiry_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2' act = lt_uom_results[ 1 ]-allocation_expiry_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DAY-8'
+      act = lt_uom_results[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lv_bad_code_rejected) = abap_false.
+    DATA(lv_inactive_code_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-BAND' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20270117'
+              filter_allocation_expiry_band = abap_true
+              allocation_expiry_band = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_code_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INACTIVE-BAND' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20270117'
+              allocation_expiry_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_code_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_code_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_code_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_after_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-AFTER-BAND'.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'EXPIRED'
+      expiration_date        = '20261017'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000400'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'THROUGH'
+      expiration_date        = '20261025'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000500'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-1'
+      expiration_date        = '20261026'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000600'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-7'
+      expiration_date        = '20261101'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000700'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-8'
+      expiration_date        = '20261102'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000800'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-30'
+      expiration_date        = '20261124'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000900'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-31'
+      expiration_date        = '20261125'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000001000'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-90'
+      expiration_date        = '20270123'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000001100'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'DAY-91'
+      expiration_date        = '20270124'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000001200'
+      reservation_item   = '0001'
+      required_date      = '20261020'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'UNDATED'
+      quantity           = 1 ) TO ls_status-allocation_details.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_band_1) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '1' ) ) ).
+    DATA(lt_band_2) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '2' ) ) ).
+    DATA(lt_band_3) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '3' ) ) ).
+    DATA(lt_band_4) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_1[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_2[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_2[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_band_2[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_3[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_4[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_band_1[ 1 ]-filter_allocation_after_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1' act = lt_band_1[ 1 ]-allocation_after_band ).
+
+    DATA(lt_composed) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_composed[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DAY-7' act = lt_composed[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AFTER-BAND' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_allocation_after_band = abap_true
+          allocation_after_band = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_allocation_after_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1' act = lt_uom_results[ 1 ]-allocation_after_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DAY-7'
+      act = lt_uom_results[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lv_bad_code_rejected) = abap_false.
+    DATA(lv_inactive_code_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-AFTER-BAND' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261025'
+              filter_allocation_after_band = abap_true
+              allocation_after_band = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_code_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INACTIVE-AFTER-BAND' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_after_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_code_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_code_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_code_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_age_band.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-AGE-BAND'.
+    APPEND VALUE #(
+      reservation_number     = '0000000300'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-1'
+      expiration_date        = '20261017'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000400'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-7'
+      expiration_date        = '20261011'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000500'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-8'
+      expiration_date        = '20261010'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000600'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-30'
+      expiration_date        = '20260918'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000700'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-31'
+      expiration_date        = '20260917'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000800'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-90'
+      expiration_date        = '20260720'
+      expiration_date_source = 'P'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number     = '0000000900'
+      reservation_item       = '0001'
+      required_date          = '20261020'
+      allocation_pass        = 'M'
+      storage_location       = '0001'
+      batch                  = 'AGE-91'
+      expiration_date        = '20260719'
+      expiration_date_source = 'G'
+      quantity               = 1 ) TO ls_status-allocation_details.
+    APPEND VALUE #(
+      reservation_number = '0000001000'
+      reservation_item   = '0001'
+      required_date      = '20261020'
+      allocation_pass    = 'M'
+      storage_location   = '0001'
+      batch              = 'AGE-UNDATED'
+      quantity           = 1 ) TO ls_status-allocation_details.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_band_1) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '1' ) ) ).
+    DATA(lt_band_2) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '2' ) ) ).
+    DATA(lt_band_3) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '3' ) ) ).
+    DATA(lt_band_4) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '4' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_1[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_1[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_band_1[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_2[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_band_3[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_band_4[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_band_1[ 1 ]-filter_allocation_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1' act = lt_band_1[ 1 ]-allocation_age_band ).
+
+    DATA(lt_composed) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'P'
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_composed[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AGE-7'
+      act = lt_composed[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-AGE-BAND' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'P'
+          filter_allocation_age_band = abap_true
+          allocation_age_band = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom_results[ 1 ]-filter_allocation_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1' act = lt_uom_results[ 1 ]-allocation_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AGE-7'
+      act = lt_uom_results[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lv_bad_code_rejected) = abap_false.
+    DATA(lv_inactive_code_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-AGE-BAND' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261025'
+              filter_allocation_age_band = abap_true
+              allocation_age_band = '5' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_code_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INACTIVE-AGE-BAND' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_age_band = '1' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_code_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_code_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_code_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_quantity.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-request_id = 'TRACE-QUANTITY'.
+    CLEAR lt_status.
+    APPEND ls_status TO lt_status.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_bounded) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-QUANTITY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_allocation_rows = 1
+          filter_allocation_qty_from = abap_true
+          allocation_qty_from = 4
+          filter_allocation_qty_to = abap_true
+          allocation_qty_to = 6 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_bounded[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_bounded[ 1 ]-returned_allocation_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_bounded[ 1 ]-is_allocation_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_bounded[ 1 ]-filter_allocation_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lt_bounded[ 1 ]-allocation_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6 act = lt_bounded[ 1 ]-allocation_qty_to ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-QUANTITY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_qty_from = abap_true
+          allocation_qty_from = 6 ) ) ).
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-QUANTITY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_qty_to = abap_true
+          allocation_qty_to = 4 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_from_only[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_to_only[ 1 ]-total_allocation_detail_count ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'TRACE-QUANTITY' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_allocation_source = abap_true
+          allocation_expiry_source = 'G'
+          filter_allocation_qty_from = abap_true
+          allocation_qty_from = 4
+          filter_allocation_qty_to = abap_true
+          allocation_qty_to = 6 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_allocation_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lt_uom_results[ 1 ]-allocation_qty_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6 act = lt_uom_results[ 1 ]-allocation_qty_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_uom_results[ 1 ]-allocation_details[ 1 ]-base_quantity ).
+
+    DATA(lv_negative_rejected) = abap_false.
+    DATA(lv_inverted_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    DATA(lv_bad_uom_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'NEGATIVE-QUANTITY' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_qty_from = abap_true
+              allocation_qty_from = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_negative_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INVERTED-QUANTITY' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_qty_from = abap_true
+              allocation_qty_from = 7
+              filter_allocation_qty_to = abap_true
+              allocation_qty_to = 6 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'INACTIVE-QUANTITY' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' allocation_qty_from = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_uom_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-UOM-QUANTITY' material = 'MAT-1'
+              plant = '1000' unit = 'BOX' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_allocation_qty_to = abap_true
+              allocation_qty_to = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_uom_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_negative_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inverted_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_uom_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_date_bucket.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 1 ]-required_date = '20261017'.
+    ls_status-allocation_details[ 2 ]-required_date = '20261018'.
+    ls_status-allocation_details[ 3 ]-required_date = '20261022'.
+    CLEAR ls_status-allocation_details[ 4 ]-required_date.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_overdue) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'O' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_overdue[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_overdue[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_due_today) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'T' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_due_today[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_due_today[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_future) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'F' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_future[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'C'
+      act = lt_future[ 1 ]-allocation_details[ 1 ]-batch ).
+
+    DATA(lt_undated) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_allocation_date_bucket = abap_true
+          allocation_date_bucket        = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_undated[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_undated[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+
+    DATA lv_bad_bucket_rejected TYPE abap_bool.
+    DATA lv_inactive_bucket_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-TRACE-BUCKET-BAD'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_allocation_date_bucket = abap_true
+              allocation_date_bucket        = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_bucket_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-TRACE-BUCKET-INACTIVE'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              allocation_date_bucket = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_bucket_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_bucket_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_bucket_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_allocation_date_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lt_status) = allocation_bulk_fixture( ).
+    DATA(ls_status) = lt_status[ 1 ].
+    ls_status-allocation_details[ 3 ]-required_date = '00000000'.
+    MODIFY lt_status FROM ls_status INDEX 1.
+    lo_repository->set_batch_bulk_response( it_status = lt_status ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_window) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          allocation_required_date_from = '20261020'
+          allocation_required_date_to   = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_window[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_window[ 1 ]-returned_allocation_row_count ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                    = 'ALLOC-PAGE'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          allocation_required_date_from = '20261021' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_from_only[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_from_only[ 1 ]-allocation_details[ 1 ]-reservation_number ).
+
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id                  = 'ALLOC-PAGE'
+          material                    = 'MAT-1'
+          plant                       = '1000'
+          as_of_date                  = '20261018'
+          through_date                = '20261025'
+          allocation_required_date_to = '20261020' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_to_only[ 1 ]-total_allocation_detail_count ).
+
+    DATA lv_bad_date_rejected TYPE abap_bool.
+    DATA lv_inverted_range_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-TRACE-DATE-BAD'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              allocation_required_date_from = '20261340' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_date_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-TRACE-DATE-INVERTED'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              allocation_required_date_from = '20261022'
+              allocation_required_date_to   = '20261020' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_range_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_resv_alloc_page.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_bad_size_rejected TYPE abap_bool.
+    DATA lv_no_page_rejected TYPE abap_bool.
+    DATA lv_inactive_cursor_rejected TYPE abap_bool.
+    DATA lv_bad_outcome_rejected TYPE abap_bool.
+    DATA lv_inactive_outcome_rejected TYPE abap_bool.
+    DATA lv_bad_resv_scope_rejected TYPE abap_bool.
+    DATA lv_inactive_resv_scope_rej TYPE abap_bool.
+    DATA lv_cursor_resv_scope_rej TYPE abap_bool.
+    DATA lv_bad_summary_date_rejected TYPE abap_bool.
+    DATA lv_inverted_summary_date_rej TYPE abap_bool.
+    DATA lv_bad_summary_omit_rejected TYPE abap_bool.
+    DATA lv_paged_summary_omit_rejected TYPE abap_bool.
+    DATA lv_bad_coverage_flag_rejected TYPE abap_bool.
+    DATA lv_bad_coverage_bound_rejected TYPE abap_bool.
+    DATA lv_inactive_coverage_rejected TYPE abap_bool.
+    DATA lv_inverted_coverage_rejected TYPE abap_bool.
+    DATA lv_bad_short_flag_rejected TYPE abap_bool.
+    DATA lv_negative_short_rejected TYPE abap_bool.
+    DATA lv_inactive_short_rejected TYPE abap_bool.
+    DATA lv_inverted_short_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'ALLOC-SUM-BAD-1'
+              material                = 'MAT-1'
+              plant                   = '1000'
+              as_of_date              = '20261018'
+              through_date            = '20261025'
+              maximum_resv_alloc_rows = 501 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_size_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-SUM-BAD-2'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_resv_alloc_cursor = abap_true
+              resv_alloc_cursor_number = '0000000100'
+              resv_alloc_cursor_item   = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_no_page_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-SUM-BAD-3'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              maximum_resv_alloc_rows  = 1
+              resv_alloc_cursor_number = '0000000100' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_cursor_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                = 'ALLOC-SUM-BAD-4'
+              material                  = 'MAT-1'
+              plant                     = '1000'
+              as_of_date                = '20261018'
+              through_date              = '20261025'
+              filter_resv_alloc_outcome = abap_true
+              resv_alloc_outcome        = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_outcome_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id         = 'ALLOC-SUM-BAD-5'
+              material           = 'MAT-1'
+              plant              = '1000'
+              as_of_date         = '20261018'
+              through_date       = '20261025'
+              resv_alloc_outcome = 'F' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_outcome_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-SUM-BAD-6'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_resv_alloc_reservation = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_resv_scope_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-SUM-BAD-7'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              resv_alloc_reservation_number = '0000000100' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_resv_scope_rej = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-SUM-BAD-8'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              maximum_resv_alloc_rows       = 1
+              filter_resv_alloc_cursor      = abap_true
+              resv_alloc_cursor_number      = '0000000100'
+              resv_alloc_cursor_item        = '0001'
+              filter_resv_alloc_reservation = abap_true
+              resv_alloc_reservation_number = '0000000200'
+              resv_alloc_reservation_item   = '0001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_cursor_resv_scope_rej = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-SUM-BAD-9'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              resv_alloc_required_date_from = '20261340' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_summary_date_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-SUM-BAD-10'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              resv_alloc_required_date_from = '20261022'
+              resv_alloc_required_date_to   = '20261021' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_summary_date_rej = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-SUM-BAD-11'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              omit_resv_alloc_summary_rows = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_summary_omit_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-SUM-BAD-12'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              maximum_resv_alloc_rows      = 1
+              omit_resv_alloc_summary_rows = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_paged_summary_omit_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SUM-BAD-13'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_cov_from = 'Y'
+              resv_alloc_coverage_from   = 10 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_coverage_flag_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-SUM-BAD-14'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              filter_resv_alloc_cov_to = abap_true
+              resv_alloc_coverage_to   = CONV decfloat34( '100.01' ) ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_coverage_bound_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id             = 'ALLOC-SUM-BAD-15'
+              material               = 'MAT-1'
+              plant                  = '1000'
+              as_of_date             = '20261018'
+              through_date           = '20261025'
+              resv_alloc_coverage_to = 10 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_coverage_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SUM-BAD-16'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_cov_from = abap_true
+              resv_alloc_coverage_from   = 70
+              filter_resv_alloc_cov_to   = abap_true
+              resv_alloc_coverage_to     = 60 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_coverage_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-SUM-BAD-17'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              filter_resv_alloc_short_from = 'Y'
+              resv_alloc_short_from        = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_short_flag_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                 = 'ALLOC-SUM-BAD-18'
+              material                   = 'MAT-1'
+              plant                      = '1000'
+              as_of_date                 = '20261018'
+              through_date               = '20261025'
+              filter_resv_alloc_short_to = abap_true
+              resv_alloc_short_to        = -1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_negative_short_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id          = 'ALLOC-SUM-BAD-19'
+              material            = 'MAT-1'
+              plant               = '1000'
+              as_of_date          = '20261018'
+              through_date        = '20261025'
+              resv_alloc_short_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_short_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                   = 'ALLOC-SUM-BAD-20'
+              material                     = 'MAT-1'
+              plant                        = '1000'
+              as_of_date                   = '20261018'
+              through_date                 = '20261025'
+              filter_resv_alloc_short_from = abap_true
+              resv_alloc_short_from        = 4
+              filter_resv_alloc_short_to   = abap_true
+              resv_alloc_short_to          = 3 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_short_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_size_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_no_page_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_cursor_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_outcome_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_outcome_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_resv_scope_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_resv_scope_rej ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_cursor_resv_scope_rej ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_summary_date_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_summary_date_rej ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_summary_omit_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_paged_summary_omit_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_coverage_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_coverage_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_short_flag_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_negative_short_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_short_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inverted_short_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_allocation_page.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA lv_invalid_limit_rejected TYPE abap_bool.
+    DATA lv_invalid_pass_rejected TYPE abap_bool.
+    DATA lv_inactive_cursor_rejected TYPE abap_bool.
+    DATA lv_bad_filter_rejected TYPE abap_bool.
+    DATA lv_incomplete_filter_rejected TYPE abap_bool.
+    DATA lv_cursor_mismatch_rejected TYPE abap_bool.
+    DATA lv_bad_pass_filter_rejected TYPE abap_bool.
+    DATA lv_cursor_pass_bad TYPE abap_bool.
+    DATA lv_bad_allocation_omit_rej TYPE abap_bool.
+    DATA lv_paged_allocation_omit_rej TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-BAD-1'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              maximum_allocation_rows  = 0
+              filter_allocation_cursor = abap_true
+              allocation_cursor_number = '0000000100'
+              allocation_cursor_item   = '0001'
+              allocation_cursor_pass   = 'M' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_limit_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-BAD-2'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              maximum_allocation_rows  = 1
+              filter_allocation_cursor = abap_true
+              allocation_cursor_number = '0000000100'
+              allocation_cursor_item   = '0001'
+              allocation_cursor_pass   = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_invalid_pass_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-BAD-3'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              maximum_allocation_rows  = 1
+              allocation_cursor_number = '0000000100' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_cursor_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-BAD-4'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_allocation_reservation = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_filter_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-BAD-5'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              filter_allocation_reservation = abap_true
+              allocation_reservation_number = '0000000100' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_incomplete_filter_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                    = 'ALLOC-BAD-6'
+              material                      = 'MAT-1'
+              plant                         = '1000'
+              as_of_date                    = '20261018'
+              through_date                  = '20261025'
+              maximum_allocation_rows       = 1
+              filter_allocation_reservation = abap_true
+              allocation_reservation_number = '0000000100'
+              allocation_reservation_item   = '0001'
+              filter_allocation_cursor      = abap_true
+              allocation_cursor_number      = '0000000200'
+              allocation_cursor_item        = '0001'
+              allocation_cursor_pass        = 'M' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_cursor_mismatch_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'ALLOC-BAD-10'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20261025'
+              omit_allocation_detail_rows = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_allocation_omit_rej = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id                  = 'ALLOC-BAD-11'
+              material                    = 'MAT-1'
+              plant                       = '1000'
+              as_of_date                  = '20261018'
+              through_date                = '20261025'
+              maximum_allocation_rows     = 1
+              omit_allocation_detail_rows = abap_true ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_paged_allocation_omit_rej = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_limit_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_invalid_pass_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_inactive_cursor_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_filter_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_incomplete_filter_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_cursor_mismatch_rejected ).
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id              = 'ALLOC-BAD-7'
+               material               = 'MAT-1'
+               plant                  = '1000'
+               as_of_date             = '20261018'
+               through_date           = '20261025'
+               filter_allocation_pass = abap_true
+               allocation_pass        = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_pass_filter_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id               = 'ALLOC-BAD-8'
+              material                 = 'MAT-1'
+              plant                    = '1000'
+              as_of_date               = '20261018'
+              through_date             = '20261025'
+              maximum_allocation_rows  = 1
+              filter_allocation_pass   = abap_true
+              allocation_pass          = 'M'
+              filter_allocation_cursor = abap_true
+              allocation_cursor_number = '0000000100'
+              allocation_cursor_item   = '0001'
+              allocation_cursor_pass   = 'F' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_cursor_pass_bad = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_pass_filter_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_cursor_pass_bad ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_allocation_omit_rej ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_paged_allocation_omit_rej ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
 ENDCLASS.

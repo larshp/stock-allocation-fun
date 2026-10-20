@@ -10,6 +10,7 @@ CLASS zcl_stock_batch_qty_calc DEFINITION
         batch            TYPE mchb-charg,
         valuation_type   TYPE mcha-bwtar,
         expiration_date  TYPE mcha-vfdat,
+        expiry_source    TYPE c LENGTH 1,
         quantity         TYPE mchb-clabs,
       END OF ty_stock.
     TYPES ty_stocks TYPE STANDARD TABLE OF ty_stock WITH EMPTY KEY.
@@ -38,9 +39,14 @@ CLASS zcl_stock_batch_qty_calc DEFINITION
         fully_allocated_resv_count     TYPE i,
         partially_allocated_resv_count TYPE i,
         unallocated_resv_count         TYPE i,
+        fully_alloc_resv_open_qty      TYPE resb-bdmng,
+        part_alloc_resv_open_qty       TYPE resb-bdmng,
+        unalloc_resv_open_qty          TYPE resb-bdmng,
         uncovered_reservation_quantity TYPE resb-bdmng,
         uncovered_reservation_keys     TYPE zif_stock_repository=>ty_reservation_keys,
         uncovered_reservations         TYPE zif_stock_repository=>ty_uncovered_reservations,
+        resv_allocation_summaries      TYPE
+          zif_stock_repository=>ty_reservation_allocation_summaries,
         allocation_details             TYPE zif_stock_repository=>ty_batch_allocation_details,
       END OF ty_calculation_result.
 
@@ -80,6 +86,7 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
     DATA lv_available_quantity TYPE decfloat34.
     DATA lv_input_sequence TYPE i.
     DATA lv_allocation_sequence TYPE i.
+    DATA lv_allocation_outcome TYPE c LENGTH 1.
 
     lt_stock = it_stock.
     SORT lt_stock STABLE BY storage_location batch valuation_type
@@ -161,6 +168,8 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
             batch                      = <ls_stock>-batch
             valuation_type             = <ls_stock>-valuation_type
             expiration_date            = <ls_stock>-expiration_date
+            expiration_date_source     =
+              <ls_stock>-expiry_source
             quantity                   = lv_deduction )
             TO rs_result-allocation_details.
           ADD 1 TO rs_result-matched_allocation_row_count.
@@ -206,6 +215,8 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
               batch                      = <ls_stock>-batch
               valuation_type             = <ls_stock>-valuation_type
               expiration_date            = <ls_stock>-expiration_date
+              expiration_date_source     =
+                <ls_stock>-expiry_source
               quantity                   = lv_deduction )
               TO rs_result-allocation_details.
             ADD 1 TO rs_result-fallback_allocation_row_count.
@@ -216,11 +227,18 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
           rs_result-fallback_allocation_quantity += lv_deduction.
         ENDLOOP.
       ENDIF.
+      CLEAR lv_allocation_outcome.
       IF lv_outstanding > 0.
         IF lv_open_quantity > lv_outstanding.
           ADD 1 TO rs_result-partially_allocated_resv_count.
+          rs_result-part_alloc_resv_open_qty += lv_open_quantity.
+          lv_allocation_outcome =
+            zif_stock_repository=>c_allocation_outcome_partial.
         ELSE.
           ADD 1 TO rs_result-unallocated_resv_count.
+          rs_result-unalloc_resv_open_qty += lv_open_quantity.
+          lv_allocation_outcome =
+            zif_stock_repository=>c_allocation_outcome_none.
         ENDIF.
         rs_result-uncovered_reservation_quantity += lv_outstanding.
         IF ls_reservation-reservation_number IS NOT INITIAL
@@ -230,29 +248,80 @@ CLASS zcl_stock_batch_qty_calc IMPLEMENTATION.
             reservation_item   = ls_reservation-reservation_item )
             TO rs_result-uncovered_reservation_keys.
           APPEND VALUE #(
-            reservation_number  = ls_reservation-reservation_number
-            reservation_item    = ls_reservation-reservation_item
-            allocation_sequence = ls_reservation-allocation_sequence
-            required_date       = ls_reservation-required_date
-            storage_location    = ls_reservation-storage_location
-            batch               = ls_reservation-batch
-            valuation_type      = ls_reservation-valuation_type
-            required_quantity   = ls_reservation-required_quantity
-            withdrawn_quantity  = ls_reservation-withdrawn_quantity
-            open_quantity       = lv_open_quantity
-            allocated_quantity  = lv_open_quantity - lv_outstanding
-            matched_quantity    = lv_matched_quantity
-            fallback_quantity   = lv_fallback_quantity
-            uncovered_quantity  = lv_outstanding )
+            reservation_number      = ls_reservation-reservation_number
+            reservation_item        = ls_reservation-reservation_item
+            allocation_sequence     = ls_reservation-allocation_sequence
+            required_date           = ls_reservation-required_date
+            storage_location        = ls_reservation-storage_location
+            batch                   = ls_reservation-batch
+            valuation_type          = ls_reservation-valuation_type
+            required_quantity       = ls_reservation-required_quantity
+            withdrawn_quantity      = ls_reservation-withdrawn_quantity
+            open_quantity           = lv_open_quantity
+            allocated_quantity      = lv_open_quantity - lv_outstanding
+            matched_quantity        = lv_matched_quantity
+            fallback_quantity       = lv_fallback_quantity
+            uncovered_quantity      = lv_outstanding
+            allocation_coverage_pct =
+              ( CONV decfloat34( lv_matched_quantity )
+                + CONV decfloat34( lv_fallback_quantity ) )
+              * 100 / CONV decfloat34( lv_open_quantity )
+            allocation_shortage_pct =
+              CONV decfloat34( lv_outstanding )
+              * 100 / CONV decfloat34( lv_open_quantity )
+            matched_share_pct       =
+              CONV decfloat34( lv_matched_quantity )
+              * 100 / CONV decfloat34( lv_open_quantity )
+            fallback_share_pct      =
+              CONV decfloat34( lv_fallback_quantity )
+              * 100 / CONV decfloat34( lv_open_quantity ) )
             TO rs_result-uncovered_reservations.
         ENDIF.
       ELSE.
         ADD 1 TO rs_result-fully_allocated_resv_count.
+        rs_result-fully_alloc_resv_open_qty += lv_open_quantity.
+        lv_allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_full.
+      ENDIF.
+      IF ls_reservation-reservation_number IS NOT INITIAL
+          AND ls_reservation-reservation_item IS NOT INITIAL.
+        APPEND VALUE #(
+          reservation_number         = ls_reservation-reservation_number
+          reservation_item           = ls_reservation-reservation_item
+          allocation_sequence        = ls_reservation-allocation_sequence
+          required_date              = ls_reservation-required_date
+          requested_storage_location = ls_reservation-storage_location
+          requested_batch            = ls_reservation-batch
+          requested_valuation_type   = ls_reservation-valuation_type
+          required_quantity          = ls_reservation-required_quantity
+          withdrawn_quantity         = ls_reservation-withdrawn_quantity
+          open_quantity              = lv_open_quantity
+          allocated_quantity         = lv_open_quantity - lv_outstanding
+          matched_quantity           = lv_matched_quantity
+          fallback_quantity          = lv_fallback_quantity
+          uncovered_quantity         = lv_outstanding
+          allocation_outcome         = lv_allocation_outcome
+          allocation_coverage_pct    =
+            ( CONV decfloat34( lv_matched_quantity )
+              + CONV decfloat34( lv_fallback_quantity ) )
+            * 100 / CONV decfloat34( lv_open_quantity )
+          allocation_shortage_pct    =
+            CONV decfloat34( lv_outstanding )
+            * 100 / CONV decfloat34( lv_open_quantity )
+          matched_share_pct          =
+            CONV decfloat34( lv_matched_quantity )
+            * 100 / CONV decfloat34( lv_open_quantity )
+          fallback_share_pct         =
+            CONV decfloat34( lv_fallback_quantity )
+            * 100 / CONV decfloat34( lv_open_quantity ) )
+          TO rs_result-resv_allocation_summaries.
       ENDIF.
     ENDLOOP.
     SORT rs_result-uncovered_reservation_keys
       BY reservation_number reservation_item.
     SORT rs_result-uncovered_reservations
+      BY reservation_number reservation_item.
+    SORT rs_result-resv_allocation_summaries
       BY reservation_number reservation_item.
     SORT rs_result-allocation_details STABLE
       BY reservation_number reservation_item.

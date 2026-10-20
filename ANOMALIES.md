@@ -6478,19 +6478,25 @@ selects blank locations. Nonblank `batch` filters by batch by default;
 `valuation_type` selects that exact valuation type;
 `filter_valuation_type = abap_true` selects blank valuation types. The location,
 batch, and valuation scopes intersect and are echoed in results. `expiry_source`
-accepts `P` for plant-level dates or `G` for the global fallback. Setting
-`filter_expiry_source = abap_true` with blank `expiry_source` selects rows
-without a resolved source; nonblank values must be `P` or `G`. This scope also
-intersects with the location, batch, and valuation filters. Optional inclusive
+accepts `P` for plant-level dates, `G` for the global fallback, and `O` for
+any other source value, including blank. Setting `filter_expiry_source =
+abap_true` with blank `expiry_source` selects only rows without a resolved
+source; nonblank values must be `P`, `G`, or `O`. This scope also intersects
+with the location, batch, and valuation filters. Optional inclusive
 `expiration_date_from` and `expiration_date_to` bounds filter resolved dates;
 either may be supplied, and two must be ascending. A date bound omits undated
 rows from undated results, counts, and totals without changing status relative
 to `as_of_date` or the after-window test relative to `through_date`. Base and UOM
-results echo the bounds. Returned batch rows, expiry and source counts, and
+results echo the bounds. Set `filter_expiry_status = abap_true` with `expiry_status` `E` for dates before `as_of_date`, `U` for dates from `as_of_date` through `through_date` inclusive, or `A` for dates after `through_date`. The scope intersects with location, batch, valuation, source, and date bounds before dated counts and totals; active status filtering omits undated rows from their list, counts, and totals. Only `E`, `U`, and `A` are accepted, and the status value must be initial when its flag is disabled. Base and UOM results echo both fields. Allocation trace rows retain their independent scope. Set `filter_expiry_age_band = abap_true` with `expiry_age_band` `1` for 1–7 days since expiry, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. It returns only expired rows, composes with status, source, and date bounds before counts, totals, and paging, and omits upcoming, after-window, and undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Optional `filter_expiry_days_from` and `filter_expiry_days_to` with `expiry_days_from` and `expiry_days_to` set inclusive signed `expiration_date - as_of_date` bounds. Either bound may be used alone; expired values are negative, the as-of date is zero, future values are positive, and active bounds omit undated rows. Two active bounds must be ascending. These bounds compose before exposure counts, totals, and paging, and base and UOM results echo both flags and values.
+
+Returned batch rows, expiry and source counts, and
 category totals reflect the filters. The repository still reads material/plant
 stock to net reservation demand across locations, then narrows returned stock
 rows and totals.
-Reservation summaries and allocation traces remain material/plant-wide. The
+Reservation summaries remain material/plant-wide. Stock exposure filters
+do not narrow allocation trace rows; the independent reservation and pass
+filters can narrow the details while summary quantities and counts remain full
+scope. The
 request scope is echoed for reconciliation. Each dated detail row
 includes `days_to_expiration`, computed as expiration date minus as-of date:
 negative is expired, zero expires on the as-of date, and positive is upcoming.
@@ -6509,6 +6515,28 @@ precedence in the target SAP release. `plant_expiry_source_row_count`,
 `global_expiry_source_row_count`, and `other_expiry_source_row_count` partition
 dated positive-stock rows by source, including positive-stock dates after the
 request window. UOM results echo the counts unchanged.
+`plant_exp_unrestr_qty`, `plant_exp_avail_qty`, `plant_exp_quality_qty`, and
+`plant_exp_blocked_qty` aggregate the four stock categories for plant-level
+expiry dates; `global_exp_*` and `other_exp_*` provide the corresponding
+fallback and other/blank totals. The totals cover the same dated positive-stock
+rows as the source counts, including dates after the request window. UOM results
+carry base and converted totals for each source/category pair.
+`expired_plant_src_count`, `expired_global_src_count`, and
+`expired_other_src_count` split expired rows by date source. The matching
+`upcoming_plant_src_count`, `upcoming_global_src_count`, and
+`upcoming_other_src_count` split in-window upcoming rows, while
+`after_window_plant_src_count`, `after_window_global_src_count`, and
+`after_window_other_src_count` split positive-stock rows after `through_date`.
+Each trio partitions its corresponding expired, upcoming, or after-window row
+count; UOM results echo all nine counts unchanged.
+Each result also includes `expiry_src_statuses`, a fixed nine-row matrix in
+plant (`P`), global fallback (`G`), and other or blank (`O`) source order, with
+expired (`E`), upcoming (`U`), and after-window (`A`) rows for each source.
+Every row carries `row_count`, its first and last expiration dates, and
+unrestricted, available, quality-inspection, and blocked quantities. The
+dates show the actual span within each source/status combination; `expiration_date_span_days` is last minus first in elapsed calendar days and is zero for empty or single-date cells. These dates stay
+initial for zero-count rows; zero-count combinations remain present. UOM results preserve the same row order with `base_*` and `unit_*` quantity members for each stock category and echo those date spans and elapsed day values unchanged.
+The source-age, upcoming lead-time, and after-window source rows also expose `expiration_date_span_days` as last minus first in elapsed calendar days. Empty and single-date rows report zero; UOM rows echo the values unchanged.
 The expiry summary's `open_reservation_row_count` reports eligible RESB rows
 with positive remaining quantities after exclusions. It counts rows passed to
 the local availability calculation and does not quantify batch-level
@@ -6525,7 +6553,7 @@ and `unallocated_resv_count` classify eligible open RESB rows by local
 allocation outcome. Fully allocated rows have no residual; partial rows have
 both a deduction and a residual; unallocated rows have no local deduction.
 The counts sum to `open_reservation_row_count`; excluded rows are not included,
-and UOM expiry results echo the counts. `matched_allocation_quantity` and
+and UOM expiry results echo the counts. The three open-quantity totals, `fully_alloc_resv_open_qty`, `part_alloc_resv_open_qty`, and `unalloc_resv_open_qty`, partition eligible `open_reservation_quantity` by outcome using each row's entire open demand; excluded reservations are omitted. UOM expiry results provide base and requested-unit values for each total. `matched_allocation_quantity` and
 sum deductions from the matching and fallback passes. Together with
 `uncovered_open_resv_quantity`, they reconcile to eligible
 `open_reservation_quantity`; excluded demand is outside this reconciliation.
@@ -6560,16 +6588,109 @@ quantity as matched plus fallback plus uncovered, and allocated as matched
 plus fallback. Uncovered row totals reconcile to
 `uncovered_open_resv_quantity`. UOM rows echo this reservation context and
 include base and requested-unit values for open, allocated, matched, fallback,
-and uncovered quantities. `uncovered_open_resv_row_count` counts the returned
+and uncovered quantities. `uncovered_open_resv_row_count` counts all positive
 residual rows and is carried unchanged through expiry and UOM results.
+Uncovered detail rows support an independent keyset page of up to 500 rows,
+ordered by reservation/item. The optional exclusive cursor uses both fields from
+the previous page's final row. Total residual counts and allocation summaries
+remain complete, while the detail rows and parallel key list contain the same
+page. UOM results echo the page metadata and convert returned details. Each
+continuation recalculates from current reservation data; pages do not retain a
+shared snapshot. ABAP Unit covers sorted first and continuation pages, complete
+unpaged output, full summary counts, base/UOM page alignment, and invalid cursor
+and size inputs. Set `filter_uncovered_due_horizon = abap_true` with `uncovered_due_horizon` set to `O`, `T`, `1`, `2`, `3`, `4`, or `U` to select overdue, due-today, 1–7, 8–30, 31–90, over-90, or undated detail rows. The selector filters details before cursor and page selection; `total_uncovered_detail_count` counts all horizon-matching rows independent of the cursor, while `uncovered_open_resv_row_count` and quantity summaries stay full-scope. Invalid active values and nonblank inactive selectors are rejected, and UOM results echo both fields. Set `omit_uncovered_detail_rows = abap_true` to return no uncovered detail rows or parallel keys while retaining the filtered detail total and full-scope shortage summaries. The flag requires `maximum_uncovered_rows = 0` and no active uncovered cursor; UOM results echo it, and non-boolean values are rejected. Set `filter_uncovered_sequence = abap_true` with a positive `uncovered_sequence` to select one reservation's shortage row in shared-stock allocation order. It composes with the due-horizon filter and cursor before detail totals and paging. The disabled selector must be initial, and UOM results echo both fields. Optional inclusive `uncovered_required_date_from` and `uncovered_required_date_to` bounds select a caller-chosen required-date window. Either bound may be supplied; two bounds must be valid and ascending. When a bound is set, undated rows are omitted. The bounds compose with sequence, due-horizon, and cursor scopes before counts and paging, and UOM results echo both dates. Set `filter_uncovered_reservation = abap_true` with both `uncovered_reservation_number` and `uncovered_reservation_item` to select one shortage row. Both key fields are required when active and must be initial otherwise. This selector composes with sequence, due-horizon, date bounds, and cursor scopes before counts and paging; an active cursor must match the selected key, and UOM results echo all three selector fields. Set `filter_uncovered_outcome = abap_true` with `uncovered_outcome` set to `P` for rows with positive local allocated quantity (partially allocated), or `U` for rows with zero local allocated quantity (unallocated). The selector composes with reservation, sequence, due-horizon, date-window, and cursor scopes before filtered totals and paging; full-scope shortage summaries stay unchanged. Only `P` and `U` are valid active values, the disabled selector must be initial, and UOM results echo both fields.
 `allocation_details` records positive deductions by reservation and actual
 stock row, and includes the reservation's requested location, batch, and
-valuation type beside the actual stock selectors. `M` marks the
+valuation type beside the actual stock selectors. Each row also carries
+`days_until_required`, calculated as `required_date - as_of_date`; negative is
+overdue, zero is due on the as-of date, and positive is future-dated. An
+initial required date leaves zero, and UOM rows echo the day count. `M` marks
 selector-matching pass and `F` the fallback pass.
 For reservations listed in the uncovered summary, detail quantities reconcile
 to the locally allocated amount. Fully covered reservations appear in the
 trace without an uncovered-summary row; UOM rows carry base and requested
 quantities.
+
+Allocation-trace details have an independent keyset page. `maximum_allocation_rows = 0`
+returns every trace row; values 1–500 cap a page. Set
+`filter_allocation_cursor = abap_true` with the previous row's reservation
+number, item, allocation pass, actual storage location, batch, valuation type,
+and expiration date in the `allocation_cursor_*` fields. The exclusive order is
+reservation/item, pass (`M` before `F`), then stock traversal by location, batch,
+valuation type, and expiration date. Blank actual stock keys and dates are valid
+cursor components. Without an active cursor, all cursor fields must be initial.
+`total_allocation_detail_count` counts the full trace,
+`returned_allocation_row_count` gives the current page size, and
+`is_allocation_truncated` indicates another page. When truncated, the
+`next_alloc_cursor_*` fields identify the last returned row. UOM results echo
+the page metadata and convert only the returned rows. The base result's `filtered_allocation_quantity` sums every row matching the active allocation-detail filters before cursor and page selection, even when detail rows are omitted. UOM results expose the base-unit `base_filtered_alloc_qty` and converted `source_filtered_alloc_qty`. `filtered_allocation_passes` adds a fixed two-row (`M`, `F`) breakdown for the same filter scope before cursor and page selection, retaining zero-count passes; its counts and quantities reconcile to the filtered total. UOM rows preserve pass order and counts with base and converted quantities. Each continuation reads
+current reservation and stock data; pages do not retain a shared snapshot.
+Set `omit_allocation_detail_rows = abap_true` to omit detail rows while
+retaining the filter-scoped `total_allocation_detail_count` and full pass
+quantities and row counts. The option requires `maximum_allocation_rows = 0`
+and no active allocation cursor; UOM results echo the flag. Allocation-trace
+pages can be scoped to one reservation with
+`filter_allocation_reservation = abap_true` and its reservation number and item.
+The scope is applied before pagination, so `total_allocation_detail_count` counts
+matching trace rows while pass quantities, pass row counts, and reservation
+summaries remain material/plant-wide. Both key fields are required when enabled
+and initial when disabled. With an active cursor, its reservation key must match
+the selected key. Add `filter_allocation_pass = abap_true` and set
+`allocation_pass` to `M` or `F` to select matched or fallback rows; this filter
+intersects with the reservation scope. An active cursor must use the selected
+pass. UOM results echo both scopes. Set
+`filter_allocation_date_bucket = abap_true` with `allocation_date_bucket` set
+to `O` overdue, `T` due today, `F` future-dated, or `U` undated to restrict
+trace rows by `as_of_date`. The selector applies before counting and pagination,
+composes with reservation and pass filters, and is echoed by UOM results. Allocation-trace pages also accept `filter_allocation_due_horizon = abap_true` with `allocation_due_horizon` set to `O`, `T`, `1`, `2`, `3`, `4`, or `U`, using the same calendar-day bands as open-demand summaries. It composes with the coarse date bucket, reservation, pass, and required-date range scopes before counts and pagination; unknown active codes and nonblank inactive selectors are rejected, and UOM results echo the selector. Set `filter_allocation_sequence = abap_true` with a positive `allocation_sequence` to select one exact position in shared-stock allocation order. It composes with the reservation, pass, date bucket, due horizon, and required-date range scopes before counts and pagination. A disabled sequence selector must be initial; invalid active values and noninitial inactive values are rejected, and UOM results echo both selector fields. Optional inclusive `allocation_required_date_from` and
+`allocation_required_date_to` bounds restrict trace rows by `required_date`.
+Either bound may be supplied, and two bounds must be ascending. When either is
+set, undated trace rows are omitted. Date bounds compose with the bucket,
+reservation, and pass filters before counting and pagination; UOM results echo
+the selected bounds. Set `filter_allocation_val_type = abap_true` to select trace rows with `allocation_val_type`, including a blank value to select rows without a valuation type. The selector composes with reservation, pass, sequence, date-bucket, due-horizon, and required-date scopes before filtered totals and pagination; full allocation totals and reservation summaries stay material/plant-wide. The value must be initial when disabled, and UOM results echo both selector fields. Set `filter_allocation_location = abap_true` with `allocation_location` and `filter_allocation_batch = abap_true` with `allocation_batch` to narrow trace rows to those stock keys; either active filter can select a blank key. Both filters intersect with valuation type and the other trace scopes before filtered totals and paging. Their values must be initial when disabled, and UOM results echo both flags and values. Optional inclusive `allocation_expiry_date_from` and `allocation_expiry_date_to` bounds also restrict trace rows by the stock row's expiration date. Either bound may be supplied; two bounds must be valid and ascending. When either is set, rows without an expiry date are omitted. Expiry-date bounds compose with valuation type, stock keys, reservation, pass, and required-date scopes before counts and paging; UOM results echo both dates. Set `filter_allocation_expiry = abap_true` with `allocation_expiry_status` set to `E` for rows expiring before `as_of_date`, `U` for rows expiring from `as_of_date` through `through_date` inclusive, `A` for rows after `through_date`, or `D` for rows without an expiry date. The status filter composes with expiry-date bounds and other trace scopes before filtered totals and paging. Only these four active codes are accepted; the value must be initial when disabled, and UOM results echo both fields. Set `filter_allocation_expiry_band = abap_true` with `allocation_expiry_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30, `3` for 31–90, or `4` for over 90. It selects dated upcoming rows only, including `as_of_date` and dates through the inclusive `through_date`; it composes with expiry status, date bounds, and other trace scopes before filtered totals and paging. UOM results echo both fields; invalid active codes and noninitial disabled values are rejected. Set `filter_allocation_after_band = abap_true` with `allocation_after_band` `1` for 1–7 days after `through_date`, `2` for 8–30, `3` for 31–90, or `4` for over 90. It selects only dated rows after the inclusive `through_date`; it composes with expiry status, date bounds, and other trace scopes before filtered totals and paging. UOM results echo both fields; invalid active codes and noninitial disabled values are rejected. Set `filter_allocation_age_band = abap_true` with `allocation_age_band` `1` for 1–7 days since expiry, `2` for 8–30, `3` for 31–90, or `4` for over 90. It selects only rows expiring before `as_of_date`; it composes with other trace scopes before filtered totals and paging. UOM results echo both fields; invalid active codes and noninitial disabled values are rejected. Set `filter_allocation_qty_from` with `allocation_qty_from` and `filter_allocation_qty_to` with `allocation_qty_to` independently to select rows by inclusive allocation-quantity bounds in base units. Active bounds may be zero but not negative; disabled bound values must be initial, and two active bounds must be ascending. Quantity bounds compose with the other trace scopes before filtered totals and paging; UOM requests forward them and results echo the base-unit values. Each batch expiry result also reports `allocation_expiry_statuses`, a fixed eight-row matrix keyed by expiry state (`E`, `U`, `A`, `D`) and allocation pass (`M`, `F`) in that order. Zero combinations remain present. The counts sum to matched plus fallback allocation row counts, and the quantities sum to matched plus fallback allocation quantity; this summary stays full-scope across trace filters and pages. UOM results preserve expiry-state/pass order and counts and include base and requested-unit quantities. Allocation detail rows expose `expiration_date_source`: `P` for the plant-level MCHA date, `G` for the global MCH1 fallback, or blank when no source was resolved; UOM details echo the marker. Set `filter_allocation_source = abap_true` and `allocation_expiry_source` to `P`, `G`, or blank to select that source. An active blank value selects blank markers; only `P`, `G`, and blank are valid, and the value must be initial when disabled. This filter composes with the other allocation scopes before filtered totals and paging. Each result also includes `allocation_expiry_sources`, a fixed six-row matrix in source/pass order: `P/M`, `P/F`, `G/M`, `G/F`, blank/M, blank/F. Its counts and quantities reconcile to the full matched plus fallback allocation totals and stay full-scope across trace filters and pages. UOM rows retain source/pass order and counts and provide base and requested-unit quantities. The `alloc_expiry_src_statuses` result adds a fixed 24-row cross-matrix ordered by source (`P`, `G`, blank), expiry status (`E`, `U`, `A`, `D`), and allocation pass (`M`, `F`). It partitions both existing matrices, keeps zero combinations, and reports counts plus quantities; UOM rows preserve this order and convert each quantity. Each allocation result also includes `alloc_due_src_bands`, a fixed 42-row matrix ordered by expiry-date source (`P`, `G`, blank), due horizon (`O` overdue, `T` today, `1` 1–7 days, `2` 8–30, `3` 31–90, `4` over 90, `U` undated), and allocation pass (`M`, `F`). It partitions the full allocation details by source and pass, retains zero combinations, and reports row counts and quantities; UOM results preserve the order and counts and convert each quantity. Allocation detail rows also report `days_to_expiration`, calculated as `expiration_date - as_of_date`: negative values are expired, zero is the as-of date, and positive values are upcoming or after-window. The value remains initial for undated rows and is echoed unchanged in UOM detail. Optional `filter_alloc_expiry_days_from` with `alloc_expiry_days_from` and `filter_alloc_expiry_days_to` with `alloc_expiry_days_to` apply inclusive signed day-delta bounds; either bound can be used alone, and two active bounds must be ascending. Negative values select expired rows, zero selects expirations on `as_of_date`, and positive values select upcoming or after-window rows. Active bounds omit undated rows, and UOM results echo the base-day values. Allocation detail rows also report `expiry_due_relation`: `B` when expiry precedes the required date, `S` on the same date, `A` after the required date, or `U` when either date is missing. `days_required_after_expiry` is the signed difference `required_date - expiration_date`; positive values show how many days demand follows expiry, negative values show expiry follows demand, and the value is initial when either date is missing. UOM detail rows echo both fields. Set `filter_allocation_expiry_due = abap_true` and `allocation_expiry_due` to `B`, `S`, `A`, or `U` to filter allocation details by this relation. The selector composes with the other allocation filters before filtered counts and pagination; UOM results echo both fields. Each allocation result also includes `expiry_due_relations`, a fixed eight-row summary ordered by relation (`B`, `S`, `A`, `U`) and allocation pass (`M`, `F`). It reports full-scope row counts and quantities across trace filters and pages, retains zero combinations, and reconciles to matched plus fallback totals; UOM results preserve the order and counts and convert each quantity. The active selector uses both inclusive signed bounds; zero is a valid endpoint, and `allocation_expiry_gap_from` must not exceed `allocation_expiry_gap_to`. Rows with either date missing are omitted. The filter composes before counts and pagination, and UOM results echo the flag and bounds. Allocation details also expose `expiry_due_gap_band`: `P1` through `P4` mean demand falls 1–7, 8–30, 31–90, or over 90 days after expiry; `Z` is the same day; `N1` through `N4` mean expiry falls 1–7, 8–30, 31–90, or over 90 days after demand; `U` means either date is missing. Each result includes `expiry_due_gap_bands`, a fixed 20-row matrix ordered by those ten bands and allocation pass (`M`, `F`), retaining empty combinations. Counts and quantities reconcile to matched plus fallback allocations across trace filters and pages. UOM details echo the band, and UOM summary rows preserve order and counts while converting quantities. Set `filter_allocation_gap_band = abap_true` with `allocation_gap_band` set to `P1`, `P2`, `P3`, `P4`, `Z`, `N1`, `N2`, `N3`, `N4`, or `U` to filter trace details by one named band. It composes with the signed range and other allocation scopes before counts and pagination. Invalid active codes and noninitial inactive values are rejected; UOM results echo both fields. Each allocation result also reports `max_expiry_due_gap`, the largest positive `required_date - expiration_date` difference across the full trace, with reservation, pass, actual stock keys, dates, and quantity. Equal gaps keep the first row in stable detail order; fields are initial when no allocation has a positive gap. UOM results echo the identity and convert the quantity.
+
+Every eligible open reservation now has one `resv_alloc_summaries` row,
+including fully allocated reservations. Each row carries the reservation context,
+required, withdrawn, open, allocated, matched, fallback, and uncovered quantities,
+plus `allocation_outcome`: `F` fully allocated, `P` partially allocated, or `U`
+unallocated. Each row also carries `days_until_required`, calculated as
+`required_date - as_of_date`: negative is overdue, zero is due on the as-of
+date, and positive is future-dated. An initial required date leaves the count
+at zero, so use the date field to identify undated rows. UOM summaries echo
+the day count. Rows sort by reservation/item. `maximum_resv_alloc_rows = 0`
+returns all rows; values 1–500 cap the page. Set
+`filter_resv_alloc_cursor = abap_true` with the previous reservation number and
+item in `resv_alloc_cursor_number` and `resv_alloc_cursor_item` for an exclusive
+continuation. `total_resv_alloc_summary_count`,
+`returned_resv_alloc_row_count`, and `is_resv_alloc_truncated` describe the page;
+when truncated, `next_resv_alloc_cursor_number` and
+`next_resv_alloc_cursor_item` identify its last row. Allocation summary totals
+remain complete across pages. Set
+`filter_resv_alloc_outcome = abap_true` with `resv_alloc_outcome` set to
+`F`, `P`, or `U` to restrict summary rows before pagination. The summary
+total count covers matching outcomes within the other active summary filters,
+while allocation counts and quantities stay full scope; UOM results echo
+this filter. Set `filter_resv_alloc_date_bucket = abap_true` with
+`resv_alloc_date_bucket` set to `O` for overdue, `T` for due today, `F` for
+future-dated, or `U` for undated rows, based on `as_of_date`. The bucket filter
+is applied before counting and pagination and composes with the other summary
+filters; UOM results echo the flag and bucket. Set
+`filter_resv_alloc_reservation = abap_true` with
+`resv_alloc_reservation_number` and `resv_alloc_reservation_item` to select
+one summary. Both key fields are required when enabled and initial otherwise.
+The reservation scope combines with the outcome filter before pagination; an
+active cursor must use the selected reservation key. UOM results echo the
+selected key. Optional inclusive `resv_alloc_required_date_from` and
+`resv_alloc_required_date_to` bounds filter by required date. Either bound is
+allowed, and two bounds must be ascending. When either is set, undated rows
+are omitted. Date and selector filters apply before pagination, and UOM
+results echo the bounds. Set `omit_resv_alloc_summary_rows = abap_true` to
+omit summary-row payload while retaining the scoped total count. It requires
+`maximum_resv_alloc_rows = 0` and no active summary cursor; UOM results echo
+the flag. UOM pages include base and requested-unit amounts for every
+quantity; each continuation recalculates against current
+reservation and stock data.
+
 `first_uncovered_required_date` with its reservation number and item identifies
 the earliest known required date; undated rows are skipped and ties use
 reservation/item order. The UOM result echoes the date and key.
@@ -6582,6 +6703,8 @@ Uncovered residuals are grouped into overdue, due-today, future-dated, and
 undated buckets. The bucket quantities and counts reconcile to the uncovered
 quantity and row-count summaries. UOM results carry base/requested amounts and
 the same counts; undated rows remain separate from due-today rows.
+All eligible open demand is also grouped into overdue, due-today, future-dated, and undated buckets, regardless of local allocation outcome. The four quantities reconcile to `open_reservation_quantity`, and the counts reconcile to `open_reservation_row_count`; demand already allocated remains included. UOM expiry results expose `base_overdue_open_resv_qty` / `src_overdue_open_resv_qty`, `base_due_today_open_resv_qty` / `src_due_today_open_resv_qty`, `base_future_open_resv_qty` / `src_future_open_resv_qty`, and `base_undated_open_resv_qty` / `src_undated_open_resv_qty`; counts are echoed unchanged.
+`resv_alloc_open_demand_bands` cross-tabulates the same demand by allocation outcome (`F` fully allocated, `P` partial, `U` unallocated) and required-date bucket (`O` overdue, `T` due today, `F` future, `U` undated). It always returns all 12 combinations in outcome/date order, including zero rows; quantities and counts reconcile to `open_reservation_quantity` and `open_reservation_row_count`. UOM bands preserve the order and expose `base_open_quantity` and `source_open_quantity` with the row counts unchanged. `open_resv_due_horizon_bands` returns a fixed seven-row breakdown: `O` overdue, `T` due today, `1` due in 1–7 days, `2` due in 8–30 days, `3` due in 31–90 days, `4` due after 90 days, and `U` undated. These calendar-day ranges are non-overlapping and use `as_of_date`; counts and quantities sum to the eligible open reservation totals. UOM bands preserve order and counts and provide `base_open_quantity` and `source_open_quantity`. reservation summary pages can filter by the same codes with `filter_resv_alloc_due_horizon = abap_true` and `resv_alloc_due_horizon`; the scope composes with outcome, coarse date bucket, exact reservation, date range, and cursor filters before totals and pagination. unknown active codes and nonblank inactive selectors are rejected, and uom results echo the selector. set `filter_resv_alloc_sequence = abap_true` with a positive `resv_alloc_sequence` to select one summary by its shared-stock allocation processing position. This selector composes with the other summary filters before totals and pagination; a disabled selector must be initial, and UOM results echo both fields. The base result also identifies `next_open_resv_required_date`, the earliest eligible dated open reservation with a required date on or after `as_of_date`; overdue and undated rows are skipped. `next_open_resv_number` and `next_open_resv_item` identify it, and `days_until_next_open_resv_req` reports the calendar-day distance, including zero when due today. Equal-date rows break ties by reservation number and item. UOM results echo all four fields unchanged.
 
 Expired-batch scrapping validates selected quantities against the available
 unrestricted balances in a caller-supplied expiry snapshot, then posts movement
@@ -6856,3 +6979,70 @@ exercise the intended behavior. Confirmation base-unit assertions now include
 the reversed EA scrap quantity in the overall total and exclude it from the
 non-reversed total. The ratio-read assertion also reflects one cached BOX
 conversion lookup. The full transpiled ABAP Unit suite now passes.
+
+The signed allocation expiry-gap filter initially rejected an active `0..0`
+request because initial integer bounds were treated as an omitted range. Active
+requests now accept equal zero endpoints and reject only reversed bounds; base
+and UOM regressions verify exact same-day selection.
+
+
+Expired batch exposure now splits positive-stock rows into 1–7, 8–30, 31–90,
+and 91+ day age buckets. Their counts and four stock-category totals partition
+the expired totals. UOM results preserve counts and convert each category
+quantity. Expiration on `as_of_date` remains upcoming at age zero. Boundary and
+conversion tests cover each band.
+
+
+Batch-expiry exposure also reports cumulative expired-stock horizons through
+7, 30, and 90 days. Counts and four category totals follow the inclusive
+horizon, the shorter horizons are subsets of longer ones, and totals reconcile
+to the disjoint expired-age buckets. UOM results carry the same counts and
+converted category amounts.
+
+
+Expired batch exposure now provides `expiry_src_age_bands`, a fixed 12-row
+matrix crossing plant, global-fallback, and other/blank sources with the four
+disjoint overdue-age bands. Counts and four stock categories partition each
+age band; zero intersections stay present. Unit-aware results preserve source,
+band, count, and row order while returning base and requested-unit quantities.
+Regression coverage checks every row in base and converted requests.
+
+
+Upcoming batch exposure now includes `upcoming_src_bands`, a fixed 12-row
+matrix crossing plant, global-fallback, and other/blank sources with the four
+0–7, 8–30, 31–90, and over-90 day lead-time bands. It covers positive-stock
+in-window rows, retains empty combinations, and reconciles to the upcoming
+summary. Unit-aware rows preserve counts and order while converting all four
+category quantities. Boundary fixtures cover every band and source group.
+
+
+After-window batch exposure now includes `after_window_src_bands`, a fixed
+12-row matrix crossing plant, global-fallback, and other/blank sources with
+1–7, 8–30, 31–90, and over-90 day overruns beyond the inclusive `through_date`.
+Counts and category totals partition the after-window summary, empty
+combinations remain present, and UOM output preserves the counts while
+converting all four stock categories. Regression fixtures cover every band
+boundary and source group.
+
+
+The first after-window source-band implementation declared the date subtraction
+inline. The transpiler inferred a date-shaped local for the overrun distance,
+so comparisons assigned rows to the wrong band. The service now stores the
+subtraction in an explicitly typed integer local; the 1, 7, 8, 30, 31, 90, and
+91 day regression boundaries pass in the full transpiled ABAP Unit run.
+
+
+Batch-expiry detailed rows now support keyset pagination through
+`maximum_batch_rows` (1–500) and the `batch_cursor_*` tuple. The tuple follows
+the exact dated-row ordering and may contain blank batch/location/valuation
+keys. Results return `is_truncated`, `next_cursor_*`,
+`total_dated_batch_row_count`, and `returned_batch_row_count`; when truncated,
+`next_cursor_*` identifies the last row returned. The default limit of zero
+preserves the complete dated list. Summary values remain based on all matching
+rows. Undated details have their own 1–500 keyset page, ordered by batch,
+location, and valuation type; zero retains the complete list. Their total count
+and summary remain complete. A continuation cursor is returned only when the
+undated page is truncated. `omit_undated_batch_rows = abap_true` suppresses
+details and conflicts with an active undated cursor or nonzero undated limit.
+UOM requests pass both page contexts to the base result. Each page is a new
+stock read and does not retain a snapshot across calls.

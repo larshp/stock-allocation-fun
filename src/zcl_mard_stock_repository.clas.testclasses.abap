@@ -735,6 +735,34 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( lt_statuses ) ).
+    DATA(lt_batch1_summaries) = lt_statuses[
+      request_id = 'BATCH-1' ]-resv_allocation_summaries.
+    DATA(lv_full_open_quantity) = CONV resb-bdmng( 0 ).
+    DATA(lv_partial_open_quantity) = CONV resb-bdmng( 0 ).
+    DATA(lv_unallocated_open_quantity) = CONV resb-bdmng( 0 ).
+    LOOP AT lt_batch1_summaries INTO DATA(ls_resv_summary).
+      CASE ls_resv_summary-allocation_outcome.
+        WHEN zif_stock_repository=>c_allocation_outcome_full.
+          lv_full_open_quantity += ls_resv_summary-open_quantity.
+        WHEN zif_stock_repository=>c_allocation_outcome_partial.
+          lv_partial_open_quantity += ls_resv_summary-open_quantity.
+        WHEN zif_stock_repository=>c_allocation_outcome_none.
+          lv_unallocated_open_quantity += ls_resv_summary-open_quantity.
+      ENDCASE.
+    ENDLOOP.
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_full_open_quantity
+      act = lt_statuses[ request_id = 'BATCH-1' ]-fully_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_partial_open_quantity
+      act = lt_statuses[ request_id = 'BATCH-1' ]-part_alloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_unallocated_open_quantity
+      act = lt_statuses[ request_id = 'BATCH-1' ]-unalloc_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_statuses[ request_id = 'BATCH-1' ]-open_reservation_quantity
+      act = lv_full_open_quantity + lv_partial_open_quantity
+        + lv_unallocated_open_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20271231'
       act = lt_statuses[ request_id = 'BATCH-1' ]-batches[

@@ -3,6 +3,9 @@ INTERFACE zif_stock_repository PUBLIC.
   CONSTANTS c_expiry_source_global TYPE c LENGTH 1 VALUE 'G'.
   CONSTANTS c_allocation_pass_match TYPE c LENGTH 1 VALUE 'M'.
   CONSTANTS c_allocation_pass_fallback TYPE c LENGTH 1 VALUE 'F'.
+  CONSTANTS c_allocation_outcome_full TYPE c LENGTH 1 VALUE 'F'.
+  CONSTANTS c_allocation_outcome_partial TYPE c LENGTH 1 VALUE 'P'.
+  CONSTANTS c_allocation_outcome_none TYPE c LENGTH 1 VALUE 'U'.
 
 
   TYPES:
@@ -14,29 +17,59 @@ INTERFACE zif_stock_repository PUBLIC.
     ty_reservation_key WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_uncovered_reservation,
-      reservation_number  TYPE resb-rsnum,
-      reservation_item    TYPE resb-rspos,
-      allocation_sequence TYPE i,
-      required_date       TYPE resb-bdter,
-      storage_location    TYPE resb-lgort,
-      batch               TYPE resb-charg,
-      valuation_type      TYPE resb-bwtar,
-      required_quantity   TYPE resb-bdmng,
-      withdrawn_quantity  TYPE resb-enmng,
-      open_quantity       TYPE resb-bdmng,
-      allocated_quantity  TYPE resb-bdmng,
-      matched_quantity    TYPE resb-bdmng,
-      fallback_quantity   TYPE resb-bdmng,
-      uncovered_quantity  TYPE resb-bdmng,
+      reservation_number      TYPE resb-rsnum,
+      reservation_item        TYPE resb-rspos,
+      allocation_sequence     TYPE i,
+      required_date           TYPE resb-bdter,
+      storage_location        TYPE resb-lgort,
+      batch                   TYPE resb-charg,
+      valuation_type          TYPE resb-bwtar,
+      required_quantity       TYPE resb-bdmng,
+      withdrawn_quantity      TYPE resb-enmng,
+      open_quantity           TYPE resb-bdmng,
+      allocated_quantity      TYPE resb-bdmng,
+      matched_quantity        TYPE resb-bdmng,
+      fallback_quantity       TYPE resb-bdmng,
+      uncovered_quantity      TYPE resb-bdmng,
+      allocation_coverage_pct TYPE p LENGTH 5 DECIMALS 2,
+      allocation_shortage_pct TYPE p LENGTH 5 DECIMALS 2,
+      matched_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+      fallback_share_pct      TYPE p LENGTH 5 DECIMALS 2,
     END OF ty_uncovered_reservation.
   TYPES ty_uncovered_reservations TYPE STANDARD TABLE OF
     ty_uncovered_reservation WITH EMPTY KEY.
+  TYPES:
+    BEGIN OF ty_reservation_allocation_summary,
+      reservation_number         TYPE resb-rsnum,
+      reservation_item           TYPE resb-rspos,
+      allocation_sequence        TYPE i,
+      required_date              TYPE resb-bdter,
+      days_until_required        TYPE i,
+      requested_storage_location TYPE resb-lgort,
+      requested_batch            TYPE resb-charg,
+      requested_valuation_type   TYPE resb-bwtar,
+      required_quantity          TYPE resb-bdmng,
+      withdrawn_quantity         TYPE resb-enmng,
+      open_quantity              TYPE resb-bdmng,
+      allocated_quantity         TYPE resb-bdmng,
+      matched_quantity           TYPE resb-bdmng,
+      fallback_quantity          TYPE resb-bdmng,
+      uncovered_quantity         TYPE resb-bdmng,
+      allocation_outcome         TYPE c LENGTH 1,
+      allocation_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+      allocation_shortage_pct    TYPE p LENGTH 5 DECIMALS 2,
+      matched_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+      fallback_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+    END OF ty_reservation_allocation_summary.
+  TYPES ty_reservation_allocation_summaries TYPE STANDARD TABLE OF
+    ty_reservation_allocation_summary WITH EMPTY KEY.
   TYPES:
     BEGIN OF ty_batch_allocation_detail,
       reservation_number         TYPE resb-rsnum,
       reservation_item           TYPE resb-rspos,
       allocation_sequence        TYPE i,
       required_date              TYPE resb-bdter,
+      days_until_required        TYPE i,
       allocation_pass            TYPE c LENGTH 1,
       requested_storage_location TYPE resb-lgort,
       requested_batch            TYPE resb-charg,
@@ -45,6 +78,11 @@ INTERFACE zif_stock_repository PUBLIC.
       batch                      TYPE mchb-charg,
       valuation_type             TYPE mcha-bwtar,
       expiration_date            TYPE mcha-vfdat,
+      days_to_expiration         TYPE i,
+      expiration_date_source     TYPE c LENGTH 1,
+      expiry_due_relation        TYPE c LENGTH 1,
+      days_required_after_expiry TYPE i,
+      expiry_due_gap_band        TYPE c LENGTH 2,
       quantity                   TYPE mchb-clabs,
     END OF ty_batch_allocation_detail.
   TYPES ty_batch_allocation_details TYPE STANDARD TABLE OF
@@ -160,6 +198,7 @@ INTERFACE zif_stock_repository PUBLIC.
       batch              TYPE mchb-charg,
       valuation_type     TYPE mcha-bwtar,
       expiration_date    TYPE mcha-vfdat,
+      expiry_source      TYPE c LENGTH 1,
       available_quantity TYPE mchb-clabs,
     END OF ty_batch_stock.
   TYPES ty_batch_stocks TYPE STANDARD TABLE OF ty_batch_stock
@@ -194,6 +233,9 @@ INTERFACE zif_stock_repository PUBLIC.
       fully_allocated_resv_count     TYPE i,
       partially_allocated_resv_count TYPE i,
       unallocated_resv_count         TYPE i,
+      fully_alloc_resv_open_qty      TYPE resb-bdmng,
+      part_alloc_resv_open_qty       TYPE resb-bdmng,
+      unalloc_resv_open_qty          TYPE resb-bdmng,
       uncovered_open_resv_quantity   TYPE resb-bdmng,
       uncovered_open_resv_row_count  TYPE i,
       first_uncovered_required_date  TYPE resb-bdter,
@@ -201,6 +243,7 @@ INTERFACE zif_stock_repository PUBLIC.
       first_uncovered_resv_item      TYPE resb-rspos,
       uncovered_open_resv_keys       TYPE ty_reservation_keys,
       uncovered_open_reservations    TYPE ty_uncovered_reservations,
+      resv_allocation_summaries      TYPE ty_reservation_allocation_summaries,
       allocation_details             TYPE ty_batch_allocation_details,
       open_reservation_row_count     TYPE i,
       excluded_open_resv_row_count   TYPE i,

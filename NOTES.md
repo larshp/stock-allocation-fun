@@ -1,6 +1,142 @@
 # Development notes
 
+## 2026-10-20
+
+- Batch expiry exposure now accepts optional inclusive signed `expiry_days_from` and `expiry_days_to` bounds against `expiration_date - as_of_date`. Each bound works alone, zero represents the as-of date, negative values select expired dates, and positive values select future dates; active bounds omit undated rows and reversed ranges are rejected. The filter composes before exposure counts, totals, and paging, while UOM requests forward and echo both bounds. Regressions cover combined and one-sided ranges, exact zero and after-window days, paging, source composition, UOM, and invalid or inactive bounds. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Allocation trace filters now accept optional signed `alloc_expiry_days_from` and `alloc_expiry_days_to` bounds against `days_to_expiration`; either bound may be used alone, zero is valid, expired values are negative, and undated rows are omitted when active. Both filters compose before counts and paging, and UOM forwards and echoes them. Regression coverage checks negative, zero, positive, one-sided, combined, paged, source-composed, UOM, inverted, and inactive cases. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Allocation trace details now expose signed `days_to_expiration` from `as_of_date`; expired rows are negative, same-day rows are zero, future expiries are positive, and undated rows remain initial. UOM details echo the same day count. Regression coverage includes expired, as-of, after-window, and undated rows in base and UOM output. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Allocation trace pages now support inclusive lower and upper quantity bounds in base units. Bounds are independently optional and compose before filtered totals and pagination; zero is valid, negative and inverted ranges are rejected, and UOM requests/results forward and echo the base-unit bounds. Regression coverage includes one-sided and combined ranges, paging, source composition, UOM, and invalid values. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
 ## 2026-10-19
+
+- Allocation trace pages now select expired-age bands `1`–`4` for 1–7, 8–30, 31–90, and over 90 days since expiry. The selector omits dates on or after `as_of_date`, composes before filtered totals and paging, and is forwarded and echoed by UOM. Regressions cover band boundaries, source composition, paging, UOM forwarding, and invalid selectors. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Allocation trace pages now select after-window expiry bands `1`–`4` for 1–7, 8–30, 31–90, and over 90 days beyond `through_date`. The selector omits dates on or before the window and undated rows, composes with expiry status, dates, and other trace scopes before totals and paging, and is forwarded and echoed by UOM. Regressions cover all band boundaries, window-edge exclusions, source composition, paging, UOM, and invalid selectors. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Allocation trace pages now select upcoming expiry lead-time bands `1`–`4` for 0–7, 8–30, 31–90, and over 90 days from `as_of_date`, bounded by the inclusive `through_date`. The filter composes before filtered totals and paging, and UOM results echo it. Regression coverage checks each band, day 0 and the through-date edge, expired, after-window, and undated exclusion, source composition, pagination, UOM forwarding, and invalid selectors. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+
+- Batch expiry source filtering now accepts `O` for the catch-all source category used by the expiry matrices, matching source values other than `P` and `G`, including blank. An active blank selector still matches only blank sources. Base and UOM regressions cover unknown and blank sources and reject unsupported codes before reads.
+
+- Batch expiry exposure now selects after-window lead-time bands `1`–`4` for 1–7, 8–30, 31–90, and over 90 days beyond `through_date`. The filter composes with status and other stock scopes, omits undated rows, and is echoed through UOM results. Regressions cover every band edge, source/status composition, UOM output, and invalid active or disabled values before reads.
+
+- Batch expiry exposure can now select upcoming lead-time bands `1`–`4` for 0–7, 8–30, 31–90, and over 90 days from the as-of date, within the inclusive request window. The selector composes with expiry status and the other stock scopes, excludes undated rows, and is echoed through UOM results. Regression coverage checks all band endpoints, source/status composition, UOM output, and rejection before reads.
+
+- Batch expiry exposure now filters dated rows by status (`E`, `U`, `A`) and expired age band (1–7, 8–30, 31–90, over 90 days). These selectors compose with location, batch, valuation, source, and date bounds; active status or age filtering omits undated rows. Active `A` selection returns paged after-window detail rows. Base and UOM requests echo both selectors; regressions cover boundaries, source intersection, and rejection before reads.
+
+- Source/status, source-age, upcoming, and after-window expiry rows now report `expiration_date_span_days`, the elapsed calendar days from the first to last expiration date. Empty and single-date cells report zero; UOM rows echo the value. Regressions cover six-day spans in all four matrices and an empty status cell.
+
+- Expiry source/status summaries now include the first and last dates in each
+  nonempty source/status cell; empty cells keep both dates initial, and UOM
+  results echo the spans. Regression expectations cover all nine cells in
+  base and UOM output.
+
+- Reservation summary pages now support inclusive percentage, base-unit
+  quantity, and positive allocation-sequence ranges, plus filtered
+  reconciliation totals for allocated, matched, fallback, open, and
+  uncovered quantities before cursor/page selection. Uncovered detail
+  filters include shortage-quantity and open-demand-quantity ranges; the
+  shortage, open-demand, and allocated totals are computed across
+  matching rows before cursor/page; open demand reconciles as allocated plus
+  shortage. Filtered allocation totals also split into matched and
+  fallback quantities, counts split partial from unallocated rows, and
+  weighted coverage, shortage, matched, and fallback percentages
+  summarize the filtered demand. UOM results echo counts and percentages
+  and report converted quantities.
+  Reservation summary pages now expose matching weighted coverage and
+  shortage percentages alongside their filtered reconciliation totals,
+  with matched/fallback shares that sum to coverage.
+  Regressions cover inclusive endpoints, paging, UOM results, invalid
+  ranges, and reconciliation. PLAN validation passed, abaplint reported
+  0 issues across 252 files, transpilation passed, and the full ABAP Unit
+  suite exited 0.
+
+- Allocation trace summaries now report the largest positive gap in both directions: demand after expiry and expiry after required date. Both summaries retain the first stable detail row on ties, stay full-scope across detail filters, and expose converted UOM quantities. Filtered trace scopes also return a fixed 20-cell gap-band/pass matrix with UOM conversions. A full-scope 60-cell expiry-source/gap-band/pass matrix preserves zero combinations and converts quantities in UOM results. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite passed.
+
+- Filtered allocation trace totals now also include a fixed six-cell expiry-source/pass matrix, preserving empty source/pass combinations. Its counts and quantities reconcile to the pre-page filtered totals, with UOM conversions. PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full ABAP Unit suite passed.
+- Allocation trace requests can filter directly by a named signed expiry-gap
+  band (`P1`–`P4`, `Z`, `N1`–`N4`, or `U`), alongside the arbitrary inclusive
+  signed range selector. Invalid active and noninitial inactive codes are
+  rejected; the selector is echoed through UOM results. Results now also
+  report the base-unit quantity matching allocation-detail filters before
+  cursor/page slicing, with a converted UOM total. A fixed two-row matched /
+  fallback breakdown reconciles filtered counts and quantities and keeps zero
+  passes present. Regressions cover band selection, zero-gap UOM, rejected
+  inputs, and full totals across pages. The full-scope `max_expiry_due_gap`
+  summary identifies the allocation with the largest positive expiry-to-demand
+  gap; UOM output converts its quantity, and all fields stay initial when no
+  allocation has a positive gap. PLAN validation passed, abaplint found 0
+  issues across 252 files, transpilation passed, and the full ABAP Unit suite
+  passed.
+
+- Allocation expiry details now assign a signed due-gap band from `P1`–`P4`
+  when demand follows expiry, `Z` for the same day, `N1`–`N4` when expiry
+  follows demand, and `U` when either date is missing. The fixed 20-row
+  `expiry_due_gap_bands` summary crosses those bands with matched/fallback
+  passes and preserves zero cells. Tests cover all 1/7/8/30/31/90/91-day
+  boundaries in both directions, totals, and UOM conversion. PLAN validation
+  passed, abaplint found 0 issues across 252 files, transpilation passed, and
+  the full ABAP Unit suite passed.
+
+- Allocation trace details now carry the resolved expiry source from the stock
+  repository through matched and fallback deductions. Callers can filter plant,
+  global fallback, or blank markers; fixed source/pass and 24-row source/status/
+  pass matrices report full-scope counts and quantities, with UOM conversions.
+  Tests cover source propagation, blank-key selection, invalid/inactive inputs,
+  matrix reconciliation, and UOM output. PLAN validation passed; abaplint found
+  0 issues across 252 files, transpilation passed, and the full ABAP Unit suite
+  passed.
+- Allocation trace results now include a fixed 42-row source/due-horizon/pass
+  matrix. It separates source provenance and matched/fallback allocations by
+  overdue, today, four future bands, and undated requirement; base/UOM tests
+  verify boundaries, empty combinations, reconciliation, and converted units.
+  PLAN validation passed, abaplint found 0 issues across 252 files,
+  transpilation passed, and the full ABAP Unit suite passed.
+- Allocation details now expose whether batch expiry is before, on, or after
+  the reservation required date, with a signed day gap and an unknown state
+  when either date is missing. Callers can filter trace details by relation;
+  invalid active values and noninitial inactive selectors are rejected. Base
+  and UOM assertions cover all four states and selector echo. The fixed
+  eight-row relation/pass summary keeps full-scope counts and quantities across
+  pages and converts totals in UOM results. A signed inclusive gap filter can
+  select risk windows and exact zero gaps; reversed and inactive bounds have regressions; zero-gap filtering is covered
+  in base and UOM results. PLAN validation passed, abaplint found 0 issues
+  across 252 files, transpilation passed, and the full ABAP Unit suite passed.
+
+- After-window expiry reporting now splits its positive-stock counts and
+  category quantities by date source and by 1–7, 8–30, 31–90, and over-90 day
+  overruns past `through_date`. The fixed 12-row base/UOM matrices retain empty
+  combinations; fixtures cover all boundaries and converted totals. An inline
+  date-difference declaration inferred a date type in transpilation, so the
+  overrun distance now uses an explicit integer local. PLAN validation passed,
+  abaplint found 0 issues across 252 files, transpilation passed, and the full
+  ABAP Unit suite passed.
+
+- Upcoming expiry reporting now provides `upcoming_src_bands`, a stable
+  12-row matrix across plant, global-fallback, and other/blank date sources and
+  0–7, 8–30, 31–90, and over-90 day lead-time bands. Counts and stock-category
+  totals partition upcoming exposure. Base and UOM regressions cover all cells.
+  PLAN validation passed, abaplint found 0 issues across 252 files, transpilation
+  passed, and the full ABAP Unit suite passed.
+
+- Expired exposure now crosses its four overdue-age bands with plant,
+  global-fallback, and other/blank expiry sources in a stable 12-row
+  `expiry_src_age_bands` matrix. Each row reports the count and four stock
+  categories; UOM results preserve row order and converted totals. Deep base
+  and UOM regressions cover every intersection, including empty rows. PLAN
+  validation passed, abaplint found 0 issues across 252 files, transpilation
+  passed, and the full ABAP Unit suite passed.
+
+- Batch-expiry exposure now splits expired stock into 1–7, 8–30, 31–90, and
+  91+ day age buckets. Each bucket reports positive-stock row counts and four
+  reservation-net stock categories; UOM responses preserve counts and convert
+  each total. Tests cover every boundary and base/requested-unit values.
+- The expiry report also provides cumulative expired-stock totals for rows
+  1–7, 1–30, and 1–90 days overdue. They derive from the disjoint age bands,
+  preserve row counts, and expose category totals in base and requested units.
 
 - `ZIF_BATCH_EXPIRY_READER` now exposes the stock service’s unit-aware bulk
   expiry read alongside the base-unit read, forwarding reservation exclusions.
@@ -10317,3 +10453,333 @@
   from plant and global sources. PLAN validation passed, abaplint found 0 issues
   across 252 files, transpilation passed, and the full transpiled ABAP Unit
   suite passed.
+
+- Batch-expiry exposure now totals unrestricted, available, quality-inspection,
+  and blocked stock separately for plant-level, global fallback, and
+  other/blank expiry sources. The totals use the same dated positive-stock scope
+  as source row counts, including after-window rows; UOM results include base
+  and requested-unit totals. Regression fixtures cover all source groups and
+  stock categories in base and converted units.
+
+- Expiry row counts now also split by source and status: expired, upcoming,
+  and after-window rows each have plant, global-fallback, and other/blank
+  counts. The three source counts partition each status total, and the UOM
+  result echoes all nine counts. Base and converted regressions cover each
+  source/status combination. PLAN validation, abaplint, transpilation, and the
+  full transpiled ABAP Unit suite passed.
+
+- Expiry results now include a fixed nine-row source/status matrix for plant,
+  global fallback, and other/blank date sources across expired, upcoming, and
+  after-window stock. Each row includes count and four category totals; UOM
+  rows carry base and requested-unit amounts in the same stable order. Deep
+  base/UOM regressions cover all rows, including empty intersections. PLAN
+  validation, abaplint, transpilation, and full ABAP Unit passed.
+
+- Batch-expiry dated details now support keyset pagination with a maximum page
+  size of 500. The cursor follows the existing status/date/batch/location/
+  valuation order, allows blank key components, and returns an exclusive
+  continuation tuple and explicit total/current-page row counts. Summary
+  aggregates remain complete across pages; UOM requests forward the same page
+  contract. Undated details now have their own keyset page and continuation
+  tuple. The opt-in `omit_undated_batch_rows` flag can suppress that detail list
+  without changing its summary; each continuation performs a new stock read.
+
+- Uncovered reservation details now support a separate keyset page of up to
+  500 rows, ordered by reservation/item. The exclusive continuation cursor
+  advances from the previous page's final key; full uncovered totals remain
+  available, and the parallel key list follows the returned detail page. UOM
+  results echo page metadata and convert the returned rows.
+
+- Added ABAP Unit coverage for uncovered-reservation first and continuation
+  pages, the unpaged default, page/key-list ordering, full summary preservation,
+  UOM conversion, and invalid cursor/size inputs. Updated the PLAN guard for the
+  pagination contract and its tests. `npm test` passed: PLAN validation,
+  abaplint (0 issues across 252 files), transpilation (15 outputs updated), and
+  the full transpiled ABAP Unit suite.
+
+
+- Allocation trace pages now support reservation/item and `M`/`F` pass filters.
+  Filters apply before keyset pagination, cursor keys must stay within the active
+  filter, and full allocation summary totals remain unchanged. UOM results echo
+  both filters; tests cover filtered continuation pages, pass selection, summary
+  preservation, UOM conversion, and invalid scopes/cursors. `npm test` passed: PLAN
+  validation, abaplint (0 issues across 252 files), transpilation, and the full
+  transpiled ABAP Unit suite.
+
+
+- Added `resv_allocation_summaries`, one row for every keyed open
+  reservation, including fully allocated, partially allocated, and unallocated
+  outcomes. The calculator preserves requested context and the quantity
+  reconciliation; the expiry API pages summaries independently by
+  reservation/item and UOM results carry base and requested amounts. Tests cover
+  all three outcomes, continuation, summary preservation, UOM conversion, and bad
+  cursor/size inputs. `npm test` passed: PLAN validation, abaplint (0 issues across
+  252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation summary pages can now be restricted to full, partial, or unallocated
+  outcomes before counting and pagination. The page total reflects the selected
+  outcome while allocation counters remain complete; UOM results echo the filter.
+  Added tests for filtered summaries, UOM forwarding, and invalid selectors.
+  PLAN validation, abaplint, transpilation, and the full ABAP Unit suite passed.
+
+- Reservation-allocation summary pages now combine outcome selection, an exact
+  reservation/item key, and inclusive required-date bounds before counting and
+  pagination. Undated rows are excluded when a date bound is active; UOM results
+  echo each scope. Summary rows also report `days_until_required` relative to
+  `as_of_date`, with undated rows left at zero. Regression tests cover combined
+  filters, UOM forwarding, invalid selectors and dates, cursor mismatches, and
+  due-day offsets. `npm test` passed: PLAN validation, abaplint (0 issues across
+  252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation summaries now support `omit_resv_alloc_summary_rows`; the request
+  retains selector-scoped totals while returning zero summary rows. Allocation
+  trace details have the parallel `omit_allocation_detail_rows` option, which
+  retains scoped trace counts and full pass totals. Both flags are validated and
+  echoed by UOM results. Reservation summaries and trace rows also report
+  `days_until_required`. `npm test` passed: PLAN validation, abaplint (0 issues
+  across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Batch availability summaries now report open reservation demand by local
+  allocation outcome: fully allocated, partially allocated, and unallocated.
+  The totals partition eligible open demand, exclude reservations removed by
+  the effective exclusions, and include base/requested-unit values in UOM
+  expiry responses. Calculator, MARD repository, service, and UOM tests cover
+  the quantities and their reconciliation. `npm test` passed: PLAN validation,
+  abaplint (0 issues across 252 files), transpilation, and the full transpiled
+  ABAP Unit suite.
+
+- The expiry exposure result now partitions all eligible open reservation demand
+  into overdue, due-today, future-dated, and undated buckets using `as_of_date`.
+  These quantities include locally allocated demand, reconcile to total open
+  reservation demand, and have base/requested-unit UOM values. Tests cover all
+  four buckets, count/quantity reconciliation, and conversion. `npm test` passed:
+  PLAN validation, abaplint (0 issues across 252 files), transpilation, and the
+  full transpiled ABAP Unit suite.
+
+- Reservation allocation summary pages now accept `filter_resv_alloc_date_bucket`
+  with overdue, due-today, future-dated, or undated selection based on
+  `as_of_date`. It composes with outcome, exact reservation, date-range, and
+  cursor scopes before page counting; UOM results echo the selector. Tests cover
+  all four buckets, invalid and inactive selectors, and UOM forwarding.
+  `npm test` passed: PLAN validation, abaplint (0 issues across 252 files),
+  transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now accept a due-date bucket selector (`O`, `T`, `F`,
+  or `U`) based on `as_of_date`. It composes with reservation and allocation
+  pass filters before counting and pagination; UOM results echo the selector.
+  Tests cover all buckets plus invalid/inactive inputs and UOM forwarding.
+  `npm test` passed: PLAN validation, abaplint (0 issues across 252 files),
+  transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now accept inclusive `allocation_required_date_from`
+  and `allocation_required_date_to` bounds. Either bound works alone; active
+  bounds omit undated rows and must be valid and ascending. The scope composes
+  with bucket, reservation, and pass filters before totals and pagination; UOM
+  results echo it. Tests cover inclusive and one-sided ranges, undated omission,
+  invalid dates, inverted bounds, and UOM forwarding. `npm test` passed: PLAN
+  validation, abaplint (0 issues across 252 files), transpilation, and the full
+  transpiled ABAP Unit suite.
+
+- Expiry exposure results now include `resv_alloc_open_demand_bands`, a fixed 12-cell matrix of eligible open demand by allocation outcome and required-date bucket. Base and UOM rows preserve outcome/date order, zero combinations, counts, and reconciled quantities. Tests cover all date buckets and outcomes, a zero cell, total reconciliation, and UOM conversion. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Expiry exposure results now identify the earliest eligible open reservation due on or after `as_of_date`, with its reservation/item key and calendar-day distance. Overdue and undated rows are skipped; equal dates use reservation/item order. Tests cover choosing due today over overdue demand, a later input row winning the date/key tie-break, and UOM echoing. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Expiry exposure results now include seven non-overlapping open-reservation due horizons: overdue, due today, 1–7 days, 8–30 days, 31–90 days, over 90 days, and undated. Counts and quantities reconcile to all eligible open demand; UOM rows include converted values. Tests exercise every band, fixed row count, reconciliation, and UOM conversion. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Reservation allocation summary pages now support `filter_resv_alloc_due_horizon` for overdue, due today, 1–7, 8–30, 31–90, over 90, and undated rows. It composes with outcome, coarse date bucket, exact reservation, required-date range, and cursor scopes before totals and pagination. Active/inactive selector validation and UOM echo are covered. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now accept `filter_allocation_due_horizon` with overdue, due-today, 1–7, 8–30, 31–90, over-90, and undated scopes. It composes with reservation, pass, coarse bucket, and inclusive date-range filters before totals and pagination; invalid/inactive selectors are rejected and UOM echoes the selection. Tests cover every horizon, scope composition, and UOM forwarding. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now support an exact positive `allocation_sequence` filter. It composes with reservation, pass, date bucket, due horizon, and inclusive required-date scopes before counting and pagination; UOM results echo the selector. Invalid active and noninitial inactive values are rejected. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Reservation allocation summary pages now accept an exact positive `resv_alloc_sequence` filter. It composes with outcome, date bucket, due horizon, exact reservation, required-date range, and cursor scopes before summary counts and paging; overall allocation detail counts stay full-scope. UOM requests and results forward and echo the selector. Tests cover sequence 2, selector composition, invalid/inactive inputs, scope boundaries, and UOM echo. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered reservation detail pages now accept `filter_uncovered_due_horizon` for overdue, due today, 1–7, 8–30, 31–90, over 90, and undated rows. The filtered total is computed before cursor paging, while overall uncovered row and quantity summaries stay full-scope. UOM forwards and echoes the selector. Tests cover every band, continuation totals, invalid/inactive codes, and UOM echo. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered details now support `omit_uncovered_detail_rows`. Count-only requests retain the due-filter-scoped total and full-scope shortage summaries, clear both detail payloads, and require an unpaged request with no uncovered cursor. UOM results echo the flag. Tests cover payload omission, retained counts, invalid paging combinations, and UOM output. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered reservation pages now accept an exact positive `uncovered_sequence` filter. It composes with due horizon and cursor scopes before filtered totals and page results; full-scope shortage counts and quantities remain unchanged. UOM forwards and echoes both selector fields. Tests cover sequence 2, due-horizon composition, invalid/inactive inputs, and UOM forwarding. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered detail pages now accept inclusive `uncovered_required_date_from` and `uncovered_required_date_to` bounds. One-sided windows are supported, undated rows are omitted when a bound is active, and bounds compose with sequence, due horizon, and cursor filters before count/page output. UOM results echo the dates. Tests cover inclusive boundaries, a one-sided bound, undated omission, invalid dates, ascending order, and UOM echo. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered details now accept inclusive required-date bounds through `uncovered_required_date_from` and `uncovered_required_date_to`. Either bound can be used alone; active bounds omit undated rows and compose with sequence, due-horizon, and cursor scopes before totals and paging. UOM echoes both dates. Tests cover inclusive and one-sided windows, undated omission, invalid/inverted dates, and UOM echo. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Uncovered detail pages now accept an exact reservation/item key filter. Both
+  keys are required when active and must be initial otherwise; it composes with
+  sequence, due-horizon, date-window, and cursor scopes before counts and paging.
+  An active cursor must match the selected key, and UOM requests/results forward
+  and echo the selector. Tests cover combined filtering, invalid key states,
+  cursor mismatch, and UOM echo. `npm test` passed: PLAN validation, abaplint
+  (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit
+  suite.
+
+- Uncovered detail pages now filter by allocation outcome: `P` selects rows with
+  positive local allocation and a remaining shortage, while `U` selects rows
+  with no local allocation. The selector composes with reservation, sequence,
+  due-horizon, date-window, and cursor scopes before filtered totals and paging;
+  full-scope shortage summaries remain unchanged. Tests cover both outcomes,
+  composed filtering, page totals, invalid active/inactive selectors, and UOM
+  forwarding and echo. `npm test` passed: PLAN validation, abaplint (0 issues
+  across 252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now accept `filter_allocation_val_type` to select an
+  exact valuation type, including blank valuation types. It composes with the
+  reservation, pass, sequence, date-bucket, due-horizon, and date-window scopes
+  before filtered totals and paging; pass totals and reservation summaries stay
+  full-scope. UOM forwards and echoes the selector. Tests cover valued and blank
+  rows, invalid inactive input, and UOM echo. `npm test` passed: PLAN validation,
+  abaplint (0 issues across 252 files), transpilation, and the full transpiled
+  ABAP Unit suite.
+
+- Allocation trace pages now select exact stock storage locations and batches
+  with independent `filter_allocation_location` and `filter_allocation_batch`
+  flags. Active blank keys can be selected; disabled values must be initial.
+  The filters compose with valuation type and other trace scopes before totals
+  and paging. UOM forwards and echoes both selectors. Tests cover combined
+  stock keys, blank location and batch, invalid inactive input, and UOM echo.
+  `npm test` passed: PLAN validation, abaplint (0 issues across 252 files),
+  transpilation, and the full transpiled ABAP Unit suite.
+
+- Allocation trace pages now accept inclusive `allocation_expiry_date_from` and
+  `allocation_expiry_date_to` bounds against the stock row's expiry date. Either
+  bound works alone, and active bounds omit undated trace rows. The scope is
+  validated and applied before filtered counts and paging; UOM forwards and
+  echoes it. Tests cover exact and one-sided windows, undated omission, invalid
+  and inverted dates, and UOM echo. `npm test` passed: PLAN validation, abaplint
+  (0 issues across 252 files), transpilation, and the full transpiled ABAP Unit
+  suite.
+
+- Allocation trace pages can now filter stock deductions by expiry status:
+  `E` before `as_of_date`, `U` from `as_of_date` through `through_date`, `A`
+  after `through_date`, and `D` undated. The selector composes with explicit
+  expiry-date bounds and other trace filters before counts and paging. UOM
+  forwards and echoes it. Tests cover each state and reject invalid or inactive
+  values. `npm test` passed: PLAN validation, abaplint (0 issues across 252
+  files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Expiry exposure results now include a fixed four-row allocation summary for
+  expired, within-window, after-window, and undated trace rows. Counts and
+  base-unit quantities reconcile to matched plus fallback allocations; UOM
+  results carry requested-unit quantities. The summary remains full-scope under
+  trace filters and pagination. Tests cover all four states and quantity/count
+  reconciliation. `npm test` passed: PLAN validation, abaplint (0 issues across
+  252 files), transpilation, and the full transpiled ABAP Unit suite.
+
+- Filtered allocation trace summaries now include `filtered_alloc_src_gap_bands`,
+  a fixed 60-cell expiry-source × signed-gap-band × pass matrix computed over
+  active trace filters before pagination. Empty cells remain present; counts
+  and quantities reconcile to the filtered totals. UOM results preserve the
+  matrix order and counts and convert its quantities. Tests cover populated and
+  empty cells, reconciliation, and conversion. The Windows `npm` wrapper could
+  not start under the current WSL 1 environment, so its stages were run directly:
+  PLAN validation passed, abaplint reported 0 issues across 252 files,
+  transpilation passed, and the full transpiled ABAP Unit suite exited 0.
+
+- Filtered allocation summaries now also provide fixed source/status/pass
+  (24-cell), source/required-date-horizon/pass (42-cell), relation/pass
+  (8-cell), and source/relation/pass (24-cell) matrices. Every matrix is built
+  after active trace filters and before pagination, retains empty cells, and
+  reconciles row counts and quantities to the filtered totals. UOM rows keep
+  the same keys and counts and convert quantities. Coverage checks populated
+  and empty cells, reconciliation, and UOM conversion. PLAN validation passed,
+  abaplint reported 0 issues across 252 files, transpilation passed, and the
+  full transpiled ABAP Unit suite exited 0.
+
+- Filtered allocation traces now expose `filtered_max_due_after_exp_gap` and
+  `filtered_max_before_exp_gap`, identifying the first row at each largest
+  positive signed expiry/required-date difference within the active filter
+  scope. Both retain reservation, pass, stock keys, dates, and quantity; UOM
+  results preserve the identity and convert quantity. Tests cover both gap
+  directions, no-match initial values, UOM quantities, and filtered scoping.
+  PLAN validation passed, abaplint reported 0 issues across 252 files,
+  transpilation passed, and the full transpiled ABAP Unit suite exited 0.
+
+- Added compact filtered marginal summaries for expiry status by pass
+  (`filtered_alloc_exp_statuses`, 8 cells) and required-date horizon by pass
+  (`filtered_alloc_due_horizons`, 14 cells). Both are calculated across the
+  active trace-filter scope before pagination, keep zero combinations, and
+  reconcile to filtered counts and quantities. UOM results preserve order and
+  convert quantities. PLAN validation passed, abaplint reported 0 issues across
+  252 files, transpilation passed, and the full transpiled ABAP Unit suite
+  exited 0.
+
+- Filtered allocation trace summaries now include an eight-cell required-date
+  bucket/pass marginal and a 32-cell expiry-status/required-date-bucket/pass
+  risk matrix. Both use the active trace filters before pagination, retain
+  empty cells, and reconcile counts and quantities to the filtered total. UOM
+  results preserve ordering and counts and convert quantities. Tests cover
+  populated and empty cells, reconciliation, and UOM conversion. PLAN validation
+  passed, abaplint reported 0 issues across 252 files, transpilation passed,
+  and the full transpiled ABAP Unit suite exited 0.
+
+- Allocation exposure results now include `allocation_coverage_pct` and
+  `allocation_shortage_pct`, calculated from matched/fallback allocation and
+  uncovered demand over eligible open demand. Both report two decimal places,
+  are zero when demand is zero, and UOM results echo them unchanged. Tests cover
+  partial coverage, zero demand, and UOM output. PLAN validation passed,
+  abaplint reported 0 issues across 252 files, transpilation passed, and the
+  full transpiled ABAP Unit suite exited 0.
+
+- Reservation allocation summary rows now include `allocation_coverage_pct`
+  and `allocation_shortage_pct`, calculated per reservation from allocated and
+  uncovered quantities over open demand. Both use two decimal places and carry
+  unchanged through UOM results and summary paging. Calculator tests cover
+  full, partial (66.67% / 33.33%), and zero allocation; UOM tests cover the
+  echoed percentages. PLAN validation passed, abaplint reported 0
+  issues across 252 files, transpilation passed, and the full transpiled ABAP
+  Unit suite exited 0.
+
+- Reservation summary pages now support inclusive coverage-percentage and
+  uncovered-quantity ranges. Coverage bounds accept 0–100; uncovered bounds
+  are nonnegative material-base-unit quantities. Both selector families check
+  flag/value consistency and ascending ranges, filter counts and pages, and
+  echo through UOM results. Tests cover zero boundaries, continuation pages,
+  invalid inputs, and UOM echoes.
+
+- Reservation summary rows now report `matched_share_pct` and
+  `fallback_share_pct` alongside total coverage and shortage. The new values
+  show each allocator pass as a two-decimal percentage of that reservation's
+  open demand and echo unchanged in UOM summaries. Calculator tests cover
+  matched-only, fallback-only contribution, and mixed shares; service tests
+  verify UOM echoes.
+
+- Paged uncovered-reservation rows now carry the same four allocation
+  percentages as reservation summary rows, based on each row's open
+  quantity. UOM detail rows echo those percentages unchanged.
+
+- Aggregate expiry exposure now reports matched-pass and fallback-pass shares of eligible open demand. They use two decimals, default to zero without eligible demand, and are echoed unchanged by UOM results.
+
+- Uncovered detail pages can now filter by an inclusive shortage-percentage
+  range. Bounds accept 0–100, compose before filtered totals and pagination, and
+  echo through UOM results. Tests cover both inclusive endpoints, cursor
+  continuation, UOM forwarding, and invalid bounds. PLAN validation passed,
+  abaplint reported 0 issues across 252 files, transpilation passed, and the
+  full transpiled ABAP Unit suite exited 0.
+
+- Filtered uncovered details now include a fixed seven-row due-horizon breakdown, retaining empty bands and summing the same selector-matching rows before cursor and paging. Per-band partial and unallocated row counts partition each band count. Each dated band reports its first and last required dates; undated and empty bands leave both dates initial, and UOM results echo the dates. Band quantities are now split between partial and unallocated rows for both open demand and uncovered shortage, with base/source conversions in UOM results. Each band reconciles open, allocated, matched, fallback, and uncovered quantities and reports weighted coverage, shortage, matched, and fallback percentages; UOM results preserve counts, convert quantities, and echo percentages. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full transpiled ABAP Unit suite exited 0.
+
+- Due-horizon summaries now report partial-only coverage, shortage, matched, and fallback percentages using `partial_open_qty` as the denominator. All four remain zero without partial rows and are echoed through UOM summaries. Tests cover mixed partial/unallocated bands, zero-partial bands, and UOM echoes. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Uncovered detail rows now carry their computed due-horizon band (`O`, `T`, `1`–`4`, or `U`) and their `P`/`U` allocation outcome; UOM detail rows echo both codes. The seven-band fixture checks every horizon code, and outcome tests cover partial, unallocated, and UOM results. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Filtered uncovered totals now report partial and unallocated open-demand and shortage quantities at the top level. The two open totals partition filtered open demand, and the two shortage totals partition filtered uncovered quantity. UOM results convert all four; mixed partial/unallocated regressions verify base and source totals. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Top-level partial coverage, shortage, matched, and fallback percentages now use partial open demand as their denominator, matching the due-horizon breakdown. They remain zero when no partial rows match and are echoed unchanged in UOM results. Mixed-row tests prove the partial denominator and UOM echo. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Overdue uncovered details now carry a fixed age band for 1–7, 8–30, 31–90, and more than 90 days late. The field stays initial on due/future/undated rows; boundary regressions cover the range edges and UOM echoes.
+
+- Filtered uncovered results now include a fixed four-band overdue-age summary (1-7, 8-30, 31-90, and over 90 days late). It aggregates the selector-matching rows before cursor and paging, keeps empty bands, converts base quantities to UOM, and reports weighted allocation percentages. Page-limited and UOM regressions cover the summary. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Uncovered detail requests can now select one overdue-age band with `filter_uncovered_age_band` and `uncovered_age_band`. The filter composes with the existing selectors before counts, summaries, and page selection; UOM requests and results echo both values. Tests cover age-band selection, paging, UOM echo, and invalid active and inactive values. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Overdue-age summaries now split open demand and shortage quantities between partially allocated and unallocated rows. The split quantities partition each band's totals, and partial-only coverage, shortage, matched, and fallback percentages use partial open demand as their denominator. UOM summaries convert the four quantities and echo the percentages. Mixed-outcome and UOM tests pass; PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Overdue-age summary rows now include the earliest and latest required dates within each band. Dates are initial for empty bands and echo unchanged through UOM results. Tests cover bands spanning multiple dates, empty bands, and UOM echoes. PLAN validation passed, abaplint found 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Uncovered detail filters can now set an inclusive overdue-age day range with optional lower and upper bounds. The range composes with age-band and other selectors before counts and paging; due-today, future, and undated rows are excluded. UOM requests and results echo both bounds. Tests cover inclusive 8/30-day boundaries, one-sided bounds, selector composition, paging, UOM echo, and invalid values. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Uncovered overdue detail rows now expose `overdue_age_days`, the exact positive calendar-day age used by the new range selector. Due-today, future, and undated rows leave it initial, and UOM details echo it unchanged. Boundary tests cover 1, 7, 8, 30, 31, 90, and 91 days, plus a due-today row and UOM output. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- The fixed expired source-by-age matrix now reports the earliest and latest expiration date in each of its 12 rows. Empty combinations keep both dates initial; UOM results echo the date spans. Base and UOM fixtures include a source-age band spanning 1 and 7 days plus empty combinations. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Upcoming and after-window source-band matrices now include first/last expiration dates in every row, with empty rows initial and UOM rows echoing the spans. Base regressions include multi-date rows in both windows; UOM regressions verify date propagation. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.

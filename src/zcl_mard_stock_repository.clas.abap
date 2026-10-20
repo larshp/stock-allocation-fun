@@ -3718,6 +3718,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           batch            = ls_stock_total-batch
           valuation_type   = ls_stock_total-valuation_type
           expiration_date  = ls_stock_total-expiration_date
+          expiry_source    = ls_stock_total-expiry_source
           quantity         = ls_stock_total-unrestricted_qty )
           TO lt_stock.
       ENDLOOP.
@@ -3791,10 +3792,18 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         ls_availability_result-partially_allocated_resv_count.
       ls_result-unallocated_resv_count =
         ls_availability_result-unallocated_resv_count.
+      ls_result-fully_alloc_resv_open_qty =
+        ls_availability_result-fully_alloc_resv_open_qty.
+      ls_result-part_alloc_resv_open_qty =
+        ls_availability_result-part_alloc_resv_open_qty.
+      ls_result-unalloc_resv_open_qty =
+        ls_availability_result-unalloc_resv_open_qty.
       ls_result-uncovered_open_resv_keys =
         ls_availability_result-uncovered_reservation_keys.
       ls_result-uncovered_open_reservations =
         ls_availability_result-uncovered_reservations.
+      ls_result-resv_allocation_summaries =
+        ls_availability_result-resv_allocation_summaries.
       ls_result-allocation_details =
         ls_availability_result-allocation_details.
       ls_result-uncovered_open_resv_row_count =

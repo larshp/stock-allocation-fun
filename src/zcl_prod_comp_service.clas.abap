@@ -6,6 +6,12 @@ CLASS zcl_prod_comp_service DEFINITION
   PUBLIC SECTION.
     TYPES ty_lead_time_status TYPE c LENGTH 20.
     TYPES ty_lead_time_origin TYPE c LENGTH 12.
+    TYPES ty_comp_seq_scope TYPE c LENGTH 1.
+    CONSTANTS:
+      c_comp_seq_scope_dated TYPE
+        ty_comp_seq_scope VALUE 'D',
+      c_comp_seq_scope_scoped TYPE
+        ty_comp_seq_scope VALUE 'S'.
     TYPES ty_pr_release_urgency TYPE c LENGTH 12.
     CONSTANTS:
       c_repl_status_estimate TYPE ty_lead_time_status
@@ -135,13 +141,16 @@ CLASS zcl_prod_comp_service DEFINITION
       ty_component_selection WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_component_local_estimate,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        minimum_coverage_pct    TYPE zcl_stock_service=>ty_minimum_coverage_pct,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        allocation_sequence       TYPE i,
+        allocation_sequence_scope TYPE ty_comp_seq_scope,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
       END OF ty_component_local_estimate.
     TYPES:
       BEGIN OF ty_component_check,
@@ -1331,6 +1340,17 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       END OF ty_component_material_plant,
       ty_component_material_plants TYPE SORTED TABLE OF
         ty_component_material_plant WITH UNIQUE KEY material plant.
+    TYPES:
+      BEGIN OF ty_comp_seq_row,
+        request_id          TYPE c LENGTH 30,
+        material            TYPE mard-matnr,
+        plant               TYPE mard-werks,
+        required_date       TYPE resb-bdter,
+        input_index         TYPE i,
+        allocation_sequence TYPE i,
+      END OF ty_comp_seq_row.
+    TYPES ty_comp_seq_rows TYPE STANDARD TABLE OF
+      ty_comp_seq_row WITH EMPTY KEY.
     DATA lt_components TYPE ty_components.
     DATA lt_unit_ratios TYPE ty_component_unit_ratios.
     DATA lt_projected_scope_keys TYPE ty_component_material_plants.
@@ -1378,6 +1398,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lt_local_demands TYPE zcl_stock_service=>ty_dated_demands.
     DATA lt_local_estimates TYPE zcl_stock_service=>ty_dated_allocations.
     DATA lt_scoped_demands TYPE zcl_stock_service=>ty_scoped_component_demands.
+    DATA lt_comp_seq_rows TYPE
+      ty_comp_seq_rows.
     DATA lt_scoped_use_demands TYPE
       zcl_stock_service=>ty_scoped_component_demands.
     DATA lt_scoped_allocations TYPE
@@ -1393,6 +1415,10 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lv_previous_plant TYPE mard-werks.
     DATA lv_previous_unit TYPE mara-meins.
     DATA lv_local_request_id TYPE c LENGTH 30.
+    DATA lv_comp_allocation_seq TYPE i.
+    DATA lv_component_sequence_scope TYPE
+      ty_comp_seq_scope.
+    DATA lv_component_floor_rejected TYPE abap_bool.
     DATA lv_component_request_id TYPE c LENGTH 30.
     DATA lv_component_index TYPE i.
     DATA lv_component_storage_location TYPE mard-lgort.
@@ -1608,6 +1634,13 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         iv_denominator     = ls_unit_ratio-denominator ).
       lv_component_index += 1.
       lv_component_request_id = |COMP_SCOPE_{ lv_component_index }|.
+      APPEND VALUE #(
+        request_id    = lv_component_request_id
+        material      = ls_component-material
+        plant         = ls_component-plant
+        required_date = lv_component_required_date
+        input_index   = lv_component_index )
+        TO lt_comp_seq_rows.
       lv_component_storage_location = COND #(
         WHEN ls_component_allocation_policy-override_storage_location
           = abap_true
@@ -1968,6 +2001,22 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         iv_protect_safety_stock        = iv_protect_safety_stock ).
     ENDIF.
 
+    SORT lt_comp_seq_rows BY material plant
+      required_date input_index.
+    CLEAR lv_comp_allocation_seq.
+    LOOP AT lt_comp_seq_rows
+        ASSIGNING FIELD-SYMBOL(<ls_component_sequence>).
+      READ TABLE lt_projected_scope_keys INTO DATA(ls_sequence_scope)
+        WITH TABLE KEY material = <ls_component_sequence>-material
+                       plant = <ls_component_sequence>-plant.
+      IF sy-subrc = 0 AND ls_sequence_scope-use_scoped = abap_true.
+        CONTINUE.
+      ENDIF.
+      ADD 1 TO lv_comp_allocation_seq.
+      <ls_component_sequence>-allocation_sequence =
+        lv_comp_allocation_seq.
+    ENDLOOP.
+
     LOOP AT lt_atp_days ASSIGNING <ls_atp_day>.
       IF sy-tabix = 1
           OR <ls_atp_day>-material <> lv_previous_material
@@ -2102,6 +2151,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     CLEAR lv_component_index.
     LOOP AT lt_components INTO ls_component.
+      CLEAR lv_comp_allocation_seq.
+      CLEAR lv_component_sequence_scope.
       READ TABLE lt_unit_ratios INTO ls_unit_ratio_cache
         WITH TABLE KEY material = ls_component-material
                        source_unit = ls_component-unit.
@@ -2162,12 +2213,19 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         ELSE abap_false ).
       CLEAR lt_component_batch_splits.
       CLEAR lt_component_location_splits.
+      CLEAR lv_component_floor_rejected.
       IF lv_component_uses_scoped = abap_true.
         READ TABLE lt_scoped_allocations INTO DATA(ls_scoped_allocation)
           WITH KEY allocation-request_id = lv_component_request_id.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
+        lv_comp_allocation_seq =
+          ls_scoped_allocation-allocation-allocation_sequence.
+        lv_component_floor_rejected =
+          ls_scoped_allocation-allocation-minimum_coverage_rejected.
+        lv_component_sequence_scope =
+          c_comp_seq_scope_scoped.
         lv_component_available =
           ls_scoped_allocation-allocation-available_quantity.
         lv_component_allocated =
@@ -2209,6 +2267,20 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
             <ls_atp_day>-local_estimate-allocated_quantity
           shortfall_quantity =
             <ls_atp_day>-local_estimate-shortfall_quantity ).
+        ls_component_group_estimate-allocation_sequence =
+          <ls_atp_day>-local_estimate-allocation_sequence.
+        ls_component_group_estimate-allocation_sequence_scope =
+          c_comp_seq_scope_dated.
+        READ TABLE lt_comp_seq_rows
+            INTO DATA(ls_component_sequence)
+          WITH KEY request_id = lv_component_request_id.
+        IF sy-subrc <> 0 OR ls_component_sequence-allocation_sequence <= 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        lv_comp_allocation_seq =
+          ls_component_sequence-allocation_sequence.
+        lv_component_sequence_scope =
+          c_comp_seq_scope_dated.
       ENDIF.
       ls_component_group_estimate-allocation_outcome = COND #(
         WHEN ls_component_group_estimate-allocated_quantity =
@@ -2283,19 +2355,22 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           ELSE abap_false )
         local_estimate                 = ls_component_group_estimate
         component_local_estimate       = VALUE #(
-          requested_quantity      = lv_component_base_quantity
-          available_quantity      = lv_component_available
-          allocated_quantity      = lv_component_allocated
-          shortfall_quantity      = lv_component_shortfall
-          minimum_coverage_pct    =
+          allocation_sequence       = lv_comp_allocation_seq
+          allocation_sequence_scope = lv_component_sequence_scope
+          requested_quantity        = lv_component_base_quantity
+          available_quantity        = lv_component_available
+          allocated_quantity        = lv_component_allocated
+          shortfall_quantity        = lv_component_shortfall
+          minimum_coverage_pct      =
             ls_component_allocation_policy-minimum_coverage_pct
-          allocation_outcome      = COND #(
+          minimum_coverage_rejected = lv_component_floor_rejected
+          allocation_outcome        = COND #(
             WHEN lv_component_allocated = lv_component_base_quantity
               THEN zif_stock_repository=>c_allocation_outcome_full
             WHEN lv_component_allocated > 0
               THEN zif_stock_repository=>c_allocation_outcome_partial
             ELSE zif_stock_repository=>c_allocation_outcome_none )
-          allocation_coverage_pct = COND #(
+          allocation_coverage_pct   = COND #(
             WHEN lv_component_base_quantity > 0
             THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
               CONV decfloat34( lv_component_allocated )

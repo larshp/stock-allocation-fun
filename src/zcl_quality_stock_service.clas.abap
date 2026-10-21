@@ -213,6 +213,10 @@ CLASS zcl_quality_stock_service IMPLEMENTATION.
     IF it_demands IS INITIAL.
       IF is_allocation-allocations IS NOT INITIAL
           OR is_allocation-batch_allocations IS NOT INITIAL
+          OR is_allocation-request_locations IS NOT INITIAL
+          OR it_storage_location_priority IS NOT INITIAL
+          OR it_request_location_priorities IS NOT INITIAL
+          OR it_allowed_storage_locations IS NOT INITIAL
           OR it_request_locations IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
@@ -259,6 +263,10 @@ CLASS zcl_quality_stock_service IMPLEMENTATION.
     IF it_demands IS INITIAL.
       IF is_allocation-allocations IS NOT INITIAL
           OR is_allocation-batch_allocations IS NOT INITIAL
+          OR is_allocation-request_locations IS NOT INITIAL
+          OR it_storage_location_priority IS NOT INITIAL
+          OR it_request_location_priorities IS NOT INITIAL
+          OR it_allowed_storage_locations IS NOT INITIAL
           OR it_request_locations IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
@@ -307,6 +315,10 @@ CLASS zcl_quality_stock_service IMPLEMENTATION.
     IF it_demands IS INITIAL.
       IF is_allocation-allocations IS NOT INITIAL
           OR is_allocation-batch_allocations IS NOT INITIAL
+          OR is_allocation-request_locations IS NOT INITIAL
+          OR it_storage_location_priority IS NOT INITIAL
+          OR it_request_location_priorities IS NOT INITIAL
+          OR it_allowed_storage_locations IS NOT INITIAL
           OR it_request_locations IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
@@ -353,6 +365,10 @@ CLASS zcl_quality_stock_service IMPLEMENTATION.
     IF it_demands IS INITIAL.
       IF is_allocation-allocations IS NOT INITIAL
           OR is_allocation-batch_allocations IS NOT INITIAL
+          OR is_allocation-request_locations IS NOT INITIAL
+          OR it_storage_location_priority IS NOT INITIAL
+          OR it_request_location_priorities IS NOT INITIAL
+          OR it_allowed_storage_locations IS NOT INITIAL
           OR it_request_locations IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.

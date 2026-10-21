@@ -190,6 +190,12 @@ CLASS ltcl_project_stock_service DEFINITION FINAL
     METHODS rejects_duplicate_wbs_input FOR TESTING.
     METHODS empty_wbs_reserv_skips_repo FOR TESTING.
     METHODS allocates_project_stock_fefo FOR TESTING.
+    METHODS reports_wbs_floor_rejections FOR TESTING
+      RAISING cx_static_check.
+    METHODS accepts_wbs_floor_boundary FOR TESTING
+      RAISING cx_static_check.
+    METHODS preserves_wbs_floor_atp FOR TESTING
+      RAISING cx_static_check.
     METHODS restricts_wbs_fefo_scope FOR TESTING.
     METHODS scopes_wbs_location FOR TESTING.
     METHODS previews_scoped_wbs_fefo_atp FOR TESTING.
@@ -1753,6 +1759,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 'PRJ-100-001'
       act = ls_result-wbs_assignments[ 1 ]-wbs_element ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '24.000' )
       act = ls_result-allocation-allocations[ 1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -1834,6 +1851,646 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = lv_stock_reads_before_conflict
       act = mo_repository->mv_wbs_stock_read_calls ).
+  ENDMETHOD.
+
+  METHOD reports_wbs_floor_rejections.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0001'
+        batch                 = 'B-FLOOR'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-100-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0001'
+        batch                 = 'T-FLOOR'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-SOURCE-001'
+        storage_location      = '0002'
+        unrestricted_quantity = '6.000' ) ) ).
+
+    DATA(ls_fefo_full_rejection) = mo_cut->preview_fefo(
+      it_demands    = VALUE #(
+        ( request_id            = 'FEFO-FULL-FLOOR'
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          requested_quantity    = '10.000'
+          unit                  = 'EA'
+          require_full_quantity = abap_true
+          minimum_coverage_pct  = 50 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_fefo_full_rejection-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_full_rejection-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = ls_fefo_full_rejection-allocation-allocations[
+        1 ]-allocation-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( 0 )
+      act = ls_fefo_full_rejection-allocation-allocations[
+        1 ]-allocation-allocation_coverage_pct ).
+
+    DATA(ls_priority_fefo_rejection) = mo_cut->preview_fefo_priority(
+      it_demands    = VALUE #(
+        ( request_id            = 'FEFO-PRIORITY-FLOOR'
+          priority              = 1
+          wbs_element           = 'PRJ-100-001'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          requested_quantity    = '10.000'
+          unit                  = 'EA'
+          require_full_quantity = abap_true
+          minimum_coverage_pct  = 50 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_priority_fefo_rejection-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_transfer_fefo_rejection) =
+      mo_cut->preview_transfer_fefo_priority(
+        it_demands    = VALUE #(
+          ( request_id              = 'TRANSFER-FEFO-FLOOR'
+            priority                = 1
+            source_wbs_element      = 'PRJ-SOURCE-001'
+            destination_wbs_element = 'PRJ-TARGET-001'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            requested_quantity      = '10.000'
+            unit                    = 'EA'
+            require_full_quantity   = abap_true
+            minimum_coverage_pct    = 50 ) )
+        iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_transfer_fefo_rejection-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_location_rejection) = mo_cut->preview_by_location(
+      it_demands    = VALUE #(
+        ( request_id           = 'LOCATION-FLOOR'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '10.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 70 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_location_rejection-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_transfer_location_rejection) =
+      mo_cut->preview_transfer_loc_priority(
+        it_demands    = VALUE #(
+          ( request_id              = 'TRANSFER-LOCATION-FLOOR'
+            priority                = 1
+            source_wbs_element      = 'PRJ-SOURCE-001'
+            destination_wbs_element = 'PRJ-TARGET-002'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            requested_quantity      = '10.000'
+            unit                    = 'EA'
+            minimum_coverage_pct    = 70 ) )
+        iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_transfer_location_rejection-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_zero_floor_partial) = mo_cut->preview_by_location(
+      it_demands    = VALUE #(
+        ( request_id           = 'LOCATION-ZERO-FLOOR'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '10.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 0 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_zero_floor_partial-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_zero_floor_partial-allocation-allocations[
+        1 ]-allocation-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( 60 )
+      act = ls_zero_floor_partial-allocation-allocations[
+        1 ]-allocation-allocation_coverage_pct ).
+
+    DATA(ls_fefo_released_stock) = mo_cut->preview_fefo(
+      it_demands    = VALUE #(
+        ( request_id           = 'FEFO-FLOOR-REJECTED'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '10.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 70 )
+        ( request_id           = 'FEFO-FLOOR-REUSE'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '6.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 0 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_fefo_released_stock-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_released_stock-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_fefo_released_stock-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_fefo_released_stock-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_fefo_released_stock-allocation-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_fefo_released_stock-allocation-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_fefo_released_stock-wbs_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_fefo_released_stock-wbs_assignments[
+        2 ]-allocation_sequence ).
+
+    DATA(ls_location_released_stock) = mo_cut->preview_by_location(
+      it_demands    = VALUE #(
+        ( request_id           = 'LOCATION-FLOOR-REJECTED'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '20.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 70 )
+        ( request_id           = 'LOCATION-FLOOR-REUSE'
+          wbs_element          = 'PRJ-100-001'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '6.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 0 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_location_released_stock-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_location_released_stock-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_location_released_stock-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_location_released_stock-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_location_released_stock-allocation-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_location_released_stock-allocation-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_location_released_stock-wbs_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_location_released_stock-wbs_assignments[
+        2 ]-allocation_sequence ).
+
+    DATA(ls_xfer_fefo_reuse) = mo_cut->preview_transfer_fefo(
+      it_demands    = VALUE #(
+        ( request_id              = 'TRANSFER-FEFO-FLOOR-REJECTED'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-003'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '10.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 70 )
+        ( request_id              = 'TRANSFER-FEFO-FLOOR-REUSE'
+          source_wbs_element      = 'PRJ-SOURCE-001'
+          destination_wbs_element = 'PRJ-TARGET-004'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '6.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 0 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_xfer_fefo_reuse-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_xfer_fefo_reuse-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_xfer_fefo_reuse-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_xfer_fefo_reuse-allocation-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_xfer_fefo_reuse-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_xfer_fefo_reuse-transfer_assignments[
+        2 ]-allocation_sequence ).
+
+    DATA(ls_xfer_location_reuse) =
+      mo_cut->preview_transfer_by_location(
+        it_demands    = VALUE #(
+          ( request_id              = 'TRANSFER-LOCATION-FLOOR-REJECTED'
+            source_wbs_element      = 'PRJ-SOURCE-001'
+            destination_wbs_element = 'PRJ-TARGET-005'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            requested_quantity      = '20.000'
+            unit                    = 'EA'
+            minimum_coverage_pct    = 70 )
+          ( request_id              = 'TRANSFER-LOCATION-FLOOR-REUSE'
+            source_wbs_element      = 'PRJ-SOURCE-001'
+            destination_wbs_element = 'PRJ-TARGET-006'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            requested_quantity      = '6.000'
+            unit                    = 'EA'
+            minimum_coverage_pct    = 0 ) )
+        iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_xfer_location_reuse-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_xfer_location_reuse-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_xfer_location_reuse-allocation-allocations[
+        2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_xfer_location_reuse-allocation-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_xfer_location_reuse-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_xfer_location_reuse-transfer_assignments[
+        2 ]-allocation_sequence ).
+  ENDMETHOD.
+
+  METHOD accepts_wbs_floor_boundary.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-FLOOR-BOUNDARY'
+        storage_location      = '0001'
+        batch                 = 'B-BOUNDARY'
+        expiration_date       = '20261130'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-FLOOR-BOUNDARY'
+        storage_location      = '0002'
+        unrestricted_quantity = '12.000' ) ) ).
+
+    DATA(ls_fefo_boundary) = mo_cut->preview_fefo(
+      it_demands    = VALUE #(
+        ( request_id           = 'FEFO-FLOOR-BOUNDARY'
+          wbs_element          = 'PRJ-FLOOR-BOUNDARY'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '10.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 60 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_fefo_boundary-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_fefo_boundary-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_fefo_boundary-allocation-allocations[
+        1 ]-allocation-allocation_outcome ).
+
+    DATA(ls_location_boundary) = mo_cut->preview_by_location(
+      it_demands    = VALUE #(
+        ( request_id           = 'LOCATION-FLOOR-BOUNDARY'
+          wbs_element          = 'PRJ-FLOOR-BOUNDARY'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '20.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 60 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_location_boundary-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_location_boundary-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_location_boundary-allocation-allocations[
+        1 ]-allocation-allocation_outcome ).
+
+    DATA(ls_transfer_fefo_boundary) = mo_cut->preview_transfer_fefo(
+      it_demands    = VALUE #(
+        ( request_id              = 'TRANSFER-FEFO-FLOOR-BOUNDARY'
+          source_wbs_element      = 'PRJ-FLOOR-BOUNDARY'
+          destination_wbs_element = 'PRJ-BOUNDARY-TARGET-1'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '10.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 60 ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_transfer_fefo_boundary-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_transfer_fefo_boundary-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_transfer_location_boundary) =
+      mo_cut->preview_transfer_by_location(
+        it_demands    = VALUE #(
+          ( request_id              = 'TRANSFER-LOCATION-FLOOR-BOUNDARY'
+            source_wbs_element      = 'PRJ-FLOOR-BOUNDARY'
+            destination_wbs_element = 'PRJ-BOUNDARY-TARGET-2'
+            material                = 'MAT-1'
+            plant                   = '1000'
+            requested_quantity      = '20.000'
+            unit                    = 'EA'
+            minimum_coverage_pct    = 60 ) )
+        iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_transfer_location_boundary-allocation-allocations[
+        1 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_transfer_location_boundary-allocation-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+  ENDMETHOD.
+
+  METHOD preserves_wbs_floor_atp.
+    mo_repository->set_stocks( it_stocks = VALUE #(
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-ISSUE'
+        storage_location      = '0001'
+        batch                 = 'ISSUE-A'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-ISSUE'
+        storage_location      = '0002'
+        batch                 = 'ISSUE-B'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-SOURCE'
+        storage_location      = '0001'
+        batch                 = 'SOURCE-A'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-SOURCE'
+        storage_location      = '0002'
+        batch                 = 'SOURCE-B'
+        expiration_date       = '20261231'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-ISSUE'
+        storage_location      = '0003'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-ISSUE'
+        storage_location      = '0004'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-SOURCE'
+        storage_location      = '0003'
+        unrestricted_quantity = '6.000' )
+      ( material              = 'MAT-1'
+        plant                 = '1000'
+        wbs_element           = 'PRJ-DATE-SOURCE'
+        storage_location      = '0004'
+        unrestricted_quantity = '6.000' ) ) ).
+    mo_availability_api->set_result(
+      is_result = VALUE #(
+        available_at_plant_quantity = '12.000'
+        confirmed_quantity          = '12.000'
+        confirmation_lines          = VALUE #(
+          ( confirmed_date = sy-datum confirmed_quantity = '12.000' ) )
+        is_fully_available          = abap_true
+        is_check_relevant           = abap_true ) ).
+
+    DATA(ls_fefo_atp) = mo_cut->preview_fefo_by_date_atp(
+      it_demands    = VALUE #(
+        ( request_id           = 'DATED-FEFO-REJECT'
+          required_date        = '20261201'
+          wbs_element          = 'PRJ-DATE-ISSUE'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '20.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 70 )
+        ( request_id           = 'DATED-FEFO-REUSE'
+          required_date        = '20261202'
+          wbs_element          = 'PRJ-DATE-ISSUE'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '12.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 0 ) )
+      iv_check_rule = 'A'
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_fefo_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_fefo_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_fefo_atp-local_estimate-batch_allocations[
+        1 ]-allocation_sequence ).
+
+    DATA(ls_location_atp) = mo_cut->preview_by_location_date_atp(
+      it_demands    = VALUE #(
+        ( request_id           = 'DATED-LOCATION-REJECT'
+          required_date        = '20261201'
+          wbs_element          = 'PRJ-DATE-ISSUE'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '20.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 70 )
+        ( request_id           = 'DATED-LOCATION-REUSE'
+          required_date        = '20261202'
+          wbs_element          = 'PRJ-DATE-ISSUE'
+          material             = 'MAT-1'
+          plant                = '1000'
+          requested_quantity   = '12.000'
+          unit                 = 'EA'
+          minimum_coverage_pct = 0 ) )
+      iv_check_rule = 'A'
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_location_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_location_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_location_atp-local_estimate-storage_allocations[
+        1 ]-allocation_sequence ).
+
+    DATA(ls_transfer_fefo_atp) = mo_cut->preview_transfer_fefo_date_atp(
+      it_demands    = VALUE #(
+        ( request_id              = 'DATED-XFER-FEFO-REJECT'
+          required_date           = '20261201'
+          source_wbs_element      = 'PRJ-DATE-SOURCE'
+          destination_wbs_element = 'PRJ-DATE-TARGET-1'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '20.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 70 )
+        ( request_id              = 'DATED-XFER-FEFO-REUSE'
+          required_date           = '20261202'
+          source_wbs_element      = 'PRJ-DATE-SOURCE'
+          destination_wbs_element = 'PRJ-DATE-TARGET-2'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '12.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 0 ) )
+      iv_check_rule = 'A'
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_transfer_fefo_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_transfer_fefo_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_fefo_atp-local_estimate-transfer_assignments[
+        2 ]-allocation_sequence ).
+
+    DATA(ls_transfer_location_atp) = mo_cut->preview_transfer_loc_date_atp(
+      it_demands    = VALUE #(
+        ( request_id              = 'DATED-XFER-LOCATION-REJECT'
+          required_date           = '20261201'
+          source_wbs_element      = 'PRJ-DATE-SOURCE'
+          destination_wbs_element = 'PRJ-DATE-TARGET-3'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '20.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 70 )
+        ( request_id              = 'DATED-XFER-LOCATION-REUSE'
+          required_date           = '20261202'
+          source_wbs_element      = 'PRJ-DATE-SOURCE'
+          destination_wbs_element = 'PRJ-DATE-TARGET-4'
+          material                = 'MAT-1'
+          plant                   = '1000'
+          requested_quantity      = '12.000'
+          unit                    = 'EA'
+          minimum_coverage_pct    = 0 ) )
+      iv_check_rule = 'A'
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_transfer_location_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_transfer_location_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_location_atp-local_estimate-storage_allocations[
+        1 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD ranks_project_fefo_locs.
@@ -2062,6 +2719,24 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-wbs_assignments[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-wbs_assignments[ 3 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD rank_prio_fefo_loc.
@@ -2248,6 +2923,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 5
       act = ls_wbs_result-batch_allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_wbs_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_wbs_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_wbs_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_wbs_result-wbs_assignments[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_result-wbs_assignments[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_wbs_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_result-batch_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_result-batch_allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'P-SOON'
       act = ls_wbs_result-batch_allocations[
         2 ]-split-batch_allocation-batch ).
@@ -2270,6 +2972,18 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '6.000' )
       act = ls_wbs_atp_result-local_estimate-allocations[
         3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_wbs_atp_result-local_estimate-allocations[
+        3 ]-allocation_sequence ).
 
     DATA(lt_transfer_demands) =
       VALUE zcl_project_stock_service=>ty_priority_transfer_fefo_demands(
@@ -2335,6 +3049,36 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 5
       act = ls_transfer_result-batch_allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_transfer_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_transfer_result-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_result-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_result-transfer_assignments[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_result-batch_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_result-batch_allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'T-SOON'
       act = ls_transfer_result-batch_allocations[
         2 ]-split-batch_allocation-batch ).
@@ -2357,6 +3101,18 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '6.000' )
       act = ls_transfer_atp_result-local_estimate-allocations[
         3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_transfer_atp_result-local_estimate-allocations[
+        3 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD prioritizes_project_location.
@@ -2460,6 +3216,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-wbs_assignments[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-wbs_assignments[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[ 3 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD allocates_fefo_per_demand_date.
@@ -3019,6 +3802,30 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         2 ]-destination_wbs_element ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = ls_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocation-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocation-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocation-batch_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = lines( ls_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = lv_atp_check_date
@@ -3098,6 +3905,30 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 'PRJ-TARGET-2'
       act = ls_result-local_estimate-transfer_assignments[
         2 ]-destination_wbs_element ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocation-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocation-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocation-storage_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-transfer_assignments[
+        2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_result-atp_checks ) ).
@@ -3594,6 +4425,42 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 3
       act = lines( ls_result-local_estimate-allocations ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-batch_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-batch_allocations[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-wbs_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-wbs_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-wbs_assignments[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = lv_late_date
       act = ls_result-local_estimate-allocations[
         1 ]-required_date ).
@@ -3678,9 +4545,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( ls_result-local_estimate-allocations ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'SHARED'
       act = ls_result-local_estimate-allocations[
         1 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-storage_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-wbs_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-wbs_assignments[
+        2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-local_estimate-storage_allocations ) ).
@@ -3813,6 +4704,30 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
         2 ]-destination_wbs_element ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-batch_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = lines( ls_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = lv_required_date
@@ -3892,6 +4807,30 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-local_estimate-storage_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-storage_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-transfer_assignments[
+        2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
       act = ls_result-local_estimate-storage_allocations[
@@ -4613,6 +5552,48 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-allocations[
         1 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'XFER-LATE'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'XFER-EARLY-LOW'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[
+        allocation-allocation-request_id = 'XFER-EARLY-HIGH'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-transfer_assignments[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'XFER-LATE'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'XFER-EARLY-LOW'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[
+        split-batch_allocation-request_id = 'XFER-EARLY-HIGH'
+        ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-allocations[
         allocation-allocation-request_id = 'XFER-LATE'
@@ -4847,6 +5828,36 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-transfer_assignments[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-transfer_assignments[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-batch_allocations[ 3 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD preserves_xfer_fefo_row_rule.
@@ -5172,10 +6183,21 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       act = ls_result-transfer_assignments[ 1 ]-destination_wbs_element ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = ls_result-transfer_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = lines( ls_result-allocation-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATE'
       act = ls_result-allocation-batch_allocations[ 1 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-batch_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocation-allocations[ 1 ]-allocation-available_quantity ).
@@ -5634,6 +6656,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = ls_result-storage_allocations[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-storage_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-wbs_assignments[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 3 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD repeats_id_location_date.
@@ -5879,6 +6928,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '18.000' )
       act = ls_result-allocation-storage_allocations[ 1 ]-storage_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-storage_allocations[
+        1 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD allocates_projected_location.
@@ -6396,6 +7456,17 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = ls_result-allocation-storage_allocations[ 2 ]-storage_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-transfer_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocation-storage_allocations[
+        1 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD prioritizes_wbs_loc_transfer.
@@ -6475,6 +7546,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-transfer_assignments[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-transfer_assignments[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-transfer_assignments[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-transfer_assignments[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[ 2 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD previews_dated_loc_xfer.
@@ -6549,6 +7647,33 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = 5
       act = ls_result-storage_allocations[
         3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-storage_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-transfer_assignments[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-transfer_assignments[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-transfer_assignments[ 3 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'PRJ-TARGET-001'
       act = ls_result-transfer_assignments[
@@ -7058,6 +8183,15 @@ CLASS ltcl_project_stock_service IMPLEMENTATION.
       exp = '0002'
       act = ls_result-batch_allocations[
         1 ]-split-batch_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-wbs_assignments[ 1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_result-request_locations ) ).

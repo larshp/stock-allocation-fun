@@ -1,6 +1,8 @@
 INTERFACE zif_stock_repository PUBLIC.
   CONSTANTS c_expiry_source_plant  TYPE c LENGTH 1 VALUE 'P'.
   CONSTANTS c_expiry_source_global TYPE c LENGTH 1 VALUE 'G'.
+  CONSTANTS c_mfg_date_src_plant TYPE c LENGTH 1 VALUE 'P'.
+  CONSTANTS c_mfg_date_src_global TYPE c LENGTH 1 VALUE 'G'.
   CONSTANTS c_allocation_pass_match TYPE c LENGTH 1 VALUE 'M'.
   CONSTANTS c_allocation_pass_fallback TYPE c LENGTH 1 VALUE 'F'.
   CONSTANTS c_allocation_outcome_full TYPE c LENGTH 1 VALUE 'F'.
@@ -211,6 +213,8 @@ INTERFACE zif_stock_repository PUBLIC.
       batch_managed               TYPE marc-xchar,
       expiration_date             TYPE mcha-vfdat,
       expiration_date_source      TYPE c LENGTH 1,
+      manufacturing_date          TYPE mcha-hsdat,
+      manufacturing_date_source   TYPE c LENGTH 1,
       unrestricted_quantity       TYPE mchb-clabs,
       available_quantity          TYPE mchb-clabs,
       quality_inspection_quantity TYPE mchb-cinsm,

@@ -663,6 +663,10 @@ require unique request IDs to restore caller order in the result and report the
 priority used for each allocation. Priority only changes this preview's
 calculation order; it does not lock stock, reserve it, or request an SAP ATP
 confirmation.
+Both methods now expose one-based `allocation_sequence` values in their
+caller-order summaries. The sequence records calculation rank across all
+demands, including zero-allocation rows; the priority UOM ATP local estimate
+preserves it. The corresponding non-priority material/plant methods leave the field initial.
 `ALLOCATE_DEMANDS_UOM_ATP_PRIO` checks the resulting positive allocations as a
 group per material, plant, and base unit. It reports confirmation separately
 and does not reserve stock. Local tests use UOM and ATP doubles; verify base-unit
@@ -706,16 +710,22 @@ verification with live materials.
 
 `ALLOCATE_BY_EXPIRY_PRIORITY` and `ALLOCATE_FEFO_UOM_PRIORITY` order shared
 FEFO demand by descending integer priority, then stable input order by default.
-With `iv_prioritize_by_date = abap_true`, they require a valid per-demand FEFO
-date and process earlier dates first, with priority and input order breaking
-ties. They restore caller order in summaries and batch splits, so request IDs
-must be unique. This only changes the local preview order; it does not reserve
-stock or request SAP ATP confirmation. The quality FEFO variants
-`ALLOCATE_QUALITY_FEFO_PRIORITY` and `ALLOCATE_QUALITY_UOM_PRIORITY` apply the
-same optional date-first ordering to quality inspection batches; they do not
-alter the standard unrestricted-stock pool. ATP wrappers, quality posting
-rechecks, and `TRANSFER_WBS_FEFO_PRIORITY` posting snapshots forward the option
-so preview and posting use the same order.
+Summaries and batch splits expose a one-based `allocation_sequence` in demand
+processing order. Every summary receives a rank, including zero-allocation
+demands; each emitted split echoes its demand's rank. With
+`iv_prioritize_by_date = abap_true`, they require a valid FEFO date
+and process earlier dates first, with priority and input order breaking ties.
+They restore caller order in summaries and splits, so request IDs must be
+unique. The ATP local estimate preserves the sequence. This only changes the
+local preview order; it does not reserve stock or request SAP ATP confirmation.
+The quality FEFO variants `ALLOCATE_QUALITY_FEFO_PRIORITY` and
+`ALLOCATE_QUALITY_UOM_PRIORITY` expose the same processing sequence on quality
+summaries and batch splits and apply the optional date-first ordering to
+quality inspection batches; they do not alter the standard unrestricted-stock
+pool. Quality UOM ATP local estimates preserve the summary and split ranks.
+ATP wrappers, quality posting rechecks, and
+`TRANSFER_WBS_FEFO_PRIORITY` posting snapshots forward the option so preview
+and posting use the same order.
 
 Planned-order receipts are an optional local estimate from `PLAF`, not a firm
 commitment. `iv_include_planned_receipts` selects unfixed orders (`AUFFX` blank);
@@ -3663,7 +3673,9 @@ signature, and confirmation behavior in SAP.
 `ALLOCATE_PLANTS_PRIORITY` and `ALLOCATE_PLANTS_UOM_PRIORITY` order shared
 undated ordinary source balances by descending priority, preserving input order
 for ties. Source-plant order remains caller-controlled within each request, and
-results return in caller order. The UOM wrapper validates duplicate request IDs
+results return in caller order. Each allocation summary exposes a one-based
+`allocation_sequence` that includes rows with zero allocation and preserves
+stable input-order ties. The UOM wrapper validates duplicate request IDs
 before conversion. Both wrappers preserve the caller's projected receipt table
 and demand cutoff mapping; receipt rows remain caller-resolved, local estimates.
 `ALLOCATE_PLANTS_UOM_ATP_PRIO` checks positive local source allocations by
@@ -3698,7 +3710,10 @@ do not change location eligibility.
 
 `ALLOCATE_LOCATION_PRIORITY` and its UOM variant allocate higher-priority
 demands first while returning summaries and location splits in caller order.
-Internal row mapping preserves repeated caller request IDs. The UOM ATP wrapper
+Internal row mapping preserves repeated caller request IDs. Summaries and
+location splits expose one-based `allocation_sequence` values that follow
+priority and stable input-order ties, including unallocated rows. The UOM
+ATP local estimate preserves both summary and split ranks. The UOM ATP wrapper
 reports plant-level availability separately; it does not confirm the local
 location split or reserve stock. Local tests use repository doubles, so verify
 the target plant's location and ATP data before relying on the result.
@@ -3723,14 +3738,17 @@ strategy. Local tests use stock, UOM, and ATP doubles.
 
 `ALLOCATE_BY_BATCH_PRIORITY` and `ALLOCATE_BY_BATCH_UOM_PRIORITY` consume
 shared exact-batch stock by descending demand priority by default and return
-rows in caller order. With `iv_prioritize_by_date = abap_true`, they require
-valid per-demand dates and process earlier dates first, with priority breaking
-same-date ties. Internal row mapping preserves repeated request IDs. The ATP
-wrapper forwards the option; blank demand dates use its shared `iv_as_of_date`.
-It checks grouped plant availability separately and does not reserve stock or
-validate SAP batch determination settings. Local tests use repository and ATP
-doubles; verify batch, expiry, and confirmation behavior against the target SAP
-configuration.
+rows in caller order. Summaries and batch splits expose a one-based
+`allocation_sequence` in processing order. Every summary receives a rank,
+including zero-allocation demands; each emitted split echoes its demand's
+rank. With `iv_prioritize_by_date = abap_true`, they require valid dates and
+process earlier dates first, with priority breaking same-date ties. Internal
+row mapping preserves repeated request IDs. The ATP wrapper forwards the
+option; blank demand dates use its shared `iv_as_of_date`, and the local
+estimate preserves summary and split ranks. It checks grouped plant
+availability separately and does not reserve stock or validate SAP batch
+determination settings. Local tests use repository and ATP doubles; verify
+batch, expiry, and confirmation behavior against the target SAP configuration.
 
 `ALLOCATE_FEFO_UOM_ATP_PRIO` reports grouped ATP confirmation for allocations
 from the priority-aware FEFO UOM preview. It retains the local split even when
@@ -3797,14 +3815,17 @@ receipt assignments, batch expiry, and ATP scope in the target system.
 `ALLOCATE_PLANTS_FEFO_PRIORITY` and `ALLOCATE_PLANTS_FEFO_UOM_PRIO` order
 undated cross-plant demands by descending priority, preserving input order for
 ties, while keeping each demand's caller-ordered source plants and FEFO batch
-selection. Their summaries and source/batch splits return in caller order. The
-UOM wrapper validates conversions before stock reads, and both methods reject
-duplicate request IDs before repository reads. `ALLOCATE_PLANTS_FEFO_UOM_ATP`
-checks positive local source allocations by material, source plant, and base
-unit; SAP ATP does not confirm the selected batch or location split and does not
-change the priority allocation. These remain local previews with no stock lock
-or reservation; SAP batch determination and transfer rules can produce a
-different result. Local regression tests use stock, UOM, and ATP doubles.
+selection. Summaries, source-plant rows, and batch splits expose a one-based
+`allocation_sequence`; every summary gets a rank, and emitted split rows echo
+their demand's rank. Results remain in caller order. The UOM wrapper validates
+conversions before stock reads, and both methods reject duplicate request IDs
+before repository reads. `ALLOCATE_PLANTS_FEFO_UOM_ATP` checks positive local
+source allocations by material, source plant, and base unit; its local estimate
+preserves the sequence. SAP ATP does not confirm the selected batch or location
+split and does not change the priority allocation. These remain local previews
+with no stock lock or reservation; SAP batch determination and transfer rules
+can produce a different result. Local regression tests use stock, UOM, and ATP
+doubles.
 `CREATE_FOR_UOM_FEFO_PAIRS` accepts priority UOM FEFO output and applies the
 caller-supplied delivery date while carrying exact batches, issuing locations,
 priorities, and source units into STO items. It validates that demand, source,
@@ -5701,9 +5722,13 @@ reads.
 
 `ALLOCATE_PLANTS_BATCH_PRIORITY` and `ALLOCATE_PLANTS_BATCH_UOM_PRIO` accept
 per-demand `as_of_date`; blank dates use today. Earlier dates take precedence,
-then descending priority and input order break ties. Their summaries and
-source/location splits return in caller order. Duplicate request IDs and
-invalid UOM dates are rejected before stock reads or UOM conversion.
+then descending priority and input order break ties. Their one-based
+`allocation_sequence` follows that effective date order, treating blank dates
+as today. Summaries and source/location splits return in caller order. Each
+summary gets a rank, including zero allocations;
+emitted source/location rows echo their demand's rank. Duplicate request IDs and
+invalid UOM dates are rejected before stock reads or UOM conversion. The UOM
+ATP local estimate preserves the summary and split ranks.
 `ALLOCATE_PLANTS_BATCH_ATP` and `ALLOCATE_PLANTS_BATCH_UOM_ATP` group positive
 allocations by material, source plant, base unit, and demand `as_of_date`;
 blank dates use today. `CREATE_FOR_PRIO_FEFO_PAIRS` accepts priority base FEFO results with the
@@ -6216,7 +6241,9 @@ projected receipt; live SAP quality-stock and ATP behavior remain unverified.
 
 Quality FEFO release and send wrappers now carry request-specific location
 scopes into the fresh stock allocation immediately before movement posting.
-Empty-demand requests reject nonempty scopes; unknown, duplicate, and
+Empty-demand requests reject nonempty allocation rows and embedded location
+scopes, as well as shared location priorities, request-specific priorities,
+shared allowlists, and request-specific location scopes; unknown, duplicate, and
 preferred-outside-scope rows fail before stock or UOM reads. Local regressions
 cover quality release, unrestricted-stock send, priority variants, and invalid
 scopes without a posting call. Live SAP movement behavior remains unverified.
@@ -6576,6 +6603,13 @@ The separate `undated_batches` list returns all such rows in batch, location,
 and valuation order; its UOM variant carries base and requested-unit
 quantities. The result also identifies the first row by batch, location, and
 valuation type, with its category balances in base and requested units.
+It also reports the chronologically earliest recorded manufacture date among
+positive-stock rows matching the exposure filters through
+`oldest_manufacture_storage_loc`, `oldest_manufacture_batch`,
+`oldest_manufacture_val_type`, `oldest_manufacturing_date`,
+`oldest_manufacturing_date_src`, and signed `days_since_oldest_manufacture`.
+Unknown manufacture dates are skipped; ties sort by batch, location, and
+valuation type. UOM results echo the identity and date fields unchanged.
 Positive-stock batch/location/valuation rows with valid expiry dates after the requested window have a
 separate count and category
 totals; they remain out of the dated detail and expired/upcoming totals. The
@@ -6658,7 +6692,7 @@ with the location, batch, and valuation filters. Optional inclusive
 either may be supplied, and two must be ascending. A date bound omits undated
 rows from undated results, counts, and totals without changing status relative
 to `as_of_date` or the after-window test relative to `through_date`. Base and UOM
-results echo the bounds. Set `filter_expiry_status = abap_true` with `expiry_status` `E` for dates before `as_of_date`, `U` for dates from `as_of_date` through `through_date` inclusive, or `A` for dates after `through_date`. The scope intersects with location, batch, valuation, source, and date bounds before dated counts and totals; active status filtering omits undated rows from their list, counts, and totals. Only `E`, `U`, and `A` are accepted, and the status value must be initial when its flag is disabled. Base and UOM results echo both fields. Allocation trace rows retain their independent scope. Set `filter_expiry_age_band = abap_true` with `expiry_age_band` `1` for 1–7 days since expiry, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. It returns only expired rows, composes with status, source, and date bounds before counts, totals, and paging, and omits upcoming, after-window, and undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Optional `filter_expiry_days_from` and `filter_expiry_days_to` with `expiry_days_from` and `expiry_days_to` set inclusive signed `expiration_date - as_of_date` bounds. Either bound may be used alone; expired values are negative, the as-of date is zero, future values are positive, and active bounds omit undated rows. Two active bounds must be ascending. These bounds compose before exposure counts, totals, and paging, and base and UOM results echo both flags and values.
+results echo the bounds. Set `filter_expiry_status = abap_true` with `expiry_status` `E` for dates before `as_of_date`, `U` for dates from `as_of_date` through `through_date` inclusive, or `A` for dates after `through_date`. The scope intersects with location, batch, valuation, source, and date bounds before dated counts and totals; active status filtering omits undated rows from their list, counts, and totals. Only `E`, `U`, and `A` are accepted, and the status value must be initial when its flag is disabled. Base and UOM results echo both fields. Allocation trace rows retain their independent scope. Set `filter_expiry_age_band = abap_true` with `expiry_age_band` `1` for 1–7 days since expiry, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. It returns only expired rows, composes with status, source, and date bounds before counts, totals, and paging, and omits upcoming, after-window, and undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Optional `filter_expiry_days_from` and `filter_expiry_days_to` with `expiry_days_from` and `expiry_days_to` set inclusive signed `expiration_date - as_of_date` bounds. Either bound may be used alone; expired values are negative, the as-of date is zero, future values are positive, and active bounds omit undated rows. Two active bounds must be ascending. These bounds compose before exposure counts, totals, and paging, and base and UOM results echo both flags and values. Optional inclusive `manufacturing_age_days_from` and `manufacturing_age_days_to` bounds, enabled by `filter_manufacturing_age_from` and `filter_manufacturing_age_to`, select rows by signed `days_since_manufacture` (`as_of_date - manufacturing_date`). Either bound may be used alone; future manufacture dates have negative ages and the as-of date has age zero. Active age bounds omit rows without a manufacture date, including expiry-undated detail rows. Two active bounds must be ascending. The bounds compose with other exposure filters before dated and undated summaries, counts, and paging; base and UOM results echo both flags and values.
 
 Returned batch rows, expiry and source counts, and
 category totals reflect the filters. The repository still reads material/plant
@@ -8022,3 +8056,86 @@ The Open ABAP transpiler emits an invalid SQL host expression for
 `@is_selection-material` in the planned-order finish-window query. Assigning
 the component to typed local `lv_material` first avoids the malformed output;
 the special-procurement finish-window regression verifies the filtered rows.
+
+
+Local, cross-plant, and location date-first allocation now expose one-based `allocation_sequence` values in calculation order. Cross-plant source and location rows and local storage-location splits echo their demand rank; single-request, UOM, and ATP local estimates preserve ranks while summaries retain caller order. Regression coverage includes earlier-date precedence, same-date priority, and zero-allocation demands. The regression suite is not executable in this WSL 1 environment: the Windows Node launcher fails before npm starts.
+
+
+Cross-plant dated FEFO and exact-batch allocation now expose one-based allocation sequences on demand summaries, source-plant rows, and emitted splits. The date-first UOM and ATP local estimates retain these ranks. Regression assertions cover caller-order summaries, date and priority precedence, source and split propagation, and zero-allocation demands. Validation remains blocked in this WSL 1 environment: `npm test` stops before Node starts with "WSL 1 is not supported" and "Could not determine Node.js install directory".
+
+
+WBS date-first location and transfer previews now return one-based allocation sequences on demand summaries, location or batch splits, and assignment rows. ATP local estimates preserve the trace, including repeated caller IDs. Regression assertions cover date and priority order and wrapper propagation. The project validation runtime remains unavailable because the WSL 1 Node launcher fails before npm starts.
+
+
+Sales-order aggregate and FEFO issue previews now expose demand processing sequences, and FEFO batch splits echo their demand rank. Base and UOM results retain caller order while preserving the sequence. Static contract checks passed. Full validation could not start: the direct Windows Node executable exits with WSL `UtilBindVsockAnyPort` error in this WSL 1 environment.
+
+
+`npm test` attempts for the production-component trace-scope and date-first coverage-floor status changes on 2026-10-21 failed before Node started: the installed Windows Node launcher reports that WSL 1 is unsupported. PLAN validation, abaplint, transpilation, and ABAP Unit remain unavailable for the component and date-first rejection-status changes. Focused source-contract checks and CRLF-aware `git diff --check` passed.
+
+Valuation-type allocation outcomes now include full, partial, and unallocated
+codes plus base-unit coverage percentages. Regression assertions were added
+for all outcome classes and UOM/ATP propagation. PLAN validation, abaplint,
+transpilation, and ABAP Unit could not be run in this WSL 1 environment because
+the installed Node launcher fails before starting Node.
+
+WBS priority FEFO, batchless location, and transfer priority previews now
+expose `allocation_sequence` on their outer summary, split, and assignment
+rows. The rank is copied from the underlying shared-stock result, so the
+priority wrappers and their ATP local estimates retain the same caller-order
+view of processing order. Source-contract validation covers these mappings
+and the PLAN/README documentation. Runtime ABAP validation remains
+unavailable because the installed Node launcher rejects WSL 1.
+
+WBS FEFO and location allocation summaries now set the existing
+`minimum_coverage_rejected` field from final base-unit quantities. This
+correctly reports all-or-none rows whose final zero allocation falls below
+a positive floor, while a zero floor remains false. Priority, dated,
+transfer, and ATP wrappers preserve the nested status. Runtime ABAP
+validation remains unavailable because the installed Node launcher rejects
+WSL 1.
+
+Base WBS FEFO and location previews now assign ranks to their demand
+summaries and emitted unit splits in processing order. Priority wrappers sort
+rows before invoking those allocators, so the same base rank carries through
+priority and transfer results. The two WBS allocators also now calculate
+`minimum_coverage_rejected` from final allocated quantities, including strict
+full-quantity rejections below a positive floor.
+
+Base WBS FEFO and location assignment rows, plus base FEFO and location
+transfer assignment rows, now expose the same caller-order sequence as their
+demand summaries and splits. Priority, date-first, transfer, and ATP adapters
+preserve the rank in their caller-facing result rows.
+
+WBS regression coverage now checks base and priority `allocation_sequence`
+values across summaries, splits, assignments, and ATP local estimates. The new
+floor-status case covers FEFO full-quantity rejection below a positive floor,
+location and transfer floor rejection, and zero-floor partial allocation. `npm test` was
+attempted but stopped before PLAN validation: its launcher reports that WSL 1
+is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 npm test attempt after adding WBS floor-rejection stock-reuse regressions again stopped before validation. The WSL 1 npm launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory. Focused source-contract assertions and CRLF-aware git diff checks pass; abaplint, transpilation, and ABAP Unit did not start.
+
+Validation update (2026-10-21): abaplint quick fixes applied 64 alignment edits. `npm run lint` now passes with 0 issues across 252 files, and `npm run transpile` succeeds after correcting the sales-order parser spacing, test result paths, and related type errors. Added date-first WBS FEFO/location and transfer ATP floor-rejection stock-reuse coverage. `npm test` and `npm run validate:plan` still fail before Node starts because the Windows Node launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory. ABAP Unit and the PLAN validator did not run.
+Final 2026-10-21 validation after the STO stop-on-failure regression hit the same WSL 1 launcher error in `npm test`. The latest `npm run lint` and `npm run transpile` completed successfully; the PLAN validator and ABAP Unit still did not start.
+
+The 2026-10-21 `npm run validate:plan` attempt after adding document-level sales-order summaries stopped before Node startup. The launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 `npm run validate:plan` attempt after adding document summaries to bulk reservation rows again stopped before Node startup. The WSL 1 launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 `npm run validate:plan` attempt after adding cross-order material summaries again stopped before Node startup. The WSL 1 launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 npm run validate:plan attempt after adding sales-order summary date counts and allocation-sequence scopes stopped before Node startup. The WSL 1 launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 npm run validate:plan attempt after adding sales-order floor-rejected-line percentages stopped before Node startup. The WSL 1 launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+The 2026-10-21 npm run validate:plan attempt after adding required-date spans and allocation-rank metadata to sales-document summaries stopped before Node startup. The WSL 1 launcher reports that WSL 1 is unsupported and cannot determine the Node.js install directory.
+
+Validation follow-up (2026-10-21): the full `npm test` pipeline now passes via
+the native Windows Node execution path. ABAP Unit exposed three regressions:
+the stock test double omitted valuation type from synthesized batch statuses,
+the dated location UOM adapter dropped allocation sequence from storage-split
+wrappers, and manufacturing-age assertions disagreed with expiry ordering and
+the report horizon. The double projection and UOM adapter are fixed; tests now
+follow the established priority and expiry ordering and include the relevant
+expiry window. PLAN validation, abaplint, transpilation, and ABAP Unit all pass.
+The regular WSL 1 npm launcher still fails before Node startup.

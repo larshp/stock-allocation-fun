@@ -270,9 +270,12 @@ const requiredStubFields = {
     "WERKS",
     "CHARG",
     "VFDAT",
+    "HSDAT",
     "BWTAR",
   ],
-  "stubs/src/mch1.tabl.xml": ["MANDT", "MATNR", "CHARG", "VFDAT"],
+  "stubs/src/mch1.tabl.xml": [
+    "MANDT", "MATNR", "CHARG", "VFDAT", "HSDAT",
+  ],
   "stubs/src/mard.tabl.xml": [
     "MANDT",
     "MATNR",
@@ -994,7 +997,11 @@ if (existsSync(join(projectRoot, policyRepositoryPath))) {
 
 const requiredStubShapes = {
   "stubs/src/marc.tabl.xml": { XCHAR: ["CHAR", "000001"] },
-  "stubs/src/mcha.tabl.xml": { BWTAR: ["CHAR", "000010"] },
+  "stubs/src/mcha.tabl.xml": {
+    BWTAR: ["CHAR", "000010"],
+    HSDAT: ["DATS", "000008"],
+  },
+  "stubs/src/mch1.tabl.xml": { HSDAT: ["DATS", "000008"] },
   "stubs/src/resb.tabl.xml": { BWTAR: ["CHAR", "000010"] },
   "stubs/src/eina.tabl.xml": { MATNR: ["CHAR", "000040"] },
   "stubs/src/ekpo.tabl.xml": { LGORT: ["CHAR", "000004"] },
@@ -4580,6 +4587,104 @@ if (existsSync(join(projectRoot, soStockAggregatePath))) {
       `${soStockAggregatePath} must validate, compare, and echo per-request minimum coverage in both preview units`,
     );
   }
+
+  const issueSequenceFieldCount = normalizedSoStockService
+    .split("allocation_sequence type i").length - 1;
+  const issueDateSequenceTests = normalizedMethod(
+    soStockTests,
+    "prioritizes_issue_dates",
+  );
+  const issueFefoSequenceTests = normalizedMethod(
+    soStockTests,
+    "prioritizes_fefo_issue_dates",
+  );
+  const issueFefoCore = normalizedMethod(
+    soStockService,
+    "preview_issue_fefo_int",
+  );
+  const issueSequencePlan = readFileSync(
+    join(projectRoot, "PLAN.md"),
+    "utf8",
+  ).toLowerCase().replace(/\s+/g, " ");
+  const issueSequenceReadme = readFileSync(
+    join(projectRoot, "README.md"),
+    "utf8",
+  ).toLowerCase().replace(/\s+/g, " ");
+  const issueFloorStatusTest = normalizedMethod(
+    soStockTests,
+    "reports_issue_floor_rejection",
+  );
+  const issueFloorStatusFieldCount = normalizedSoStockService
+    .split("minimum_coverage_rejected type abap_bool").length - 1;
+  const issueFloorStatusFefo = normalizedMethod(
+    soStockService,
+    "preview_issue_fefo_int",
+  );
+  if (issueFloorStatusFieldCount < 3
+      || !issuePreviewMethods[0].body.includes(
+        "minimum_coverage_rejected = xsdbool( conv decfloat34( lv_covered_quantity )",
+      )
+      || !issuePreviewMethods[1].body.includes(
+        "minimum_coverage_rejected = xsdbool( conv decfloat34( lv_covered_base_quantity )",
+      )
+      || !issueFloorStatusFefo.includes(
+        "minimum_coverage_rejected = xsdbool( conv decfloat34( lv_covered_base_quantity )",
+      )
+      || !issueFloorStatusTest.includes(
+        "lt_base[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueFloorStatusTest.includes(
+        "lt_full[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueFloorStatusTest.includes(
+        "lt_zero_floor[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueFloorStatusTest.includes(
+        "lt_uom[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueFloorStatusTest.includes(
+        "ls_fefo-allocations[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueFloorStatusTest.includes(
+        "ls_fefo_uom-allocations[ 1 ]-minimum_coverage_rejected",
+      )
+      || !issueSequencePlan.includes(
+        "aggregate base, unit-aware, and fefo issue summaries also expose `minimum_coverage_rejected`",
+      )
+      || !issueSequenceReadme.includes(
+        "base, unit-aware, and fefo issue summaries also expose `minimum_coverage_rejected`",
+      )) {
+    errors.push(
+      `${soStockAggregatePath} must report final coverage floor rejection status in aggregate and FEFO issue summaries`,
+    );
+  }
+  if (issueSequenceFieldCount < 4
+      || issuePreviewBodies.some((body) =>
+        !body.includes("add 1 to lv_allocation_sequence")
+          || !body.includes("allocation_sequence = lv_allocation_sequence"))
+      || !issueFefoCore.includes("sort lt_ordered_requests stable by required_date ascending priority descending")
+      || !issueFefoCore.includes("add 1 to lv_allocation_sequence")
+      || (issueFefoCore.match(/allocation_sequence\s+= lv_allocation_sequence/g) ?? []).length < 2
+      || !issueDateSequenceTests.includes("lt_base_results[ 1 ]-allocation_sequence")
+      || !issueDateSequenceTests.includes("lt_unit_results[ 1 ]-allocation_sequence")
+      || !issueDateSequenceTests.includes("lt_base_results[ 4 ]-allocation_sequence")
+      || !issueDateSequenceTests.includes("lt_base_results[ 4 ]-allocation_outcome")
+      || !issueDateSequenceTests.includes("lt_unit_results[ 4 ]-allocation_sequence")
+      || !issueDateSequenceTests.includes("lt_unit_results[ 4 ]-allocation_outcome")
+      || !issueFefoSequenceTests.includes("ls_base_result-allocations[ 1 ]-allocation_sequence")
+      || !issueFefoSequenceTests.includes("ls_base_result-batch_allocations[ request_id = 'so-fefo-early-high' ]-allocation_sequence")
+      || !issueFefoSequenceTests.includes("ls_unit_result-allocations[ 1 ]-allocation_sequence")
+      || !issueFefoSequenceTests.includes("ls_unit_result-batch_allocations[ request_id = 'so-fefo-uom-early-high' ]-allocation_sequence")
+      || !issueFefoSequenceTests.includes("ls_base_result-allocations[ 4 ]-allocation_sequence")
+      || !issueFefoSequenceTests.includes("ls_unit_result-allocations[ 4 ]-allocation_sequence")
+      || !issueSequencePlan.includes("sales-order aggregate and fefo issue previews expose a one-based `allocation_sequence`")
+      || !issueSequencePlan.includes("every demand receives a rank, including zero-allocation rows")
+      || !issueSequenceReadme.includes("each result exposes a one-based `allocation_sequence` for its actual processing order")
+      || !issueSequenceReadme.includes("it includes zero-allocation rows")) {
+    errors.push(
+      `${soStockAggregatePath} must trace actual aggregate and FEFO issue order through base, UOM, and batch-split results`,
+    );
+  }
 }
 
 const scopedComponentPath = "src/zcl_stock_service.clas.abap";
@@ -4910,15 +5015,517 @@ if (existsSync(join(projectRoot, salesAllocPath))) {
     (salesAlloc.toLowerCase().match(
       /rs_result-order_summaries\s*=\s*ls_preview-order_summaries/g,
     ) || []).length;
+  const salesDocumentSummaryFieldCount =
+    (salesAlloc.toLowerCase().match(
+      /document_summaries\s+type ty_document_summaries/g,
+    ) || []).length;
+  const salesDocumentSummaryForwardCount =
+    (salesAlloc.toLowerCase().match(
+      /rs_result-document_summaries\s*=\s*ls_preview-document_summaries/g,
+    ) || []).length;
+  const salesDocumentSummaryBuilderCount =
+    (salesAlloc.toLowerCase().match(
+      /rs_result-document_summaries\s*=\s*summarize_sales_documents\(/g,
+    ) || []).length;
+  const materialSummaryFieldCount =
+    (salesAlloc.toLowerCase().match(
+      /material_summaries\s+type ty_material_summaries/g,
+    ) || []).length;
+  const materialSummaryForwardCount =
+    (salesAlloc.toLowerCase().match(
+      /rs_result-material_summaries\s*=\s*ls_preview-material_summaries/g,
+    ) || []).length;
+  const materialSummaryBuilderCount =
+    (salesAlloc.toLowerCase().match(
+      /rs_result-material_summaries\s*=\s*summarize_material_allocations\(/g,
+    ) || []).length;
   const orderSummaryMethod = atpMethod("summarize_order_allocations");
+  const salesDocumentSummaryMethod = atpMethod("summarize_sales_documents");
+  const materialSummaryMethod = atpMethod("summarize_material_allocations");
+  const lineSharePctMethod = atpMethod("calculate_line_share_pct");
   const singleOrderPreviewMethod = atpMethod("preview_order");
   const singleOrderReserveMethod = atpMethod("reserve_order");
+  const orderSummaryPlan = readFileSync(
+    join(projectRoot, "PLAN.md"),
+    "utf8",
+  ).toLowerCase().replace(/\s+/g, " ");
+  const orderSummarySource = salesAlloc.toLowerCase().replace(/\s+/g, " ");
   if (multiOrderSummaryFieldCount !== 5
       || multiOrderSummaryForwardCount !== 2
+      || salesDocumentSummaryFieldCount !== 5
+      || salesDocumentSummaryForwardCount !== 2
+      || salesDocumentSummaryBuilderCount !== 3
+      || materialSummaryFieldCount !== 3
+      || materialSummaryForwardCount !== 2
+      || materialSummaryBuilderCount !== 1
+      || salesDocumentSummaryMethod.start < 0
+      || salesDocumentSummaryMethod.end < 0
+      || materialSummaryMethod.start < 0
+      || materialSummaryMethod.end < 0
+      || !materialSummaryMethod.source.includes(
+        "with unique key material plant base_unit",
+      )
+      || !materialSummaryMethod.source.includes(
+        "lv_covered_quantity <> ls_summary-requested_base_quantity",
+      )
+      || !materialSummaryMethod.source.includes(
+        "sort rt_summaries by material plant base_unit",
+      )
+      || !orderSummarySource.includes("sales_document_count type i")
+      || !materialSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-sales_document_count",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-sales_document_count > ls_summary-demand_line_count",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "if <ls_summary>-fully_allocated_line_count = <ls_summary>-demand_line_count.",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "elseif lv_allocated_line_count = 0.",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "sort rt_summaries by sales_document",
+      )
       || orderSummaryMethod.start < 0 || orderSummaryMethod.end < 0
       || (orderSummaryMethod.source.match(/sum_stock_quantities\(/g) || []).length < 4
       || !orderSummaryMethod.source.includes(
         "lv_covered_quantity <> ls_summary-requested_base_quantity",
+      )
+      || !orderSummarySource.includes(
+        "allocation_outcome type c length 1, allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+      )
+      || !orderSummarySource.includes(
+        "fully_allocated_line_count type i",
+      )
+      || !orderSummarySource.includes(
+        "partially_allocated_line_count type i",
+      )
+      || !orderSummarySource.includes(
+        "unallocated_line_count type i",
+      )
+      || !orderSummarySource.includes(
+        "document_summary type ty_sales_document_summary",
+      )
+      || !orderSummarySource.includes(
+        "ls_order_result-document_summary = ls_document_summary",
+      )
+      || !orderSummarySource.includes("floor_rejected_line_count type i")
+      || !orderSummarySource.includes(
+        "floor_rejected_line_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+      )
+      || (orderSummarySource.match(
+        /fully_allocated_line_pct type zcl_stock_service=>ty_allocation_coverage_pct/g,
+      ) || []).length !== 3
+      || (orderSummarySource.match(
+        /partially_allocated_line_pct type zcl_stock_service=>ty_allocation_coverage_pct/g,
+      ) || []).length !== 3
+      || (orderSummarySource.match(
+        /unallocated_line_pct type zcl_stock_service=>ty_allocation_coverage_pct/g,
+      ) || []).length !== 3
+      || !orderSummarySource.includes(
+        "dated_line_count type i, first_required_date type d, last_required_date type d",
+      )
+      || !orderSummarySource.includes(
+        "first_allocation_sequence type i, last_allocation_sequence type i, allocation_sequence_scope type c length 1",
+      )
+      || lineSharePctMethod.start < 0 || lineSharePctMethod.end < 0
+      || !lineSharePctMethod.source.includes("if iv_demand_line_count <= 0")
+      || !lineSharePctMethod.source.includes("or iv_line_count < 0")
+      || !lineSharePctMethod.source.includes(
+        "or iv_line_count > iv_demand_line_count",
+      )
+      || !lineSharePctMethod.source.includes(
+        "conv decfloat34( iv_line_count ) * conv decfloat34( 100 ) / conv decfloat34( iv_demand_line_count )",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-fully_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-partially_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-unallocated_line_pct = calculate_line_share_pct(",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-floor_rejected_line_pct = calculate_line_share_pct(",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-fully_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-partially_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-unallocated_line_pct = calculate_line_share_pct(",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-floor_rejected_line_pct = calculate_line_share_pct(",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-dated_line_count",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-first_required_date = ls_allocation-required_date",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-last_required_date = ls_allocation-required_date",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-first_allocation_sequence = ls_allocation-allocation_sequence",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-last_allocation_sequence = ls_allocation-allocation_sequence",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-allocation_sequence_scope <> ls_allocation-allocation_sequence_scope",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "ls_allocation-allocation_sequence_scope <> c_sequence_scope_single_order",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "ls_allocation-allocation_sequence_scope <> c_sequence_scope_multi_order",
+      )
+      || !salesDocumentSummaryMethod.source.includes(
+        "<ls_summary>-first_allocation_sequence > <ls_summary>-last_allocation_sequence",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-fully_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-partially_allocated_line_pct = calculate_line_share_pct(",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-unallocated_line_pct = calculate_line_share_pct(",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-floor_rejected_line_pct = calculate_line_share_pct(",
+      )
+      || !orderSummarySource.includes(
+        "demand_line_count type i, dated_line_count type i, requested_base_quantity",
+      )
+      || !orderSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-dated_line_count",
+      )
+      || !materialSummaryMethod.source.includes(
+        "<ls_summary>-dated_line_count + ls_order_summary-dated_line_count",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-dated_line_count > ls_order_summary-demand_line_count",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-dated_line_count > ls_summary-demand_line_count",
+      )
+      || !orderSummarySource.includes(
+        "first_required_date type d, last_required_date type d",
+      )
+      || !orderSummarySource.includes(
+        "first_allocation_sequence type i, last_allocation_sequence type i",
+      )
+      || !orderSummarySource.includes(
+        "allocation_sequence_scope type c length 1",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_allocation-allocation_sequence_scope <> c_sequence_scope_single_order",
+      )
+      || !orderSummaryMethod.source.includes(
+        "<ls_summary>-allocation_sequence_scope <> ls_allocation-allocation_sequence_scope",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-allocation_sequence_scope <> c_sequence_scope_multi_order",
+      )
+      || !materialSummaryMethod.source.includes(
+        "<ls_summary>-allocation_sequence_scope <> ls_order_summary-allocation_sequence_scope",
+      )
+      || !orderSummaryMethod.source.includes(
+        "if ls_allocation-allocation_sequence <= 0.",
+      )
+      || !orderSummaryMethod.source.includes(
+        "first_allocation_sequence = ls_allocation-allocation_sequence",
+      )
+      || !orderSummaryMethod.source.includes(
+        "last_allocation_sequence = ls_allocation-allocation_sequence",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-first_allocation_sequence > ls_summary-last_allocation_sequence",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-first_allocation_sequence < <ls_summary>-first_allocation_sequence",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-last_allocation_sequence > <ls_summary>-last_allocation_sequence",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-first_allocation_sequence > ls_summary-last_allocation_sequence",
+      )
+      || !orderSummaryMethod.source.includes(
+        "if ls_allocation-required_date is not initial.",
+      )
+      || !orderSummaryMethod.source.includes(
+        "<ls_summary>-first_required_date = ls_allocation-required_date",
+      )
+      || !orderSummaryMethod.source.includes(
+        "<ls_summary>-last_required_date = ls_allocation-required_date",
+      )
+      || !orderSummaryMethod.source.includes(
+        "ls_summary-first_required_date > ls_summary-last_required_date",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-first_required_date < <ls_summary>-first_required_date",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_order_summary-last_required_date > <ls_summary>-last_required_date",
+      )
+      || !materialSummaryMethod.source.includes(
+        "ls_summary-first_required_date > ls_summary-last_required_date",
+      )
+      || !orderSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-fully_allocated_line_count",
+      )
+      || !orderSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-partially_allocated_line_count",
+      )
+      || !orderSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-unallocated_line_count",
+      )
+      || !orderSummaryMethod.source.includes(
+        "add 1 to <ls_summary>-floor_rejected_line_count",
+      )
+      || !orderSummaryMethod.source.includes(
+        "lv_outcome_line_count <> ls_summary-demand_line_count",
+      )
+      || !orderSummaryMethod.source.includes(
+        "zif_stock_repository=>c_allocation_outcome_full",
+      )
+      || !orderSummaryMethod.source.includes(
+        "zif_stock_repository=>c_allocation_outcome_partial",
+      )
+      || !orderSummaryMethod.source.includes(
+        "zif_stock_repository=>c_allocation_outcome_none",
+      )
+      || !orderSummaryMethod.source.includes(
+        "if ls_summary-requested_base_quantity > 0.",
+      )
+      || !orderSummaryMethod.source.includes(
+        "allocation_coverage_pct = conv zcl_stock_service=>ty_allocation_coverage_pct(",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-allocation_coverage_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 2 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 3 ]-allocation_coverage_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-fully_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-unallocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-floor_rejected_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 2 ]-floor_rejected_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 2 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 3 ]-floor_rejected_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 3 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 1 ]-allocation_coverage_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 2 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 3 ]-allocation_coverage_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 1 ]-fully_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 1 ]-unallocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 1 ]-floor_rejected_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-order_summaries[ 1 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes("method summarizes_document_outcomes.")
+      || !salesAllocTests.includes("method summarizes_outcome_percentages.")
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-fully_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-partially_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-unallocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-fully_allocated_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-partially_allocated_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-unallocated_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-partially_allocated_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-material_summaries[ 1 ]-partially_allocated_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-material_summaries[ 1 ]-fully_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-material_summaries[ 1 ]-partially_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-material_summaries[ 1 ]-unallocated_line_count",
+      )
+      || !salesAllocTests.includes("'33.33'")
+      || !salesAllocTests.includes(
+        "ls_full_result-document_summaries[ 1 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_full_result-document_summaries[ 1 ]-dated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_full_result-document_summaries[ 1 ]-first_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_full_result-document_summaries[ 1 ]-last_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_none_result-document_summaries[ 1 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_partial_result-document_summaries[ 1 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-floor_rejected_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-dated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-first_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-last_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-first_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-last_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-allocation_sequence_scope",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-document_summaries[ 1 ]-allocation_sequence_scope",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-document_summaries[ 1 ]-last_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "method reserves_multi_orders_by_date.",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 2 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes("method reserves_multi_orders_bulk.")
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 3 ]-allocation_outcome",
+      )
+      || !salesAllocTests.includes("method reserves_allocated_quantities.")
+      || !salesAllocTests.includes(
+        "ls_result-document_summaries[ 1 ]-partially_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_results[ 2 ]-document_summary-allocation_outcome",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_results[ 2 ]-document_summary-allocation_sequence_scope",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_results[ 2 ]-document_summary-first_allocation_sequence",
+      )
+      || !salesAllocTests.includes("method previews_multi_orders_date.")
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-allocated_base_quantity",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-allocation_coverage_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-sales_document_count",
+      )
+      || !salesAllocTests.includes("method reserves_multi_orders_by_date.")
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-shortfall_base_quantity",
+      )
+      || !salesAllocTests.includes("method reserves_multi_orders_bulk.")
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-fully_allocated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_multi_result-material_summaries[ 1 ]-floor_rejected_line_pct",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-first_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-last_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-dated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-first_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-last_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-material_summaries[ 1 ]-allocation_sequence_scope",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-dated_line_count",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-first_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-last_allocation_sequence",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-allocation_sequence_scope",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-first_required_date",
+      )
+      || !salesAllocTests.includes(
+        "ls_result-order_summaries[ 1 ]-last_required_date",
       )
       || !orderSummaryMethod.source.includes(
         "sort rt_summaries by sales_document material plant base_unit",
@@ -4934,6 +5541,117 @@ if (existsSync(join(projectRoot, salesAllocPath))) {
       )
       || !unscheduledDateDocs.includes(
         "single- and multi-order results include `order_summaries`, grouped by sales document, material, plant, and base unit",
+      )
+      || !orderSummaryPlan.includes(
+        "single- and multi-order result `order_summaries` also report the aggregate `allocation_outcome` (`f`, `p`, or `u`) and two-decimal `allocation_coverage_pct`",
+      )
+      || !orderSummaryPlan.includes(
+        "`floor_rejected_line_pct` reports the rejected-line count as a percentage of demand lines, rounded to two decimals",
+      )
+      || !orderSummaryPlan.includes(
+        "the summaries also report `fully_allocated_line_pct`, `partially_allocated_line_pct`, and `unallocated_line_pct`, each outcome count as a share of demand lines rounded to two decimals",
+      )
+      || !orderSummaryPlan.includes(
+        "each share is rounded independently, so their displayed sum may differ slightly from 100%",
+      )
+      || !orderSummaryPlan.includes(
+        "also reports `floor_rejected_line_pct` from the rejected share of demand lines",
+      )
+      || !orderSummaryPlan.includes(
+        "`partially_allocated_line_pct`, and `unallocated_line_pct` as each outcome's share of demand lines rounded to two decimals",
+      )
+      || !orderSummaryPlan.includes(
+        "line outcome counts and percentages cover the full document",
+      )
+      || !orderSummaryPlan.includes(
+        "it also reports the dated-line count and required-date span, plus the minimum and maximum allocation ranks and their `s` or `m` scope",
+      )
+      || !orderSummaryPlan.includes(
+        "each nested summary retains its date and allocation-rank metadata",
+      )
+      || !orderSummaryPlan.includes(
+        "they also report `floor_rejected_line_pct` as the rejected-line count divided by the demand-line count",
+      )
+      || !unscheduledDateDocs.includes(
+        "each summary also reports aggregate `allocation_outcome` (`f`, `p`, or `u`), two-decimal `allocation_coverage_pct`, and counts of fully allocated, partially allocated, and unallocated demand lines",
+      )
+      || !unscheduledDateDocs.includes(
+        "`floor_rejected_line_pct`, the rejected-line share of demand lines rounded to two decimals",
+      )
+      || !unscheduledDateDocs.includes(
+        "`partially_allocated_line_pct`, and `unallocated_line_pct` as each outcome's share of demand lines rounded to two decimals",
+      )
+      || !unscheduledDateDocs.includes(
+        "each outcome percentage is rounded independently, so their displayed sum may differ slightly from 100%",
+      )
+      || !unscheduledDateDocs.includes(
+        "each summary also reports the dated-line count and required-date span, plus the minimum and maximum allocation ranks with their `s` or `m` scope",
+      )
+      || !unscheduledDateDocs.includes(
+        "nested summaries retain their date and allocation-rank metadata",
+      )
+      || !unscheduledDateDocs.includes(
+        "plus lines rejected by a positive coverage floor",
+      )
+      || !orderSummaryPlan.includes(
+        "single- and multi-order preview and reservation results also return one `document_summaries` row for each sales document with positive open demand",
+      )
+      || !orderSummaryPlan.includes(
+        "multi-order preview and reservation results also expose `material_summaries`, grouped across the selected documents by material, plant, and base unit",
+      )
+      || !orderSummaryPlan.includes(
+        "distinct document counts, and line counts",
+      )
+      || !orderSummaryPlan.includes(
+        "both `order_summaries` and `material_summaries` also report the first and last nonblank required dates",
+      )
+      || !orderSummaryPlan.includes(
+        "`dated_line_count` reports how many demand lines contribute dates to the span",
+      )
+      || !orderSummaryPlan.includes(
+        "they also report `first_allocation_sequence` and `last_allocation_sequence`, the minimum and maximum processing ranks represented in the group",
+      )
+      || !orderSummaryPlan.includes(
+        "`allocation_sequence_scope` is `s` for a single-order summary and `m` for a global date-first multi-order summary; material summaries use `m`",
+      )
+      || !unscheduledDateDocs.includes(
+        "the result also includes one `document_summaries` row per document with positive open demand",
+      )
+      || !unscheduledDateDocs.includes(
+        "multi-order results also include `material_summaries`, which combine those allocations across sales documents by material, plant, and base unit",
+      )
+      || !unscheduledDateDocs.includes(
+        "distinct document counts, and line counts",
+      )
+      || !unscheduledDateDocs.includes(
+        "plus `floor_rejected_line_pct` as the rejected share of demand lines",
+      )
+      || !unscheduledDateDocs.includes(
+        "outcome counts and percentages cover all demand lines in the document",
+      )
+      || !unscheduledDateDocs.includes(
+        "`unallocated_line_pct` as the outcome shares of demand lines, rounded to two decimals",
+      )
+      || !unscheduledDateDocs.includes(
+        "both `order_summaries` and `material_summaries` report the first and last nonblank required dates",
+      )
+      || !unscheduledDateDocs.includes(
+        "`dated_line_count` reports how many demand lines contribute dates to the span",
+      )
+      || !unscheduledDateDocs.includes(
+        "they also report `first_allocation_sequence` and `last_allocation_sequence`, the minimum and maximum processing ranks represented in the group",
+      )
+      || !unscheduledDateDocs.includes(
+        "`allocation_sequence_scope` is `s` for a single-order summary and `m` for a global date-first multi-order summary; material summaries use `m`",
+      )
+      || !unscheduledDateDocs.includes(
+        "each row also carries `document_summary` when the order has positive open demand",
+      )
+      || !orderSummaryPlan.includes(
+        "each summary also counts fully allocated, partially allocated, and unallocated demand lines",
+      )
+      || !orderSummaryPlan.includes(
+        "counts lines rejected by a positive coverage floor",
       )
       || !unscheduledDateAnomalies.includes(
         "single- and multi-order preview results return `order_summaries`, grouped by sales document, material, plant, and base unit",
@@ -6364,6 +7082,911 @@ if (!sharedCoverageRequest.includes("iv_minimum_coverage_pct < 0")
     "shared material/plant allocations must validate and apply base-unit coverage floors across request, UOM, priority, and ATP paths",
   );
 }
+const sharedAllocationTypeStart = stockServiceSource.indexOf(
+  "begin of ty_allocation,",
+);
+const sharedAllocationTypeEnd = stockServiceSource.indexOf(
+  "end of ty_allocation.",
+  sharedAllocationTypeStart,
+);
+const sharedAllocationType = stockServiceSource.slice(
+  sharedAllocationTypeStart,
+  sharedAllocationTypeEnd,
+);
+const sharedFloorStatusTests = normalizedMethod(
+  stockServiceTests,
+  "reports_shared_floor_reject",
+);
+const sharedFloorLocationAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_storage_location",
+);
+const sharedFloorDatedLocationAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_by_date",
+);
+const sharedFloorBatchAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch",
+);
+const sharedFloorFefoAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_expiry",
+);
+const sharedFloorQualityAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_by_expiry",
+);
+const sharedFloorLocationTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_allowed_locations",
+);
+const sharedFloorDatedLocationTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_location_by_date",
+);
+const sharedFloorStatusFormula =
+  "conv decfloat34( ls_allocation-allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_allocation-requested_quantity ) * conv decfloat34( ls_allocation-minimum_coverage_pct )";
+const sharedFloorStatusPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const sharedFloorStatusReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (sharedAllocationTypeStart < 0
+    || sharedAllocationTypeEnd < 0
+    || !sharedAllocationType.includes("minimum_coverage_rejected type abap_bool")
+    || !sharedCoverageAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedCoverageAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorStatusTests.includes("ls_single-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("lt_base[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("lt_base[ 2 ]-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_unit_single-allocation-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("lt_uom[ 1 ]-allocation-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("lt_priority[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("lt_uom_priority[ 1 ]-allocation-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_uom_atp-local_estimate[ 1 ]-allocation-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_uom_priority_atp-local_estimate[ 1 ]-allocation-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_batch_result-allocations[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_fefo_result-allocations[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorStatusTests.includes("ls_quality_result-allocations[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorLocationAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedFloorDatedLocationAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedFloorBatchAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedFloorFefoAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedFloorQualityAllocator.includes("ls_allocation-minimum_coverage_rejected = abap_true")
+    || !sharedFloorLocationTests.includes("ls_rejected_result-allocations[ 1 ]-minimum_coverage_rejected")
+    || !sharedFloorDatedLocationTests.includes("allocation-minimum_coverage_rejected")
+    || !sharedFloorLocationAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorDatedLocationAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorBatchAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorFefoAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorQualityAllocator.includes(sharedFloorStatusFormula)
+    || !sharedFloorStatusPlan.includes("undated local coverage floor rejection status")
+    || !sharedFloorStatusPlan.includes("storage-location, date-first location, exact-batch, fefo, and quality fefo summaries")
+    || !sharedFloorStatusReadme.includes("storage-location, date-first location, exact-batch, fefo, and quality fefo summaries also populate the field")
+    || !sharedFloorStatusReadme.includes("undated material/plant scalar, base, uom, priority, and uom atp summaries expose the same field")) {
+  errors.push(
+    "undated shared material/plant allocations must report and preserve coverage floor rejections across scalar, UOM, priority, and ATP paths",
+  );
+}
+const priorityAllocationTypeStart = stockServiceSource.indexOf(
+  "begin of ty_allocation,",
+);
+const priorityAllocationTypeEnd = stockServiceSource.indexOf(
+  "end of ty_allocation.",
+  priorityAllocationTypeStart,
+);
+const priorityAllocationType = stockServiceSource.slice(
+  priorityAllocationTypeStart,
+  priorityAllocationTypeEnd,
+);
+const priorityBaseAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_by_priority",
+);
+const priorityUomAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_uom_priority",
+);
+const priorityBaseTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_demands_in_order",
+);
+const priorityUomTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_demands_in_units",
+);
+const priorityAtpTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_uom_demand_atp",
+);
+const priorityAllocationPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const priorityAllocationReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (priorityAllocationTypeStart < 0
+    || priorityAllocationTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(priorityAllocationType)
+    || !priorityBaseAllocator.includes("add 1 to lv_allocation_sequence")
+    || !priorityBaseAllocator.includes("ls_allocation-allocation_sequence = lv_allocation_sequence")
+    || !priorityUomAllocator.includes("add 1 to lv_allocation_sequence")
+    || !priorityUomAllocator.includes("ls_unit_allocation-allocation-allocation_sequence = lv_allocation_sequence")
+    || !priorityBaseTests.includes("exp = 0 act = lt_allocations[ 1 ]-allocation_sequence")
+    || !priorityBaseTests.includes("lt_priority_allocations[ 1 ]-allocation_sequence")
+    || !priorityBaseTests.includes("lt_equal_priority_allocations[ 2 ]-allocation_sequence")
+    || !priorityUomTests.includes("lt_priority_results[ 1 ]-allocation-allocation_sequence")
+    || !priorityAtpTests.includes("local_estimate[ 2 ]-allocation-allocation_sequence")
+    || !priorityAllocationPlan.includes("one-based `allocation_sequence`")
+    || !priorityAllocationReadme.includes("one-based `allocation_sequence`")) {
+  errors.push(
+    "priority material/plant base, UOM, and ATP allocation results must retain a one-based processing sequence while returning in caller order",
+  );
+}
+const datedAllocationTypeStart = stockServiceSource.indexOf(
+  "begin of ty_dated_allocation,",
+);
+const datedAllocationTypeEnd = stockServiceSource.indexOf(
+  "end of ty_dated_allocation.",
+  datedAllocationTypeStart,
+);
+const datedAllocationType = stockServiceSource.slice(
+  datedAllocationTypeStart,
+  datedAllocationTypeEnd,
+);
+const datedAllocationBase = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_by_date",
+);
+const datedAllocationRequest = normalizedMethod(
+  stockServiceSource,
+  "allocate_request_by_date",
+);
+const datedAllocationUnit = normalizedMethod(
+  stockServiceSource,
+  "allocate_date_demands_in_units",
+);
+const datedAllocationAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_date_demands_atp",
+);
+const datedAllocationRequestAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_request_date_atp",
+);
+const datedAllocationTests = normalizedMethod(
+  stockServiceTests,
+  "requires_full_local_date",
+);
+const datedAllocationUnitTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_unit_date_demands",
+);
+const datedAllocationRequestTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_request_by_date",
+);
+const datedFloorRejectionTests = normalizedMethod(
+  stockServiceTests,
+  "reports_dated_floor_reject",
+);
+const datedAllocationPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const datedAllocationReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (datedAllocationTypeStart < 0
+    || datedAllocationTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(datedAllocationType)
+    || !datedAllocationType.includes("minimum_coverage_rejected type abap_bool")
+    || !datedAllocationBase.includes("sort lt_demand_indexes by material plant required_date priority descending source_index ascending")
+    || !datedAllocationBase.includes("add 1 to lv_allocation_sequence")
+    || !datedAllocationBase.includes("allocation_sequence = lv_allocation_sequence")
+    || !datedAllocationRequest.includes("rs_allocation-allocation_sequence = 1")
+    || !datedAllocationRequest.includes(
+      "rs_allocation-minimum_coverage_rejected = abap_true",
+    )
+    || !datedAllocationBase.includes("lv_minimum_coverage_rejected = abap_true")
+    || !datedAllocationBase.includes(
+      "minimum_coverage_rejected = lv_minimum_coverage_rejected",
+    )
+    || !datedAllocationUnit.includes("allocation = ls_base_allocation")
+    || !datedAllocationUnit.includes("allocate_demands_by_date(")
+    || !datedAllocationAtp.includes("allocate_date_demands_in_units(")
+    || !datedAllocationRequestAtp.includes("allocate_request_by_date(")
+    || !datedFloorRejectionTests.includes("ls_single-minimum_coverage_rejected")
+    || !datedFloorRejectionTests.includes("lt_base[ 1 ]-minimum_coverage_rejected")
+    || !datedFloorRejectionTests.includes("lt_uom[ 1 ]-allocation-minimum_coverage_rejected")
+    || !datedFloorRejectionTests.includes("lt_atp[ 1 ]-local_estimate-allocation-minimum_coverage_rejected")
+    || !datedFloorRejectionTests.includes("ls_atp_request-local_estimate-minimum_coverage_rejected")
+    || !datedAllocationTests.includes("lt_date_result[ 1 ]-allocation_sequence")
+    || !datedAllocationTests.includes("lt_row_date_uom_result[ 2 ]-allocation-allocation_sequence")
+    || !datedAllocationTests.includes("ls_atp_request-local_estimate-allocation_sequence")
+    || !datedAllocationUnitTests.includes("lt_allocations[ 2 ]-allocation-allocation_sequence")
+    || !datedAllocationRequestTests.includes("ls_allocation-allocation_sequence")
+    || !datedAllocationPlan.includes("`allocate_demands_by_date` returns a one-based `allocation_sequence`")
+    || !datedAllocationPlan.includes("local date-first coverage floor rejection status")
+    || !datedAllocationReadme.includes("one-based `allocation_sequence` for the calculation order")
+    || !datedAllocationReadme.includes("date-first scalar, base-demand, uom, and atp summaries also expose `minimum_coverage_rejected`")) {
+  errors.push(
+    "date-first local, UOM, and ATP allocation results must expose and preserve the one-based calculation sequence",
+  );
+}
+const datePlantSummaryTypeStart = stockServiceSource.indexOf(
+  "begin of ty_date_plant_demand_allocation,",
+);
+const datePlantSummaryTypeEnd = stockServiceSource.indexOf(
+  "end of ty_date_plant_demand_allocation.",
+  datePlantSummaryTypeStart,
+);
+const datePlantSummaryType = stockServiceSource.slice(
+  datePlantSummaryTypeStart,
+  datePlantSummaryTypeEnd,
+);
+const datePlantSourceTypeStart = stockServiceSource.indexOf(
+  "begin of ty_date_plant_source_allocation,",
+);
+const datePlantSourceTypeEnd = stockServiceSource.indexOf(
+  "end of ty_date_plant_source_allocation.",
+  datePlantSourceTypeStart,
+);
+const datePlantSourceType = stockServiceSource.slice(
+  datePlantSourceTypeStart,
+  datePlantSourceTypeEnd,
+);
+const datePlantAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_date",
+);
+const datePlantUnitAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_units",
+);
+const datePlantAtpAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_atp",
+);
+const datePlantLocationAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_date_loc",
+);
+const datePlantLocationUnitAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_loc_uom",
+);
+const datePlantLocationAtpAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_loc_atp",
+);
+const datePlantTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_plants_by_date",
+);
+const datePlantUnitTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_dated_plant_units",
+);
+const datePlantAtpTests = normalizedMethod(
+  stockServiceTests,
+  "compares_dated_plant_atp",
+);
+const datePlantLocationTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_plants_by_date_loc",
+);
+const datePlantLocationUnitTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_plants_date_loc_uom",
+);
+const datePlantLocationAtpTests = normalizedMethod(
+  stockServiceTests,
+  "compares_plants_date_loc_atp",
+);
+const datedPlantLocationSplitTypeStart = stockServiceSource.indexOf(
+  "begin of ty_dated_plant_location_split,",
+);
+const datedPlantLocationSplitTypeEnd = stockServiceSource.indexOf(
+  "end of ty_dated_plant_location_split.",
+  datedPlantLocationSplitTypeStart,
+);
+const datedPlantLocationSplitType = stockServiceSource.slice(
+  datedPlantLocationSplitTypeStart,
+  datedPlantLocationSplitTypeEnd,
+);
+if (datePlantSummaryTypeStart < 0
+    || datePlantSummaryTypeEnd < 0
+    || datePlantSourceTypeStart < 0
+    || datePlantSourceTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(datePlantSummaryType)
+    || !/allocation_sequence\s+type i/.test(datePlantSourceType)
+    || !datePlantAllocator.includes("sort lt_demand_indexes by required_date priority descending source_index ascending")
+    || !datePlantAllocator.includes("add 1 to lv_allocation_sequence")
+    || !datePlantAllocator.includes("allocation_sequence = lv_allocation_sequence")
+    || !datePlantUnitAllocator.includes("ls_unit_allocation-allocation = ls_base_allocation")
+    || !datePlantUnitAllocator.includes("ls_unit_source-allocation = ls_base_source_allocation")
+    || !datePlantAtpAllocator.includes("allocate_plants_date_units(")
+    || !datePlantTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !datePlantTests.includes("ls_result-plant_allocations[ 1 ]-allocation_sequence")
+    || !datePlantUnitTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datePlantAtpTests.includes("local_estimate-allocations[ 3 ]-allocation-allocation_sequence")
+    || !datedAllocationPlan.includes("`allocate_plants_by_date` exposes the same one-based sequence")
+    || !datedAllocationReadme.includes("each demand summary also has a one-based `allocation_sequence`")) {
+  errors.push(
+    "cross-plant date-first base, UOM, and ATP allocation results must preserve demand sequence on summaries and source rows",
+  );
+}
+if (datedPlantLocationSplitTypeStart < 0
+    || datedPlantLocationSplitTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(datedPlantLocationSplitType)
+    || !datePlantLocationAllocator.includes("sort lt_work by required_date ascending priority descending input_index ascending")
+    || !datePlantLocationAllocator.includes("add 1 to lv_allocation_sequence")
+    || !datePlantLocationAllocator.includes("allocation_sequence = ls_request_index-allocation_sequence")
+    || !datePlantLocationUnitAllocator.includes("ls_unit_location-allocation = ls_base_location_allocation")
+    || !datePlantLocationAtpAllocator.includes("allocate_plants_date_loc_uom(")
+    || !datePlantLocationTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !datePlantLocationTests.includes("ls_result-location_allocations[ 3 ]-allocation_sequence")
+    || !datePlantLocationUnitTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datePlantLocationUnitTests.includes("ls_result-location_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datePlantLocationAtpTests.includes("local_estimate-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedAllocationPlan.includes("`allocate_plants_by_date_loc` also exposes the rank")
+    || !datedAllocationReadme.includes("demand summaries, source-plant rows, and location splits expose one-based `allocation_sequence` values")) {
+  errors.push(
+    "cross-plant date/location base, UOM, and ATP results must preserve demand sequence on summaries and all emitted splits",
+  );
+}
+const datedLocationSplitTypeStart = stockServiceSource.indexOf(
+  "begin of ty_dated_location_split,",
+);
+const datedLocationSplitTypeEnd = stockServiceSource.indexOf(
+  "end of ty_dated_location_split.",
+  datedLocationSplitTypeStart,
+);
+const datedLocationSplitType = stockServiceSource.slice(
+  datedLocationSplitTypeStart,
+  datedLocationSplitTypeEnd,
+);
+const datedLocationAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_by_date",
+);
+const datedLocationUnitAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_by_date_uom",
+);
+const datedLocationAtpAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_date_uom_atp",
+);
+const datedLocationTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_location_by_date",
+);
+const datedLocationUnitTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_dated_location_units",
+);
+const datedLocationAtpTests = normalizedMethod(
+  stockServiceTests,
+  "compares_dated_location_atp",
+);
+if (datedLocationSplitTypeStart < 0
+    || datedLocationSplitTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(datedLocationSplitType)
+    || !datedLocationAllocator.includes("sort lt_indexed_demands by required_date ascending priority descending input_index ascending")
+    || !datedLocationAllocator.includes("add 1 to lv_allocation_sequence")
+    || !datedLocationAllocator.includes("allocation_sequence = ls_request_index-allocation_sequence")
+    || !datedLocationUnitAllocator.includes("allocate_location_by_date(")
+    || !datedLocationAtpAllocator.includes("allocate_location_by_date_uom(")
+    || !datedLocationTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedLocationTests.includes("ls_result-storage_allocations[ 2 ]-allocation_sequence")
+    || !datedLocationUnitTests.includes("ls_late_allocation-allocation-allocation-allocation_sequence")
+    || !datedLocationUnitTests.includes("ls_first_storage_split-allocation_sequence")
+    || !datedLocationAtpTests.includes("ls_late_allocation-allocation-allocation-allocation_sequence")
+    || !datedAllocationPlan.includes("`allocate_location_by_date` exposes a one-based sequence")
+    || !datedAllocationReadme.includes("`allocate_location_by_date` and its uom form also expose a one-based sequence")) {
+  errors.push(
+    "single-plant date/location base, UOM, and ATP results must preserve demand sequence on summaries and location splits",
+  );
+}
+const crossPlantAllocationTypeStart = stockServiceSource.indexOf(
+  "begin of ty_plant_demand_allocation,",
+);
+const crossPlantAllocationTypeEnd = stockServiceSource.indexOf(
+  "end of ty_plant_demand_allocation.",
+  crossPlantAllocationTypeStart,
+);
+const crossPlantAllocationType = stockServiceSource.slice(
+  crossPlantAllocationTypeStart,
+  crossPlantAllocationTypeEnd,
+);
+const crossPlantPriorityAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_priority",
+);
+const crossPlantPriorityUomAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_uom_priority",
+);
+const crossPlantPriorityAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_uom_atp_prio",
+);
+const crossPlantPriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_plant_demands",
+);
+if (crossPlantAllocationTypeStart < 0
+    || crossPlantAllocationTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(crossPlantAllocationType)
+    || !crossPlantPriorityAllocator.includes("read table lt_sorted_demands transporting no fields")
+    || !crossPlantPriorityAllocator.includes("ls_base_allocation-allocation_sequence = lv_allocation_sequence")
+    || !crossPlantPriorityUomAllocator.includes("ls_base_allocation-allocation_sequence = lv_allocation_sequence")
+    || !crossPlantPriorityAtp.includes("allocate_plants_uom_priority(")
+    || !crossPlantPriorityTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("ls_result-allocations[ 2 ]-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("ls_result-allocations[ 3 ]-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("ls_uom_result-allocations[ 3 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantPriorityTests.includes("local_estimate-allocations[ 2 ]-allocation-allocation-allocation_sequence")
+    || !priorityAllocationPlan.includes("cross-plant `allocate_plants_priority`")
+    || !priorityAllocationReadme.includes("allocation summaries expose a one-based `allocation_sequence`")) {
+  errors.push(
+    "cross-plant priority base, UOM, and ATP local-estimate summaries must retain a one-based processing sequence in caller order",
+  );
+}
+const crossPlantBatchAllocationTypeStart = stockServiceSource.indexOf(
+  "begin of ty_plant_batch_demand_allocation,",
+);
+const crossPlantBatchAllocationTypeEnd = stockServiceSource.indexOf(
+  "end of ty_plant_batch_demand_allocation.",
+  crossPlantBatchAllocationTypeStart,
+);
+const crossPlantBatchAllocationType = stockServiceSource.slice(
+  crossPlantBatchAllocationTypeStart,
+  crossPlantBatchAllocationTypeEnd,
+);
+const crossPlantBatchPriorityBase = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_priority",
+);
+const crossPlantBatchPriorityUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_uom_prio",
+);
+const crossPlantBatchPriorityAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_uom_atp",
+);
+const crossPlantBatchPriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_plant_batch",
+);
+const crossPlantBatchPriorityAtpTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_plant_batch_atp",
+);
+const crossPlantBatchDatePriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prio_plant_batch_uom_dates",
+);
+if (crossPlantBatchAllocationTypeStart < 0
+    || crossPlantBatchAllocationTypeEnd < 0
+    || !/allocation_sequence\s+type i/.test(crossPlantBatchAllocationType)
+    || !crossPlantBatchPriorityBase.includes("allocation_sequence = lv_allocation_sequence")
+    || !crossPlantBatchPriorityBase.includes("sort lt_sorted_demands stable by as_of_date ascending priority descending")
+    || !crossPlantBatchPriorityBase.includes("<ls_sorted_demand>-as_of_date = sy-datum")
+    || !crossPlantBatchPriorityBase.includes("ls_base_allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantBatchPriorityBase.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantBatchPriorityUom.includes("sort lt_sorted_demands stable by as_of_date ascending priority descending")
+    || !crossPlantBatchPriorityUom.includes("<ls_sorted_demand>-as_of_date = sy-datum")
+    || !crossPlantBatchPriorityUom.includes("ls_unit_allocation-allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantBatchPriorityUom.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantBatchPriorityAtp.includes("allocate_plants_batch_uom_prio(")
+    || !crossPlantBatchPriorityTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !crossPlantBatchPriorityTests.includes("ls_result-plant_allocations[ 1 ]-allocation_sequence")
+    || !crossPlantBatchPriorityTests.includes("ls_result-location_allocations[ 1 ]-allocation_sequence")
+    || !crossPlantBatchPriorityTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantBatchPriorityAtpTests.includes("ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantBatchPriorityAtpTests.includes("ls_result-local_estimate-location_allocations[ 2 ]-allocation_sequence")
+    || !crossPlantBatchDatePriorityTests.includes("ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantBatchDatePriorityTests.includes("ls_base_rank_result-allocations[ 3 ]-allocation-allocation_sequence")
+    || !priorityAllocationPlan.includes("effective `as_of_date` order, treating blank dates as today")
+    || !priorityAllocationReadme.includes("effective `as_of_date` (blank means today)")
+    || !priorityAllocationPlan.includes("allocate_plants_batch_priority` and `allocate_plants_batch_uom_prio`")
+    || !priorityAllocationReadme.includes("allocation_sequence` on summaries and splits")) {
+  errors.push(
+    "cross-plant exact-batch priority summaries, source rows, location splits, and ATP local estimates must retain one-based demand ranks",
+  );
+}
+const crossPlantFefoPriorityBase = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_priority",
+);
+const crossPlantFefoPriorityUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_uom_prio",
+);
+const crossPlantFefoPriorityAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_uom_atp",
+);
+const crossPlantFefoPriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_plant_fefo",
+);
+const crossPlantFefoPriorityAtpTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_plant_fefo_atp",
+);
+if (!crossPlantFefoPriorityBase.includes("allocation_sequence = lv_allocation_sequence")
+    || !crossPlantFefoPriorityBase.includes("ls_base_allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantFefoPriorityBase.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantFefoPriorityUom.includes("ls_unit_allocation-allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantFefoPriorityUom.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !crossPlantFefoPriorityAtp.includes("allocate_plants_fefo_uom_prio(")
+    || !crossPlantFefoPriorityTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !crossPlantFefoPriorityTests.includes("ls_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !crossPlantFefoPriorityTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantFefoPriorityTests.includes("ls_uom_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !crossPlantFefoPriorityAtpTests.includes("ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !crossPlantFefoPriorityAtpTests.includes("ls_result-local_estimate-plant_allocations[ 2 ]-allocation_sequence")
+    || !priorityAllocationPlan.includes("allocate_plants_fefo_priority` and `allocate_plants_fefo_uom_prio`")
+    || !priorityAllocationReadme.includes("allocate_plants_fefo_priority` or `allocate_plants_fefo_uom_prio")) {
+  errors.push(
+    "cross-plant FEFO priority summaries, source rows, batch splits, and ATP local estimates must retain one-based demand ranks",
+  );
+}
+const datedCrossPlantFefo = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_by_date",
+);
+const datedCrossPlantFefoUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_date_uom",
+);
+const datedCrossPlantFefoAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_date_atp",
+);
+const datedCrossPlantFefoTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_plants_fefo_by_date",
+);
+const datedCrossPlantFefoUomTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_plants_fefo_date_uom",
+);
+const datedCrossPlantFefoAtpTests = normalizedMethod(
+  stockServiceTests,
+  "compares_dated_fefo_atp",
+);
+const datedCrossPlantBatch = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_by_date",
+);
+const datedCrossPlantBatchUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_batch_uom",
+);
+const datedCrossPlantBatchAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_batch_atp",
+);
+const datedCrossPlantBatchTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_dated_plant_batches",
+);
+const datedCrossPlantBatchUomTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_dated_batch_uom",
+);
+const datedCrossPlantBatchAtpTests = normalizedMethod(
+  stockServiceTests,
+  "compares_dated_batch_atp",
+);
+const datedFefoSummaryType = stockServiceSource.slice(
+  stockServiceSource.indexOf("begin of ty_date_plant_demand_allocation,"),
+  stockServiceSource.indexOf("end of ty_date_plant_demand_allocation."),
+);
+const datedFefoSourceType = stockServiceSource.slice(
+  stockServiceSource.indexOf("begin of ty_date_plant_source_allocation,"),
+  stockServiceSource.indexOf("end of ty_date_plant_source_allocation."),
+);
+const datedFefoBatchType = stockServiceSource.slice(
+  stockServiceSource.indexOf("begin of ty_date_plant_fefo_batch_allocation,"),
+  stockServiceSource.indexOf("end of ty_date_plant_fefo_batch_allocation."),
+);
+const datedAllocationSequencePlan = datedAllocationPlan.toLowerCase();
+const datedAllocationSequenceReadme = datedAllocationReadme.toLowerCase();
+if (!/allocation_sequence\s+type i/.test(datedFefoSummaryType)
+    || !/allocation_sequence\s+type i/.test(datedFefoSourceType)
+    || !/allocation_sequence\s+type i/.test(datedFefoBatchType)
+    || !datedCrossPlantFefo.includes("add 1 to lv_allocation_sequence")
+    || !datedCrossPlantFefo.includes("ls_allocation-allocation_sequence = lv_allocation_sequence")
+    || !datedCrossPlantFefo.includes("ls_source_allocation-allocation_sequence = lv_allocation_sequence")
+    || !datedCrossPlantFefo.includes("ls_date_batch_allocation-allocation_sequence = lv_allocation_sequence")
+    || !datedCrossPlantFefoUom.includes("ls_unit_allocation-allocation = ls_base_allocation")
+    || !datedCrossPlantFefoUom.includes("ls_unit_batch-allocation = ls_base_batch")
+    || !datedCrossPlantFefoAtp.includes("allocate_plants_fefo_date_uom(")
+    || !datedCrossPlantFefoTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !datedCrossPlantFefoTests.includes("ls_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !datedCrossPlantFefoUomTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantFefoUomTests.includes("ls_result-batch_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantFefoUomTests.includes("ls_result-plant_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantFefoAtpTests.includes("local_estimate-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantFefoAtpTests.includes("local_estimate-batch_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantFefoAtpTests.includes("local_estimate-plant_allocations[ 1 ]-allocation-allocation_sequence")
+    || !/allocation_sequence\s+type i/.test(stockServiceSource.slice(
+      stockServiceSource.indexOf("begin of ty_date_plant_batch_demand_allocation,"),
+      stockServiceSource.indexOf("end of ty_date_plant_batch_demand_allocation."),
+    ))
+    || !/allocation_sequence\s+type i/.test(stockServiceSource.slice(
+      stockServiceSource.indexOf("begin of ty_date_plant_batch_source_allocation,"),
+      stockServiceSource.indexOf("end of ty_date_plant_batch_source_allocation."),
+    ))
+    || !/allocation_sequence\s+type i/.test(stockServiceSource.slice(
+      stockServiceSource.indexOf("begin of ty_date_plant_batch_location_allocation,"),
+      stockServiceSource.indexOf("end of ty_date_plant_batch_location_allocation."),
+    ))
+    || !datedCrossPlantBatch.includes("allocation_sequence = lv_allocation_sequence")
+    || !datedCrossPlantBatch.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !datedCrossPlantBatchUom.includes("ls_unit_demand-allocation = ls_base_demand")
+    || !datedCrossPlantBatchUom.includes("ls_unit_location-allocation = ls_base_location")
+    || !datedCrossPlantBatchAtp.includes("allocate_plants_date_batch_uom(")
+    || !datedCrossPlantBatchTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !datedCrossPlantBatchTests.includes("ls_result-location_allocations[ 1 ]-allocation_sequence")
+    || !datedCrossPlantBatchTests.includes("ls_result-plant_allocations[ 1 ]-allocation_sequence")
+    || !datedCrossPlantBatchUomTests.includes("ls_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantBatchUomTests.includes("ls_result-location_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantBatchUomTests.includes("ls_result-plant_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantBatchAtpTests.includes("local_estimate-allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantBatchAtpTests.includes("local_estimate-location_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedCrossPlantBatchAtpTests.includes("local_estimate-plant_allocations[ 1 ]-allocation-allocation_sequence")
+    || !datedAllocationSequencePlan.includes("allocate_plants_fefo_by_date` exposes the sequence")
+    || !datedAllocationSequencePlan.includes("allocate_plants_batch_by_date` exposes the same trace")
+    || !datedAllocationSequenceReadme.includes("dated exact-batch summaries, source-plant rows, and location splits")
+    || !datedAllocationSequenceReadme.includes("one-based `allocation_sequence` for the material/date/priority/input processing order")) {
+  errors.push(
+    "dated cross-plant FEFO and exact-batch allocation summaries, splits, UOM, and ATP estimates must retain processing ranks",
+  );
+}
+const priorityStorageSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_storage_split,",
+);
+const priorityStorageSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_storage_split.",
+  priorityStorageSplitStart,
+);
+const priorityStorageSplit = stockServiceSource.slice(
+  priorityStorageSplitStart,
+  priorityStorageSplitEnd,
+);
+const priorityUnitStorageSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_unit_storage_split,",
+);
+const priorityUnitStorageSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_unit_storage_split.",
+  priorityUnitStorageSplitStart,
+);
+const priorityUnitStorageSplit = stockServiceSource.slice(
+  priorityUnitStorageSplitStart,
+  priorityUnitStorageSplitEnd,
+);
+const locationPriorityBase = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_priority",
+);
+const locationPriorityUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_uom_priority",
+);
+const locationPriorityAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_uom_atp_prio",
+);
+const locationPriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_location_rows",
+);
+if (priorityStorageSplitStart < 0
+    || priorityStorageSplitEnd < 0
+    || priorityUnitStorageSplitStart < 0
+    || priorityUnitStorageSplitEnd < 0
+    || !/allocation_sequence\s+type i/.test(priorityStorageSplit)
+    || !/allocation_sequence\s+type i/.test(priorityUnitStorageSplit)
+    || !locationPriorityBase.includes("allocation_sequence = lv_internal_index")
+    || !locationPriorityBase.includes("ls_allocation-allocation_sequence = ls_context-allocation_sequence")
+    || !locationPriorityBase.includes("allocation_sequence = ls_context-allocation_sequence")
+    || !locationPriorityUom.includes("allocation_sequence = lv_internal_index")
+    || !locationPriorityUom.includes("ls_unit_allocation-allocation-allocation_sequence = ls_context-allocation_sequence")
+    || !locationPriorityUom.includes("allocation_sequence = ls_context-allocation_sequence")
+    || !locationPriorityAtp.includes("allocate_location_uom_priority(")
+    || !locationPriorityTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !locationPriorityTests.includes("ls_result-storage_allocations[ 3 ]-allocation_sequence")
+    || !locationPriorityTests.includes("ls_uom_result-storage_allocations[ 2 ]-allocation_sequence")
+    || !locationPriorityTests.includes("local_estimate-allocations[ 2 ]-allocation-allocation_sequence")
+    || !locationPriorityTests.includes("local_estimate-storage_allocations[ 2 ]-allocation_sequence")
+    || !priorityAllocationPlan.includes("allocate_location_priority` and `allocate_location_uom_priority`")
+    || !priorityAllocationReadme.includes("summaries and location splits expose a one-based `allocation_sequence`")) {
+  errors.push(
+    "storage-location priority summaries, splits, and ATP local estimates must retain one-based processing sequences",
+  );
+}
+const priorityBatchSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_batch_split,",
+);
+const priorityBatchSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_batch_split.",
+  priorityBatchSplitStart,
+);
+const priorityBatchSplit = stockServiceSource.slice(
+  priorityBatchSplitStart,
+  priorityBatchSplitEnd,
+);
+const priorityUnitBatchSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_unit_batch_split,",
+);
+const priorityUnitBatchSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_unit_batch_split.",
+  priorityUnitBatchSplitStart,
+);
+const priorityUnitBatchSplit = stockServiceSource.slice(
+  priorityUnitBatchSplitStart,
+  priorityUnitBatchSplitEnd,
+);
+const batchPriorityBaseAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_priority",
+);
+const batchPriorityUomAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_uom_priority",
+);
+const batchPriorityAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_uom_atp_prio",
+);
+const batchPriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_batch_demands",
+);
+const batchDatePriorityTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_batch_date_atp",
+);
+if (priorityBatchSplitStart < 0
+    || priorityBatchSplitEnd < 0
+    || priorityUnitBatchSplitStart < 0
+    || priorityUnitBatchSplitEnd < 0
+    || !/allocation_sequence\s+type i/.test(priorityBatchSplit)
+    || !/allocation_sequence\s+type i/.test(priorityUnitBatchSplit)
+    || !batchPriorityBaseAllocator.includes("allocation_sequence = lv_internal_index")
+    || !batchPriorityBaseAllocator.includes("ls_allocation-allocation_sequence = ls_context-allocation_sequence")
+    || !batchPriorityBaseAllocator.includes("allocation_sequence = ls_context-allocation_sequence")
+    || !batchPriorityUomAllocator.includes("allocation_sequence = lv_internal_index")
+    || !batchPriorityUomAllocator.includes("ls_unit_allocation-allocation-allocation_sequence = ls_context-allocation_sequence")
+    || !batchPriorityUomAllocator.includes("allocation_sequence = ls_context-allocation_sequence")
+    || !batchPriorityAtp.includes("allocate_by_batch_uom_priority(")
+    || !batchPriorityTests.includes("ls_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !batchPriorityTests.includes("ls_base_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !batchPriorityTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !batchPriorityTests.includes("ls_uom_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !batchPriorityTests.includes("ls_atp_result-local_estimate-batch_allocations[ 2 ]-allocation_sequence")
+    || !batchDatePriorityTests.includes("ls_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !batchDatePriorityTests.includes("ls_uom_result-allocations[ 3 ]-allocation-allocation-allocation_sequence")
+    || !batchDatePriorityTests.includes("ls_atp_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !priorityAllocationPlan.includes("allocate_by_batch_priority` and `allocate_by_batch_uom_priority`")
+    || !priorityAllocationReadme.includes("one-based `allocation_sequence` on summaries and batch splits")) {
+  errors.push(
+    "exact-batch priority summaries, splits, and ATP local estimates must retain one-based processing sequences in caller order",
+  );
+}
+const priorityFefoSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_fefo_batch_split,",
+);
+const priorityFefoSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_fefo_batch_split.",
+  priorityFefoSplitStart,
+);
+const priorityFefoSplit = stockServiceSource.slice(
+  priorityFefoSplitStart,
+  priorityFefoSplitEnd,
+);
+const priorityUnitFefoSplitStart = stockServiceSource.indexOf(
+  "begin of ty_priority_unit_fefo_batch_split,",
+);
+const priorityUnitFefoSplitEnd = stockServiceSource.indexOf(
+  "end of ty_priority_unit_fefo_batch_split.",
+  priorityUnitFefoSplitStart,
+);
+const priorityUnitFefoSplit = stockServiceSource.slice(
+  priorityUnitFefoSplitStart,
+  priorityUnitFefoSplitEnd,
+);
+const priorityFefoBaseAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_expiry_priority",
+);
+const priorityFefoUomAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_fefo_uom_priority",
+);
+const priorityFefoAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_fefo_uom_atp_prio",
+);
+const qualityPriorityFefoBaseAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_fefo_priority",
+);
+const qualityPriorityFefoUomAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_uom_priority",
+);
+const qualityPriorityFefoAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_uom_atp_prio",
+);
+const priorityFefoTests = normalizedMethod(
+  stockServiceTests,
+  "allocates_fefo_by_priority",
+);
+const qualityPriorityFefoTests = normalizedMethod(
+  stockServiceTests,
+  "alloc_quality_fefo_priority",
+);
+const priorityFefoDateTests = normalizedMethod(
+  stockServiceTests,
+  "prioritizes_fefo_date_atp",
+);
+if (priorityFefoSplitStart < 0
+    || priorityFefoSplitEnd < 0
+    || priorityUnitFefoSplitStart < 0
+    || priorityUnitFefoSplitEnd < 0
+    || !/allocation_sequence\s+type i/.test(priorityFefoSplit)
+    || !/allocation_sequence\s+type i/.test(priorityUnitFefoSplit)
+    || !priorityFefoBaseAllocator.includes("allocation_sequence = lv_allocation_sequence")
+    || !priorityFefoBaseAllocator.includes("ls_base_allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !priorityFefoBaseAllocator.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !priorityFefoUomAllocator.includes("allocation_sequence = lv_allocation_sequence")
+    || !priorityFefoUomAllocator.includes("ls_unit_allocation-allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !priorityFefoUomAllocator.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !priorityFefoAtp.includes("allocate_fefo_uom_priority(")
+    || !qualityPriorityFefoBaseAllocator.includes("ls_base_allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !qualityPriorityFefoBaseAllocator.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !qualityPriorityFefoUomAllocator.includes("ls_unit_allocation-allocation-allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !qualityPriorityFefoUomAllocator.includes("allocation_sequence = ls_request_sequence-allocation_sequence")
+    || !qualityPriorityFefoAtp.includes("allocate_quality_uom_priority(")
+    || !priorityFefoTests.includes("ls_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !priorityFefoTests.includes("ls_base_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !priorityFefoTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !priorityFefoTests.includes("ls_uom_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_unrestricted_atp-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_unrestricted_atp-local_estimate-batch_allocations[ 2 ]-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !qualityPriorityFefoTests.includes("ls_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !qualityPriorityFefoTests.includes("ls_base_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !qualityPriorityFefoTests.includes("ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !qualityPriorityFefoTests.includes("ls_uom_result-batch_allocations[ 1 ]-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_quality_atp-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_quality_atp-local_estimate-batch_allocations[ 3 ]-allocation_sequence")
+    || !priorityFefoDateTests.includes("ls_quality_base_result-allocations[ 1 ]-allocation-allocation_sequence")
+    || !priorityAllocationPlan.includes("allocate_by_expiry_priority` and `allocate_fefo_uom_priority`")
+    || !priorityAllocationReadme.includes("one-based `allocation_sequence` on summaries and batch splits")) {
+  errors.push(
+    "priority FEFO summaries, splits, and ATP local estimates must retain one-based processing sequences in caller order",
+  );
+}
 if (!/allocation_outcome\s+type c length 1/.test(stockServiceSource)
     || !sharedCoverageAllocator.includes("ls_allocation-allocation_outcome = cond #(")
     || !sharedCoverageAllocator.includes("zif_stock_repository=>c_allocation_outcome_full")
@@ -6413,6 +8036,138 @@ for (const [name, marker] of crossPlantCoverageChecks) {
     errors.push(`${name} must report coverage percentage from base-unit quantities`);
   }
 }
+const crossPlantFloorStatusTypes = [
+  "ty_plant_demand_allocation",
+  "ty_date_plant_demand_allocation",
+  "ty_plant_batch_demand_allocation",
+  "ty_date_plant_batch_demand_allocation",
+];
+for (const name of crossPlantFloorStatusTypes) {
+  const start = stockServiceSource.indexOf(`begin of ${name},`);
+  const end = stockServiceSource.indexOf(`end of ${name}.`, start);
+  if (start < 0 || end < 0
+      || !stockServiceSource.slice(start, end)
+        .includes("minimum_coverage_rejected type abap_bool")) {
+    errors.push(`${name} must expose cross-plant coverage floor rejection status`);
+  }
+}
+const crossPlantFloorStatusMethods = [
+  ["allocate_across_plants", "ls_allocation-minimum_coverage_rejected = abap_true"],
+  ["allocate_plants_by_date", "minimum_coverage_rejected = xsdbool("],
+  ["allocate_plants_by_date_loc", "minimum_coverage_rejected = ls_local_allocation-minimum_coverage_rejected"],
+  ["allocate_plants_by_expiry", "ls_allocation-minimum_coverage_rejected = abap_true"],
+  ["allocate_plants_fefo_by_date", "ls_allocation-minimum_coverage_rejected = abap_true"],
+  ["allocate_plants_by_batch", "ls_allocation-minimum_coverage_rejected = abap_true"],
+  ["allocate_plants_batch_by_date", "ls_date_demand_allocation-minimum_coverage_rejected = ls_base_allocation-minimum_coverage_rejected"],
+];
+for (const [name, marker] of crossPlantFloorStatusMethods) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must report cross-plant floor rejection from final base quantities`);
+  }
+}
+const crossPlantFloorStatusTests = normalizedMethod(
+  stockServiceTests,
+  "reports_plant_floor_reject",
+);
+const crossPlantFloorStatusPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const crossPlantFloorStatusReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (!crossPlantFloorStatusTests.includes("ls_ordinary-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_priority-allocations[ 1 ]-allocation-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_uom-allocations[ 1 ]-allocation-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_uom_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_dated-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_dated_location-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_fefo-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_fefo_date-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_batch-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusTests.includes("ls_date_batch-allocations[ 1 ]-minimum_coverage_rejected")
+    || !crossPlantFloorStatusPlan.includes("cross-plant ordinary, date-first, exact-batch, and fefo demand summaries also expose `minimum_coverage_rejected`")
+    || !crossPlantFloorStatusReadme.includes("cross-plant ordinary, date-first, exact-batch, and fefo demand summaries also expose `minimum_coverage_rejected`")) {
+  errors.push(
+    "cross-plant ordinary, date, batch, and FEFO summaries must report and preserve coverage floor rejections through UOM, priority, and ATP adapters",
+  );
+}
+const valtypeFloorStatusTypeStart = stockServiceSource.indexOf(
+  "begin of ty_valtype_allocation,",
+);
+const valtypeFloorStatusTypeEnd = stockServiceSource.indexOf(
+  "end of ty_valtype_allocation.",
+  valtypeFloorStatusTypeStart,
+);
+const valtypeFloorStatusType = stockServiceSource.slice(
+  valtypeFloorStatusTypeStart,
+  valtypeFloorStatusTypeEnd,
+).replace(/\s+/g, " ");
+const valtypeFloorStatusAllocator = normalizedMethod(
+  stockServiceSource,
+  "preview_by_valtype",
+);
+const valtypeFloorStatusUom = normalizedMethod(
+  stockServiceSource,
+  "preview_by_valtype_uom",
+);
+const valtypeFloorStatusAtp = normalizedMethod(
+  stockServiceSource,
+  "preview_by_valtype_uom_atp",
+);
+const valtypeFloorStatusTests = normalizedMethod(
+  stockServiceTests,
+  "reports_valtype_floor_reject",
+);
+const valtypeFloorStatusPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const valtypeFloorStatusReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (valtypeFloorStatusTypeStart < 0
+    || valtypeFloorStatusTypeEnd < 0
+    || !valtypeFloorStatusType.includes("minimum_coverage_rejected type abap_bool")
+    || !valtypeFloorStatusType.includes("allocation_outcome type c length 1")
+    || !valtypeFloorStatusType.includes("allocation_coverage_pct type ty_allocation_coverage_pct")
+    || !valtypeFloorStatusAllocator.includes(
+      "ls_allocation-minimum_coverage_rejected = abap_true",
+    )
+    || !valtypeFloorStatusAllocator.includes(
+      "ls_allocation-minimum_coverage_rejected = xsdbool(",
+    )
+    || !valtypeFloorStatusAllocator.includes(
+      "ls_allocation-allocation_outcome = cond #(",
+    )
+    || (valtypeFloorStatusAllocator.match(
+      /ls_allocation-allocation_coverage_pct = calculate_coverage_pct\(/g,
+    ) ?? []).length < 3
+    || !valtypeFloorStatusUom.includes("allocation = ls_base_allocation")
+    || !valtypeFloorStatusAtp.includes("preview_by_valtype_uom(")
+    || !valtypeFloorStatusTests.includes("ls_base-allocations[ 1 ]-minimum_coverage_rejected")
+    || !valtypeFloorStatusTests.includes("ls_base-allocations[ 1 ]-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_partial-allocations[ 1 ]-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_partial-allocations[ 1 ]-allocation_coverage_pct")
+    || !valtypeFloorStatusTests.includes("ls_full_coverage-allocations[ 1 ]-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_full-allocations[ 1 ]-minimum_coverage_rejected")
+    || !valtypeFloorStatusTests.includes("ls_full-allocations[ 1 ]-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_zero_floor-allocations[ 1 ]-minimum_coverage_rejected")
+    || !valtypeFloorStatusTests.includes("ls_zero_floor-allocations[ 1 ]-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_uom-allocations[ 1 ]-allocation-minimum_coverage_rejected")
+    || !valtypeFloorStatusTests.includes("ls_uom-allocations[ 1 ]-allocation-allocation_outcome")
+    || !valtypeFloorStatusTests.includes("ls_atp-local_estimate-allocations[ 1 ]-allocation-minimum_coverage_rejected")
+    || !valtypeFloorStatusTests.includes("ls_atp-local_estimate-allocations[ 1 ]-allocation-allocation_outcome")
+    || !valtypeFloorStatusPlan.includes("valuation-type coverage floor rejection status")
+    || !valtypeFloorStatusPlan.includes("valuation-type allocation outcomes and coverage")
+    || !valtypeFloorStatusReadme.includes("the allocation summary also exposes `minimum_coverage_rejected`")
+    || !valtypeFloorStatusReadme.includes("valuation-type summaries also report `allocation_outcome` (`f`, `p`, or `u`)") ) {
+  errors.push(
+    "valuation-type allocation summaries and UOM/ATP adapters must report floor rejection, outcome, and base-unit coverage",
+  );
+}
 const localAllocationCoverageChecks = [
   ["allocate_demands", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
   ["allocate_by_storage_location", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
@@ -6456,6 +8211,7 @@ const localDatedCoverageFloorChecks = [
       "minimum_coverage_pct = iv_minimum_coverage_pct",
       "conv decfloat34( rs_allocation-allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( iv_requested_quantity ) * conv decfloat34( iv_minimum_coverage_pct )",
       "rs_allocation-shortfall_quantity = iv_requested_quantity",
+      "rs_allocation-minimum_coverage_rejected = abap_true",
     ],
   ],
   [
@@ -6466,6 +8222,7 @@ const localDatedCoverageFloorChecks = [
       "minimum_coverage_pct = ls_dated_input-minimum_coverage_pct",
       "conv decfloat34( lv_allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_dated_demand-requested_quantity ) * conv decfloat34( ls_dated_demand-minimum_coverage_pct )",
       "minimum_coverage_pct = ls_dated_demand-minimum_coverage_pct",
+      "minimum_coverage_rejected = lv_minimum_coverage_rejected",
     ],
   ],
   [
@@ -6499,7 +8256,7 @@ const coverageHelper = normalizedMethod(
   "calculate_coverage_pct",
 );
 const allocationSummaryTypeCount = (
-  stockServiceSource.match(/allocation_coverage_pct type ty_allocation_coverage_pct/g) ?? []
+  stockServiceSource.match(/allocation_coverage_pct\s+type\s+ty_allocation_coverage_pct/g) ?? []
 ).length;
 if (allocationSummaryTypeCount < 6
     || !coverageHelper.includes("if iv_requested_quantity > 0")
@@ -6943,6 +8700,10 @@ const qualityScopeRejectTest = normalizedMethod(
   qualityServiceTests,
   "rejects_q_location_scopes",
 );
+const emptyQualityDemandTest = normalizedMethod(
+  qualityServiceTests,
+  "rejects_scopes_without_demands",
+);
 if ((normalizedQualityServiceSource.match(/it_request_location_priorities type/g) || []).length !== 4
     || (normalizedQualityServiceSource.match(/it_request_locations type/g) || []).length !== 4
     || qualityPostingRankMethods.some((name) => {
@@ -6951,6 +8712,10 @@ if ((normalizedQualityServiceSource.match(/it_request_location_priorities type/g
         "it_request_location_priorities = it_request_location_priorities",
       )
         || !method.includes("it_request_locations = it_request_locations")
+        || !method.includes("or is_allocation-request_locations is not initial")
+        || !method.includes("or it_storage_location_priority is not initial")
+        || !method.includes("or it_request_location_priorities is not initial")
+        || !method.includes("or it_allowed_storage_locations is not initial")
         || !method.includes("or it_request_locations is not initial");
     })
     || !qualityRequestLocationTest.includes("allocate_quality_by_expiry_uom(")
@@ -6969,8 +8734,20 @@ if ((normalizedQualityServiceSource.match(/it_request_location_priorities type/g
     || !qualityScopeRejectTest.includes("'unknown'")
     || !qualityScopeRejectTest.includes("'0001'")
     || !qualityScopeRejectTest.includes("get_read_count( )")
-    || !qualityScopeRejectTest.includes("mv_create_calls")) {
-  errors.push("quality FEFO posting must preserve request-specific location ranks and scopes across all four fresh rechecks, rejecting invalid scopes before UOM or stock reads");
+    || !qualityScopeRejectTest.includes("mv_create_calls")
+    || !emptyQualityDemandTest.includes("release_quality_fefo(")
+    || !emptyQualityDemandTest.includes("release_quality_fefo_priority(")
+    || !emptyQualityDemandTest.includes("send_quality_fefo(")
+    || !emptyQualityDemandTest.includes("send_quality_fefo_priority(")
+    || !emptyQualityDemandTest.includes("it_storage_location_priority = value #( ( '0001' ) )")
+    || !emptyQualityDemandTest.includes("it_request_location_priorities = value #(")
+    || !emptyQualityDemandTest.includes("it_allowed_storage_locations = value #( ( '0001' ) )")
+    || !emptyQualityDemandTest.includes("it_request_locations = value #(")
+    || !emptyQualityDemandTest.includes("is_allocation = value #( request_locations = value #(")
+    || !emptyQualityDemandTest.includes("get_batch_status_read_count( )")
+    || !emptyQualityDemandTest.includes("get_read_count( )")
+    || !emptyQualityDemandTest.includes("mv_create_calls")) {
+  errors.push("quality FEFO posting must preserve request-specific location ranks and scopes across all four fresh rechecks, rejecting invalid scopes before UOM or stock reads and rejecting every nonempty scope on empty demands");
 }
 
 
@@ -9551,6 +11328,53 @@ if (!ccDatedDemandPreview.includes("priority = ls_demand-priority")
   errors.push("dated cost-center previews must echo each demand priority in caller order and preserve valid minimum coverage floors");
 }
 
+const ccAllocationTraceSource = readFileSync(
+  join(projectRoot, "src/zcl_cc_reservation_service.clas.abap"),
+  "utf8",
+).toLowerCase();
+const ccAllocationTraceTests = readFileSync(
+  join(projectRoot, "src/zcl_cc_reservation_service.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const ccAllocationTracePlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase();
+const ccAllocationTraceReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase();
+const ccAllocationTraceMethods = [
+  "preview_cost_center_by_date",
+  "preview_cc_locations_by_date",
+  "preview_cc_batches_by_date",
+  "preview_cost_center_fefo_date",
+  "reserve_cc_atomic_by_date",
+  "reserve_cost_centers_bulk",
+  "reserve_cc_fefo_date_atomic",
+  "reserve_cc_fefo_date_bulk",
+];
+const ccAllocationTraceTestsByMethod = [
+  "previews_dated_cc_demands",
+  "previews_dated_cc_atp",
+  "previews_cc_locations",
+  "previews_cc_batches",
+  "previews_dated_cc_fefo",
+  "reserves_cc_atomic_by_date",
+  "reserves_cc_bulk_by_date",
+  "res_dated_fefo_atomic_ranks",
+  "res_dated_fefo_bulk_ranks",
+  "prioritizes_bulk_cc_batches",
+];
+if (ccAllocationTraceMethods.some((name) =>
+  !normalizedMethod(ccAllocationTraceSource, name).includes("allocation_sequence"))
+    || ccAllocationTraceTestsByMethod.some((name) =>
+      !normalizedMethod(ccAllocationTraceTests, name).includes("allocation_sequence"))
+    || !ccAllocationTracePlan.includes("cost-center allocation trace sequences")
+    || !ccAllocationTraceReadme.includes("one-based `allocation_sequence`")) {
+  errors.push("cost-center date-first summaries, reservation rows, and emitted splits must preserve processing sequences through caller-order results");
+}
+
 const ccBulkDemandPreview = normalizedMethod(
   readFileSync(join(projectRoot, "src/zcl_cc_reservation_service.clas.abap"), "utf8").toLowerCase(),
   "preview_cost_center_demands",
@@ -9994,6 +11818,152 @@ const projectFefoReservationTests = readFileSync(
   "utf8",
 ).toLowerCase();
 const projectFefoCore = normalizedMethod(projectFefoSource, "preview_fefo");
+const datedWbsFefoSource = normalizedMethod(
+  projectFefoSource,
+  "preview_fefo_by_date",
+);
+const datedWbsFefoAtp = normalizedMethod(
+  projectFefoSource,
+  "preview_fefo_by_date_atp",
+);
+const datedWbsFefoAtpTests = normalizedMethod(
+  projectFefoTests,
+  "previews_dated_wbs_fefo_atp",
+);
+const datedWbsFefoScopeTests = normalizedMethod(
+  projectFefoTests,
+  "scopes_dated_wbs_fefo",
+);
+const datedWbsFefoPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const datedWbsFefoReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (!/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_fefo_allocation,"),
+      projectFefoSource.indexOf("end of ty_dated_fefo_allocation."),
+    ))
+    || !/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_fefo_batch_split,"),
+      projectFefoSource.indexOf("end of ty_dated_fefo_batch_split."),
+    ))
+    || !/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_wbs_assignment,"),
+      projectFefoSource.indexOf("end of ty_dated_wbs_assignment."),
+    ))
+    || !datedWbsFefoSource.includes("sort lt_work by required_date ascending priority descending input_index ascending")
+    || !datedWbsFefoSource.includes("add 1 to lv_allocation_sequence")
+    || !datedWbsFefoSource.includes("<ls_demand_index>-allocation_sequence = lv_allocation_sequence")
+    || !datedWbsFefoSource.includes("allocation_sequence = ls_allocation_index-allocation_sequence")
+    || !datedWbsFefoSource.includes("allocation_sequence = ls_split_index-allocation_sequence")
+    || !datedWbsFefoSource.includes("allocation_sequence = ls_assignment_index-allocation_sequence")
+    || !datedWbsFefoAtp.includes("preview_fefo_by_date(")
+    || !datedWbsFefoAtpTests.includes("local_estimate-allocations[ 1 ]-allocation_sequence")
+    || !datedWbsFefoAtpTests.includes("local_estimate-batch_allocations[ 1 ]-allocation_sequence")
+    || !datedWbsFefoAtpTests.includes("local_estimate-wbs_assignments[ 1 ]-allocation_sequence")
+    || !datedWbsFefoScopeTests.includes("ls_result-allocations[ 1 ]-allocation_sequence")
+    || !datedWbsFefoPlan.includes("wbs `preview_fefo_by_date` exposes a one-based `allocation_sequence`")
+    || !datedWbsFefoReadme.includes("batch splits, and wbs assignment rows expose a one-based `allocation_sequence`")) {
+  errors.push(
+    "WBS date-first FEFO summaries, batch splits, assignments, and ATP local estimates must retain processing ranks",
+  );
+}
+const datedWbsLocationSource = normalizedMethod(
+  projectFefoSource,
+  "preview_by_location_date",
+);
+const datedWbsLocationAtp = normalizedMethod(
+  projectFefoSource,
+  "preview_by_location_date_atp",
+);
+const datedWbsTransferFefoSource = normalizedMethod(
+  projectFefoSource,
+  "preview_transfer_fefo_by_date",
+);
+const datedWbsTransferFefoAtp = normalizedMethod(
+  projectFefoSource,
+  "preview_transfer_fefo_date_atp",
+);
+const datedWbsTransferLocationSource = normalizedMethod(
+  projectFefoSource,
+  "preview_transfer_location_date",
+);
+const datedWbsTransferLocationAtp = normalizedMethod(
+  projectFefoSource,
+  "preview_transfer_loc_date_atp",
+);
+const datedWbsLocationAtpTests = normalizedMethod(
+  projectFefoTests,
+  "previews_dated_wbs_loc_atp",
+);
+const datedWbsTransferFefoTests = normalizedMethod(
+  projectFefoTests,
+  "allocates_dated_transfer_fefo",
+);
+const datedWbsTransferFefoAtpTests = normalizedMethod(
+  projectFefoTests,
+  "previews_dated_xfer_fefo_atp",
+);
+const datedWbsTransferLocationTests = normalizedMethod(
+  projectFefoTests,
+  "previews_dated_loc_xfer",
+);
+const datedWbsTransferLocationAtpTests = normalizedMethod(
+  projectFefoTests,
+  "previews_dated_xfer_loc_atp",
+);
+if (!/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_location_allocation,"),
+      projectFefoSource.indexOf("end of ty_dated_location_allocation."),
+    ))
+    || !/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_location_split,"),
+      projectFefoSource.indexOf("end of ty_dated_location_split."),
+    ))
+    || !/allocation_sequence\s+type i/.test(projectFefoSource.slice(
+      projectFefoSource.indexOf("begin of ty_dated_transfer_assignment,"),
+      projectFefoSource.indexOf("end of ty_dated_transfer_assignment."),
+    ))
+    || !datedWbsLocationSource.includes("sort lt_work by required_date ascending priority descending input_index ascending")
+    || !datedWbsLocationSource.includes("add 1 to lv_allocation_sequence")
+    || !datedWbsLocationSource.includes("<ls_demand_index>-allocation_sequence = lv_allocation_sequence")
+    || !datedWbsLocationSource.includes("allocation_sequence = ls_allocation_index-allocation_sequence")
+    || !datedWbsLocationSource.includes("allocation_sequence = ls_split_index-allocation_sequence")
+    || !datedWbsLocationSource.includes("allocation_sequence = ls_assignment_index-allocation_sequence")
+    || !datedWbsLocationAtp.includes("preview_by_location_date(")
+    || !datedWbsTransferFefoSource.includes("sort lt_work by required_date ascending priority descending input_index ascending")
+    || !datedWbsTransferFefoSource.includes("add 1 to lv_allocation_sequence")
+    || !datedWbsTransferFefoSource.includes("<ls_demand_index>-allocation_sequence = lv_allocation_sequence")
+    || !datedWbsTransferFefoSource.includes("allocation_sequence = ls_allocation_index-allocation_sequence")
+    || !datedWbsTransferFefoSource.includes("allocation_sequence = ls_split_index-allocation_sequence")
+    || !datedWbsTransferFefoSource.includes("allocation_sequence = ls_assignment_index-allocation_sequence")
+    || !datedWbsTransferFefoAtp.includes("preview_transfer_fefo_by_date(")
+    || !datedWbsTransferLocationSource.includes("sort lt_work by required_date ascending priority descending input_index ascending")
+    || !datedWbsTransferLocationSource.includes("add 1 to lv_allocation_sequence")
+    || !datedWbsTransferLocationSource.includes("<ls_demand_index>-allocation_sequence = lv_allocation_sequence")
+    || !datedWbsTransferLocationSource.includes("allocation_sequence = ls_allocation_index-allocation_sequence")
+    || !datedWbsTransferLocationSource.includes("allocation_sequence = ls_split_index-allocation_sequence")
+    || !datedWbsTransferLocationSource.includes("allocation_sequence = ls_assignment_index-allocation_sequence")
+    || !datedWbsTransferLocationAtp.includes("preview_transfer_location_date(")
+    || !datedWbsLocationAtpTests.includes("local_estimate-wbs_assignments[ 1 ]-allocation_sequence")
+    || !datedWbsTransferFefoTests.includes("ls_result-transfer_assignments[ 1 ]-allocation_sequence")
+    || !datedWbsTransferFefoTests.includes("ls_result-batch_allocations[ split-batch_allocation-request_id = 'xfer-early-high' ]-allocation_sequence")
+    || !datedWbsTransferFefoAtpTests.includes("local_estimate-transfer_assignments[ 1 ]-allocation_sequence")
+    || !datedWbsTransferLocationTests.includes("ls_result-transfer_assignments[ 3 ]-allocation_sequence")
+    || !datedWbsTransferLocationAtpTests.includes("local_estimate-transfer_assignments[ 1 ]-allocation_sequence")
+    || !datedWbsFefoPlan.includes("wbs `preview_by_location_date` and `preview_transfer_location_date` expose the same one-based `allocation_sequence`")
+    || !datedWbsFefoPlan.includes("wbs `preview_transfer_fefo_by_date` also exposes the sequence")
+    || !datedWbsFefoReadme.includes("`preview_by_location_date` and `preview_transfer_location_date` expose the same one-based rank")
+    || !datedWbsFefoReadme.includes("demand summaries, batch splits, and transfer assignment rows also expose a one-based `allocation_sequence`")
+    || !datedWbsFefoReadme.includes("demand summaries, storage-location splits, and wbs assignment rows expose a one-based `allocation_sequence`")
+    || !datedWbsFefoReadme.includes("demand summaries, location splits, and transfer assignment rows expose a one-based `allocation_sequence`")) {
+  errors.push(
+    "WBS date-first location and transfer previews must report processing ranks on summaries, splits, assignments, and ATP estimates",
+  );
+}
 const projectFefoProjectedReceiptAdapters = [
   "preview_fefo_priority",
   "preview_fefo_atp",
@@ -11599,7 +13569,7 @@ const crossPlantFefoAtp = normalizedMethod(
   readFileSync(join(projectRoot, "src/zcl_stock_service.clas.abap"), "utf8").toLowerCase(),
   "allocate_plants_fefo_atp",
 );
-const datedCrossPlantFefoAtp = normalizedMethod(
+const datedCrossPlantFefoAtpLocationPriorities = normalizedMethod(
   readFileSync(join(projectRoot, "src/zcl_stock_service.clas.abap"), "utf8").toLowerCase(),
   "allocate_plants_fefo_date_atp",
 );
@@ -11645,7 +13615,7 @@ if (crossPlantFefoAllocation.indexOf("validate_req_loc_priorities(") < 0
     || !crossPlantFefoAtp.includes(
       "it_request_location_priorities = it_request_location_priorities",
     )
-    || !datedCrossPlantFefoAtp.includes(
+    || !datedCrossPlantFefoAtpLocationPriorities.includes(
       "it_request_location_priorities = it_request_location_priorities",
     )
     || !crossPlantFefoUomAtp.includes(
@@ -11691,7 +13661,7 @@ const datedCrossPlantBatchUnits = normalizedMethod(
   readFileSync(join(projectRoot, "src/zcl_stock_service.clas.abap"), "utf8").toLowerCase(),
   "allocate_plants_date_batch_uom",
 );
-const datedCrossPlantBatchAtp = normalizedMethod(
+const datedCrossPlantBatchAtpLocationPriorities = normalizedMethod(
   readFileSync(join(projectRoot, "src/zcl_stock_service.clas.abap"), "utf8").toLowerCase(),
   "allocate_plants_date_batch_atp",
 );
@@ -11719,7 +13689,7 @@ if (crossPlantBatchAllocation.indexOf("validate_req_loc_priorities(") < 0
     || !crossPlantBatchUomPriority.includes("it_request_location_priorities = it_request_location_priorities")
     || !crossPlantBatchAtp.includes("it_request_location_priorities = it_request_location_priorities")
     || !crossPlantBatchUomAtp.includes("it_request_location_priorities = it_request_location_priorities")
-    || !datedCrossPlantBatchAtp.includes("it_request_location_priorities = it_request_location_priorities")
+    || !datedCrossPlantBatchAtpLocationPriorities.includes("it_request_location_priorities = it_request_location_priorities")
     || !crossPlantBatchLocationTest.includes("'3000'")
     || !crossPlantBatchLocationTest.includes("'0003'")
     || !crossPlantBatchLocationTest.includes("'unknown'")
@@ -12335,7 +14305,7 @@ const datedLocationAllocationType = stockAllocationService.slice(
   stockAllocationService.indexOf("begin of ty_storage_allocation"),
   stockAllocationService.indexOf("end of ty_storage_allocation"),
 ).replace(/\s+/g, " ");
-const datedLocationAllocator = normalizedMethod(
+const datedLocationAllocatorCoverage = normalizedMethod(
   stockAllocationService,
   "allocate_location_by_date",
 );
@@ -12344,13 +14314,13 @@ const datedLocationUomAdapter = normalizedMethod(
   "allocate_location_by_date_uom",
 );
 if (!datedLocationAllocationType.includes("available_from_date type d")
-    || !datedLocationAllocator.includes(
+    || !datedLocationAllocatorCoverage.includes(
       "with unique key material plant storage_location available_from_date",
     )
-    || !datedLocationAllocator.includes(
+    || !datedLocationAllocatorCoverage.includes(
       "available_from_date = ls_projected_receipt-receipt_date",
     )
-    || !datedLocationAllocator.includes(
+    || !datedLocationAllocatorCoverage.includes(
       "available_from_date = <ls_location_balance>-available_from_date",
     )
     || !datedLocationUomAdapter.includes(
@@ -12428,10 +14398,10 @@ if (!datedLocationReceiptType.includes("source_type type c length 16")
     || !crossPlantLocationAllocationType.includes(
       "receipt_source_plant type eban-reswk",
     )
-    || !datedLocationAllocator.includes(
+    || !datedLocationAllocatorCoverage.includes(
       "source_schedule_line = ls_projected_receipt-source_schedule_line",
     )
-    || !datedLocationAllocator.includes(
+    || !datedLocationAllocatorCoverage.includes(
       "source_schedule_line = <ls_location_balance>-source_schedule_line",
     )
     || !crossPlantLocationAllocator.includes(
@@ -12583,6 +14553,10 @@ const productionComponentService = readFileSync(
   join(projectRoot, "src/zcl_prod_comp_service.clas.abap"),
   "utf8",
 ).toLowerCase().replace(/\s+/g, " ");
+const productionComponentTests = readFileSync(
+  join(projectRoot, "src/zcl_prod_comp_service.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
 const productionComponentCheckType = productionComponentService.slice(
   productionComponentService.indexOf("begin of ty_component_check"),
   productionComponentService.indexOf("end of ty_component_check"),
@@ -12673,9 +14647,14 @@ if (!componentAllocationPolicyType.includes(
     || !componentLocalEstimateType.includes(
       "minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct",
     )
+    || !componentLocalEstimateType.includes("minimum_coverage_rejected type abap_bool")
     || !componentLocalEstimateType.includes("allocation_outcome type c length 1")
     || !componentLocalEstimateType.includes(
       "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+    )
+    || !componentLocalEstimateType.includes("allocation_sequence type i")
+    || !componentLocalEstimateType.includes(
+      "allocation_sequence_scope type ty_comp_seq_scope",
     )
     || !scopedComponentDemandType.includes(
       "minimum_coverage_pct type ty_minimum_coverage_pct",
@@ -12690,13 +14669,16 @@ if (!componentAllocationPolicyType.includes(
       "minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct",
     )
     || !productionComponentPreview.includes(
+      "lv_component_floor_rejected = ls_scoped_allocation-allocation-minimum_coverage_rejected",
+    )
+    || !productionComponentPreview.includes(
       "ls_component_group_estimate-allocation_outcome = cond #(",
     )
     || !productionComponentPreview.includes(
       "ls_component_group_estimate-allocation_coverage_pct = cond #(",
     )
     || !productionComponentPreview.includes(
-      "component_local_estimate = value #( requested_quantity = lv_component_base_quantity available_quantity = lv_component_available allocated_quantity = lv_component_allocated shortfall_quantity = lv_component_shortfall minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct allocation_outcome = cond #(",
+      "component_local_estimate = value #( allocation_sequence = lv_comp_allocation_seq allocation_sequence_scope = lv_component_sequence_scope requested_quantity = lv_component_base_quantity available_quantity = lv_component_available allocated_quantity = lv_component_allocated shortfall_quantity = lv_component_shortfall minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct minimum_coverage_rejected = lv_component_floor_rejected allocation_outcome = cond #(",
     )
     || !productionComponentPreview.includes(
       "conv decfloat34( lv_component_allocated ) * conv decfloat34( 100 ) / conv decfloat34( lv_component_base_quantity )",
@@ -12716,9 +14698,37 @@ if (!componentAllocationPolicyType.includes(
     )
     || !componentStockAllocator.includes(
       "minimum_coverage_pct = ls_scope_demand-minimum_coverage_pct",
+    )
+    || !componentStockAllocator.includes(
+      "minimum_coverage_rejected = xsdbool( lv_meets_coverage_floor <> abap_true )",
+    )
+    || !productionComponentTests.includes("method reports_comp_floor_reject.")
+    || !productionComponentTests.includes(
+      "component_local_estimate-minimum_coverage_rejected",
+    )
+    || !productionComponentTests.includes(
+      "exp = abap_true act = lt_checks[ 1 ]-component_local_estimate-minimum_coverage_rejected",
+    )
+    || !productionComponentTests.includes(
+      "exp = abap_false act = lt_checks[ 1 ]-local_estimate-minimum_coverage_rejected",
+    )
+    || !productionComponentTests.includes(
+      "exp = abap_false act = lt_checks[ 2 ]-component_local_estimate-minimum_coverage_rejected",
+    )
+    || !productionComponentTests.includes(
+      "exp = conv mard-labst( '4.000' ) act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity",
+    )
+    || !productionComponentDocs.includes(
+      "the per-component `component_local_estimate` also reports `minimum_coverage_rejected`",
+    )
+    || !productionComponentDocs.includes(
+      "allocate_component_stock` results return the same flag on each scoped allocation row",
+    )
+    || !productionComponentPlan.includes(
+      "production component coverage floor rejection status",
     )) {
   errors.push(
-    "production component coverage floors must validate policy rows, gate scoped balance consumption, and echo the threshold",
+    "production component coverage floors must validate policy rows, gate scoped balance consumption, report floor rejections, and echo the threshold",
   );
 }
 const crossPlantBatchIdentityMethods = [
@@ -12815,17 +14825,95 @@ const batchReceiptIdentityChecks = [
     ),
   ],
   [
-    "component split exposes receipt date and identity",
+    "component split exposes receipt date, identity, and sequence scope",
     scopedComponentBatchSplitType.includes("available_from_date type d")
+      && scopedComponentBatchSplitType.includes(
+        "allocation_sequence_scope type c length 1",
+      )
       && batchReceiptIdentityFieldTypes.every(([field, type]) =>
         scopedComponentBatchSplitType.includes(`${field} ${type}`),
       ),
   ],
   [
-    "component location split exposes receipt date and identity",
+    "component location split exposes receipt date, identity, and sequence scope",
     scopedComponentLocationSplitType.includes("available_from_date type d")
+      && scopedComponentLocationSplitType.includes("allocation_sequence type i")
+      && scopedComponentLocationSplitType.includes(
+        "allocation_sequence_scope type c length 1",
+      )
       && batchReceiptIdentityFieldTypes.every(([field, type]) =>
         scopedComponentLocationSplitType.includes(`${field} ${type}`),
+      ),
+  ],
+  [
+    "production component allocation sequences distinguish dated and scoped paths",
+    scopedComponentBatchSplitType.includes("allocation_sequence type i")
+      && scopedComponentLocationSplitType.includes("allocation_sequence type i")
+      && componentStockAllocator.includes("add 1 to lv_allocation_sequence")
+      && componentStockAllocator.includes(
+        "allocation_sequence = lv_allocation_sequence",
+      )
+      && componentStockAllocator.includes(
+        "allocation_sequence_scope = c_scoped_component_seq_scope",
+      )
+      && productionComponentService.includes(
+        "lv_comp_allocation_seq = ls_scoped_allocation-allocation-allocation_sequence",
+      )
+      && productionComponentService.includes(
+        "sort lt_comp_seq_rows by material plant required_date input_index",
+      )
+      && productionComponentService.includes(
+        "ls_component_group_estimate-allocation_sequence = <ls_atp_day>-local_estimate-allocation_sequence",
+      )
+      && productionComponentService.includes(
+        "lv_component_sequence_scope = c_comp_seq_scope_dated",
+      )
+      && productionComponentService.includes(
+        "lv_component_sequence_scope = c_comp_seq_scope_scoped",
+      )
+      && productionComponentService.includes(
+        "c_comp_seq_scope_dated type ty_comp_seq_scope value 'd'",
+      )
+      && productionComponentService.includes(
+        "c_comp_seq_scope_scoped type ty_comp_seq_scope value 's'",
+      )
+      && productionComponentTests.includes("method scoped_allocation_sequence.")
+      && productionComponentTests.includes("method unscoped_allocation_sequence.")
+      && productionComponentTests.includes(
+        "c_comp_seq_scope_scoped",
+      )
+      && productionComponentTests.includes(
+        "priority = 10",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 1 ]-component_local_estimate-allocation_sequence",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 1 ]-batch_allocations[ 1 ]-allocation_sequence_scope",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 1 ]-location_allocations[ 1 ]-allocation_sequence_scope",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 1 ]-local_estimate-allocation_sequence",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 3 ]-component_local_estimate-allocation_sequence_scope",
+      )
+      && productionComponentTests.includes(
+        "lt_checks[ 4 ]-component_local_estimate-allocation_sequence",
+      )
+      && productionComponentDocs.includes(
+        "scoped component results also expose a one-based `allocation_sequence`",
+      )
+      && productionComponentDocs.includes(
+        "unscoped component results also expose per-component ranks",
+      )
+      && productionComponentDocs.includes(
+        "split rows include `allocation_sequence_scope` set to `s`",
+      )
+      && productionComponentPlan.includes(
+        "production component allocation trace sequences",
       ),
   ],
   [
@@ -15626,6 +17714,30 @@ const costCenterMinimumCoverageMappings =
   costCenterMinimumCoveragePrepare.split(
     "minimum_coverage_pct = iv_minimum_coverage_pct",
   ).length - 1;
+const costCenterFloorStatusTestSource = readFileSync(
+  join(projectRoot, "src/zcl_cc_reservation_service.clas.testclasses.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const costCenterFloorStatusTestStart =
+  costCenterFloorStatusTestSource.indexOf(
+    "method reports_cc_floor_rejection.",
+  );
+const costCenterFloorStatusTestEnd =
+  costCenterFloorStatusTestSource.indexOf(
+    "endmethod.",
+    costCenterFloorStatusTestStart,
+  );
+const costCenterFloorStatusTest =
+  costCenterFloorStatusTestStart >= 0 && costCenterFloorStatusTestEnd >= 0
+    ? costCenterFloorStatusTestSource.slice(
+      costCenterFloorStatusTestStart,
+      costCenterFloorStatusTestEnd,
+    )
+    : "";
+const costCenterFloorStatusPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
 if ((costCenterBooleanOptionSource.match(
   /iv_minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct optional/g,
 ) ?? []).length < 2
@@ -15641,11 +17753,32 @@ if ((costCenterBooleanOptionSource.match(
     || !costCenterMinimumCoverageResult.includes(
       "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
     )
+    || !costCenterMinimumCoverageResult.includes(
+      "minimum_coverage_rejected type abap_bool",
+    )
     || !costCenterMinimumCoveragePrepare.includes(
       "rs_prepared-result-allocation_outcome = ls_allocation-allocation_outcome",
     )
     || !costCenterMinimumCoveragePrepare.includes(
+      "rs_prepared-result-minimum_coverage_rejected = xsdbool( ls_allocation-minimum_coverage_rejected = abap_true or ( iv_minimum_coverage_pct > 0 and iv_require_full_alloc = abap_true and ls_allocation-allocated_quantity < ls_allocation-requested_quantity ) )",
+    )
+    || !costCenterMinimumCoveragePrepare.includes(
       "rs_prepared-result-allocation_coverage_pct = ls_allocation-allocation_coverage_pct",
+    )
+    || !costCenterFloorStatusTest.includes(
+      "ls_rejected-minimum_coverage_rejected",
+    )
+    || !costCenterFloorStatusTest.includes(
+      "ls_full_rejected-minimum_coverage_rejected",
+    )
+    || !costCenterFloorStatusTest.includes(
+      "ls_zero_floor-minimum_coverage_rejected",
+    )
+    || !costCenterFloorStatusPlan.includes(
+      "they also expose `minimum_coverage_rejected` when the final base-unit allocation fails a positive floor",
+    )
+    || !costCenterBooleanOptionDocs.includes(
+      "single preview and reservation result also expose `minimum_coverage_rejected`",
     )
     || !costCenterBooleanOptionDocs.includes(
       "single cost-center preview and reservation methods accept a scalar `minimum_coverage_pct` from 0 through 100",
@@ -16448,6 +18581,10 @@ const afterWindowSummaryTest = normalizedMethod(
 const expiryDayRangeFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_expiry_day_range",
+);
+const manufacturingAgeRangeFilterTest = normalizedMethod(
+  stockServiceTests,
+  "filters_mfg_age_range",
 );
 const expiryExpirationDateRangeTest = normalizedMethod(
   stockServiceTests,
@@ -21272,6 +23409,10 @@ const stoAtomicSourceCommitTest = normalizedMethod(
   stoOrderServiceTests,
   "fails_atomic_source_commit",
 );
+const stoSourceLastFailureTest = normalizedMethod(
+  stoOrderServiceTests,
+  "keeps_source_commit_last_fail",
+);
 const stoPlantPairFailureTest = normalizedMethod(
   stoOrderServiceTests,
   "stops_plant_pair_failures",
@@ -21300,6 +23441,7 @@ if (!stoAtomicPublicMethodsExposeStop
     )
     || ![
       "stops_source_plant_failures",
+      "keeps_source_commit_last_fail",
       "stops_atp_source_failures",
       "rolls_back_atomic_sources",
       "fails_atomic_source_commit",
@@ -21331,6 +23473,27 @@ if (!stoAtomicPublicMethodsExposeStop
     )
     || !stoAtomicSourceCommitTest.includes(
       "act = ls_result-stopped_on_failure",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "act = ls_result-stopped_on_failure",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = abap_true act = ls_result-is_committed",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = 1 act = ls_result-successful_count",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = 1 act = ls_result-failed_count",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = 1 act = ls_result-skipped_count",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = abap_true act = ls_result-orders[ 1 ]-result-is_committed",
+    )
+    || !stoSourceLastFailureTest.includes(
+      "exp = abap_true act = ls_result-orders[ 3 ]-is_skipped",
     )
     || !stoPlantPairFailureTest.includes("act = ls_result-is_committed")
     || !stoPlantPairFailureTest.includes(
@@ -34517,6 +36680,80 @@ if (!expiryDayRangeFilterIsGuarded) {
   );
 }
 
+const manufacturingAgeRangeFilterIsGuarded =
+  stockServiceTests.includes("method filters_mfg_age_range.")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_date = '20261010'")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_date = '20261018'")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_date = '20261020'")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_age_days_from = -2")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_age_days_to = 3")
+  && manufacturingAgeRangeFilterTest.includes("filter_manufacturing_age_from = abap_true")
+  && manufacturingAgeRangeFilterTest.includes("filter_manufacturing_age_to = abap_true")
+  && manufacturingAgeRangeFilterTest.includes("lt_range[ 1 ]-undated_batches[ 1 ]-days_since_manufacture")
+  && manufacturingAgeRangeFilterTest.includes("lt_uom[ 1 ]-batches[ 1 ]-base_row-days_since_manufacture")
+  && manufacturingAgeRangeFilterTest.includes("lt_uom[ 1 ]-undated_batches[ 1 ]-base_row-days_since_manufacture")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_age_days_from = 8")
+  && manufacturingAgeRangeFilterTest.includes("manufacturing_age_days_to = -2")
+  && manufacturingAgeRangeFilterTest.includes("exp = abap_true act = lv_inverted_rejected")
+  && manufacturingAgeRangeFilterTest.includes("exp = abap_true act = lv_inactive_rejected")
+  && manufacturingAgeRangeFilterTest.includes("exp = abap_true act = lv_uom_inactive_rejected")
+  && batchExpiryExposureMethod.includes("ls_request-filter_manufacturing_age_from <> abap_true and ls_request-filter_manufacturing_age_from <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_manufacturing_age_to <> abap_true and ls_request-filter_manufacturing_age_to <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_manufacturing_age_from = abap_false and ls_request-manufacturing_age_days_from is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-filter_manufacturing_age_to = abap_false and ls_request-manufacturing_age_days_to is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-manufacturing_age_days_from > ls_request-manufacturing_age_days_to")
+  && batchExpiryExposureMethod.includes("if ls_request-filter_manufacturing_age_from = abap_true or ls_request-filter_manufacturing_age_to = abap_true. if ls_batch-manufacturing_date is initial. continue. endif.")
+  && batchExpiryExposureMethod.includes("lv_manufacturing_age_days < ls_request-manufacturing_age_days_from")
+  && batchExpiryExposureMethod.includes("lv_manufacturing_age_days > ls_request-manufacturing_age_days_to")
+  && batchExpiryExposureMethod.includes("ls_result-filter_manufacturing_age_from = ls_request-filter_manufacturing_age_from")
+  && batchExpiryExposureMethod.includes("ls_result-manufacturing_age_days_to = ls_request-manufacturing_age_days_to")
+  && expiryExposureUomMethod.includes("filter_manufacturing_age_from = ls_request-filter_manufacturing_age_from")
+  && expiryExposureUomMethod.includes("manufacturing_age_days_to = ls_request-manufacturing_age_days_to")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_manufacturing_age_from <> ls_request-filter_manufacturing_age_from")
+  && expiryExposureUomMethod.includes("ls_base_result-manufacturing_age_days_to <> ls_request-manufacturing_age_days_to")
+  && expiryExposureUomMethod.includes("ls_result-filter_manufacturing_age_from = ls_request-filter_manufacturing_age_from")
+  && expiryExposureUomMethod.includes("ls_result-manufacturing_age_days_to = ls_request-manufacturing_age_days_to")
+  && (stockServiceSource.match(/filter_manufacturing_age_from\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/manufacturing_age_days_from\s+type i/g) ?? []).length >= 4
+  && (stockServiceSource.match(/filter_manufacturing_age_to\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/manufacturing_age_days_to\s+type i/g) ?? []).length >= 4
+  && valuationStockDocs.includes("optional inclusive `manufacturing_age_days_from` and `manufacturing_age_days_to` bounds, enabled by `filter_manufacturing_age_from` and `filter_manufacturing_age_to`")
+  && valuationStockAnomalies.includes("optional inclusive `manufacturing_age_days_from` and `manufacturing_age_days_to` bounds, enabled by `filter_manufacturing_age_from` and `filter_manufacturing_age_to`")
+  && expiredAgePlan.includes("optional inclusive `manufacturing_age_days_from` and `manufacturing_age_days_to` bounds, enabled by `filter_manufacturing_age_from` and `filter_manufacturing_age_to`");
+if (!manufacturingAgeRangeFilterIsGuarded) {
+  errors.push(
+    "batch manufacturing-age bounds must be inclusive, signed, validated, composed before summaries and paging, forwarded and echoed by UOM, and documented with regression coverage",
+  );
+}
+
+const oldestManufactureSummaryIsGuarded =
+  manufacturingAgeRangeFilterTest.includes(
+    "lt_range[ 1 ]-oldest_manufacture_batch",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-oldest_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-manufacturing_date < ls_result-oldest_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-days_since_oldest_manufacture = lv_manufacturing_age_days",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-oldest_manufacture_batch = ls_base_result-oldest_manufacture_batch",
+  )
+  && valuationStockDocs.includes(
+    "the chronologically earliest recorded manufacture date among positive-stock rows matching the exposure filters",
+  )
+  && valuationStockAnomalies.includes(
+    "the chronologically earliest recorded manufacture date among positive-stock rows matching the exposure filters",
+  );
+if (!oldestManufactureSummaryIsGuarded) {
+  errors.push(
+    "batch expiry exposure must report its oldest filtered manufacture-date identity and age in base and UOM results",
+  );
+}
+
 const expiryExpirationDateRangeIsGuarded =
   stockServiceTests.includes("method filters_expiration_date_range.")
   && expiryExpirationDateRangeTest.includes("batch = 'date-befor'")
@@ -35472,7 +37709,7 @@ const batchExpiryPageTotalsAreGuarded =
     "expiration_date_source type c length 1,",
   )
   && compactBatchExpiryServiceSource.includes(
-    "begin of ty_batch_expiry_undated_row, storage_location type mard-lgort, batch type mchb-charg, valuation_type type mcha-bwtar, expiration_date_source type c length 1, unrestricted_quantity type mchb-clabs",
+    "begin of ty_batch_expiry_undated_row, storage_location type mard-lgort, batch type mchb-charg, valuation_type type mcha-bwtar, expiration_date_source type c length 1, manufacturing_date type mcha-hsdat, manufacturing_date_source type c length 1, days_since_manufacture type i, unrestricted_quantity type mchb-clabs",
   )
   && compactBatchExpiryServiceSource.includes(
     "undated_page_expiry_sources type ty_exp_undated_sources,",
@@ -38468,6 +40705,320 @@ const productionOperationWorkCenterIsGuarded =
 if (!productionOperationWorkCenterIsGuarded) {
   errors.push(
     "bulk operation reads must return and filter CRHD work-center code and plant, validate returned scope, and cover blank and paged reads",
+  );
+}
+
+const salesAllocationFloorStatusSource = readFileSync(
+  join(projectRoot, "src/zcl_sales_order_alloc_service.clas.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const salesAllocationFloorStatusTests = readFileSync(
+  join(projectRoot, "src/zcl_sales_order_alloc_service.clas.testclasses.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const salesAllocationFloorStatusPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const salesAllocationFloorStatusReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+if (!salesAllocationFloorStatusSource.includes(
+  "minimum_coverage_rejected type abap_bool",
+) || (salesAllocationFloorStatusSource.match(
+  /minimum_coverage_rejected = ls_allocation-minimum_coverage_rejected/g,
+) ?? []).length < 2
+    || !salesAllocationFloorStatusTests.includes(
+      "reports_order_floor_trace",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "sales_unit_allocations[ 1 ]-minimum_coverage_rejected",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "sales_unit_allocations[ 2 ]-minimum_coverage_rejected",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 1 ]-minimum_coverage_rejected",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 2 ]-minimum_coverage_rejected",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "allocation_sequence type i",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "allocation_sequence_scope type c length 1",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "c_sequence_scope_single_order type c length 1 value 's'",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "c_sequence_scope_multi_order type c length 1 value 'm'",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "allocation_sequence_scope = c_sequence_scope_single_order",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "allocation_sequence_scope = c_sequence_scope_multi_order",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "if <ls_allocation>-allocation_sequence <= 0",
+    )
+    || !salesAllocationFloorStatusSource.includes(
+      "<ls_allocation>-allocation_sequence = sy-tabix",
+    )
+    || (salesAllocationFloorStatusSource.match(
+      /allocation_sequence = ls_allocation-allocation_sequence/g,
+    ) ?? []).length < 2
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_result-allocations[ 1 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_result-sales_unit_allocations[ 1 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "iv_prioritize_by_date = abap_true",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_single_date_result-allocations[ 1 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_single_date_result-sales_unit_allocations[ 1 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_single_date_result-sales_unit_allocations[ 2 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 1 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 2 ]-allocation_sequence",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_single_date_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope",
+    )
+    || !salesAllocationFloorStatusTests.includes(
+      "ls_multi_result-sales_unit_allocations[ 2 ]-allocation_sequence_scope",
+    )
+    || !salesAllocationFloorStatusPlan.includes(
+      "sales-order allocation results and their `sales_unit_allocations` summaries also expose a one-based `allocation_sequence`",
+    )
+    || !salesAllocationFloorStatusReadme.includes(
+      "allocation results and unit-aware summaries also expose a one-based `allocation_sequence`",
+    )
+    || !salesAllocationFloorStatusPlan.includes(
+      "each unit-aware row also reports `allocation_sequence_scope`: `s` for a single-order sequence and `m` for the global multi-order sequence",
+    )
+    || !salesAllocationFloorStatusReadme.includes(
+      "each unit-aware row reports `allocation_sequence_scope` as `s` for a single-order sequence or `m` for the global multi-order sequence",
+    )
+    || !salesAllocationFloorStatusPlan.includes(
+      "their summaries also expose `minimum_coverage_rejected`",
+    )
+    || !salesAllocationFloorStatusReadme.includes(
+      "they also expose `minimum_coverage_rejected` when the final base-unit allocation fails a positive floor",
+    )) {
+  errors.push(
+    "sales-order unit-aware summaries must preserve coverage status, allocation trace sequences, and trace scope",
+  );
+}
+
+const projectPriorityTraceSource = readFileSync(
+  join(projectRoot, "src/zcl_project_stock_service.clas.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const projectPriorityTracePlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const projectPriorityTraceReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const projectPriorityTraceTests = readFileSync(
+  join(projectRoot, "src/zcl_project_stock_service.clas.testclasses.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+if ((projectPriorityTraceSource.match(/allocation_sequence type i/g) ?? []).length < 8
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = ls_allocation-allocation-allocation_sequence/g,
+    ) ?? []).length < 8
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = ls_batch_split-allocation_sequence/g,
+    ) ?? []).length < 2
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = ls_storage_split-allocation_sequence/g,
+    ) ?? []).length < 2
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = lv_allocation_sequence/g,
+    ) ?? []).length < 4
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = lines\( lt_prepared_demands \) \) to rs_result-wbs_assignments/g,
+    ) ?? []).length < 2
+    || (projectPriorityTraceSource.match(
+      /allocation_sequence = lines\( lt_stock_demands \) \) to rs_result-transfer_assignments/g,
+    ) ?? []).length < 2
+    || !projectPriorityTraceSource.includes(
+      "allocation_sequence = ls_allocation-allocation-allocation_sequence ) to rs_result-wbs_assignments",
+    )
+    || !projectPriorityTraceSource.includes(
+      "allocation_sequence = ls_allocation-allocation-allocation_sequence ) to rs_result-transfer_assignments",
+    )
+    || !projectPriorityTracePlan.includes(
+      "wbs priority fefo and batchless location previews also expose a one-based `allocation_sequence`",
+    )
+    || !projectPriorityTracePlan.includes(
+      "base wbs fefo and location previews expose one-based `allocation_sequence` values on demand summaries, emitted splits, and wbs assignment rows",
+    )
+    || !projectPriorityTracePlan.includes(
+      "base transfer fefo and location previews expose the rank on transfer assignment rows",
+    )
+    || !projectPriorityTraceReadme.includes(
+      "priority and a one-based `allocation_sequence`",
+    )
+    || !projectPriorityTraceReadme.includes(
+      "base wbs fefo and location previews expose one-based `allocation_sequence` values on demand summaries, emitted splits, and wbs assignment rows",
+    )
+    || !projectPriorityTraceReadme.includes(
+      "base transfer fefo and location previews expose the rank on transfer assignment rows",
+    )
+    || !projectPriorityTraceReadme.includes(
+      "its summaries, location splits, and transfer assignments echo a one-based `allocation_sequence`",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_wbs_result-allocations[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_wbs_result-wbs_assignments[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_result-transfer_assignments[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_result-wbs_assignments[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_result-transfer_assignments[ 1 ]-allocation_sequence",
+    )) {
+  errors.push(
+    "WBS base and priority previews must preserve allocation trace sequences on summaries, splits, assignments, and ATP local estimates",
+  );
+}
+if ((projectPriorityTraceSource.match(
+  /minimum_coverage_rejected = xsdbool/g,
+) ?? []).length < 2
+    || !projectPriorityTraceSource.includes(
+      "conv decfloat34( ls_allocation-allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_prepared_demand-base_quantity ) * conv decfloat34( ls_prepared_demand-minimum_coverage_pct )",
+    )
+    || !projectPriorityTracePlan.includes(
+      "summaries also expose `minimum_coverage_rejected`, true when final allocated base quantity falls below a positive floor",
+    )
+    || !projectPriorityTraceReadme.includes(
+      "summaries also expose `minimum_coverage_rejected`, true when final allocated base quantity falls below a positive floor",
+    )
+    || !projectPriorityTraceTests.includes(
+      "reports_wbs_floor_rejections",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_full_rejection-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_priority_fefo_rejection-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_fefo_rejection-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_rejection-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_location_rejection-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_zero_floor_partial-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )) {
+  errors.push(
+    "WBS FEFO and location summaries must report final minimum-coverage rejection status",
+  );
+}
+if (!projectPriorityTraceTests.includes(
+      "ls_fefo_released_stock-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_released_stock-allocation-allocations[ 2 ]-allocation-allocated_quantity",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_released_stock-allocation-batch_allocations[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_released_stock-allocation-allocations[ 2 ]-allocation-allocated_quantity",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_released_stock-allocation-storage_allocations[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_xfer_fefo_reuse-allocation-allocations[ 2 ]-allocation-allocated_quantity",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_xfer_fefo_reuse-allocation-batch_allocations[ 1 ]-allocation_sequence",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_xfer_location_reuse-allocation-allocations[ 2 ]-allocation-allocated_quantity",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_xfer_location_reuse-allocation-storage_allocations[ 1 ]-allocation_sequence",
+    )) {
+  errors.push(
+    "WBS floor rejections must leave stock for later demands and retain allocation trace ranks",
+  );
+}
+if (!projectPriorityTraceTests.includes("method accepts_wbs_floor_boundary.")
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_boundary-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_boundary-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_fefo_boundary-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_location_boundary-allocation-allocations[ 1 ]-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTracePlan.includes("coverage equal to the floor passes")
+    || !projectPriorityTraceReadme.includes("coverage equal to the floor passes")) {
+  errors.push(
+    "WBS FEFO and location floors must accept exact-threshold coverage in base and transfer previews",
+  );
+}
+if (!projectPriorityTraceTests.includes("method preserves_wbs_floor_atp.")
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_fefo_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_transfer_location_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_fefo_atp-local_estimate-allocations[ 2 ]-allocation-allocation-allocated_quantity",
+    )
+    || !projectPriorityTraceTests.includes(
+      "ls_location_atp-local_estimate-allocations[ 2 ]-allocation-allocation-allocated_quantity",
+    )) {
+  errors.push(
+    "WBS date-first FEFO, location, transfer, and ATP wrappers must preserve floor rejection and stock reuse",
   );
 }
 

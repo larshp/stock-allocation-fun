@@ -601,6 +601,7 @@ CLASS ltcl_cost_center_reservation DEFINITION FINAL
     METHODS rejects_duplicate_cc_items FOR TESTING.
     METHODS rejects_blank_cc_read FOR TESTING.
     METHODS previews_cost_center_demands FOR TESTING.
+    METHODS reports_cc_floor_rejection FOR TESTING.
     METHODS full_quantity_cc_previews FOR TESTING.
     METHODS rejects_bad_cc_demands FOR TESTING.
     METHODS empty_cc_demands_skip_read FOR TESTING.
@@ -1453,6 +1454,18 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 10
       act = lt_previews[ 3 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_previews[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_previews[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -1554,6 +1567,18 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lt_previews[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_previews[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_previews[ 1 ]-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = lt_previews[ 2 ]-priority ).
@@ -1928,6 +1953,16 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'CC-DATE-LOC-LATE'
       act = lt_dated_previews[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_dated_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_dated_previews[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_dated_previews[ 1 ]-storage_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lt_dated_previews[ 1 ]-require_full_quantity ).
@@ -2556,6 +2591,19 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'CC-BATCH-DATE-LATE-HIGH'
       act = lt_date_ordered_previews[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_date_ordered_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_date_ordered_previews[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_date_ordered_previews[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_date_ordered_previews[ 1 ]-batch_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261020'
       act = lt_date_ordered_previews[ 3 ]-required_date ).
@@ -3920,6 +3968,46 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
         batch = 'B-UNKNOWN' ] ) ).
   ENDMETHOD.
 
+  METHOD reports_cc_floor_rejection.
+    DATA(ls_rejected) = mo_cut->preview_for_cost_center(
+      iv_material             = 'MAT-1'
+      iv_plant                = '1000'
+      iv_cost_center          = 'COST-FLOOR'
+      iv_requested_quantity   = '10.000'
+      iv_unit                 = 'EA'
+      iv_minimum_coverage_pct = '80.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_rejected-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_rejected-allocated_quantity ).
+
+    DATA(ls_full_rejected) = mo_cut->preview_for_cost_center(
+      iv_material             = 'MAT-1'
+      iv_plant                = '1000'
+      iv_cost_center          = 'FULL-FLOOR'
+      iv_requested_quantity   = '10.000'
+      iv_unit                 = 'EA'
+      iv_minimum_coverage_pct = '50.00'
+      iv_require_full_alloc   = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_full_rejected-minimum_coverage_rejected ).
+
+    DATA(ls_zero_floor) = mo_cut->preview_for_cost_center(
+      iv_material             = 'MAT-1'
+      iv_plant                = '1000'
+      iv_cost_center          = 'ZERO-FLOOR'
+      iv_requested_quantity   = '10.000'
+      iv_unit                 = 'EA'
+      iv_minimum_coverage_pct = '0.00'
+      iv_require_full_alloc   = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_zero_floor-minimum_coverage_rejected ).
+  ENDMETHOD.
+
   METHOD full_quantity_cc_previews.
     DATA lv_expiration_date TYPE d.
     lv_expiration_date = sy-datum + 60.
@@ -4418,6 +4506,16 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 10
       act = ls_result-items[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'COST-HIGH'
       act = ls_first_request-cost_center ).
     cl_abap_unit_assert=>assert_equals(
@@ -4544,6 +4642,9 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 99
       act = lt_previews[ 1 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = lt_previews[ 1 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -4556,6 +4657,9 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 'CC-FEFO-EARLY-HIGH'
       act = lt_previews[ 3 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = lt_previews[ 3 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -4566,6 +4670,14 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = 'B-LATE'
       act = lt_previews[ 3 ]-batch_allocations[
         2 ]-batch_allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 3 ]-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_previews[ 3 ]-batch_allocations[
+        2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261005'
       act = lt_previews[ 3 ]-as_of_date ).
@@ -4610,6 +4722,16 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'DATED-FEFO-ATP-BOX'
       act = lt_atp_previews[ 1 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_atp_previews[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_atp_previews[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_atp_previews[ 1 ]-batch_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = lt_atp_previews[ 1 ]-cumulative_base_quantity
       act = lt_atp_previews[ 2 ]-cumulative_base_quantity ).
@@ -5331,6 +5453,22 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'CC-ATOMIC-DATE-LATE-HIGH'
       act = ls_result-items[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 1 ]-storage_allocations[
+        1 ]-allocation_sequence ).
 
     DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
     DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
@@ -5433,6 +5571,19 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'CC-BULK-DATE-LATE-HIGH'
       act = ls_result-items[ 3 ]-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-items[ 1 ]-storage_allocations[
+        1 ]-allocation_sequence ).
 
     DATA(ls_first_request) = mo_res_api->get_request_at( iv_index = 1 ).
     DATA(ls_second_request) = mo_res_api->get_request_at( iv_index = 2 ).
@@ -5730,6 +5881,16 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
       exp = abap_true
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'COST-200'
       act = ls_first_request-cost_center ).
     cl_abap_unit_assert=>assert_equals(
@@ -5838,6 +5999,16 @@ CLASS ltcl_cost_center_reservation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-items[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-items[ 1 ]-batch_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'COST-200'
       act = ls_first_request-cost_center ).

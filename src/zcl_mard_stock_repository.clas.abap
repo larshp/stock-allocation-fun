@@ -3496,17 +3496,19 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       END OF ty_mchb_row,
       ty_mchb_rows TYPE STANDARD TABLE OF ty_mchb_row WITH EMPTY KEY,
       BEGIN OF ty_stock_total,
-        material         TYPE mchb-matnr,
-        plant            TYPE mchb-werks,
-        storage_location TYPE mchb-lgort,
-        batch            TYPE mchb-charg,
-        valuation_type   TYPE mcha-bwtar,
-        batch_managed    TYPE marc-xchar,
-        expiration_date  TYPE mcha-vfdat,
-        expiry_source    TYPE c LENGTH 1,
-        unrestricted_qty TYPE mchb-clabs,
-        quality_qty      TYPE mchb-cinsm,
-        blocked_qty      TYPE mchb-cspem,
+        material                  TYPE mchb-matnr,
+        plant                     TYPE mchb-werks,
+        storage_location          TYPE mchb-lgort,
+        batch                     TYPE mchb-charg,
+        valuation_type            TYPE mcha-bwtar,
+        batch_managed             TYPE marc-xchar,
+        expiration_date           TYPE mcha-vfdat,
+        expiry_source             TYPE c LENGTH 1,
+        manufacturing_date        TYPE mcha-hsdat,
+        manufacturing_date_source TYPE c LENGTH 1,
+        unrestricted_qty          TYPE mchb-clabs,
+        quality_qty               TYPE mchb-cinsm,
+        blocked_qty               TYPE mchb-cspem,
       END OF ty_stock_total,
       ty_stock_totals TYPE SORTED TABLE OF ty_stock_total
         WITH UNIQUE KEY material plant storage_location batch,
@@ -3525,11 +3527,12 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       ty_reservation_rows TYPE SORTED TABLE OF ty_reservation_row
         WITH NON-UNIQUE KEY material plant storage_location batch,
       BEGIN OF ty_plant_batch,
-        material        TYPE mcha-matnr,
-        plant           TYPE mcha-werks,
-        batch           TYPE mcha-charg,
-        valuation_type  TYPE mcha-bwtar,
-        expiration_date TYPE mcha-vfdat,
+        material           TYPE mcha-matnr,
+        plant              TYPE mcha-werks,
+        batch              TYPE mcha-charg,
+        valuation_type     TYPE mcha-bwtar,
+        expiration_date    TYPE mcha-vfdat,
+        manufacturing_date TYPE mcha-hsdat,
       END OF ty_plant_batch,
       ty_plant_batches TYPE HASHED TABLE OF ty_plant_batch
         WITH UNIQUE KEY material plant batch,
@@ -3541,9 +3544,10 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       ty_material_plants TYPE HASHED TABLE OF ty_material_plant
         WITH UNIQUE KEY material plant,
       BEGIN OF ty_global_batch,
-        material        TYPE mch1-matnr,
-        batch           TYPE mch1-charg,
-        expiration_date TYPE mch1-vfdat,
+        material           TYPE mch1-matnr,
+        batch              TYPE mch1-charg,
+        expiration_date    TYPE mch1-vfdat,
+        manufacturing_date TYPE mch1-hsdat,
       END OF ty_global_batch,
       ty_global_batches TYPE HASHED TABLE OF ty_global_batch
         WITH UNIQUE KEY material batch.
@@ -3617,7 +3621,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
              werks AS plant,
              charg AS batch,
              bwtar AS valuation_type,
-             vfdat AS expiration_date
+             vfdat AS expiration_date,
+             hsdat AS manufacturing_date
         FROM mcha
         FOR ALL ENTRIES IN @lt_stock_totals
         WHERE matnr = @lt_stock_totals-material
@@ -3636,7 +3641,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
 
       SELECT matnr AS material,
              charg AS batch,
-             vfdat AS expiration_date
+             vfdat AS expiration_date,
+             hsdat AS manufacturing_date
         FROM mch1
         FOR ALL ENTRIES IN @lt_stock_totals
         WHERE matnr = @lt_stock_totals-material
@@ -3656,6 +3662,12 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           <ls_stock_total>-expiry_source =
             zif_stock_repository=>c_expiry_source_plant.
         ENDIF.
+        IF ls_plant_batch-manufacturing_date IS NOT INITIAL.
+          <ls_stock_total>-manufacturing_date =
+            ls_plant_batch-manufacturing_date.
+          <ls_stock_total>-manufacturing_date_source =
+            zif_stock_repository=>c_mfg_date_src_plant.
+        ENDIF.
         IF ls_plant_batch-valuation_type IS NOT INITIAL.
           <ls_stock_total>-valuation_type =
             ls_plant_batch-valuation_type.
@@ -3672,16 +3684,25 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           <ls_stock_total>-valuation_type = <ls_stock_total>-batch.
         ENDIF.
       ENDIF.
-      IF <ls_stock_total>-expiration_date IS INITIAL.
+      IF <ls_stock_total>-expiration_date IS INITIAL
+          OR <ls_stock_total>-manufacturing_date IS INITIAL.
         READ TABLE lt_global_batches INTO DATA(ls_global_batch)
           WITH TABLE KEY material = <ls_stock_total>-material
                          batch = <ls_stock_total>-batch.
         IF sy-subrc = 0.
-          IF ls_global_batch-expiration_date IS NOT INITIAL.
+          IF <ls_stock_total>-expiration_date IS INITIAL
+              AND ls_global_batch-expiration_date IS NOT INITIAL.
             <ls_stock_total>-expiration_date =
               ls_global_batch-expiration_date.
             <ls_stock_total>-expiry_source =
               zif_stock_repository=>c_expiry_source_global.
+          ENDIF.
+          IF <ls_stock_total>-manufacturing_date IS INITIAL
+              AND ls_global_batch-manufacturing_date IS NOT INITIAL.
+            <ls_stock_total>-manufacturing_date =
+              ls_global_batch-manufacturing_date.
+            <ls_stock_total>-manufacturing_date_source =
+              zif_stock_repository=>c_mfg_date_src_global.
           ENDIF.
         ENDIF.
       ENDIF.
@@ -3861,6 +3882,9 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
           expiration_date             = ls_stock_total-expiration_date
           expiration_date_source      =
             ls_stock_total-expiry_source
+          manufacturing_date          = ls_stock_total-manufacturing_date
+          manufacturing_date_source   =
+            ls_stock_total-manufacturing_date_source
           unrestricted_quantity       = ls_stock_total-unrestricted_qty
           available_quantity          = lv_available_quantity
           quality_inspection_quantity = ls_stock_total-quality_qty
@@ -3891,6 +3915,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
     DATA ls_category_quantity TYPE ty_batch_category_quantity.
     DATA lv_batch_managed TYPE marc-xchar.
     DATA lv_available_quantity TYPE mchb-clabs.
+    DATA lv_manufacturing_date TYPE mcha-hsdat.
+    DATA lv_manufacturing_date_source TYPE c LENGTH 1.
 
     SELECT lgort AS storage_location,
            charg AS batch,
@@ -3911,7 +3937,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         TO lt_stock.
     ENDLOOP.
 
-    SELECT charg, vfdat, bwtar
+    SELECT charg, vfdat, bwtar, hsdat
       FROM mcha
       WHERE matnr = @iv_material
         AND werks = @iv_plant
@@ -3923,7 +3949,7 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
         AND werks = @iv_plant
       INTO @lv_batch_managed.
 
-    SELECT charg, vfdat
+    SELECT charg, vfdat, hsdat
       FROM mch1
       WHERE matnr = @iv_material
       INTO CORRESPONDING FIELDS OF TABLE @lt_global_batches.
@@ -3970,7 +3996,8 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       it_reservations = lt_reservations ).
 
     LOOP AT lt_stock INTO DATA(ls_stock).
-      CLEAR lv_available_quantity.
+      CLEAR: lv_available_quantity, lv_manufacturing_date,
+        lv_manufacturing_date_source.
       READ TABLE lt_category_quantities INTO ls_category_quantity
         WITH KEY storage_location = ls_stock-storage_location
                  batch            = ls_stock-batch.
@@ -3980,12 +4007,30 @@ CLASS zcl_mard_stock_repository IMPLEMENTATION.
       IF sy-subrc = 0.
         lv_available_quantity = ls_available_stock-available_quantity.
       ENDIF.
+      READ TABLE lt_plant_batches INTO DATA(ls_status_plant_batch)
+        WITH KEY charg = ls_stock-batch.
+      IF sy-subrc = 0
+          AND ls_status_plant_batch-hsdat IS NOT INITIAL.
+        lv_manufacturing_date = ls_status_plant_batch-hsdat.
+        lv_manufacturing_date_source =
+          zif_stock_repository=>c_mfg_date_src_plant.
+      ELSE.
+        READ TABLE lt_global_batches INTO DATA(ls_status_global_batch)
+          WITH KEY charg = ls_stock-batch.
+        IF sy-subrc = 0 AND ls_status_global_batch-hsdat IS NOT INITIAL.
+          lv_manufacturing_date = ls_status_global_batch-hsdat.
+          lv_manufacturing_date_source =
+            zif_stock_repository=>c_mfg_date_src_global.
+        ENDIF.
+      ENDIF.
       APPEND VALUE #(
         storage_location            = ls_stock-storage_location
         batch                       = ls_stock-batch
         valuation_type              = ls_stock-valuation_type
         batch_managed               = lv_batch_managed
         expiration_date             = ls_stock-expiration_date
+        manufacturing_date          = lv_manufacturing_date
+        manufacturing_date_source   = lv_manufacturing_date_source
         unrestricted_quantity       = ls_stock-quantity
         available_quantity          = lv_available_quantity
         quality_inspection_quantity =

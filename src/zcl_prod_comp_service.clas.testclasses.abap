@@ -965,6 +965,9 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
     METHODS previews_order_components_atp FOR TESTING.
     METHODS previews_components_stock FOR TESTING.
     METHODS previews_scoped_components FOR TESTING.
+    METHODS reports_comp_floor_reject FOR TESTING.
+    METHODS scoped_allocation_sequence FOR TESTING.
+    METHODS unscoped_allocation_sequence FOR TESTING.
     METHODS rejects_component_uom_overflow FOR TESTING.
     METHODS scoped_stock_status_reads_bulk FOR TESTING.
     METHODS scoped_deducts_competing_resv FOR TESTING.
@@ -3183,6 +3186,27 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = 4
       act = lines( lt_checks ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 2 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_checks[ 3 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_checks[ 4 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_dated
+      act = lt_checks[ 3 ]-component_local_estimate-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 3 ]-local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 4 ]-local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'EA'
       act = lt_checks[ 1 ]-base_unit ).
     cl_abap_unit_assert=>assert_equals(
@@ -3795,6 +3819,24 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = 4
       act = lines( lt_checks ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_scoped
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 1 ]-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_scoped
+      act = lt_checks[ 1 ]-batch_allocations[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 2 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 2 ]-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -3830,6 +3872,249 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = lt_checks[ 1 ]-local_estimate
       act = lt_checks[ 4 ]-local_estimate ).
+  ENDMETHOD.
+
+  METHOD reports_comp_floor_reject.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '10.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '4.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '4.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order    = '0000004711'
+      it_allocation_policies = VALUE #(
+        ( reservation_number   = '0000001234'
+          reservation_item     = '0010'
+          minimum_coverage_pct = '50.00' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_checks[ 1 ]-component_local_estimate-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_checks[ 1 ]-local_estimate-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_checks[ 2 ]-component_local_estimate-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+  ENDMETHOD.
+
+  METHOD scoped_allocation_sequence.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '4.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '4.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '5.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_scoped_components(
+      iv_production_order    = '0000004711'
+      it_allocation_policies = VALUE #(
+        ( reservation_number = '0000001234'
+          reservation_item   = '0020'
+          priority           = 10 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 2 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_checks[ 1 ]-location_allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 1 ]-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_scoped
+      act = lt_checks[ 1 ]-location_allocations[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 2 ]-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_scoped
+      act = lt_checks[ 2 ]-location_allocations[ 1 ]-allocation_sequence_scope ).
+  ENDMETHOD.
+
+  METHOD unscoped_allocation_sequence.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261021'
+          required_quantity  = '1.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0030'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261020'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261020'
+      iv_quantity = '5.000' ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261021'
+      iv_quantity = '5.000' ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_components_stock(
+      iv_production_order = '0000004711' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 2 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 3 ]-component_local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_dated
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_prod_comp_service=>c_comp_seq_scope_dated
+      act = lt_checks[ 2 ]-component_local_estimate-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_checks[ 1 ]-local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 2 ]-local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_checks[ 3 ]-local_estimate-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 3 ]-component_local_estimate-allocated_quantity ).
   ENDMETHOD.
 
   METHOD rejects_component_uom_overflow.

@@ -24,6 +24,7 @@ CLASS zcl_stock_service DEFINITION
     CONSTANTS c_after_window_band_8_30 TYPE c LENGTH 1 VALUE '2'.
     CONSTANTS c_after_window_band_31_90 TYPE c LENGTH 1 VALUE '3'.
     CONSTANTS c_after_window_band_over_90 TYPE c LENGTH 1 VALUE '4'.
+    CONSTANTS c_scoped_component_seq_scope TYPE c LENGTH 1 VALUE 'S'.
     TYPES ty_minimum_coverage_pct TYPE p LENGTH 5 DECIMALS 2.
     TYPES ty_allocation_coverage_pct TYPE p LENGTH 5 DECIMALS 2.
     TYPES ty_stock_status_request TYPE
@@ -63,6 +64,10 @@ CLASS zcl_stock_service DEFINITION
         expiry_days_from              TYPE i,
         filter_expiry_days_to         TYPE abap_bool,
         expiry_days_to                TYPE i,
+        filter_manufacturing_age_from TYPE abap_bool,
+        manufacturing_age_days_from   TYPE i,
+        filter_manufacturing_age_to   TYPE abap_bool,
+        manufacturing_age_days_to     TYPE i,
         filter_expiry_status          TYPE abap_bool,
         expiry_status                 TYPE c LENGTH 1,
         filter_expiry_source          TYPE abap_bool,
@@ -276,6 +281,9 @@ CLASS zcl_stock_service DEFINITION
         expiration_date               TYPE mcha-vfdat,
         days_to_expiration            TYPE i,
         expiration_date_source        TYPE c LENGTH 1,
+        manufacturing_date            TYPE mcha-hsdat,
+        manufacturing_date_source     TYPE c LENGTH 1,
+        days_since_manufacture        TYPE i,
         unrestricted_quantity         TYPE mchb-clabs,
         available_quantity            TYPE mchb-clabs,
         available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
@@ -594,6 +602,9 @@ CLASS zcl_stock_service DEFINITION
         batch                         TYPE mchb-charg,
         valuation_type                TYPE mcha-bwtar,
         expiration_date_source        TYPE c LENGTH 1,
+        manufacturing_date            TYPE mcha-hsdat,
+        manufacturing_date_source     TYPE c LENGTH 1,
+        days_since_manufacture        TYPE i,
         unrestricted_quantity         TYPE mchb-clabs,
         available_quantity            TYPE mchb-clabs,
         available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
@@ -1259,6 +1270,10 @@ CLASS zcl_stock_service DEFINITION
         expiry_days_from               TYPE i,
         filter_expiry_days_to          TYPE abap_bool,
         expiry_days_to                 TYPE i,
+        filter_manufacturing_age_from  TYPE abap_bool,
+        manufacturing_age_days_from    TYPE i,
+        filter_manufacturing_age_to    TYPE abap_bool,
+        manufacturing_age_days_to      TYPE i,
         filter_expiry_status           TYPE abap_bool,
         expiry_status                  TYPE c LENGTH 1,
         filter_expiry_source           TYPE abap_bool,
@@ -1570,6 +1585,12 @@ CLASS zcl_stock_service DEFINITION
         next_cursor_batch              TYPE mchb-charg,
         next_cursor_storage_location   TYPE mard-lgort,
         next_cursor_valuation_type     TYPE mcha-bwtar,
+        oldest_manufacture_storage_loc TYPE mard-lgort,
+        oldest_manufacture_batch       TYPE mchb-charg,
+        oldest_manufacture_val_type    TYPE mcha-bwtar,
+        oldest_manufacturing_date      TYPE mcha-hsdat,
+        oldest_manufacturing_date_src  TYPE c LENGTH 1,
+        days_since_oldest_manufacture  TYPE i,
         first_expired_storage_location TYPE mard-lgort,
         first_expired_batch            TYPE mchb-charg,
         first_expired_valuation_type   TYPE mcha-bwtar,
@@ -1857,6 +1878,10 @@ CLASS zcl_stock_service DEFINITION
         expiry_days_from              TYPE i,
         filter_expiry_days_to         TYPE abap_bool,
         expiry_days_to                TYPE i,
+        filter_manufacturing_age_from TYPE abap_bool,
+        manufacturing_age_days_from   TYPE i,
+        filter_manufacturing_age_to   TYPE abap_bool,
+        manufacturing_age_days_to     TYPE i,
         filter_expiry_status          TYPE abap_bool,
         expiry_status                 TYPE c LENGTH 1,
         filter_expiry_source          TYPE abap_bool,
@@ -2110,6 +2135,10 @@ CLASS zcl_stock_service DEFINITION
         expiry_days_from               TYPE i,
         filter_expiry_days_to          TYPE abap_bool,
         expiry_days_to                 TYPE i,
+        filter_manufacturing_age_from  TYPE abap_bool,
+        manufacturing_age_days_from    TYPE i,
+        filter_manufacturing_age_to    TYPE abap_bool,
+        manufacturing_age_days_to      TYPE i,
         filter_expiry_status           TYPE abap_bool,
         expiry_status                  TYPE c LENGTH 1,
         filter_expiry_source           TYPE abap_bool,
@@ -2446,6 +2475,12 @@ CLASS zcl_stock_service DEFINITION
         next_cursor_batch              TYPE mchb-charg,
         next_cursor_storage_location   TYPE mard-lgort,
         next_cursor_valuation_type     TYPE mcha-bwtar,
+        oldest_manufacture_storage_loc TYPE mard-lgort,
+        oldest_manufacture_batch       TYPE mchb-charg,
+        oldest_manufacture_val_type    TYPE mcha-bwtar,
+        oldest_manufacturing_date      TYPE mcha-hsdat,
+        oldest_manufacturing_date_src  TYPE c LENGTH 1,
+        days_since_oldest_manufacture  TYPE i,
         first_expired_storage_location TYPE mard-lgort,
         first_expired_batch            TYPE mchb-charg,
         first_expired_valuation_type   TYPE mcha-bwtar,
@@ -2992,6 +3027,9 @@ CLASS zcl_stock_service DEFINITION
         allow_undated_batches        TYPE abap_bool,
         include_undated_batches      TYPE abap_bool,
         minimum_coverage_pct         TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected    TYPE abap_bool,
+        allocation_outcome           TYPE c LENGTH 1,
+        allocation_coverage_pct      TYPE ty_allocation_coverage_pct,
       END OF ty_valtype_allocation.
     TYPES ty_valtype_allocations TYPE STANDARD TABLE OF
       ty_valtype_allocation WITH EMPTY KEY.
@@ -3426,20 +3464,22 @@ CLASS zcl_stock_service DEFINITION
         ty_plant_source_location WITH UNIQUE KEY
           request_id source_plant storage_location,
       BEGIN OF ty_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        plant                   TYPE mard-werks,
-        priority                TYPE i,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        require_full_quantity   TYPE abap_bool,
-        require_known_expiry    TYPE abap_bool,
-        allow_undated_batches   TYPE abap_bool,
-        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        priority                  TYPE i,
+        allocation_sequence       TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        require_full_quantity     TYPE abap_bool,
+        require_known_expiry      TYPE abap_bool,
+        allow_undated_batches     TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_allocation.
     TYPES:
       BEGIN OF ty_priority_demand,
@@ -3489,56 +3529,62 @@ CLASS zcl_stock_service DEFINITION
       ty_scoped_component_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        plant                   TYPE mard-werks,
-        required_date           TYPE resb-bdter,
-        priority                TYPE i,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        minimum_coverage_pct    TYPE ty_minimum_coverage_pct,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        required_date             TYPE resb-bdter,
+        priority                  TYPE i,
+        allocation_sequence       TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        minimum_coverage_pct      TYPE ty_minimum_coverage_pct,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_dated_allocation.
     TYPES ty_dated_allocations TYPE STANDARD TABLE OF ty_dated_allocation
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_scoped_component_batch_split,
-        request_id           TYPE c LENGTH 30,
-        material             TYPE mard-matnr,
-        plant                TYPE mard-werks,
-        storage_location     TYPE mard-lgort,
-        batch                TYPE mchb-charg,
-        expiration_date      TYPE mcha-vfdat,
-        as_of_date           TYPE d,
-        available_quantity   TYPE mchb-clabs,
-        allocated_quantity   TYPE mchb-clabs,
-        available_from_date  TYPE d,
-        source_type          TYPE c LENGTH 16,
-        source_document      TYPE c LENGTH 35,
-        source_item          TYPE c LENGTH 10,
-        source_plant         TYPE eban-reswk,
-        source_schedule_line TYPE eket-etenr,
+        request_id                TYPE c LENGTH 30,
+        allocation_sequence       TYPE i,
+        allocation_sequence_scope TYPE c LENGTH 1,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        storage_location          TYPE mard-lgort,
+        batch                     TYPE mchb-charg,
+        expiration_date           TYPE mcha-vfdat,
+        as_of_date                TYPE d,
+        available_quantity        TYPE mchb-clabs,
+        allocated_quantity        TYPE mchb-clabs,
+        available_from_date       TYPE d,
+        source_type               TYPE c LENGTH 16,
+        source_document           TYPE c LENGTH 35,
+        source_item               TYPE c LENGTH 10,
+        source_plant              TYPE eban-reswk,
+        source_schedule_line      TYPE eket-etenr,
       END OF ty_scoped_component_batch_split.
     TYPES ty_scoped_component_batch_splits TYPE STANDARD TABLE OF
       ty_scoped_component_batch_split WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_scoped_component_location_split,
-        request_id           TYPE c LENGTH 30,
-        material             TYPE mard-matnr,
-        plant                TYPE mard-werks,
-        storage_location     TYPE mard-lgort,
-        as_of_date           TYPE d,
-        available_quantity   TYPE mard-labst,
-        allocated_quantity   TYPE mard-labst,
-        available_from_date  TYPE d,
-        source_type          TYPE c LENGTH 16,
-        source_document      TYPE c LENGTH 35,
-        source_item          TYPE c LENGTH 10,
-        source_plant         TYPE eban-reswk,
-        source_schedule_line TYPE eket-etenr,
+        request_id                TYPE c LENGTH 30,
+        allocation_sequence       TYPE i,
+        allocation_sequence_scope TYPE c LENGTH 1,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        storage_location          TYPE mard-lgort,
+        as_of_date                TYPE d,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        available_from_date       TYPE d,
+        source_type               TYPE c LENGTH 16,
+        source_document           TYPE c LENGTH 35,
+        source_item               TYPE c LENGTH 10,
+        source_plant              TYPE eban-reswk,
+        source_schedule_line      TYPE eket-etenr,
       END OF ty_scoped_component_location_split.
     TYPES ty_scoped_component_location_splits TYPE STANDARD TABLE OF
       ty_scoped_component_location_split WITH EMPTY KEY.
@@ -3682,33 +3728,36 @@ CLASS zcl_stock_service DEFINITION
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_plant_demand_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        target_plant            TYPE mard-werks,
-        required_date           TYPE resb-bdter,
-        priority                TYPE i,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        require_known_expiry    TYPE abap_bool,
-        allow_undated_batches   TYPE abap_bool,
-        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        target_plant              TYPE mard-werks,
+        required_date             TYPE resb-bdter,
+        priority                  TYPE i,
+        allocation_sequence       TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        require_known_expiry      TYPE abap_bool,
+        allow_undated_batches     TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_date_plant_demand_allocation.
     TYPES ty_date_plant_demand_allocations TYPE STANDARD TABLE OF
       ty_date_plant_demand_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_plant_source_allocation,
-        request_id         TYPE c LENGTH 30,
-        material           TYPE mard-matnr,
-        target_plant       TYPE mard-werks,
-        source_plant       TYPE mard-werks,
-        required_date      TYPE resb-bdter,
-        priority           TYPE i,
-        available_quantity TYPE mard-labst,
-        allocated_quantity TYPE mard-labst,
+        request_id          TYPE c LENGTH 30,
+        material            TYPE mard-matnr,
+        target_plant        TYPE mard-werks,
+        source_plant        TYPE mard-werks,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
+        available_quantity  TYPE mard-labst,
+        allocated_quantity  TYPE mard-labst,
       END OF ty_date_plant_source_allocation.
     TYPES ty_date_plant_source_allocations TYPE STANDARD TABLE OF
       ty_date_plant_source_allocation WITH EMPTY KEY.
@@ -3800,18 +3849,20 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_plant_date_atp_result.
     TYPES:
       BEGIN OF ty_plant_demand_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        target_plant            TYPE mard-werks,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        require_known_expiry    TYPE abap_bool,
-        allow_undated_batches   TYPE abap_bool,
-        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        target_plant              TYPE mard-werks,
+        allocation_sequence       TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        require_known_expiry      TYPE abap_bool,
+        allow_undated_batches     TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_plant_demand_allocation.
     TYPES ty_plant_demand_allocations TYPE STANDARD TABLE OF
       ty_plant_demand_allocation WITH EMPTY KEY.
@@ -3879,9 +3930,10 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_priority_plant_result.
     TYPES:
       BEGIN OF ty_dated_plant_location_split,
-        allocation    TYPE ty_plant_location_allocation,
-        required_date TYPE resb-bdter,
-        priority      TYPE i,
+        allocation          TYPE ty_plant_location_allocation,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_plant_location_split.
     TYPES ty_dated_plant_location_splits TYPE STANDARD TABLE OF
       ty_dated_plant_location_split WITH EMPTY KEY.
@@ -4027,21 +4079,23 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_plant_batch_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_plant_batch_demand_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        target_plant            TYPE mard-werks,
-        batch                   TYPE mchb-charg,
-        as_of_date              TYPE d,
-        minimum_shelf_life_days TYPE i,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        require_known_expiry    TYPE abap_bool,
-        allow_undated_batches   TYPE abap_bool,
-        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        target_plant              TYPE mard-werks,
+        batch                     TYPE mchb-charg,
+        as_of_date                TYPE d,
+        allocation_sequence       TYPE i,
+        minimum_shelf_life_days   TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        require_known_expiry      TYPE abap_bool,
+        allow_undated_batches     TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_plant_batch_demand_allocation.
     TYPES ty_plant_batch_demand_allocations TYPE STANDARD TABLE OF
       ty_plant_batch_demand_allocation WITH EMPTY KEY.
@@ -4123,15 +4177,17 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_plant_batch_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_plant_batch_source,
-        allocation TYPE ty_plant_batch_source_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_plant_batch_source_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_plant_batch_source.
     TYPES ty_priority_plant_batch_sources TYPE STANDARD TABLE OF
       ty_priority_plant_batch_source WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_plant_batch_location,
-        allocation TYPE ty_plant_batch_location_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_plant_batch_location_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_plant_batch_location.
     TYPES ty_priority_plant_batch_locations TYPE STANDARD TABLE OF
       ty_priority_plant_batch_location WITH EMPTY KEY.
@@ -4160,36 +4216,39 @@ CLASS zcl_stock_service DEFINITION
       ty_date_plant_batch_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_plant_batch_demand_allocation,
-        request_id              TYPE c LENGTH 30,
-        material                TYPE mard-matnr,
-        target_plant            TYPE mard-werks,
-        required_date           TYPE resb-bdter,
-        priority                TYPE i,
-        batch                   TYPE mchb-charg,
-        minimum_shelf_life_days TYPE i,
-        requested_quantity      TYPE mard-labst,
-        available_quantity      TYPE mard-labst,
-        allocated_quantity      TYPE mard-labst,
-        shortfall_quantity      TYPE mard-labst,
-        require_known_expiry    TYPE abap_bool,
-        allow_undated_batches   TYPE abap_bool,
-        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
-        allocation_outcome      TYPE c LENGTH 1,
-        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
+        request_id                TYPE c LENGTH 30,
+        material                  TYPE mard-matnr,
+        target_plant              TYPE mard-werks,
+        required_date             TYPE resb-bdter,
+        priority                  TYPE i,
+        batch                     TYPE mchb-charg,
+        minimum_shelf_life_days   TYPE i,
+        requested_quantity        TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        require_known_expiry      TYPE abap_bool,
+        allow_undated_batches     TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_sequence       TYPE i,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE ty_allocation_coverage_pct,
       END OF ty_date_plant_batch_demand_allocation.
     TYPES ty_date_plant_batch_demand_allocations TYPE STANDARD TABLE OF
       ty_date_plant_batch_demand_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_plant_batch_source_allocation,
-        request_id         TYPE c LENGTH 30,
-        material           TYPE mard-matnr,
-        target_plant       TYPE mard-werks,
-        source_plant       TYPE mard-werks,
-        required_date      TYPE resb-bdter,
-        priority           TYPE i,
-        batch              TYPE mchb-charg,
-        available_quantity TYPE mard-labst,
-        allocated_quantity TYPE mard-labst,
+        request_id          TYPE c LENGTH 30,
+        material            TYPE mard-matnr,
+        target_plant        TYPE mard-werks,
+        source_plant        TYPE mard-werks,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
+        batch               TYPE mchb-charg,
+        available_quantity  TYPE mard-labst,
+        allocated_quantity  TYPE mard-labst,
       END OF ty_date_plant_batch_source_allocation.
     TYPES ty_date_plant_batch_source_allocations TYPE STANDARD TABLE OF
       ty_date_plant_batch_source_allocation WITH EMPTY KEY.
@@ -4202,6 +4261,7 @@ CLASS zcl_stock_service DEFINITION
         storage_location        TYPE mard-lgort,
         required_date           TYPE resb-bdter,
         priority                TYPE i,
+        allocation_sequence     TYPE i,
         batch                   TYPE mchb-charg,
         minimum_shelf_life_days TYPE i,
         expiration_date         TYPE mcha-vfdat,
@@ -4316,15 +4376,17 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_plant_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_plant_fefo_source,
-        allocation TYPE ty_plant_source_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_plant_source_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_plant_fefo_source.
     TYPES ty_priority_plant_fefo_sources TYPE STANDARD TABLE OF
       ty_priority_plant_fefo_source WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_plant_fefo_split,
-        allocation TYPE ty_plant_fefo_batch_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_plant_fefo_batch_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_plant_fefo_split.
     TYPES ty_priority_plant_fefo_splits TYPE STANDARD TABLE OF
       ty_priority_plant_fefo_split WITH EMPTY KEY.
@@ -4336,9 +4398,10 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_priority_plant_fefo_result.
     TYPES:
       BEGIN OF ty_date_plant_fefo_batch_allocation,
-        required_date TYPE resb-bdter,
-        priority      TYPE i,
-        allocation    TYPE ty_plant_fefo_batch_allocation,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
+        allocation          TYPE ty_plant_fefo_batch_allocation,
       END OF ty_date_plant_fefo_batch_allocation.
     TYPES ty_date_plant_fefo_batch_allocations TYPE STANDARD TABLE OF
       ty_date_plant_fefo_batch_allocation WITH EMPTY KEY.
@@ -4431,15 +4494,17 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_unit_plant_batch_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_plant_batch_source,
-        allocation TYPE ty_unit_plant_batch_source_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_unit_plant_batch_source_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_plant_batch_source.
     TYPES ty_priority_unit_plant_batch_sources TYPE STANDARD TABLE OF
       ty_priority_unit_plant_batch_source WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_plant_batch_location,
-        allocation TYPE ty_unit_plant_batch_location_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_unit_plant_batch_location_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_plant_batch_location.
     TYPES ty_priority_unit_plant_batch_locations TYPE STANDARD TABLE OF
       ty_priority_unit_plant_batch_location WITH EMPTY KEY.
@@ -4562,15 +4627,17 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_unit_plant_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_plant_fefo_source,
-        allocation TYPE ty_unit_plant_source_allocation,
-        priority   TYPE i,
+        allocation          TYPE ty_unit_plant_source_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_plant_fefo_source.
     TYPES ty_priority_unit_plant_fefo_sources TYPE STANDARD TABLE OF
       ty_priority_unit_plant_fefo_source WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_plant_fefo_split,
-        allocation TYPE ty_unit_plant_fefo_split,
-        priority   TYPE i,
+        allocation          TYPE ty_unit_plant_fefo_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_plant_fefo_split.
     TYPES ty_priority_unit_plant_fefo_splits TYPE STANDARD TABLE OF
       ty_priority_unit_plant_fefo_split WITH EMPTY KEY.
@@ -4852,8 +4919,9 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_location_result.
     TYPES:
       BEGIN OF ty_priority_storage_split,
-        storage_allocation TYPE ty_storage_allocation,
-        priority           TYPE i,
+        storage_allocation  TYPE ty_storage_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_storage_split.
     TYPES ty_priority_storage_splits TYPE STANDARD TABLE OF
       ty_priority_storage_split WITH EMPTY KEY.
@@ -4911,6 +4979,7 @@ CLASS zcl_stock_service DEFINITION
         source_unit               TYPE mara-meins,
         allocated_source_quantity TYPE mard-labst,
         available_from_date       TYPE d,
+        allocation_sequence       TYPE i,
       END OF ty_unit_storage_split.
     TYPES ty_unit_storage_splits TYPE STANDARD TABLE OF
       ty_unit_storage_split WITH EMPTY KEY.
@@ -4922,8 +4991,9 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_unit_location_result.
     TYPES:
       BEGIN OF ty_priority_unit_storage_split,
-        storage_split TYPE ty_unit_storage_split,
-        priority      TYPE i,
+        storage_split       TYPE ty_unit_storage_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_storage_split.
     TYPES ty_priority_unit_storage_splits TYPE STANDARD TABLE OF
       ty_priority_unit_storage_split WITH EMPTY KEY.
@@ -4991,9 +5061,10 @@ CLASS zcl_stock_service DEFINITION
       ty_dated_location_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_location_split,
-        storage_allocation TYPE ty_storage_allocation,
-        required_date      TYPE d,
-        priority           TYPE i,
+        storage_allocation  TYPE ty_storage_allocation,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_location_split.
     TYPES ty_dated_location_splits TYPE STANDARD TABLE OF
       ty_dated_location_split WITH EMPTY KEY.
@@ -5029,9 +5100,10 @@ CLASS zcl_stock_service DEFINITION
       ty_dated_unit_location_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_unit_location_split,
-        storage_split TYPE ty_unit_storage_split,
-        required_date TYPE d,
-        priority      TYPE i,
+        storage_split       TYPE ty_unit_storage_split,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_unit_location_split.
     TYPES ty_dated_unit_location_splits TYPE STANDARD TABLE OF
       ty_dated_unit_location_split WITH EMPTY KEY.
@@ -5228,6 +5300,7 @@ CLASS zcl_stock_service DEFINITION
         source_unit               TYPE mara-meins,
         allocated_source_quantity TYPE mard-labst,
         available_from_date       TYPE d,
+        allocation_sequence       TYPE i,
       END OF ty_unit_batch_split.
     TYPES ty_unit_batch_splits TYPE STANDARD TABLE OF
       ty_unit_batch_split WITH EMPTY KEY.
@@ -5246,8 +5319,9 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_fefo_batch_split,
-        batch_allocation TYPE ty_batch_allocation,
-        priority         TYPE i,
+        batch_allocation    TYPE ty_batch_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_fefo_batch_split.
     TYPES ty_priority_fefo_batch_splits TYPE STANDARD TABLE OF
       ty_priority_fefo_batch_split WITH EMPTY KEY.
@@ -5266,8 +5340,9 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_unit_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_fefo_batch_split,
-        batch_allocation TYPE ty_unit_batch_split,
-        priority         TYPE i,
+        batch_allocation    TYPE ty_unit_batch_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_fefo_batch_split.
     TYPES ty_priority_unit_fefo_batch_splits TYPE STANDARD TABLE OF
       ty_priority_unit_fefo_batch_split WITH EMPTY KEY.
@@ -5286,8 +5361,9 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_batch_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_batch_split,
-        batch_allocation TYPE ty_batch_allocation,
-        priority         TYPE i,
+        batch_allocation    TYPE ty_batch_allocation,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_batch_split.
     TYPES ty_priority_batch_splits TYPE STANDARD TABLE OF
       ty_priority_batch_split WITH EMPTY KEY.
@@ -5306,8 +5382,9 @@ CLASS zcl_stock_service DEFINITION
       ty_priority_unit_batch_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_unit_batch_split,
-        batch_allocation TYPE ty_unit_batch_split,
-        priority         TYPE i,
+        batch_allocation    TYPE ty_unit_batch_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_unit_batch_split.
     TYPES ty_priority_unit_batch_splits TYPE STANDARD TABLE OF
       ty_priority_unit_batch_split WITH EMPTY KEY.
@@ -7504,10 +7581,11 @@ CLASS zcl_stock_service DEFINITION
       ty_dated_plant_location_work WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_plant_location_request_index,
-        request_id    TYPE c LENGTH 30,
-        input_index   TYPE i,
-        required_date TYPE resb-bdter,
-        priority      TYPE i,
+        request_id          TYPE c LENGTH 30,
+        input_index         TYPE i,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_plant_location_request_index.
     TYPES ty_dated_plant_location_request_indexes TYPE HASHED TABLE OF
       ty_dated_plant_location_request_index WITH UNIQUE KEY request_id.
@@ -7585,10 +7663,11 @@ CLASS zcl_stock_service DEFINITION
       ty_indexed_dated_location_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_location_request_index,
-        request_id    TYPE c LENGTH 30,
-        input_index   TYPE i,
-        required_date TYPE d,
-        priority      TYPE i,
+        request_id          TYPE c LENGTH 30,
+        input_index         TYPE i,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_location_request_index.
     TYPES ty_dated_location_request_indexes TYPE HASHED TABLE OF
       ty_dated_location_request_index WITH UNIQUE KEY request_id.
@@ -9904,6 +9983,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_same_exclusions TYPE abap_bool.
     DATA ls_result TYPE ty_batch_expiry_result.
     DATA lv_expired TYPE abap_bool.
+    DATA lv_manufacturing_age_days TYPE i.
     DATA lv_expiry_source_group TYPE c LENGTH 1.
     DATA lv_expiry_source_status TYPE c LENGTH 1.
     DATA lv_expiry_age_band TYPE c LENGTH 1.
@@ -10086,6 +10166,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_expiry_days_from <> abap_false )
           OR ( ls_request-filter_expiry_days_to <> abap_true
             AND ls_request-filter_expiry_days_to <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_from <> abap_true
+            AND ls_request-filter_manufacturing_age_from <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_to <> abap_true
+            AND ls_request-filter_manufacturing_age_to <> abap_false )
           OR ( ls_request-expiry_source IS NOT INITIAL
             AND ls_request-expiry_source <>
               zif_stock_repository=>c_expiry_source_plant
@@ -10226,6 +10310,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-filter_expiry_days_to = abap_false
           AND ls_request-expiry_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_from = abap_false
+          AND ls_request-manufacturing_age_days_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_to = abap_false
+          AND ls_request-manufacturing_age_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_from = abap_true
+          AND ls_request-filter_manufacturing_age_to = abap_true
+          AND ls_request-manufacturing_age_days_from >
+            ls_request-manufacturing_age_days_to.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_expiry_days_from = abap_true
@@ -11409,6 +11507,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_request-filter_expiry_days_to.
       ls_result-expiry_days_to =
         ls_request-expiry_days_to.
+      ls_result-filter_manufacturing_age_from =
+        ls_request-filter_manufacturing_age_from.
+      ls_result-manufacturing_age_days_from =
+        ls_request-manufacturing_age_days_from.
+      ls_result-filter_manufacturing_age_to =
+        ls_request-filter_manufacturing_age_to.
+      ls_result-manufacturing_age_days_to =
+        ls_request-manufacturing_age_days_to.
       ls_result-as_of_date = ls_request-as_of_date.
       ls_result-through_date = ls_request-through_date.
       ls_result-expiration_date_from =
@@ -12175,6 +12281,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
         IF ls_batch-batch_managed <> abap_true.
           CONTINUE.
         ENDIF.
+        CLEAR lv_manufacturing_age_days.
+        IF ls_batch-manufacturing_date IS NOT INITIAL.
+          validate_date( iv_date = ls_batch-manufacturing_date ).
+          lv_manufacturing_age_days =
+            ls_request-as_of_date - ls_batch-manufacturing_date.
+        ENDIF.
         IF ( ls_request-filter_storage_location = abap_true
             OR ls_request-storage_location IS NOT INITIAL )
             AND ls_batch-storage_location <>
@@ -12339,6 +12451,22 @@ CLASS zcl_stock_service IMPLEMENTATION.
             CONTINUE.
           ENDIF.
         ENDIF.
+        IF ls_request-filter_manufacturing_age_from = abap_true
+            OR ls_request-filter_manufacturing_age_to = abap_true.
+          IF ls_batch-manufacturing_date IS INITIAL.
+            CONTINUE.
+          ENDIF.
+          IF ls_request-filter_manufacturing_age_from = abap_true
+              AND lv_manufacturing_age_days <
+                ls_request-manufacturing_age_days_from.
+            CONTINUE.
+          ENDIF.
+          IF ls_request-filter_manufacturing_age_to = abap_true
+              AND lv_manufacturing_age_days >
+                ls_request-manufacturing_age_days_to.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
         IF ls_request-filter_expiry_status = abap_true.
           IF ls_batch-expiration_date IS INITIAL.
             CONTINUE.
@@ -12449,6 +12577,41 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ENDIF.
           ENDCASE.
         ENDIF.
+        IF ls_batch-manufacturing_date IS NOT INITIAL
+            AND ( ls_batch-unrestricted_quantity > 0
+              OR ls_batch-available_quantity > 0
+              OR ls_batch-quality_inspection_quantity > 0
+              OR ls_batch-blocked_quantity > 0 )
+            AND ( ls_result-oldest_manufacturing_date IS INITIAL
+              OR ls_batch-manufacturing_date <
+                ls_result-oldest_manufacturing_date
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-oldest_manufacturing_date
+                AND ls_batch-batch < ls_result-oldest_manufacture_batch )
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-oldest_manufacturing_date
+                AND ls_batch-batch = ls_result-oldest_manufacture_batch
+                AND ls_batch-storage_location <
+                  ls_result-oldest_manufacture_storage_loc )
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-oldest_manufacturing_date
+                AND ls_batch-batch = ls_result-oldest_manufacture_batch
+                AND ls_batch-storage_location =
+                  ls_result-oldest_manufacture_storage_loc
+                AND ls_batch-valuation_type <
+                  ls_result-oldest_manufacture_val_type ) ).
+          ls_result-oldest_manufacture_storage_loc =
+            ls_batch-storage_location.
+          ls_result-oldest_manufacture_batch = ls_batch-batch.
+          ls_result-oldest_manufacture_val_type =
+            ls_batch-valuation_type.
+          ls_result-oldest_manufacturing_date =
+            ls_batch-manufacturing_date.
+          ls_result-oldest_manufacturing_date_src =
+            ls_batch-manufacturing_date_source.
+          ls_result-days_since_oldest_manufacture =
+            lv_manufacturing_age_days.
+        ENDIF.
         IF ls_batch-expiration_date IS INITIAL.
           IF ls_batch-unrestricted_quantity > 0
               OR ls_batch-available_quantity > 0
@@ -12529,6 +12692,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
                   valuation_type              = ls_batch-valuation_type
                   expiration_date_source      =
                     ls_batch-expiration_date_source
+                  manufacturing_date          = ls_batch-manufacturing_date
+                  manufacturing_date_source   =
+                    ls_batch-manufacturing_date_source
+                  days_since_manufacture      = lv_manufacturing_age_days
                   unrestricted_quantity       =
                     ls_batch-unrestricted_quantity
                   available_quantity          = ls_batch-available_quantity
@@ -12595,6 +12762,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
                     ls_request-as_of_date
                   expiration_date_source      =
                     ls_batch-expiration_date_source
+                  manufacturing_date          = ls_batch-manufacturing_date
+                  manufacturing_date_source   =
+                    ls_batch-manufacturing_date_source
+                  days_since_manufacture      = lv_manufacturing_age_days
                   unrestricted_quantity       =
                     ls_batch-unrestricted_quantity
                   available_quantity          = ls_batch-available_quantity
@@ -13086,6 +13257,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           days_to_expiration          =
             ls_batch-expiration_date - ls_request-as_of_date
           expiration_date_source      = ls_batch-expiration_date_source
+          manufacturing_date          = ls_batch-manufacturing_date
+          manufacturing_date_source   =
+            ls_batch-manufacturing_date_source
+          days_since_manufacture      = lv_manufacturing_age_days
           unrestricted_quantity       = ls_batch-unrestricted_quantity
           available_quantity          = ls_batch-available_quantity
           reservation_deduction_qty   =
@@ -19093,6 +19268,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_expiry_days_from <> abap_false )
           OR ( ls_request-filter_expiry_days_to <> abap_true
             AND ls_request-filter_expiry_days_to <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_from <> abap_true
+            AND ls_request-filter_manufacturing_age_from <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_to <> abap_true
+            AND ls_request-filter_manufacturing_age_to <> abap_false )
           OR ( ls_request-expiry_source IS NOT INITIAL
             AND ls_request-expiry_source <>
               zif_stock_repository=>c_expiry_source_plant
@@ -19233,6 +19412,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-filter_expiry_days_to = abap_false
           AND ls_request-expiry_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_from = abap_false
+          AND ls_request-manufacturing_age_days_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_to = abap_false
+          AND ls_request-manufacturing_age_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_from = abap_true
+          AND ls_request-filter_manufacturing_age_to = abap_true
+          AND ls_request-manufacturing_age_days_from >
+            ls_request-manufacturing_age_days_to.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_expiry_days_from = abap_true
@@ -20568,6 +20761,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
         expiry_days_from              = ls_request-expiry_days_from
         filter_expiry_days_to         = ls_request-filter_expiry_days_to
         expiry_days_to                = ls_request-expiry_days_to
+        filter_manufacturing_age_from =
+          ls_request-filter_manufacturing_age_from
+        manufacturing_age_days_from   =
+          ls_request-manufacturing_age_days_from
+        filter_manufacturing_age_to   =
+          ls_request-filter_manufacturing_age_to
+        manufacturing_age_days_to     =
+          ls_request-manufacturing_age_days_to
         positive_available_only       =
           ls_request-positive_available_only
         filter_available_from         =
@@ -20724,6 +20925,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_request-filter_expiry_days_to
           OR ls_base_result-expiry_days_to <>
             ls_request-expiry_days_to
+          OR ls_base_result-filter_manufacturing_age_from <>
+            ls_request-filter_manufacturing_age_from
+          OR ls_base_result-manufacturing_age_days_from <>
+            ls_request-manufacturing_age_days_from
+          OR ls_base_result-filter_manufacturing_age_to <>
+            ls_request-filter_manufacturing_age_to
+          OR ls_base_result-manufacturing_age_days_to <>
+            ls_request-manufacturing_age_days_to
           OR ls_base_result-maximum_batch_rows <>
             ls_request-maximum_batch_rows
           OR ls_base_result-omit_dated_batch_rows <>
@@ -21081,6 +21290,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_request-filter_expiry_days_to.
       ls_result-expiry_days_to =
         ls_request-expiry_days_to.
+      ls_result-filter_manufacturing_age_from =
+        ls_request-filter_manufacturing_age_from.
+      ls_result-manufacturing_age_days_from =
+        ls_request-manufacturing_age_days_from.
+      ls_result-filter_manufacturing_age_to =
+        ls_request-filter_manufacturing_age_to.
+      ls_result-manufacturing_age_days_to =
+        ls_request-manufacturing_age_days_to.
       ls_result-as_of_date = ls_request-as_of_date.
       ls_result-through_date = ls_request-through_date.
       ls_result-expiration_date_from =
@@ -22646,6 +22863,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_result-next_cursor_storage_location.
       ls_result-next_cursor_valuation_type =
         ls_base_result-next_cursor_valuation_type.
+      ls_result-oldest_manufacture_storage_loc =
+        ls_base_result-oldest_manufacture_storage_loc.
+      ls_result-oldest_manufacture_batch =
+        ls_base_result-oldest_manufacture_batch.
+      ls_result-oldest_manufacture_val_type =
+        ls_base_result-oldest_manufacture_val_type.
+      ls_result-oldest_manufacturing_date =
+        ls_base_result-oldest_manufacturing_date.
+      ls_result-oldest_manufacturing_date_src =
+        ls_base_result-oldest_manufacturing_date_src.
+      ls_result-days_since_oldest_manufacture =
+        ls_base_result-days_since_oldest_manufacture.
       ls_result-first_expired_storage_location =
         ls_base_result-first_expired_storage_location.
       ls_result-first_expired_batch = ls_base_result-first_expired_batch.
@@ -25415,12 +25644,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
           < CONV decfloat34( ls_demand-requested_quantity )
             * CONV decfloat34( ls_demand-minimum_coverage_pct ).
         ls_allocation-shortfall_quantity = ls_demand-requested_quantity.
+        ls_allocation-minimum_coverage_rejected = abap_true.
+        ls_allocation-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_none.
+        ls_allocation-allocation_coverage_pct = calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
         APPEND ls_allocation TO rs_result-allocations.
         CONTINUE.
       ENDIF.
       IF lv_effective_full_quantity = abap_true
           AND ls_demand-requested_quantity > lv_available_quantity.
         ls_allocation-shortfall_quantity = ls_demand-requested_quantity.
+        ls_allocation-minimum_coverage_rejected = xsdbool(
+          CONV decfloat34( ls_allocation-allocated_quantity )
+            * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_allocation-requested_quantity )
+              * CONV decfloat34( ls_allocation-minimum_coverage_pct ) ).
+        ls_allocation-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_none.
+        ls_allocation-allocation_coverage_pct = calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
         APPEND ls_allocation TO rs_result-allocations.
         CONTINUE.
       ENDIF.
@@ -25686,6 +25931,21 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
       ls_allocation-shortfall_quantity =
         ls_demand-requested_quantity - ls_allocation-allocated_quantity.
+      ls_allocation-minimum_coverage_rejected = xsdbool(
+        CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ) ).
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct = calculate_coverage_pct(
+        iv_requested_quantity = ls_allocation-requested_quantity
+        iv_allocated_quantity = ls_allocation-allocated_quantity ).
       ls_allocation-current_allocated_quantity =
         lv_current_allocated_qty.
       ls_allocation-projected_allocated_quantity =
@@ -27373,6 +27633,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     rs_allocation-material = iv_material.
     rs_allocation-plant = iv_plant.
     rs_allocation-required_date = iv_required_date.
+    rs_allocation-allocation_sequence = 1.
     rs_allocation-requested_quantity = iv_requested_quantity.
     rs_allocation-minimum_coverage_pct = iv_minimum_coverage_pct.
     rs_allocation-available_quantity =
@@ -27430,6 +27691,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         * CONV decfloat34( 100 )
         < CONV decfloat34( iv_requested_quantity )
           * CONV decfloat34( iv_minimum_coverage_pct ).
+      rs_allocation-minimum_coverage_rejected = abap_true.
       CLEAR rs_allocation-allocated_quantity.
       rs_allocation-shortfall_quantity = iv_requested_quantity.
     ENDIF.
@@ -27489,6 +27751,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_available_quantity TYPE mard-labst.
     DATA lv_remaining_quantity TYPE mard-labst.
     DATA lv_safety_stock TYPE marc-eisbe.
+    DATA lv_allocation_sequence TYPE i.
+    DATA lv_minimum_coverage_rejected TYPE abap_bool.
     FIELD-SYMBOLS <ls_allocated_balance> TYPE ty_dated_allocated_balance.
     FIELD-SYMBOLS <ls_po_conf_cache> TYPE ty_po_conf_cache.
     FIELD-SYMBOLS <ls_stock_cache> TYPE ty_dated_stock_cache.
@@ -27745,6 +28009,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     SORT lt_demand_indexes BY material plant required_date
       priority DESCENDING source_index ASCENDING.
     LOOP AT lt_demand_indexes INTO DATA(ls_dated_demand).
+      ADD 1 TO lv_allocation_sequence.
       READ TABLE lt_stock_cache INTO DATA(ls_cached_stock)
         WITH TABLE KEY material = ls_dated_demand-material
                        plant = ls_dated_demand-plant
@@ -27778,34 +28043,38 @@ CLASS zcl_stock_service IMPLEMENTATION.
         WHEN ls_dated_demand-requested_quantity < lv_remaining_quantity
         THEN ls_dated_demand-requested_quantity
         ELSE lv_remaining_quantity ).
+      CLEAR lv_minimum_coverage_rejected.
       IF CONV decfloat34( lv_allocated_quantity )
           * CONV decfloat34( 100 )
           < CONV decfloat34( ls_dated_demand-requested_quantity )
             * CONV decfloat34( ls_dated_demand-minimum_coverage_pct ).
+        lv_minimum_coverage_rejected = abap_true.
         CLEAR lv_allocated_quantity.
       ENDIF.
       APPEND VALUE #(
         source_index = ls_dated_demand-source_index
         allocation   = VALUE #(
-          request_id              = ls_dated_demand-request_id
-          material                = ls_dated_demand-material
-          plant                   = ls_dated_demand-plant
-          required_date           = ls_dated_demand-required_date
-          priority                = ls_dated_demand-priority
-          requested_quantity      = ls_dated_demand-requested_quantity
-          available_quantity      = lv_remaining_quantity
-          allocated_quantity      = lv_allocated_quantity
-          shortfall_quantity      = ls_dated_demand-requested_quantity
+          request_id                = ls_dated_demand-request_id
+          material                  = ls_dated_demand-material
+          plant                     = ls_dated_demand-plant
+          required_date             = ls_dated_demand-required_date
+          priority                  = ls_dated_demand-priority
+          allocation_sequence       = lv_allocation_sequence
+          requested_quantity        = ls_dated_demand-requested_quantity
+          available_quantity        = lv_remaining_quantity
+          allocated_quantity        = lv_allocated_quantity
+          shortfall_quantity        = ls_dated_demand-requested_quantity
             - lv_allocated_quantity
-          minimum_coverage_pct    = ls_dated_demand-minimum_coverage_pct
-          allocation_outcome      = COND #(
+          minimum_coverage_pct      = ls_dated_demand-minimum_coverage_pct
+          minimum_coverage_rejected = lv_minimum_coverage_rejected
+          allocation_outcome        = COND #(
             WHEN lv_allocated_quantity =
                 ls_dated_demand-requested_quantity
               THEN zif_stock_repository=>c_allocation_outcome_full
             WHEN lv_allocated_quantity > 0
               THEN zif_stock_repository=>c_allocation_outcome_partial
             ELSE zif_stock_repository=>c_allocation_outcome_none )
-          allocation_coverage_pct = calculate_coverage_pct(
+          allocation_coverage_pct   = calculate_coverage_pct(
             iv_requested_quantity = ls_dated_demand-requested_quantity
             iv_allocated_quantity = lv_allocated_quantity ) ) )
         TO lt_indexed_allocations.
@@ -28458,6 +28727,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
             - ls_allocation-allocated_quantity.
         ENDIF.
       ENDIF.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_demand-requested_quantity
@@ -28495,6 +28770,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_indexed_allocations TYPE ty_indexed_allocations.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_input_demand).
       IF ls_input_demand-request_id IS INITIAL
@@ -28540,12 +28816,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_protect_safety_stock  = iv_protect_safety_stock
       iv_require_full_quantity = iv_require_full_quantity ).
     LOOP AT lt_indexed_demands INTO ls_indexed_demand.
+      ADD 1 TO lv_allocation_sequence.
       READ TABLE lt_sorted_allocations INTO DATA(ls_allocation)
-        INDEX sy-tabix.
+        INDEX lv_allocation_sequence.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       ls_allocation-priority = ls_indexed_demand-priority.
+      ls_allocation-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         source_index = ls_indexed_demand-source_index
         allocation   = ls_allocation )
@@ -28580,6 +28858,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_indexed_allocations TYPE ty_indexed_allocations.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_input_demand).
       IF ls_input_demand-request_id IS INITIAL
@@ -28627,13 +28906,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_protect_safety_stock  = iv_protect_safety_stock
       iv_require_full_quantity = iv_require_full_quantity ).
     LOOP AT lt_indexed_demands INTO ls_indexed_demand.
+      ADD 1 TO lv_allocation_sequence.
       READ TABLE lt_sorted_allocations INTO DATA(ls_unit_allocation)
-        INDEX sy-tabix.
+        INDEX lv_allocation_sequence.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       ls_unit_allocation-allocation-priority =
         ls_indexed_demand-priority.
+      ls_unit_allocation-allocation-allocation_sequence =
+        lv_allocation_sequence.
       APPEND VALUE #(
         source_index = ls_indexed_demand-source_index
         allocation   = ls_unit_allocation )
@@ -29423,6 +29705,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
       ls_allocation-minimum_coverage_pct =
         ls_demand-minimum_coverage_pct.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -29445,6 +29733,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_sorted_demands TYPE ty_priority_plant_demands.
     DATA lt_base_demands TYPE ty_plant_demands.
     DATA ls_base_result TYPE ty_plant_allocation_result.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_input_demand).
       IF ls_input_demand-request_id IS INITIAL.
@@ -29491,6 +29780,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      READ TABLE lt_sorted_demands TRANSPORTING NO FIELDS
+        WITH KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      lv_allocation_sequence = sy-tabix.
+      ls_base_allocation-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         allocation = ls_base_allocation
         priority   = ls_input_demand-priority )
@@ -29526,6 +29822,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA ls_local_result TYPE ty_plant_allocation_result.
     DATA lv_input_index TYPE i.
     DATA lv_split_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       lv_input_index = sy-tabix.
@@ -29562,6 +29859,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
                     priority DESCENDING
                     input_index ASCENDING.
     LOOP AT lt_work INTO DATA(ls_work).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_request_indexes
+        ASSIGNING FIELD-SYMBOL(<ls_sequence_index>)
+        WITH TABLE KEY request_id = ls_work-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_sequence_index>-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         request_id            = ls_work-demand-request_id
         material              = ls_work-demand-material
@@ -29597,20 +29902,29 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      READ TABLE lt_request_indexes
+        INTO DATA(ls_summary_sequence)
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       APPEND VALUE #(
-        request_id              = ls_local_allocation-request_id
-        material                = ls_local_allocation-material
-        target_plant            = ls_local_allocation-target_plant
-        required_date           = ls_demand-required_date
-        priority                = ls_demand-priority
-        requested_quantity      = ls_local_allocation-requested_quantity
-        available_quantity      = ls_local_allocation-available_quantity
-        allocated_quantity      = ls_local_allocation-allocated_quantity
-        shortfall_quantity      = ls_local_allocation-shortfall_quantity
-        minimum_coverage_pct    =
+        request_id                = ls_local_allocation-request_id
+        material                  = ls_local_allocation-material
+        target_plant              = ls_local_allocation-target_plant
+        required_date             = ls_demand-required_date
+        priority                  = ls_demand-priority
+        allocation_sequence       = ls_summary_sequence-allocation_sequence
+        requested_quantity        = ls_local_allocation-requested_quantity
+        available_quantity        = ls_local_allocation-available_quantity
+        allocated_quantity        = ls_local_allocation-allocated_quantity
+        shortfall_quantity        = ls_local_allocation-shortfall_quantity
+        minimum_coverage_pct      =
           ls_local_allocation-minimum_coverage_pct
-        allocation_outcome      = ls_local_allocation-allocation_outcome
-        allocation_coverage_pct =
+        minimum_coverage_rejected =
+          ls_local_allocation-minimum_coverage_rejected
+        allocation_outcome        = ls_local_allocation-allocation_outcome
+        allocation_coverage_pct   =
           ls_local_allocation-allocation_coverage_pct )
         TO rs_result-allocations.
     ENDLOOP.
@@ -29628,14 +29942,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
         source_index = ls_request_index-input_index
         source_order = lv_split_index
         allocation   = VALUE #(
-          request_id         = ls_local_plant_allocation-request_id
-          material           = ls_local_plant_allocation-material
-          target_plant       = ls_local_plant_allocation-target_plant
-          source_plant       = ls_local_plant_allocation-source_plant
-          required_date      = ls_request_index-required_date
-          priority           = ls_request_index-priority
-          available_quantity = ls_local_plant_allocation-available_quantity
-          allocated_quantity = ls_local_plant_allocation-allocated_quantity ) )
+          request_id          = ls_local_plant_allocation-request_id
+          material            = ls_local_plant_allocation-material
+          target_plant        = ls_local_plant_allocation-target_plant
+          source_plant        = ls_local_plant_allocation-source_plant
+          required_date       = ls_request_index-required_date
+          priority            = ls_request_index-priority
+          allocation_sequence = ls_request_index-allocation_sequence
+          available_quantity  = ls_local_plant_allocation-available_quantity
+          allocated_quantity  = ls_local_plant_allocation-allocated_quantity ) )
         TO lt_plant_order.
     ENDLOOP.
     SORT lt_plant_order BY source_index ASCENDING source_order ASCENDING.
@@ -29656,9 +29971,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index = ls_request_index-input_index
         split_index = lv_split_index
         allocation  = VALUE #(
-          allocation    = ls_local_location_allocation
-          required_date = ls_request_index-required_date
-          priority      = ls_request_index-priority ) )
+          allocation          = ls_local_location_allocation
+          required_date       = ls_request_index-required_date
+          priority            = ls_request_index-priority
+          allocation_sequence = ls_request_index-allocation_sequence ) )
         TO lt_location_order.
     ENDLOOP.
     SORT lt_location_order BY input_index ASCENDING split_index ASCENDING.
@@ -29973,6 +30289,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_allocated_quantity TYPE mard-labst.
     DATA lv_safety_stock TYPE marc-eisbe.
     DATA lv_source_order TYPE i.
+    DATA lv_allocation_sequence TYPE i.
     FIELD-SYMBOLS <ls_allocated_balance> TYPE ty_dated_allocated_balance.
     FIELD-SYMBOLS <ls_po_conf_cache> TYPE ty_po_conf_cache.
     FIELD-SYMBOLS <ls_stock_cache> TYPE ty_dated_stock_cache.
@@ -30279,6 +30596,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     SORT lt_demand_indexes BY required_date priority DESCENDING
       source_index ASCENDING.
     LOOP AT lt_demand_indexes INTO DATA(ls_demand_index).
+      ADD 1 TO lv_allocation_sequence.
       CLEAR lt_demand_source_balances.
       CLEAR lv_available_quantity.
 
@@ -30354,48 +30672,53 @@ CLASS zcl_stock_service IMPLEMENTATION.
             source_index = ls_demand_index-source_index
             source_order = ls_source_balance-source_order
             allocation   = VALUE #(
-              request_id         = ls_demand_index-request_id
-              material           = ls_demand_index-material
-              target_plant       = ls_demand_index-target_plant
-              source_plant       = ls_source_balance-source_plant
-              required_date      = ls_demand_index-required_date
-              priority           = ls_demand_index-priority
-              available_quantity = ls_source_balance-available_quantity
-              allocated_quantity = lv_allocated_quantity ) )
+              request_id          = ls_demand_index-request_id
+              material            = ls_demand_index-material
+              target_plant        = ls_demand_index-target_plant
+              source_plant        = ls_source_balance-source_plant
+              required_date       = ls_demand_index-required_date
+              priority            = ls_demand_index-priority
+              allocation_sequence = lv_allocation_sequence
+              available_quantity  = ls_source_balance-available_quantity
+              allocated_quantity  = lv_allocated_quantity ) )
             TO lt_indexed_source_allocations.
           lv_remaining_quantity = lv_remaining_quantity
             - lv_allocated_quantity.
         ENDLOOP.
       ENDIF.
 
+      lv_allocated_quantity = ls_demand_index-requested_quantity
+        - lv_remaining_quantity.
       APPEND VALUE #(
         source_index = ls_demand_index-source_index
         allocation   = VALUE #(
-          request_id              = ls_demand_index-request_id
-          material                = ls_demand_index-material
-          target_plant            = ls_demand_index-target_plant
-          required_date           = ls_demand_index-required_date
-          priority                = ls_demand_index-priority
-          requested_quantity      = ls_demand_index-requested_quantity
-          available_quantity      = lv_available_quantity
-          minimum_coverage_pct    =
+          request_id                = ls_demand_index-request_id
+          material                  = ls_demand_index-material
+          target_plant              = ls_demand_index-target_plant
+          required_date             = ls_demand_index-required_date
+          priority                  = ls_demand_index-priority
+          allocation_sequence       = lv_allocation_sequence
+          requested_quantity        = ls_demand_index-requested_quantity
+          available_quantity        = lv_available_quantity
+          minimum_coverage_pct      =
             ls_demand_index-minimum_coverage_pct
-          allocated_quantity      = ls_demand_index-requested_quantity
-            - lv_remaining_quantity
-          shortfall_quantity      = lv_remaining_quantity
-          allocation_outcome      = COND #(
-            WHEN ls_demand_index-requested_quantity
-                - lv_remaining_quantity =
+          allocated_quantity        = lv_allocated_quantity
+          shortfall_quantity        = lv_remaining_quantity
+          minimum_coverage_rejected = xsdbool(
+            CONV decfloat34( lv_allocated_quantity )
+              * CONV decfloat34( 100 )
+              < CONV decfloat34( ls_demand_index-requested_quantity )
+                * CONV decfloat34( ls_demand_index-minimum_coverage_pct ) )
+          allocation_outcome        = COND #(
+            WHEN lv_allocated_quantity =
                 ls_demand_index-requested_quantity
               THEN zif_stock_repository=>c_allocation_outcome_full
-            WHEN ls_demand_index-requested_quantity
-                - lv_remaining_quantity > 0
+            WHEN lv_allocated_quantity > 0
               THEN zif_stock_repository=>c_allocation_outcome_partial
             ELSE zif_stock_repository=>c_allocation_outcome_none )
-          allocation_coverage_pct = calculate_coverage_pct(
+          allocation_coverage_pct   = calculate_coverage_pct(
             iv_requested_quantity = ls_demand_index-requested_quantity
-            iv_allocated_quantity = ls_demand_index-requested_quantity
-              - lv_remaining_quantity ) ) )
+            iv_allocated_quantity = lv_allocated_quantity ) ) )
         TO lt_indexed_allocations.
     ENDLOOP.
 
@@ -31601,6 +31924,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity = ls_demand-requested_quantity
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -31664,6 +31993,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_batch_request_counter TYPE i.
     DATA lv_batch_request_id TYPE c LENGTH 30.
     DATA lv_batch_order TYPE i.
+    DATA lv_allocation_sequence TYPE i.
     DATA lv_receipt_index TYPE i.
     DATA lv_receipt_quantity TYPE mchb-clabs.
     DATA lv_location_priority TYPE i.
@@ -32054,6 +32384,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT lt_demand_indexes INTO DATA(ls_demand_index).
+      ADD 1 TO lv_allocation_sequence.
       CLEAR lv_available_quantity.
       lv_effective_min_days = iv_min_days.
       IF ls_demand_index-minimum_shelf_life_days > lv_effective_min_days.
@@ -32309,6 +32640,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_source_allocation-source_plant = ls_source-source_plant.
         ls_source_allocation-required_date = ls_demand_index-required_date.
         ls_source_allocation-priority = ls_demand_index-priority.
+        ls_source_allocation-allocation_sequence =
+          lv_allocation_sequence.
         CLEAR lv_source_available_quantity.
         LOOP AT lt_fefo_balances INTO ls_fefo_balance
           WHERE material = ls_demand_index-material
@@ -32403,6 +32736,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_date_batch_allocation-required_date =
             ls_demand_index-required_date.
           ls_date_batch_allocation-priority = ls_demand_index-priority.
+          ls_date_batch_allocation-allocation_sequence =
+            lv_allocation_sequence.
           ls_date_batch_allocation-allocation = ls_batch_allocation.
           lv_batch_order = lv_batch_order + 1.
           APPEND VALUE #(
@@ -32440,6 +32775,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-target_plant = ls_demand_index-target_plant.
       ls_allocation-required_date = ls_demand_index-required_date.
       ls_allocation-priority = ls_demand_index-priority.
+      ls_allocation-allocation_sequence = lv_allocation_sequence.
       ls_allocation-require_known_expiry =
         ls_demand_index-require_known_expiry.
       ls_allocation-allow_undated_batches =
@@ -32452,6 +32788,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity =
         ls_demand_index-requested_quantity - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -33766,6 +34108,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity = ls_demand-requested_quantity
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -33783,14 +34131,23 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_plants_batch_by_date.
     TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
+    TYPES:
       BEGIN OF ty_sorted_batch_demand,
-        required_date TYPE resb-bdter,
-        priority      TYPE i,
-        input_index   TYPE i,
-        demand        TYPE ty_plant_batch_demand,
+        required_date       TYPE resb-bdter,
+        priority            TYPE i,
+        input_index         TYPE i,
+        allocation_sequence TYPE i,
+        demand              TYPE ty_plant_batch_demand,
       END OF ty_sorted_batch_demand.
     DATA lt_sorted_demands TYPE STANDARD TABLE OF ty_sorted_batch_demand
       WITH EMPTY KEY.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_base_demands TYPE ty_plant_batch_demands.
     DATA lt_request_ids TYPE ty_plant_request_ids.
     DATA lt_loc_prio_req_ids TYPE ty_location_priority_request_ids.
@@ -33804,7 +34161,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ty_date_plant_batch_source_allocation.
     DATA ls_date_location_allocation TYPE
       ty_date_plant_batch_location_allocation.
+    DATA ls_request_sequence TYPE ty_request_sequence.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -33886,8 +34245,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
     SORT lt_sorted_demands BY required_date ASCENDING
                               priority DESCENDING
                               input_index ASCENDING.
-    LOOP AT lt_sorted_demands INTO DATA(ls_sorted_demand).
-      APPEND ls_sorted_demand-demand TO lt_base_demands.
+    LOOP AT lt_sorted_demands ASSIGNING FIELD-SYMBOL(<ls_sorted_demand>).
+      ADD 1 TO lv_allocation_sequence.
+      <ls_sorted_demand>-allocation_sequence = lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = <ls_sorted_demand>-demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
+      APPEND <ls_sorted_demand>-demand TO lt_base_demands.
     ENDLOOP.
 
     DATA(ls_base_result) = allocate_plants_by_batch(
@@ -33916,6 +34281,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_allocation-target_plant.
       ls_date_demand_allocation-required_date = ls_demand-required_date.
       ls_date_demand_allocation-priority = ls_demand-priority.
+      READ TABLE lt_request_sequences INTO ls_request_sequence
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_date_demand_allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       ls_date_demand_allocation-batch = ls_base_allocation-batch.
       ls_date_demand_allocation-minimum_shelf_life_days =
         ls_base_allocation-minimum_shelf_life_days.
@@ -33925,6 +34297,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_allocation-allow_undated_batches.
       ls_date_demand_allocation-minimum_coverage_pct =
         ls_base_allocation-minimum_coverage_pct.
+      ls_date_demand_allocation-minimum_coverage_rejected =
+        ls_base_allocation-minimum_coverage_rejected.
       ls_date_demand_allocation-requested_quantity =
         ls_base_allocation-requested_quantity.
       ls_date_demand_allocation-available_quantity =
@@ -33953,6 +34327,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_date_source_allocation-source_plant = ls_base_source-source_plant.
       ls_date_source_allocation-required_date = ls_demand-required_date.
       ls_date_source_allocation-priority = ls_demand-priority.
+      READ TABLE lt_request_sequences INTO ls_request_sequence
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_date_source_allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       ls_date_source_allocation-batch = ls_base_source-batch.
       ls_date_source_allocation-available_quantity =
         ls_base_source-available_quantity.
@@ -33978,6 +34359,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_location-storage_location.
       ls_date_location_allocation-required_date = ls_demand-required_date.
       ls_date_location_allocation-priority = ls_demand-priority.
+      READ TABLE lt_request_sequences INTO ls_request_sequence
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_date_location_allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       ls_date_location_allocation-batch = ls_base_location-batch.
       ls_date_location_allocation-minimum_shelf_life_days =
         ls_base_location-minimum_shelf_life_days.
@@ -34841,6 +35229,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_source_location_set TYPE ty_plant_source_location_set.
     DATA ls_unit_ratio TYPE zif_material_uom_converter=>ty_unit_ratio.
     DATA ls_context TYPE ty_plant_unit_context.
+    DATA lv_allocation_sequence TYPE i.
 
     IF ( iv_require_full_quantity <> abap_true
           AND iv_require_full_quantity <> abap_false )
@@ -34973,6 +35362,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      READ TABLE lt_sorted_demands TRANSPORTING NO FIELDS
+        WITH KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      lv_allocation_sequence = sy-tabix.
+      ls_base_allocation-allocation_sequence = lv_allocation_sequence.
       DATA(ls_unit_allocation) = VALUE ty_unit_plant_demand_allocation(
         allocation                = ls_base_allocation
         source_quantity           = ls_context-source_quantity
@@ -35304,11 +35700,21 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_plants_batch_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_plant_batch_demands.
     DATA lt_base_demands TYPE ty_plant_batch_demands.
     DATA ls_base_result TYPE ty_plant_batch_allocation_result.
+    DATA lv_allocation_sequence TYPE i.
+    FIELD-SYMBOLS <ls_sorted_demand> TYPE ty_priority_plant_batch_demand.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -35324,8 +35730,21 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     lt_sorted_demands = it_demands.
-    SORT lt_sorted_demands STABLE BY priority DESCENDING.
+    LOOP AT lt_sorted_demands ASSIGNING <ls_sorted_demand>.
+      IF <ls_sorted_demand>-as_of_date IS INITIAL.
+        <ls_sorted_demand>-as_of_date = sy-datum.
+      ELSE.
+        validate_date( iv_date = <ls_sorted_demand>-as_of_date ).
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sorted_demands STABLE BY as_of_date ASCENDING
+      priority DESCENDING.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id              = ls_priority_demand-request_id
         material                = ls_priority_demand-material
@@ -35358,11 +35777,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_require_full_quantity       = iv_require_full_quantity ).
 
     LOOP AT it_demands INTO ls_input_demand.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       READ TABLE ls_base_result-allocations INTO DATA(ls_base_allocation)
         WITH KEY request_id = ls_input_demand-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_base_allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_base_allocation
         priority   = ls_input_demand-priority )
@@ -35372,8 +35798,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_base_source)
           WHERE request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_base_source
-          priority   = ls_input_demand-priority )
+          allocation          = ls_base_source
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-plant_allocations.
       ENDLOOP.
 
@@ -35381,8 +35809,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_base_location)
           WHERE request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_base_location
-          priority   = ls_input_demand-priority )
+          allocation          = ls_base_location
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-location_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -35390,11 +35820,22 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_plants_batch_uom_prio.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_unit_plant_batch_demands.
     DATA lt_unit_demands TYPE ty_unit_plant_batch_demands.
     DATA ls_unit_result TYPE ty_unit_plant_batch_result.
+    DATA lv_allocation_sequence TYPE i.
+    FIELD-SYMBOLS <ls_sorted_demand> TYPE
+      ty_priority_unit_plant_batch_demand.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -35413,8 +35854,19 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     lt_sorted_demands = it_demands.
-    SORT lt_sorted_demands STABLE BY priority DESCENDING.
+    LOOP AT lt_sorted_demands ASSIGNING <ls_sorted_demand>.
+      IF <ls_sorted_demand>-as_of_date IS INITIAL.
+        <ls_sorted_demand>-as_of_date = sy-datum.
+      ENDIF.
+    ENDLOOP.
+    SORT lt_sorted_demands STABLE BY as_of_date ASCENDING
+      priority DESCENDING.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id              = ls_priority_demand-request_id
         material                = ls_priority_demand-material
@@ -35448,11 +35900,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_require_full_quantity       = iv_require_full_quantity ).
 
     LOOP AT it_demands INTO ls_input_demand.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       READ TABLE ls_unit_result-allocations INTO DATA(ls_unit_allocation)
         WITH KEY allocation-request_id = ls_input_demand-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_unit_allocation-allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_unit_allocation
         priority   = ls_input_demand-priority )
@@ -35462,8 +35921,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_unit_source)
           WHERE allocation-request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_unit_source
-          priority   = ls_input_demand-priority )
+          allocation          = ls_unit_source
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-plant_allocations.
       ENDLOOP.
 
@@ -35471,8 +35932,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_unit_location)
           WHERE allocation-request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_unit_location
-          priority   = ls_input_demand-priority )
+          allocation          = ls_unit_location
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-location_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -35923,11 +36386,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_plants_fefo_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_plant_fefo_demands.
     DATA lt_base_demands TYPE ty_plant_demands.
     DATA ls_base_result TYPE ty_plant_fefo_allocation_result.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -35945,6 +36417,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
     lt_sorted_demands = it_demands.
     SORT lt_sorted_demands STABLE BY priority DESCENDING.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id              = ls_priority_demand-request_id
         material                = ls_priority_demand-material
@@ -35978,11 +36455,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_require_full_quantity       = iv_require_full_quantity ).
 
     LOOP AT it_demands INTO ls_input_demand.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       READ TABLE ls_base_result-allocations INTO DATA(ls_base_allocation)
         WITH KEY request_id = ls_input_demand-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_base_allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_base_allocation
         priority   = ls_input_demand-priority )
@@ -35992,8 +36476,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_base_source_allocation)
           WHERE request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_base_source_allocation
-          priority   = ls_input_demand-priority )
+          allocation          = ls_base_source_allocation
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-plant_allocations.
       ENDLOOP.
 
@@ -36001,8 +36487,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_base_split)
           WHERE request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_base_split
-          priority   = ls_input_demand-priority )
+          allocation          = ls_base_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -36010,11 +36498,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_plants_fefo_uom_prio.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_unit_plant_fefo_demands.
     DATA lt_unit_demands TYPE ty_unit_plant_demands.
     DATA ls_unit_result TYPE ty_unit_plant_fefo_result.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -36032,6 +36529,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
     lt_sorted_demands = it_demands.
     SORT lt_sorted_demands STABLE BY priority DESCENDING.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id              = ls_priority_demand-request_id
         material                = ls_priority_demand-material
@@ -36066,11 +36568,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_require_full_quantity       = iv_require_full_quantity ).
 
     LOOP AT it_demands INTO ls_input_demand.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       READ TABLE ls_unit_result-allocations INTO DATA(ls_unit_allocation)
         WITH KEY allocation-request_id = ls_input_demand-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      ls_unit_allocation-allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_unit_allocation
         priority   = ls_input_demand-priority )
@@ -36080,8 +36589,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_unit_source)
           WHERE allocation-request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_unit_source
-          priority   = ls_input_demand-priority )
+          allocation          = ls_unit_source
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-plant_allocations.
       ENDLOOP.
 
@@ -36089,8 +36600,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           INTO DATA(ls_unit_split)
           WHERE allocation-request_id = ls_input_demand-request_id.
         APPEND VALUE #(
-          allocation = ls_unit_split
-          priority   = ls_input_demand-priority )
+          allocation          = ls_unit_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -36639,6 +37152,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -36668,6 +37187,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         internal_request_id TYPE c LENGTH 30,
         request_id          TYPE c LENGTH 30,
         priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_request_context,
       ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
         WITH EMPTY KEY.
@@ -36759,7 +37279,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index         = ls_indexed_demand-input_index
         internal_request_id = lv_internal_request_id
         request_id          = ls_indexed_demand-demand-request_id
-        priority            = ls_indexed_demand-demand-priority )
+        priority            = ls_indexed_demand-demand-priority
+        allocation_sequence = lv_internal_index )
         TO lt_contexts.
     ENDLOOP.
 
@@ -36784,6 +37305,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_allocation-request_id = ls_context-request_id.
       ls_allocation-priority = ls_context-priority.
+      ls_allocation-allocation_sequence =
+        ls_context-allocation_sequence.
       APPEND ls_allocation TO rs_result-allocations.
 
       LOOP AT ls_base_result-storage_allocations
@@ -36791,8 +37314,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           WHERE request_id = ls_context-internal_request_id.
         ls_storage_allocation-request_id = ls_context-request_id.
         APPEND VALUE #(
-          storage_allocation = ls_storage_allocation
-          priority           = ls_context-priority )
+          storage_allocation  = ls_storage_allocation
+          priority            = ls_context-priority
+          allocation_sequence = ls_context-allocation_sequence )
           TO rs_result-storage_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -37371,6 +37895,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         internal_request_id TYPE c LENGTH 30,
         request_id          TYPE c LENGTH 30,
         priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_request_context,
       ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
         WITH EMPTY KEY.
@@ -37463,7 +37988,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index         = ls_indexed_demand-input_index
         internal_request_id = lv_internal_request_id
         request_id          = ls_indexed_demand-demand-request_id
-        priority            = ls_indexed_demand-demand-priority )
+        priority            = ls_indexed_demand-demand-priority
+        allocation_sequence = lv_internal_index )
         TO lt_contexts.
     ENDLOOP.
 
@@ -37488,6 +38014,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_unit_allocation-allocation-request_id = ls_context-request_id.
       ls_unit_allocation-allocation-priority = ls_context-priority.
+      ls_unit_allocation-allocation-allocation_sequence =
+        ls_context-allocation_sequence.
       APPEND ls_unit_allocation TO rs_result-allocations.
 
       LOOP AT ls_unit_result-storage_allocations
@@ -37496,8 +38024,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_context-internal_request_id.
         ls_unit_split-storage_allocation-request_id = ls_context-request_id.
         APPEND VALUE #(
-          storage_split = ls_unit_split
-          priority      = ls_context-priority )
+          storage_split       = ls_unit_split
+          priority            = ls_context-priority
+          allocation_sequence = ls_context-allocation_sequence )
           TO rs_result-storage_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -37554,6 +38083,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA ls_location_balance TYPE ty_dated_location_balance.
     DATA lv_input_index TYPE i.
     DATA lv_split_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
     DATA lv_receipt_index TYPE i.
     DATA ls_local_allocation TYPE ty_allocation.
     DATA ls_request_index TYPE ty_dated_location_request_index.
@@ -37820,6 +38350,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
                                priority DESCENDING
                                input_index ASCENDING.
     LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_request_indexes
+        ASSIGNING FIELD-SYMBOL(<ls_request_sequence>)
+        WITH TABLE KEY
+          request_id = ls_indexed_demand-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_request_sequence>-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         request_id                  = ls_indexed_demand-demand-request_id
         material                    = ls_indexed_demand-demand-material
@@ -38027,10 +38566,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ENDLOOP.
         ENDIF.
 
+        READ TABLE lt_request_indexes INTO ls_request_index
+          WITH TABLE KEY request_id = ls_base_demand-request_id.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
         DATA(ls_allocation) = VALUE ty_allocation(
           request_id           = ls_base_demand-request_id
           material             = ls_base_demand-material
           plant                = ls_base_demand-plant
+          allocation_sequence  = ls_request_index-allocation_sequence
           requested_quantity   = ls_base_demand-requested_quantity
           minimum_coverage_pct = ls_base_demand-minimum_coverage_pct ).
         LOOP AT lt_location_balances INTO ls_location_balance
@@ -38124,6 +38669,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ENDLOOP.
         ENDLOOP.
         ls_allocation-shortfall_quantity = lv_remaining_quantity.
+        IF CONV decfloat34( ls_allocation-allocated_quantity )
+            * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_allocation-requested_quantity )
+              * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+          ls_allocation-minimum_coverage_rejected = abap_true.
+        ENDIF.
         ls_allocation-allocation_outcome = COND #(
           WHEN ls_allocation-allocated_quantity =
               ls_allocation-requested_quantity
@@ -38148,6 +38699,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      READ TABLE lt_request_indexes INTO ls_request_index
+        WITH TABLE KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_local_allocation-allocation_sequence =
+        ls_request_index-allocation_sequence.
       APPEND VALUE #(
         allocation    = ls_local_allocation
         required_date = ls_demand-required_date
@@ -38167,9 +38725,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index = ls_request_index-input_index
         split_index = lv_split_index
         result      = VALUE #(
-          storage_allocation = ls_local_split
-          required_date      = ls_request_index-required_date
-          priority           = ls_request_index-priority ) )
+          storage_allocation  = ls_local_split
+          required_date       = ls_request_index-required_date
+          priority            = ls_request_index-priority
+          allocation_sequence = ls_request_index-allocation_sequence ) )
         TO lt_split_order.
     ENDLOOP.
     SORT lt_split_order BY input_index ASCENDING split_index ASCENDING.
@@ -38410,9 +38969,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
           iv_numerator     = ls_context-ratio-numerator
           iv_denominator   = ls_context-ratio-denominator ) ).
       APPEND VALUE #(
-        storage_split = ls_unit_storage_split
-        required_date = ls_base_storage_split-required_date
-        priority      = ls_base_storage_split-priority )
+        storage_split       = ls_unit_storage_split
+        required_date       = ls_base_storage_split-required_date
+        priority            = ls_base_storage_split-priority
+        allocation_sequence =
+          ls_base_storage_split-allocation_sequence )
         TO rs_result-storage_allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -39634,6 +40195,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -39812,6 +40379,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       zif_stock_repository=>ty_stock_allocation_reservations.
     DATA lo_batch_eligibility TYPE REF TO zcl_stock_batch_eligibility.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
     DATA lv_stock_request_counter TYPE i.
     DATA lv_stock_request_id TYPE ty_scope_request_id.
     DATA lv_batch_total TYPE decfloat34.
@@ -40201,6 +40769,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDIF.
 
     LOOP AT lt_indexed_demands INTO DATA(ls_indexed_scope_demand).
+      ADD 1 TO lv_allocation_sequence.
       DATA(ls_scope_demand) = ls_indexed_scope_demand-demand.
       CLEAR lv_has_req_loc_priority.
       READ TABLE lt_priority_request_ids TRANSPORTING NO FIELDS
@@ -41247,22 +41816,24 @@ CLASS zcl_stock_service IMPLEMENTATION.
                     <ls_location_balance>-remaining_quantity.
                 ENDIF.
                 APPEND VALUE #(
-                  request_id           = ls_scope_demand-request_id
-                  material             = ls_scope_demand-material
-                  plant                = ls_scope_demand-plant
-                  storage_location     =
+                  request_id                = ls_scope_demand-request_id
+                  allocation_sequence       = lv_allocation_sequence
+                  allocation_sequence_scope = c_scoped_component_seq_scope
+                  material                  = ls_scope_demand-material
+                  plant                     = ls_scope_demand-plant
+                  storage_location          =
                     <ls_residual_balance>-storage_location
-                  as_of_date           = ls_scope_demand-required_date
-                  available_quantity   = CONV mard-labst(
+                  as_of_date                = ls_scope_demand-required_date
+                  available_quantity        = CONV mard-labst(
                     lv_candidate_quantity )
-                  allocated_quantity   = lv_take_quantity
-                  available_from_date  =
+                  allocated_quantity        = lv_take_quantity
+                  available_from_date       =
                     <ls_residual_balance>-available_from_date
-                  source_type          = <ls_residual_balance>-source_type
-                  source_document      = <ls_residual_balance>-source_document
-                  source_item          = <ls_residual_balance>-source_item
-                  source_plant         = <ls_residual_balance>-source_plant
-                  source_schedule_line =
+                  source_type               = <ls_residual_balance>-source_type
+                  source_document           = <ls_residual_balance>-source_document
+                  source_item               = <ls_residual_balance>-source_item
+                  source_plant              = <ls_residual_balance>-source_plant
+                  source_schedule_line      =
                     <ls_residual_balance>-source_schedule_line )
                   TO lt_component_location_splits.
                 <ls_residual_balance>-remaining_quantity -= lv_take_quantity.
@@ -41330,22 +41901,24 @@ CLASS zcl_stock_service IMPLEMENTATION.
               <ls_location_balance>-remaining_quantity.
           ENDIF.
           APPEND VALUE #(
-            request_id           = ls_scope_demand-request_id
-            material             = ls_scope_demand-material
-            plant                = ls_scope_demand-plant
-            storage_location     = <ls_batch_balance>-storage_location
-            batch                = <ls_batch_balance>-batch
-            expiration_date      = <ls_batch_balance>-expiration_date
-            as_of_date           = ls_scope_demand-required_date
-            available_quantity   = CONV mchb-clabs(
+            request_id                = ls_scope_demand-request_id
+            allocation_sequence       = lv_allocation_sequence
+            allocation_sequence_scope = c_scoped_component_seq_scope
+            material                  = ls_scope_demand-material
+            plant                     = ls_scope_demand-plant
+            storage_location          = <ls_batch_balance>-storage_location
+            batch                     = <ls_batch_balance>-batch
+            expiration_date           = <ls_batch_balance>-expiration_date
+            as_of_date                = ls_scope_demand-required_date
+            available_quantity        = CONV mchb-clabs(
               lv_candidate_quantity )
-            allocated_quantity   = lv_take_quantity
-            available_from_date  = <ls_batch_balance>-available_from_date
-            source_type          = <ls_batch_balance>-source_type
-            source_document      = <ls_batch_balance>-source_document
-            source_item          = <ls_batch_balance>-source_item
-            source_plant         = <ls_batch_balance>-source_plant
-            source_schedule_line =
+            allocated_quantity        = lv_take_quantity
+            available_from_date       = <ls_batch_balance>-available_from_date
+            source_type               = <ls_batch_balance>-source_type
+            source_document           = <ls_batch_balance>-source_document
+            source_item               = <ls_batch_balance>-source_item
+            source_plant              = <ls_batch_balance>-source_plant
+            source_schedule_line      =
               <ls_batch_balance>-source_schedule_line )
             TO lt_component_batch_splits.
           <ls_batch_balance>-remaining_quantity -= lv_take_quantity.
@@ -41364,25 +41937,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
       APPEND VALUE #(
         allocation               = VALUE #(
-          request_id              = ls_scope_demand-request_id
-          material                = ls_scope_demand-material
-          plant                   = ls_scope_demand-plant
-          required_date           = ls_scope_demand-required_date
-          priority                = ls_scope_demand-priority
-          requested_quantity      = ls_scope_demand-requested_quantity
-          available_quantity      = lv_available_result_quantity
-          allocated_quantity      = lv_allocated_quantity
-          shortfall_quantity      = ls_scope_demand-requested_quantity
+          request_id                = ls_scope_demand-request_id
+          material                  = ls_scope_demand-material
+          plant                     = ls_scope_demand-plant
+          required_date             = ls_scope_demand-required_date
+          priority                  = ls_scope_demand-priority
+          allocation_sequence       = lv_allocation_sequence
+          requested_quantity        = ls_scope_demand-requested_quantity
+          available_quantity        = lv_available_result_quantity
+          allocated_quantity        = lv_allocated_quantity
+          shortfall_quantity        = ls_scope_demand-requested_quantity
             - lv_allocated_quantity
-          minimum_coverage_pct    = ls_scope_demand-minimum_coverage_pct
-          allocation_outcome      = COND #(
+          minimum_coverage_pct      = ls_scope_demand-minimum_coverage_pct
+          minimum_coverage_rejected = xsdbool(
+            lv_meets_coverage_floor <> abap_true )
+          allocation_outcome        = COND #(
             WHEN lv_allocated_quantity =
                 ls_scope_demand-requested_quantity
               THEN zif_stock_repository=>c_allocation_outcome_full
             WHEN lv_allocated_quantity > 0
               THEN zif_stock_repository=>c_allocation_outcome_partial
             ELSE zif_stock_repository=>c_allocation_outcome_none )
-          allocation_coverage_pct = calculate_coverage_pct(
+          allocation_coverage_pct   = calculate_coverage_pct(
             iv_requested_quantity = ls_scope_demand-requested_quantity
             iv_allocated_quantity = lv_allocated_quantity ) )
         group_available_quantity = lv_group_result_quantity
@@ -42056,6 +42632,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         internal_request_id TYPE c LENGTH 30,
         request_id          TYPE c LENGTH 30,
         priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_request_context,
       ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
         WITH EMPTY KEY.
@@ -42175,7 +42752,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index         = ls_indexed_demand-input_index
         internal_request_id = lv_internal_request_id
         request_id          = ls_indexed_demand-demand-request_id
-        priority            = ls_indexed_demand-demand-priority )
+        priority            = ls_indexed_demand-demand-priority
+        allocation_sequence = lv_internal_index )
         TO lt_contexts.
     ENDLOOP.
 
@@ -42202,6 +42780,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_allocation-request_id = ls_context-request_id.
       ls_allocation-priority = ls_context-priority.
+      ls_allocation-allocation_sequence = ls_context-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_allocation
         priority   = ls_context-priority )
@@ -42212,8 +42791,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           WHERE request_id = ls_context-internal_request_id.
         ls_batch_split-request_id = ls_context-request_id.
         APPEND VALUE #(
-          batch_allocation = ls_batch_split
-          priority         = ls_context-priority )
+          batch_allocation    = ls_batch_split
+          priority            = ls_context-priority
+          allocation_sequence = ls_context-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -42233,6 +42813,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         internal_request_id TYPE c LENGTH 30,
         request_id          TYPE c LENGTH 30,
         priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_request_context,
       ty_request_contexts TYPE STANDARD TABLE OF ty_request_context
         WITH EMPTY KEY.
@@ -42354,7 +42935,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         input_index         = ls_indexed_demand-input_index
         internal_request_id = lv_internal_request_id
         request_id          = ls_indexed_demand-demand-request_id
-        priority            = ls_indexed_demand-demand-priority )
+        priority            = ls_indexed_demand-demand-priority
+        allocation_sequence = lv_internal_index )
         TO lt_contexts.
     ENDLOOP.
 
@@ -42382,6 +42964,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_unit_allocation-allocation-request_id = ls_context-request_id.
       ls_unit_allocation-allocation-priority = ls_context-priority.
+      ls_unit_allocation-allocation-allocation_sequence =
+        ls_context-allocation_sequence.
       APPEND VALUE #(
         allocation = ls_unit_allocation
         priority   = ls_context-priority )
@@ -42393,8 +42977,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_context-internal_request_id.
         ls_unit_split-batch_allocation-request_id = ls_context-request_id.
         APPEND VALUE #(
-          batch_allocation = ls_unit_split
-          priority         = ls_context-priority )
+          batch_allocation    = ls_unit_split
+          priority            = ls_context-priority
+          allocation_sequence = ls_context-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -43173,6 +43758,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDDO.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -43760,6 +44351,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      IF CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_allocation-requested_quantity )
+            * CONV decfloat34( ls_allocation-minimum_coverage_pct ).
+        ls_allocation-minimum_coverage_rejected = abap_true.
+      ENDIF.
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_allocation-requested_quantity
@@ -44043,11 +44640,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_quality_fefo_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_fefo_demands.
     DATA lt_fefo_demands TYPE ty_fefo_demands.
     DATA ls_base_result TYPE ty_batch_result.
+    DATA lv_allocation_sequence TYPE i.
 
     IF iv_prioritize_by_date <> abap_true
         AND iv_prioritize_by_date <> abap_false.
@@ -44080,6 +44686,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       SORT lt_sorted_demands STABLE BY priority DESCENDING.
     ENDIF.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id                  = ls_priority_demand-request_id
         material                    = ls_priority_demand-material
@@ -44118,10 +44729,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
     LOOP AT it_demands INTO ls_input_demand.
       DATA(lv_allocation_found) = abap_false.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       LOOP AT ls_base_result-allocations INTO DATA(ls_base_allocation).
         IF ls_base_allocation-request_id <> ls_input_demand-request_id.
           CONTINUE.
         ENDIF.
+        ls_base_allocation-allocation_sequence =
+          ls_request_sequence-allocation_sequence.
         APPEND VALUE #(
           allocation = ls_base_allocation
           priority   = ls_input_demand-priority )
@@ -44139,8 +44757,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         APPEND VALUE #(
-          batch_allocation = ls_base_batch_split
-          priority         = ls_input_demand-priority )
+          batch_allocation    = ls_base_batch_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -44148,12 +44768,21 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_quality_uom_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_unit_fefo_demands.
     DATA lt_fefo_demands TYPE ty_unit_fefo_demands.
     DATA ls_unit_result TYPE ty_unit_batch_result.
     DATA lv_allocation_found TYPE abap_bool.
+    DATA lv_allocation_sequence TYPE i.
 
     IF iv_prioritize_by_date <> abap_true
         AND iv_prioritize_by_date <> abap_false.
@@ -44186,6 +44815,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       SORT lt_sorted_demands STABLE BY priority DESCENDING.
     ENDIF.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id                  = ls_priority_demand-request_id
         material                    = ls_priority_demand-material
@@ -44225,11 +44859,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
     LOOP AT it_demands INTO ls_input_demand.
       lv_allocation_found = abap_false.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       LOOP AT ls_unit_result-allocations INTO DATA(ls_unit_allocation).
         IF ls_unit_allocation-allocation-request_id
             <> ls_input_demand-request_id.
           CONTINUE.
         ENDIF.
+        ls_unit_allocation-allocation-allocation_sequence =
+          ls_request_sequence-allocation_sequence.
         APPEND VALUE #(
           allocation = ls_unit_allocation
           priority   = ls_input_demand-priority )
@@ -44248,8 +44889,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         APPEND VALUE #(
-          batch_allocation = ls_unit_batch_split
-          priority         = ls_input_demand-priority )
+          batch_allocation    = ls_unit_batch_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -44597,11 +45240,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_by_expiry_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_fefo_demands.
     DATA lt_fefo_demands TYPE ty_fefo_demands.
     DATA ls_base_result TYPE ty_batch_result.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -44637,6 +45289,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       SORT lt_sorted_demands STABLE BY priority DESCENDING.
     ENDIF.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id                  = ls_priority_demand-request_id
         material                    = ls_priority_demand-material
@@ -44677,11 +45334,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
     LOOP AT it_demands INTO ls_input_demand.
       DATA(lv_allocation_found) = abap_false.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       LOOP AT ls_base_result-allocations
           INTO DATA(ls_base_allocation).
         IF ls_base_allocation-request_id <> ls_input_demand-request_id.
           CONTINUE.
         ENDIF.
+        ls_base_allocation-allocation_sequence =
+          ls_request_sequence-allocation_sequence.
         APPEND VALUE #(
           allocation = ls_base_allocation
           priority   = ls_input_demand-priority )
@@ -44699,8 +45363,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         APPEND VALUE #(
-          batch_allocation = ls_base_batch_split
-          priority         = ls_input_demand-priority )
+          batch_allocation    = ls_base_batch_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.
@@ -44708,12 +45374,21 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
   METHOD allocate_fefo_uom_priority.
     TYPES ty_request_id TYPE c LENGTH 30.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE HASHED TABLE OF ty_request_sequence
+      WITH UNIQUE KEY request_id.
     DATA lt_request_ids TYPE HASHED TABLE OF ty_request_id
       WITH UNIQUE KEY table_line.
+    DATA lt_request_sequences TYPE ty_request_sequences.
     DATA lt_sorted_demands TYPE ty_priority_unit_fefo_demands.
     DATA lt_fefo_demands TYPE ty_unit_fefo_demands.
     DATA ls_unit_result TYPE ty_unit_batch_result.
     DATA lv_allocation_found TYPE abap_bool.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_excluded_reservations(
       it_excluded_reservations = it_excluded_reservations ).
@@ -44749,6 +45424,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       SORT lt_sorted_demands STABLE BY priority DESCENDING.
     ENDIF.
     LOOP AT lt_sorted_demands INTO DATA(ls_priority_demand).
+      ADD 1 TO lv_allocation_sequence.
+      INSERT VALUE #(
+        request_id          = ls_priority_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        INTO TABLE lt_request_sequences.
       APPEND VALUE #(
         request_id                  = ls_priority_demand-request_id
         material                    = ls_priority_demand-material
@@ -44790,12 +45470,19 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
     LOOP AT it_demands INTO ls_input_demand.
       lv_allocation_found = abap_false.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH TABLE KEY request_id = ls_input_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       LOOP AT ls_unit_result-allocations
           INTO DATA(ls_unit_allocation).
         IF ls_unit_allocation-allocation-request_id
             <> ls_input_demand-request_id.
           CONTINUE.
         ENDIF.
+        ls_unit_allocation-allocation-allocation_sequence =
+          ls_request_sequence-allocation_sequence.
         APPEND VALUE #(
           allocation = ls_unit_allocation
           priority   = ls_input_demand-priority )
@@ -44814,8 +45501,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         APPEND VALUE #(
-          batch_allocation = ls_unit_batch_split
-          priority         = ls_input_demand-priority )
+          batch_allocation    = ls_unit_batch_split
+          priority            = ls_input_demand-priority
+          allocation_sequence =
+            ls_request_sequence-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
     ENDLOOP.

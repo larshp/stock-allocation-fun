@@ -32,6 +32,7 @@ CLASS ltcl_so_stock_service DEFINITION FINAL
     METHODS rejects_unknown_stock_unit FOR TESTING.
     METHODS previews_issue_demands FOR TESTING.
     METHODS previews_issue_demands_uom FOR TESTING.
+    METHODS reports_issue_floor_rejection FOR TESTING.
     METHODS prioritizes_issue_dates FOR TESTING.
     METHODS prioritizes_issue_priority FOR TESTING.
     METHODS full_qty_aggregate_previews FOR TESTING.
@@ -460,6 +461,12 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( lt_results ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '6.000' )
       act = lt_results[ 1 ]-available_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -538,6 +545,12 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
       exp = 2
       act = lines( lt_results ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '6.000' )
       act = lt_results[ 1 ]-requested_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -564,6 +577,114 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = lt_results[ 2 ]-is_sufficient ).
+  ENDMETHOD.
+
+  METHOD reports_issue_floor_rejection.
+    mo_repository->order_items = VALUE #(
+      ( sales_document = '0000001000'
+        item_number    = '000010'
+        material       = 'MAT-1'
+        plant          = '1000' ) ).
+    mo_repository->base_units = VALUE #(
+      ( material = 'MAT-1' base_unit = 'EA' ) ).
+    mo_repository->stocks = VALUE #(
+      ( sales_document = '0000001000'
+        item_number    = '000010'
+        material       = 'MAT-1'
+        plant          = '1000'
+        base_unit      = 'EA'
+        quantity       = '5.000' ) ).
+    mo_service = NEW zcl_so_stock_service(
+      io_repository     = mo_repository
+      io_uom_repository = NEW lcl_so_stock_uom_repo( ) ).
+
+    DATA(lt_base) = mo_service->preview_issue_demands(
+      it_requests = VALUE #(
+        ( request_id           = 'ISSUE-FLOOR'
+          sales_document       = '0000001000'
+          item_number          = '000010'
+          requested_quantity   = '10.000'
+          minimum_coverage_pct = '80.00' )
+        ( request_id         = 'ISSUE-NEXT'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '5.000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mska-kalab( '0.000' )
+      act = lt_base[ 1 ]-covered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mska-kalab( '5.000' )
+      act = lt_base[ 2 ]-covered_quantity ).
+
+    DATA(lt_full) = mo_service->preview_issue_demands(
+      it_requests              = VALUE #(
+        ( request_id           = 'ISSUE-FULL-FLOOR'
+          sales_document       = '0000001000'
+          item_number          = '000010'
+          requested_quantity   = '10.000'
+          minimum_coverage_pct = '50.00' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_full[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(lt_zero_floor) = mo_service->preview_issue_demands(
+      it_requests              = VALUE #(
+        ( request_id           = 'ISSUE-ZERO-FLOOR'
+          sales_document       = '0000001000'
+          item_number          = '000010'
+          requested_quantity   = '10.000'
+          minimum_coverage_pct = '0.00' ) )
+      iv_require_full_quantity = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_zero_floor[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(lt_uom) = mo_service->preview_issue_demands_in_unit(
+      it_requests = VALUE #(
+        ( request_id           = 'ISSUE-UOM-FLOOR'
+          sales_document       = '0000001000'
+          item_number          = '000010'
+          requested_quantity   = '4.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom[ 1 ]-minimum_coverage_rejected ).
+
+    set_fefo_stock( ).
+    mo_service = NEW zcl_so_stock_service(
+      io_repository     = mo_repository
+      io_uom_repository = NEW lcl_so_stock_uom_repo( ) ).
+    DATA(ls_fefo) = mo_service->preview_issue_demands_by_fefo(
+      it_requests   = VALUE #(
+        ( request_id               = 'ISSUE-FEFO-FLOOR'
+          sales_document           = '0000001000'
+          item_number              = '000010'
+          requested_quantity       = '15.000'
+          reservation_through_date = '20261031'
+          minimum_coverage_pct     = '80.00' ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_fefo_uom) = mo_service->preview_issue_fefo_uom(
+      it_requests   = VALUE #(
+        ( request_id               = 'ISSUE-FEFO-UOM-FLOOR'
+          sales_document           = '0000001000'
+          item_number              = '000010'
+          requested_quantity       = '8.000'
+          requested_unit           = 'BOX'
+          reservation_through_date = '20261031'
+          minimum_coverage_pct     = '80.00' ) )
+      iv_as_of_date = '20261014' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_uom-allocations[ 1 ]-minimum_coverage_rejected ).
   ENDMETHOD.
 
   METHOD prioritizes_issue_dates.
@@ -642,7 +763,13 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
           item_number        = '000010'
           requested_quantity = '3.000'
           required_date      = '20261005'
-          priority           = 10 ) )
+          priority           = 10 )
+        ( request_id         = 'ISSUE-NONE'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '1.000'
+          required_date      = '20261013'
+          priority           = 0 ) )
       iv_prioritize_by_date = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -667,8 +794,24 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
       exp = 10
       act = lt_base_results[ 3 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_base_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_base_results[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ 3 ]-allocation_sequence ).
+
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '3.000' )
       act = lt_base_results[ 3 ]-covered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_base_results[ 4 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_base_results[ 4 ]-allocation_outcome ).
 
     DATA(lt_unit_results) = mo_service->preview_issue_demands_in_unit(
       it_requests           = VALUE #(
@@ -692,7 +835,14 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
           requested_quantity = '1.500'
           requested_unit     = 'BOX'
           required_date      = '20261005'
-          priority           = 10 ) )
+          priority           = 10 )
+        ( request_id         = 'ISSUE-UOM-NONE'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '0.500'
+          requested_unit     = 'BOX'
+          required_date      = '20261013'
+          priority           = 0 ) )
       iv_prioritize_by_date = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
@@ -717,8 +867,24 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
       exp = 10
       act = lt_unit_results[ 3 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_unit_results[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_unit_results[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unit_results[ 3 ]-allocation_sequence ).
+
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '1.500' )
       act = lt_unit_results[ 3 ]-covered_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_unit_results[ 4 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_unit_results[ 4 ]-allocation_outcome ).
   ENDMETHOD.
 
   METHOD prioritizes_issue_priority.
@@ -1813,7 +1979,13 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
           item_number        = '000010'
           requested_quantity = '3.000'
           required_date      = '20261005'
-          priority           = 10 ) )
+          priority           = 10 )
+        ( request_id         = 'SO-FEFO-NONE'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '1.000'
+          required_date      = '20261013'
+          priority           = 0 ) )
       iv_as_of_date         = '20261001'
       iv_prioritize_by_date = abap_true ).
 
@@ -1835,13 +2007,34 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_base_result-allocations[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_base_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 3 ]-allocation_sequence ).
+
     DATA(ls_high_split) = ls_base_result-batch_allocations[ 3 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-batch_allocations[
+        request_id = 'SO-FEFO-EARLY-HIGH' ]-allocation_sequence ).
+
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-EARLY'
       act = ls_high_split-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '2.000' )
       act = ls_high_split-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_base_result-allocations[ 4 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_base_result-allocations[ 4 ]-allocation_outcome ).
 
     DATA(ls_unit_result) = mo_service->preview_issue_fefo_uom(
       it_requests           = VALUE #(
@@ -1865,7 +2058,14 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
           requested_quantity = '1.500'
           requested_unit     = 'BOX'
           required_date      = '20261005'
-          priority           = 10 ) )
+          priority           = 10 )
+        ( request_id         = 'SO-FEFO-UOM-NONE'
+          sales_document     = '0000001000'
+          item_number        = '000010'
+          requested_quantity = '0.500'
+          requested_unit     = 'BOX'
+          required_date      = '20261013'
+          priority           = 0 ) )
       iv_as_of_date         = '20261001'
       iv_prioritize_by_date = abap_true ).
 
@@ -1884,6 +2084,27 @@ CLASS ltcl_so_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mska-kalab( '3.000' )
       act = ls_unit_result-allocations[ 3 ]-covered_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_unit_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_unit_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unit_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unit_result-batch_allocations[
+        request_id = 'SO-FEFO-UOM-EARLY-HIGH' ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_unit_result-allocations[ 4 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_unit_result-allocations[ 4 ]-allocation_outcome ).
+
+
   ENDMETHOD.
 
   METHOD prioritizes_fefo_priority.

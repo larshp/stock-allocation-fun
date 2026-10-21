@@ -4,6 +4,8 @@ CLASS zcl_sales_order_alloc_service DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    CONSTANTS c_sequence_scope_single_order TYPE c LENGTH 1 VALUE 'S'.
+    CONSTANTS c_sequence_scope_multi_order TYPE c LENGTH 1 VALUE 'M'.
     TYPES:
       BEGIN OF ty_batch_selection,
         item_number             TYPE c LENGTH 6,
@@ -26,45 +28,115 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_sales_unit_allocation,
-        request_id               TYPE c LENGTH 30,
-        sales_document           TYPE zif_sales_order_api=>ty_sales_document,
-        item_number              TYPE c LENGTH 6,
-        schedule_line            TYPE c LENGTH 4,
-        material                 TYPE mard-matnr,
-        plant                    TYPE mard-werks,
-        required_date            TYPE d,
-        priority                 TYPE i,
-        require_full_quantity    TYPE abap_bool,
-        require_atp_confirmation TYPE abap_bool,
-        minimum_coverage_pct     TYPE zcl_stock_service=>ty_minimum_coverage_pct,
-        allocation_outcome       TYPE c LENGTH 1,
-        allocation_coverage_pct  TYPE zcl_stock_service=>ty_allocation_coverage_pct,
-        sales_unit               TYPE c LENGTH 3,
-        base_unit                TYPE mara-meins,
-        requested_quantity       TYPE mard-labst,
-        requested_base_quantity  TYPE mard-labst,
-        available_quantity       TYPE mard-labst,
-        available_base_quantity  TYPE mard-labst,
-        allocated_quantity       TYPE mard-labst,
-        allocated_base_quantity  TYPE mard-labst,
-        shortfall_quantity       TYPE mard-labst,
-        shortfall_base_quantity  TYPE mard-labst,
+        request_id                TYPE c LENGTH 30,
+        sales_document            TYPE zif_sales_order_api=>ty_sales_document,
+        item_number               TYPE c LENGTH 6,
+        schedule_line             TYPE c LENGTH 4,
+        material                  TYPE mard-matnr,
+        plant                     TYPE mard-werks,
+        required_date             TYPE d,
+        priority                  TYPE i,
+        allocation_sequence       TYPE i,
+        allocation_sequence_scope TYPE c LENGTH 1,
+        require_full_quantity     TYPE abap_bool,
+        require_atp_confirmation  TYPE abap_bool,
+        minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct,
+        minimum_coverage_rejected TYPE abap_bool,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        sales_unit                TYPE c LENGTH 3,
+        base_unit                 TYPE mara-meins,
+        requested_quantity        TYPE mard-labst,
+        requested_base_quantity   TYPE mard-labst,
+        available_quantity        TYPE mard-labst,
+        available_base_quantity   TYPE mard-labst,
+        allocated_quantity        TYPE mard-labst,
+        allocated_base_quantity   TYPE mard-labst,
+        shortfall_quantity        TYPE mard-labst,
+        shortfall_base_quantity   TYPE mard-labst,
       END OF ty_sales_unit_allocation.
     TYPES ty_sales_unit_allocations TYPE STANDARD TABLE OF
       ty_sales_unit_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_order_summary,
-        sales_document          TYPE zif_sales_order_api=>ty_sales_document,
-        material                TYPE mard-matnr,
-        plant                   TYPE mard-werks,
-        base_unit               TYPE mara-meins,
-        demand_line_count       TYPE i,
-        requested_base_quantity TYPE mard-labst,
-        allocated_base_quantity TYPE mard-labst,
-        shortfall_base_quantity TYPE mard-labst,
+        sales_document                 TYPE zif_sales_order_api=>ty_sales_document,
+        material                       TYPE mard-matnr,
+        plant                          TYPE mard-werks,
+        base_unit                      TYPE mara-meins,
+        demand_line_count              TYPE i,
+        dated_line_count               TYPE i,
+        requested_base_quantity        TYPE mard-labst,
+        allocated_base_quantity        TYPE mard-labst,
+        shortfall_base_quantity        TYPE mard-labst,
+        fully_allocated_line_count     TYPE i,
+        fully_allocated_line_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partially_allocated_line_count TYPE i,
+        partially_allocated_line_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_line_count         TYPE i,
+        unallocated_line_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        floor_rejected_line_count      TYPE i,
+        floor_rejected_line_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_required_date            TYPE d,
+        last_required_date             TYPE d,
+        first_allocation_sequence      TYPE i,
+        last_allocation_sequence       TYPE i,
+        allocation_sequence_scope      TYPE c LENGTH 1,
+        allocation_outcome             TYPE c LENGTH 1,
+        allocation_coverage_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
       END OF ty_order_summary.
     TYPES ty_order_summaries TYPE STANDARD TABLE OF
       ty_order_summary WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_material_summary,
+        material                       TYPE mard-matnr,
+        plant                          TYPE mard-werks,
+        base_unit                      TYPE mara-meins,
+        sales_document_count           TYPE i,
+        demand_line_count              TYPE i,
+        dated_line_count               TYPE i,
+        requested_base_quantity        TYPE mard-labst,
+        allocated_base_quantity        TYPE mard-labst,
+        shortfall_base_quantity        TYPE mard-labst,
+        fully_allocated_line_count     TYPE i,
+        fully_allocated_line_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partially_allocated_line_count TYPE i,
+        partially_allocated_line_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_line_count         TYPE i,
+        unallocated_line_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        floor_rejected_line_count      TYPE i,
+        floor_rejected_line_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_required_date            TYPE d,
+        last_required_date             TYPE d,
+        first_allocation_sequence      TYPE i,
+        last_allocation_sequence       TYPE i,
+        allocation_sequence_scope      TYPE c LENGTH 1,
+        allocation_outcome             TYPE c LENGTH 1,
+        allocation_coverage_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+      END OF ty_material_summary.
+    TYPES ty_material_summaries TYPE STANDARD TABLE OF
+      ty_material_summary WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_sales_document_summary,
+        sales_document                 TYPE zif_sales_order_api=>ty_sales_document,
+        demand_line_count              TYPE i,
+        fully_allocated_line_count     TYPE i,
+        fully_allocated_line_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partially_allocated_line_count TYPE i,
+        partially_allocated_line_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_line_count         TYPE i,
+        unallocated_line_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        floor_rejected_line_count      TYPE i,
+        floor_rejected_line_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        dated_line_count               TYPE i,
+        first_required_date            TYPE d,
+        last_required_date             TYPE d,
+        first_allocation_sequence      TYPE i,
+        last_allocation_sequence       TYPE i,
+        allocation_sequence_scope      TYPE c LENGTH 1,
+        allocation_outcome             TYPE c LENGTH 1,
+      END OF ty_sales_document_summary.
+    TYPES ty_document_summaries TYPE STANDARD TABLE OF
+      ty_sales_document_summary WITH EMPTY KEY.
     TYPES ty_sales_documents TYPE STANDARD TABLE OF
       zif_sales_order_api=>ty_sales_document WITH EMPTY KEY.
     TYPES:
@@ -134,6 +206,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         batch_allocations      TYPE zcl_stock_service=>ty_batch_allocations,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         order_summaries        TYPE ty_order_summaries,
+        document_summaries     TYPE ty_document_summaries,
         atp_checks             TYPE ty_atp_checks,
         messages               TYPE zif_sales_order_api=>ty_messages,
         is_successful          TYPE abap_bool,
@@ -146,6 +219,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         batch_allocations      TYPE zcl_stock_service=>ty_batch_allocations,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         order_summaries        TYPE ty_order_summaries,
+        document_summaries     TYPE ty_document_summaries,
         atp_checks             TYPE ty_atp_checks,
         reservations           TYPE zif_so_reservation_api=>ty_reservations,
         messages               TYPE zif_sales_order_api=>ty_messages,
@@ -178,6 +252,8 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       BEGIN OF ty_multi_order_preview_result,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         order_summaries        TYPE ty_order_summaries,
+        document_summaries     TYPE ty_document_summaries,
+        material_summaries     TYPE ty_material_summaries,
         atp_checks             TYPE ty_atp_checks,
         messages               TYPE zif_sales_order_api=>ty_messages,
         is_successful          TYPE abap_bool,
@@ -186,6 +262,8 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       BEGIN OF ty_multi_order_reserve_result,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         order_summaries        TYPE ty_order_summaries,
+        document_summaries     TYPE ty_document_summaries,
+        material_summaries     TYPE ty_material_summaries,
         atp_checks             TYPE ty_atp_checks,
         reservations           TYPE zif_so_reservation_api=>ty_reservations,
         messages               TYPE zif_sales_order_api=>ty_messages,
@@ -195,13 +273,14 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       END OF ty_multi_order_reserve_result.
     TYPES:
       BEGIN OF ty_multi_res_order_result,
-        sales_document TYPE zif_sales_order_api=>ty_sales_document,
-        reservations   TYPE zif_so_reservation_api=>ty_reservations,
-        messages       TYPE zif_sales_order_api=>ty_messages,
-        is_successful  TYPE abap_bool,
-        is_test_run    TYPE abap_bool,
-        is_committed   TYPE abap_bool,
-        is_skipped     TYPE abap_bool,
+        sales_document   TYPE zif_sales_order_api=>ty_sales_document,
+        document_summary TYPE ty_sales_document_summary,
+        reservations     TYPE zif_so_reservation_api=>ty_reservations,
+        messages         TYPE zif_sales_order_api=>ty_messages,
+        is_successful    TYPE abap_bool,
+        is_test_run      TYPE abap_bool,
+        is_committed     TYPE abap_bool,
+        is_skipped       TYPE abap_bool,
       END OF ty_multi_res_order_result.
     TYPES ty_multi_res_order_results TYPE STANDARD TABLE OF
       ty_multi_res_order_result WITH EMPTY KEY.
@@ -209,6 +288,8 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       BEGIN OF ty_multi_bulk_res_result,
         sales_unit_allocations TYPE ty_sales_unit_allocations,
         order_summaries        TYPE ty_order_summaries,
+        document_summaries     TYPE ty_document_summaries,
+        material_summaries     TYPE ty_material_summaries,
         atp_checks             TYPE ty_atp_checks,
         order_results          TYPE ty_multi_res_order_results,
         reservations           TYPE zif_so_reservation_api=>ty_reservations,
@@ -677,11 +758,36 @@ CLASS zcl_sales_order_alloc_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS calculate_line_share_pct
+      IMPORTING
+        iv_line_count        TYPE i
+        iv_demand_line_count TYPE i
+      RETURNING
+        VALUE(rv_percentage) TYPE zcl_stock_service=>ty_allocation_coverage_pct
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS summarize_order_allocations
       IMPORTING
         it_allocations      TYPE ty_sales_unit_allocations
       RETURNING
         VALUE(rt_summaries) TYPE ty_order_summaries
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS summarize_sales_documents
+      IMPORTING
+        it_allocations      TYPE ty_sales_unit_allocations
+      RETURNING
+        VALUE(rt_summaries) TYPE ty_document_summaries
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS summarize_material_allocations
+      IMPORTING
+        it_summaries        TYPE ty_order_summaries
+      RETURNING
+        VALUE(rt_summaries) TYPE ty_material_summaries
       RAISING
         zcx_invalid_stock_request.
 
@@ -911,6 +1017,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ls_prepared-sales_unit_allocations.
     rs_result-order_summaries = summarize_order_allocations(
       it_allocations = rs_result-sales_unit_allocations ).
+    rs_result-document_summaries = summarize_sales_documents(
+      it_allocations = rs_result-sales_unit_allocations ).
     rs_result-messages = ls_prepared-messages.
     rs_result-is_successful = ls_prepared-is_successful.
 
@@ -971,10 +1079,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_atp_day_total> TYPE ty_atp_day_total.
     LOOP AT lt_atp_demands INTO DATA(ls_atp_day_demand).
       READ TABLE lt_atp_day_totals ASSIGNING <ls_atp_day_total>
-        WITH KEY material = ls_atp_day_demand-material
-                 plant = ls_atp_day_demand-plant
-                 unit = ls_atp_day_demand-unit
-                 required_date = ls_atp_day_demand-required_date.
+        WITH KEY material         = ls_atp_day_demand-material
+                 plant                               = ls_atp_day_demand-plant
+                 unit                                = ls_atp_day_demand-unit
+                 required_date                       = ls_atp_day_demand-required_date.
       IF sy-subrc = 0.
         <ls_atp_day_total>-date_quantity =
           sum_stock_quantities(
@@ -1004,10 +1112,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           OR lv_previous_plant <> <ls_atp_day_total>-plant
           OR lv_previous_unit <> <ls_atp_day_total>-unit.
         CLEAR lv_cumulative_quantity.
-        lv_previous_material = <ls_atp_day_total>-material.
-        lv_previous_plant = <ls_atp_day_total>-plant.
-        lv_previous_unit = <ls_atp_day_total>-unit.
-        lv_first_demand = abap_false.
+        lv_previous_material      = <ls_atp_day_total>-material.
+        lv_previous_plant         = <ls_atp_day_total>-plant.
+        lv_previous_unit          = <ls_atp_day_total>-unit.
+        lv_first_demand           = abap_false.
       ENDIF.
       lv_cumulative_quantity = sum_stock_quantities(
         iv_left_quantity  = lv_cumulative_quantity
@@ -1025,10 +1133,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
     LOOP AT lt_atp_demands INTO DATA(ls_atp_demand).
       READ TABLE lt_atp_day_totals INTO DATA(ls_atp_day_total)
-        WITH KEY material = ls_atp_demand-material
-                 plant = ls_atp_demand-plant
-                 unit = ls_atp_demand-unit
-                 required_date = ls_atp_demand-required_date.
+        WITH KEY material         = ls_atp_demand-material
+                 plant                               = ls_atp_demand-plant
+                 unit                                = ls_atp_demand-unit
+                 required_date                       = ls_atp_demand-required_date.
       DATA(ls_confirmation_split) =
         mo_stock_service->get_atp_confirmation_split(
           iv_requested_base_quantity =
@@ -1072,7 +1180,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF lv_require_atp_confirmation <> abap_true.
         READ TABLE it_sales_unit_allocations
           INTO DATA(ls_sales_unit_allocation)
-          WITH KEY request_id = ls_atp_check-request_id.
+          WITH KEY request_id                        = ls_atp_check-request_id.
         IF sy-subrc <> 0.
           CONTINUE.
         ENDIF.
@@ -1086,7 +1194,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ENDIF.
       IF lv_require_atp_confirmation = abap_true
           AND ls_atp_check-is_fully_confirmed <> abap_true.
-        rv_is_sufficient = abap_false.
+        rv_is_sufficient          = abap_false.
         RETURN.
       ENDIF.
     ENDLOOP.
@@ -1214,6 +1322,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ls_prepared-sales_unit_allocations.
     rs_result-order_summaries = summarize_order_allocations(
       it_allocations = rs_result-sales_unit_allocations ).
+    rs_result-document_summaries = summarize_sales_documents(
+      it_allocations = rs_result-sales_unit_allocations ).
     rs_result-messages = ls_prepared-messages.
 
     IF ls_prepared-is_successful = abap_false.
@@ -1268,9 +1378,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           INTO lv_request_id SEPARATED BY '/'.
       ENDIF.
       IF it_batch_selections IS SUPPLIED
-          OR iv_use_fefo_batches = abap_true.
+          OR iv_use_fefo_batches                     = abap_true.
         LOOP AT ls_prepared-batch_allocations INTO DATA(ls_batch_allocation)
-          WHERE request_id = lv_request_id.
+          WHERE request_id                           = lv_request_id.
           APPEND VALUE #(
             request_id       = lv_request_id
             sales_document   = iv_sales_document
@@ -1285,7 +1395,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ENDLOOP.
       ELSE.
         LOOP AT ls_prepared-storage_allocations INTO DATA(ls_storage_allocation)
-          WHERE request_id = lv_request_id.
+          WHERE request_id                           = lv_request_id.
           APPEND VALUE #(
             request_id       = lv_request_id
             sales_document   = iv_sales_document
@@ -1411,7 +1521,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF ls_request_location-request_id IS INITIAL
           OR ls_request_location-storage_location IS INITIAL
           OR NOT line_exists( is_allocation-allocations[
-            request_id = ls_request_location-request_id ] ).
+            request_id                               = ls_request_location-request_id ] ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       INSERT ls_request_location INTO TABLE lt_request_locations.
@@ -1483,21 +1593,21 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             AND ls_allocation-require_known_expiry <> abap_false )
           OR ( ls_allocation-allow_undated_batches <> abap_true
             AND ls_allocation-allow_undated_batches <> abap_false )
-          OR ( ls_allocation-require_known_expiry = abap_true
-            AND ls_allocation-allow_undated_batches = abap_true )
+          OR ( ls_allocation-require_known_expiry    = abap_true
+            AND ls_allocation-allow_undated_batches  = abap_true )
           OR ( ls_allocation-allow_location_fallback <> abap_true
             AND ls_allocation-allow_location_fallback <> abap_false )
           OR ( ls_allocation-allow_location_fallback = abap_true
             AND ls_allocation-selected_storage_location IS INITIAL )
           OR ( ls_allocation-selected_storage_location IS NOT INITIAL
             AND line_exists( lt_scoped_request_ids[
-              request_id = ls_allocation-request_id ] )
+              request_id                             = ls_allocation-request_id ] )
             AND NOT line_exists( lt_request_locations[
-              request_id = ls_allocation-request_id
+              request_id                             = ls_allocation-request_id
               storage_location =
                 ls_allocation-selected_storage_location ] ) )
           OR ls_allocation-is_sufficient <> xsdbool(
-            ls_allocation-shortfall_base_quantity = 0 ).
+            ls_allocation-shortfall_base_quantity    = 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
@@ -1509,7 +1619,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
       READ TABLE lt_item_keys INTO DATA(ls_item_key)
         WITH TABLE KEY sales_document = ls_allocation-sales_document
-                       item_number = ls_allocation-item_number.
+                       item_number                   = ls_allocation-item_number.
       IF sy-subrc = 0.
         IF ls_item_key-material <> ls_allocation-material
             OR ls_item_key-plant <> ls_allocation-plant
@@ -1539,7 +1649,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       CLEAR lv_split_quantity.
       LOOP AT is_allocation-batch_allocations
           INTO DATA(ls_batch_allocation)
-          WHERE request_id = ls_allocation-request_id.
+          WHERE request_id                           = ls_allocation-request_id.
         IF ls_batch_allocation-sales_document
               <> ls_allocation-sales_document
             OR ls_batch_allocation-item_number
@@ -1550,11 +1660,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             OR ls_batch_allocation-batch IS INITIAL
             OR ( lt_location_allowlist IS NOT INITIAL
               AND NOT line_exists( lt_location_allowlist[
-                table_line = ls_batch_allocation-storage_location ] ) )
+                table_line                           = ls_batch_allocation-storage_location ] ) )
             OR ( line_exists( lt_scoped_request_ids[
-                request_id = ls_batch_allocation-request_id ] )
+                request_id                           = ls_batch_allocation-request_id ] )
               AND NOT line_exists( lt_request_locations[
-                request_id = ls_batch_allocation-request_id
+                request_id                           = ls_batch_allocation-request_id
                 storage_location =
                   ls_batch_allocation-storage_location ] ) )
             OR ls_batch_allocation-selected_storage_location
@@ -1600,7 +1710,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
-        lv_split_quantity = lv_split_quantity
+        lv_split_quantity         = lv_split_quantity
           + ls_batch_allocation-allocated_base_quantity.
         APPEND VALUE #(
           request_id       = ls_batch_allocation-request_id
@@ -1928,9 +2038,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
       READ TABLE is_reservation_result-reservations
         INTO DATA(ls_matching_reservation)
-        WITH KEY request_id = ls_split-request_id
-                 storage_location = ls_split-storage_location
-                 batch = ls_split-batch.
+        WITH KEY request_id       = ls_split-request_id
+                 storage_location                    = ls_split-storage_location
+                 batch                               = ls_split-batch.
       IF sy-subrc <> 0
           OR ls_matching_reservation-quantity
             <> ls_split-allocated_base_quantity.
@@ -1974,7 +2084,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ENDIF.
         READ TABLE is_reservation_result-reservations
           TRANSPORTING NO FIELDS
-          WITH KEY reservation_number = lv_selected_number.
+          WITH KEY reservation_number                = lv_selected_number.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
@@ -1991,7 +2101,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ENDIF.
         READ TABLE is_reservation_result-reservations
           TRANSPORTING NO FIELDS
-          WITH KEY request_id = lv_request_id.
+          WITH KEY request_id                        = lv_request_id.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
@@ -2001,7 +2111,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       LOOP AT is_reservation_result-reservations
           INTO ls_reservation.
         IF line_exists( lt_selected_ids[
-            table_line = ls_reservation-request_id ] ).
+            table_line                               = ls_reservation-request_id ] ).
           APPEND ls_reservation-reservation_number
             TO lt_reservation_numbers.
         ENDIF.
@@ -2011,7 +2121,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     DATA(lo_reservation_service) = NEW zcl_so_reservation_service(
       io_api = mo_reservation_api ).
     TRY.
-        DATA(ls_delete_result) = lo_reservation_service->delete_reservations(
+        DATA(ls_delete_result)    = lo_reservation_service->delete_reservations(
           it_reservation_numbers = lt_reservation_numbers
           iv_test_run            = iv_test_run ).
       CATCH zcx_invalid_reservation.
@@ -2022,7 +2132,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     rs_result-messages = ls_delete_result-messages.
     rs_result-is_successful = ls_delete_result-is_successful.
     IF ls_delete_result-is_successful = abap_true
-        AND iv_test_run = abap_false.
+        AND iv_test_run           = abap_false.
       rs_result-is_committed = abap_true.
     ENDIF.
   ENDMETHOD.
@@ -2447,7 +2557,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             RETURN.
           ENDIF.
 
-          IF <ls_order_item>-has_confirmed_quantity = abap_true.
+          IF <ls_order_item>-has_confirmed_quantity  = abap_true.
             IF <ls_order_item>-confirmed_quantity < 0
                 OR <ls_order_item>-open_confirmed_quantity < 0
                 OR <ls_order_item>-confirmed_base_quantity < 0
@@ -2479,7 +2589,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ENDIF.
       CLEAR lt_document_reservations.
       LOOP AT lt_all_reservations INTO DATA(ls_order_reservation)
-        WHERE sales_document = lv_sales_document.
+        WHERE sales_document      = lv_sales_document.
         APPEND ls_order_reservation TO lt_document_reservations.
       ENDLOOP.
       subtract_order_reservations(
@@ -2516,7 +2626,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             TO rs_result-messages.
           RETURN.
         ENDIF.
-        lv_required_date = ls_order_item-requested_date.
+        lv_required_date          = ls_order_item-requested_date.
         IF iv_use_material_avail_date = abap_true.
           IF ls_order_item-schedule_line IS INITIAL
               OR ls_order_item-material_availability_date IS INITIAL.
@@ -2526,18 +2636,18 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
               TO rs_result-messages.
             RETURN.
           ENDIF.
-          lv_required_date = ls_order_item-material_availability_date.
+          lv_required_date                           = ls_order_item-material_availability_date.
         ENDIF.
 
         IF lv_required_date IS INITIAL
             AND ls_order_item-schedule_line IS INITIAL.
           READ TABLE lt_unscheduled_dates INTO DATA(ls_item_unscheduled_date)
-            WITH TABLE KEY sales_document = lv_sales_document
-                           item_number = ls_order_item-item_number.
-          IF sy-subrc = 0.
-            lv_required_date = ls_item_unscheduled_date-required_date.
+            WITH TABLE KEY sales_document            = lv_sales_document
+                           item_number               = ls_order_item-item_number.
+          IF sy-subrc                                = 0.
+            lv_required_date                         = ls_item_unscheduled_date-required_date.
           ELSEIF iv_unscheduled_required_date IS NOT INITIAL.
-            lv_required_date = iv_unscheduled_required_date.
+            lv_required_date                         = iv_unscheduled_required_date.
           ENDIF.
         ENDIF.
         IF lv_required_date IS INITIAL.
@@ -2586,29 +2696,29 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
         CLEAR lv_priority.
         READ TABLE lt_priorities INTO DATA(ls_demand_priority)
-          WITH TABLE KEY sales_document = lv_sales_document
-                         item_number = ls_order_item-item_number
-                         schedule_line = ls_order_item-schedule_line.
-        IF sy-subrc = 0.
-          lv_priority = ls_demand_priority-priority.
+          WITH TABLE KEY sales_document              = lv_sales_document
+                         item_number                 = ls_order_item-item_number
+                         schedule_line               = ls_order_item-schedule_line.
+        IF sy-subrc               = 0.
+          lv_priority                                = ls_demand_priority-priority.
         ENDIF.
 
         CLEAR lv_require_full_quantity.
         CLEAR lv_minimum_coverage_pct.
         READ TABLE lt_allocation_requirements
           INTO DATA(ls_effective_item_requirement)
-          WITH TABLE KEY sales_document = lv_sales_document
-                         item_number = ls_order_item-item_number
-                         schedule_line = ls_order_item-schedule_line.
+          WITH TABLE KEY sales_document              = lv_sales_document
+                         item_number                 = ls_order_item-item_number
+                         schedule_line               = ls_order_item-schedule_line.
         IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
           READ TABLE lt_allocation_requirements
             INTO ls_effective_item_requirement
-            WITH TABLE KEY sales_document = lv_sales_document
-                           item_number = ls_order_item-item_number
-                           schedule_line = space.
+            WITH TABLE KEY sales_document            = lv_sales_document
+                           item_number               = ls_order_item-item_number
+                           schedule_line             = space.
         ENDIF.
         CLEAR lv_require_atp_confirmation.
-        IF sy-subrc = 0.
+        IF sy-subrc               = 0.
           lv_require_full_quantity =
             ls_effective_item_requirement-require_full_quantity.
           lv_require_atp_confirmation =
@@ -2640,8 +2750,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     LOOP AT it_demand_priorities INTO ls_priority_input.
       READ TABLE lt_known_priority_keys TRANSPORTING NO FIELDS
         WITH TABLE KEY sales_document = ls_priority_input-sales_document
-                       item_number = ls_priority_input-item_number
-                       schedule_line = ls_priority_input-schedule_line.
+                       item_number                   = ls_priority_input-item_number
+                       schedule_line                 = ls_priority_input-schedule_line.
       IF sy-subrc <> 0.
         APPEND VALUE #(
           type    = 'E'
@@ -2683,7 +2793,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                          ls_unscheduled_date_input-sales_document
                        item_number =
                          ls_unscheduled_date_input-item_number
-                       schedule_line = space.
+                       schedule_line                 = space.
       IF sy-subrc <> 0.
         APPEND VALUE #(
           type    = 'E'
@@ -2713,66 +2823,73 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
     LOOP AT lt_allocations INTO DATA(ls_allocation).
       READ TABLE lt_contexts INTO DATA(ls_context)
-        WITH KEY request_id = ls_allocation-request_id.
+        WITH KEY request_id       = ls_allocation-request_id.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_sales_order.
       ENDIF.
 
       IF ls_context-order_item-entry_unit =
           ls_context-order_item-base_unit.
-        lv_numerator = 1.
-        lv_denominator = 1.
+        lv_numerator              = 1.
+        lv_denominator            = 1.
       ELSE.
-        lv_numerator = ls_context-order_item-sales_unit_numerator.
-        lv_denominator = ls_context-order_item-sales_unit_denominator.
+        lv_numerator              = ls_context-order_item-sales_unit_numerator.
+        lv_denominator            = ls_context-order_item-sales_unit_denominator.
       ENDIF.
 
       APPEND VALUE #(
-        request_id               = ls_allocation-request_id
-        sales_document           = ls_context-sales_document
-        item_number              = ls_context-order_item-item_number
-        schedule_line            = ls_context-order_item-schedule_line
-        material                 = ls_allocation-material
-        plant                    = ls_allocation-plant
-        required_date            = ls_allocation-required_date
-        priority                 = ls_allocation-priority
-        require_full_quantity    = ls_context-require_full_quantity
-        require_atp_confirmation = ls_context-require_atp_confirmation
-        minimum_coverage_pct     = ls_allocation-minimum_coverage_pct
-        allocation_outcome       = ls_allocation-allocation_outcome
-        allocation_coverage_pct  = ls_allocation-allocation_coverage_pct
-        sales_unit               = ls_context-order_item-entry_unit
-        base_unit                = ls_context-order_item-base_unit
-        requested_quantity       = convert_base_to_sales_unit(
+        request_id                = ls_allocation-request_id
+        sales_document            = ls_context-sales_document
+        item_number               = ls_context-order_item-item_number
+        schedule_line             = ls_context-order_item-schedule_line
+        material                  = ls_allocation-material
+        plant                     = ls_allocation-plant
+        required_date             = ls_allocation-required_date
+        priority                  = ls_allocation-priority
+        allocation_sequence       = ls_allocation-allocation_sequence
+        allocation_sequence_scope = c_sequence_scope_multi_order
+        require_full_quantity     = ls_context-require_full_quantity
+        require_atp_confirmation  = ls_context-require_atp_confirmation
+        minimum_coverage_pct      = ls_allocation-minimum_coverage_pct
+        minimum_coverage_rejected = ls_allocation-minimum_coverage_rejected
+        allocation_outcome        = ls_allocation-allocation_outcome
+        allocation_coverage_pct   = ls_allocation-allocation_coverage_pct
+        sales_unit                = ls_context-order_item-entry_unit
+        base_unit                 = ls_context-order_item-base_unit
+        requested_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-requested_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        requested_base_quantity  = ls_allocation-requested_quantity
-        available_quantity       = convert_base_to_sales_unit(
+        requested_base_quantity   = ls_allocation-requested_quantity
+        available_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-available_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        available_base_quantity  = ls_allocation-available_quantity
-        allocated_quantity       = convert_base_to_sales_unit(
+        available_base_quantity   = ls_allocation-available_quantity
+        allocated_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-allocated_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        allocated_base_quantity  = ls_allocation-allocated_quantity
-        shortfall_quantity       = convert_base_to_sales_unit(
+        allocated_base_quantity   = ls_allocation-allocated_quantity
+        shortfall_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-shortfall_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        shortfall_base_quantity  = ls_allocation-shortfall_quantity )
+        shortfall_base_quantity   = ls_allocation-shortfall_quantity )
         TO rs_result-sales_unit_allocations.
     ENDLOOP.
 
     rs_result-order_summaries = summarize_order_allocations(
       it_allocations = rs_result-sales_unit_allocations ).
+    rs_result-document_summaries = summarize_sales_documents(
+      it_allocations = rs_result-sales_unit_allocations ).
+    rs_result-material_summaries = summarize_material_allocations(
+      it_summaries = rs_result-order_summaries ).
     IF iv_check_atp = abap_true.
       LOOP AT lt_demands INTO DATA(ls_atp_demand_source).
-        DATA(lv_demand_index) = sy-tabix.
+        DATA(lv_demand_index)     = sy-tabix.
         READ TABLE lt_contexts INTO DATA(ls_atp_context)
-          WITH KEY request_id = ls_atp_demand_source-request_id.
+          WITH KEY request_id                        = ls_atp_demand_source-request_id.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_sales_order.
         ENDIF.
@@ -2795,11 +2912,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       LOOP AT lt_atp_demands INTO DATA(ls_atp_demand).
         READ TABLE lt_atp_day_totals ASSIGNING
           FIELD-SYMBOL(<ls_atp_day_total>)
-          WITH KEY material = ls_atp_demand-material
-                   plant = ls_atp_demand-plant
-                   unit = ls_atp_demand-unit
-                   required_date = ls_atp_demand-required_date.
-        IF sy-subrc = 0.
+          WITH KEY material                          = ls_atp_demand-material
+                   plant                             = ls_atp_demand-plant
+                   unit                              = ls_atp_demand-unit
+                   required_date                     = ls_atp_demand-required_date.
+        IF sy-subrc               = 0.
           <ls_atp_day_total>-date_quantity =
             sum_stock_quantities(
               iv_left_quantity  = <ls_atp_day_total>-date_quantity
@@ -2823,15 +2940,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       DATA lv_first_demand TYPE abap_bool VALUE abap_true.
 
       LOOP AT lt_atp_day_totals ASSIGNING <ls_atp_day_total>.
-        IF lv_first_demand = abap_true
+        IF lv_first_demand        = abap_true
             OR lv_previous_material <> <ls_atp_day_total>-material
             OR lv_previous_plant <> <ls_atp_day_total>-plant
             OR lv_previous_unit <> <ls_atp_day_total>-unit.
           CLEAR lv_cumulative_quantity.
-          lv_previous_material = <ls_atp_day_total>-material.
-          lv_previous_plant = <ls_atp_day_total>-plant.
-          lv_previous_unit = <ls_atp_day_total>-unit.
-          lv_first_demand = abap_false.
+          lv_previous_material                       = <ls_atp_day_total>-material.
+          lv_previous_plant                          = <ls_atp_day_total>-plant.
+          lv_previous_unit                           = <ls_atp_day_total>-unit.
+          lv_first_demand                            = abap_false.
         ENDIF.
         lv_cumulative_quantity =
           sum_stock_quantities(
@@ -2850,10 +2967,10 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
       LOOP AT lt_atp_demands INTO ls_atp_demand.
         READ TABLE lt_atp_day_totals INTO DATA(ls_atp_day_total)
-          WITH KEY material = ls_atp_demand-material
-                   plant = ls_atp_demand-plant
-                   unit = ls_atp_demand-unit
-                   required_date = ls_atp_demand-required_date.
+          WITH KEY material                          = ls_atp_demand-material
+                   plant                             = ls_atp_demand-plant
+                   unit                              = ls_atp_demand-unit
+                   required_date                     = ls_atp_demand-required_date.
         DATA(ls_confirmation_split) =
           mo_stock_service->get_atp_confirmation_split(
             iv_requested_base_quantity =
@@ -2945,6 +3062,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       iv_atp_check_rule              = iv_atp_check_rule ).
     rs_result-sales_unit_allocations = ls_preview-sales_unit_allocations.
     rs_result-order_summaries = ls_preview-order_summaries.
+    rs_result-document_summaries =
+      ls_preview-document_summaries.
+    rs_result-material_summaries = ls_preview-material_summaries.
     rs_result-atp_checks = ls_preview-atp_checks.
     rs_result-messages = ls_preview-messages.
 
@@ -3108,6 +3228,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       iv_atp_check_rule              = iv_atp_check_rule ).
     rs_result-sales_unit_allocations = ls_preview-sales_unit_allocations.
     rs_result-order_summaries = ls_preview-order_summaries.
+    rs_result-document_summaries =
+      ls_preview-document_summaries.
+    rs_result-material_summaries = ls_preview-material_summaries.
     rs_result-atp_checks = ls_preview-atp_checks.
     rs_result-messages = ls_preview-messages.
     IF ls_preview-is_successful <> abap_true.
@@ -3164,9 +3287,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       DATA(ls_order_result) = VALUE ty_multi_res_order_result(
         sales_document = lv_sales_document
         is_test_run    = iv_test_run ).
+      READ TABLE ls_preview-document_summaries
+        INTO DATA(ls_document_summary)
+        WITH KEY sales_document = lv_sales_document.
+      IF sy-subrc = 0.
+        ls_order_result-document_summary = ls_document_summary.
+      ENDIF.
       IF lv_stop_processing = abap_true.
         ls_order_result-is_skipped = abap_true.
-        rs_result-skipped_count = rs_result-skipped_count + 1.
+        rs_result-skipped_count   = rs_result-skipped_count + 1.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
       ENDIF.
@@ -3176,17 +3305,17 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             it_atp_checks             = ls_preview-atp_checks
             iv_sales_document         = lv_sales_document ) <>
               abap_true.
-        DATA(ls_atp_error) = VALUE zif_sales_order_api=>ty_message(
+        DATA(ls_atp_error)        = VALUE zif_sales_order_api=>ty_message(
           type    = 'E'
           message = 'Full ATP confirmation required; no reservations were created' ).
         APPEND ls_atp_error TO ls_order_result-messages.
         APPEND ls_atp_error TO rs_result-messages.
         ls_order_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
-        rs_result-failed_count = rs_result-failed_count + 1.
-        IF iv_stop_on_failure = abap_true.
-          lv_stop_processing = abap_true.
-          rs_result-stopped_on_failure = abap_true.
+        rs_result-is_successful   = abap_false.
+        rs_result-failed_count    = rs_result-failed_count + 1.
+        IF iv_stop_on_failure     = abap_true.
+          lv_stop_processing                         = abap_true.
+          rs_result-stopped_on_failure               = abap_true.
         ENDIF.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
@@ -3215,18 +3344,18 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF ls_create_result-is_successful <> abap_true.
         mo_reservation_api->rollback( ).
         IF ls_order_result-messages IS INITIAL.
-          DATA(ls_create_error) = VALUE zif_sales_order_api=>ty_message(
+          DATA(ls_create_error)                      = VALUE zif_sales_order_api=>ty_message(
             type    = 'E'
             message = 'Reservation creation failed for sales order' ).
           APPEND ls_create_error TO ls_order_result-messages.
           APPEND ls_create_error TO rs_result-messages.
         ENDIF.
         ls_order_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
-        rs_result-failed_count = rs_result-failed_count + 1.
-        IF iv_stop_on_failure = abap_true.
-          lv_stop_processing = abap_true.
-          rs_result-stopped_on_failure = abap_true.
+        rs_result-is_successful   = abap_false.
+        rs_result-failed_count    = rs_result-failed_count + 1.
+        IF iv_stop_on_failure     = abap_true.
+          lv_stop_processing                         = abap_true.
+          rs_result-stopped_on_failure               = abap_true.
         ENDIF.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
@@ -3238,17 +3367,17 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         iv_test_run     = iv_test_run ).
       IF lv_responses_match <> abap_true.
         mo_reservation_api->rollback( ).
-        DATA(ls_match_error) = VALUE zif_sales_order_api=>ty_message(
+        DATA(ls_match_error)      = VALUE zif_sales_order_api=>ty_message(
           type    = 'E'
           message = 'Reservation API results do not match the requests' ).
         APPEND ls_match_error TO ls_order_result-messages.
         APPEND ls_match_error TO rs_result-messages.
         ls_order_result-is_successful = abap_false.
-        rs_result-is_successful = abap_false.
-        rs_result-failed_count = rs_result-failed_count + 1.
-        IF iv_stop_on_failure = abap_true.
-          lv_stop_processing = abap_true.
-          rs_result-stopped_on_failure = abap_true.
+        rs_result-is_successful   = abap_false.
+        rs_result-failed_count    = rs_result-failed_count + 1.
+        IF iv_stop_on_failure     = abap_true.
+          lv_stop_processing                         = abap_true.
+          rs_result-stopped_on_failure               = abap_true.
         ENDIF.
         APPEND ls_order_result TO rs_result-order_results.
         CONTINUE.
@@ -3258,7 +3387,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ls_order_result-reservations = ls_create_result-reservations.
         ls_order_result-is_successful = abap_true.
       ELSE.
-        DATA(ls_commit_result) = mo_reservation_api->commit( ).
+        DATA(ls_commit_result)    = mo_reservation_api->commit( ).
         IF ls_commit_result-is_successful <> abap_true.
           mo_reservation_api->rollback( ).
           IF ls_commit_result-message-message IS NOT INITIAL.
@@ -3269,18 +3398,18 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
               message = ls_commit_result-message-message )
               TO rs_result-messages.
           ELSE.
-            DATA(ls_commit_error) = VALUE zif_sales_order_api=>ty_message(
+            DATA(ls_commit_error)                    = VALUE zif_sales_order_api=>ty_message(
               type    = 'E'
               message = 'Reservation commit failed for sales order' ).
             APPEND ls_commit_error TO ls_order_result-messages.
             APPEND ls_commit_error TO rs_result-messages.
           ENDIF.
-          ls_order_result-is_successful  = abap_false.
-          rs_result-is_successful   = abap_false.
-          rs_result-failed_count = rs_result-failed_count + 1.
-          IF iv_stop_on_failure = abap_true.
-            lv_stop_processing = abap_true.
-            rs_result-stopped_on_failure = abap_true.
+          ls_order_result-is_successful              = abap_false.
+          rs_result-is_successful                    = abap_false.
+          rs_result-failed_count                     = rs_result-failed_count + 1.
+          IF iv_stop_on_failure                      = abap_true.
+            lv_stop_processing                       = abap_true.
+            rs_result-stopped_on_failure             = abap_true.
           ENDIF.
           APPEND ls_order_result TO rs_result-order_results.
           CONTINUE.
@@ -3288,7 +3417,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ls_order_result-reservations = ls_create_result-reservations.
         ls_order_result-is_successful = abap_true.
         ls_order_result-is_committed = abap_true.
-        rs_result-is_committed = abap_true.
+        rs_result-is_committed    = abap_true.
       ENDIF.
 
       rs_result-successful_count = rs_result-successful_count + 1.
@@ -3315,7 +3444,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
       DATA(lv_request_found) = abap_false.
       LOOP AT lt_unmatched_requests INTO DATA(ls_request)
-        WHERE request_id = ls_reservation-request_id.
+        WHERE request_id          = ls_reservation-request_id.
         IF ls_reservation-quantity <> ls_request-quantity
             OR ( ls_request-required_date IS NOT INITIAL
               AND ls_reservation-required_date <>
@@ -3329,7 +3458,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ENDIF.
 
         DELETE lt_unmatched_requests INDEX sy-tabix.
-        lv_request_found = abap_true.
+        lv_request_found          = abap_true.
         EXIT.
       ENDLOOP.
 
@@ -3524,7 +3653,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         READ TABLE lt_selection_modes INTO DATA(ls_selection_mode_input)
           WITH TABLE KEY item_number =
             ls_batch_selection_input-item_number.
-        IF sy-subrc = 0
+        IF sy-subrc               = 0
             AND ls_selection_mode_input-mode <> lv_batch_selection_mode.
           APPEND VALUE #(
             type    = 'E'
@@ -3568,7 +3697,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         READ TABLE lt_selection_modes INTO ls_selection_mode_input
           WITH TABLE KEY item_number =
             ls_location_selection_input-item_number.
-        IF sy-subrc = 0
+        IF sy-subrc               = 0
             AND ls_selection_mode_input-mode <> lv_location_selection_mode.
           APPEND VALUE #(
             type    = 'E'
@@ -3641,7 +3770,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     LOOP AT lt_item_priority_map INTO ls_item_priority.
       READ TABLE lt_known_priority_keys TRANSPORTING NO FIELDS
         WITH TABLE KEY item_number = ls_item_priority-item_number
-                       schedule_line = ls_item_priority-schedule_line.
+                       schedule_line                 = ls_item_priority-schedule_line.
       IF sy-subrc <> 0.
         APPEND VALUE #(
           type    = 'E'
@@ -3677,7 +3806,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       READ TABLE lt_known_priority_keys TRANSPORTING NO FIELDS
         WITH TABLE KEY item_number =
                          ls_validated_unscheduled_date-item_number
-                       schedule_line = space.
+                       schedule_line                 = space.
       IF sy-subrc <> 0.
         APPEND VALUE #(
           type    = 'E'
@@ -3756,7 +3885,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           AND open_base_quantity > 0.
       READ TABLE lt_unscheduled_dates INTO DATA(ls_item_unscheduled_date)
         WITH TABLE KEY sales_document = iv_sales_document
-                       item_number = <ls_order_item>-item_number.
+                       item_number                   = <ls_order_item>-item_number.
       IF sy-subrc = 0.
         <ls_order_item>-requested_date =
           ls_item_unscheduled_date-required_date.
@@ -3788,13 +3917,13 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
     IF iv_prioritize_by_date = abap_true.
       LOOP AT rs_prepared-order_items INTO DATA(ls_priority_source).
-        lv_source_index = sy-tabix.
+        lv_source_index           = sy-tabix.
         CLEAR lv_item_priority.
         READ TABLE lt_item_priority_map INTO ls_item_priority
-          WITH TABLE KEY item_number = ls_priority_source-item_number
-                         schedule_line = ls_priority_source-schedule_line.
-        IF sy-subrc = 0.
-          lv_item_priority = ls_item_priority-priority.
+          WITH TABLE KEY item_number                 = ls_priority_source-item_number
+                         schedule_line               = ls_priority_source-schedule_line.
+        IF sy-subrc               = 0.
+          lv_item_priority                           = ls_item_priority-priority.
         ENDIF.
         APPEND VALUE #(
           missing_date   = COND abap_bool(
@@ -3812,7 +3941,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         READ TABLE rs_prepared-order_items
           INDEX ls_date_priority-source_index
           INTO DATA(ls_prioritized_order_item).
-        IF sy-subrc = 0.
+        IF sy-subrc               = 0.
           APPEND ls_prioritized_order_item TO lt_prioritized_order_items.
         ENDIF.
       ENDLOOP.
@@ -3927,14 +4056,14 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       READ TABLE lt_allocation_requirements
         INTO ls_item_allocation_requirement
         WITH TABLE KEY sales_document = iv_sales_document
-                       item_number = ls_order_item-item_number
-                       schedule_line = ls_order_item-schedule_line.
+                       item_number                   = ls_order_item-item_number
+                       schedule_line                 = ls_order_item-schedule_line.
       IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
         READ TABLE lt_allocation_requirements
           INTO ls_item_allocation_requirement
-          WITH TABLE KEY sales_document = iv_sales_document
-                         item_number = ls_order_item-item_number
-                         schedule_line = space.
+          WITH TABLE KEY sales_document              = iv_sales_document
+                         item_number                 = ls_order_item-item_number
+                         schedule_line               = space.
       ENDIF.
       IF sy-subrc = 0.
         lv_require_full_quantity =
@@ -3945,12 +4074,12 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF it_batch_selections IS SUPPLIED
           AND iv_use_fefo_batches <> abap_true.
         READ TABLE it_batch_selections INTO ls_batch_selection
-          WITH KEY item_number   = ls_order_item-item_number
-                   schedule_line = ls_order_item-schedule_line.
+          WITH KEY item_number                       = ls_order_item-item_number
+                   schedule_line                     = ls_order_item-schedule_line.
         IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
           READ TABLE it_batch_selections INTO ls_batch_selection
-            WITH KEY item_number   = ls_order_item-item_number
-                     schedule_line = space.
+            WITH KEY item_number                     = ls_order_item-item_number
+                     schedule_line                   = space.
         ENDIF.
         IF sy-subrc <> 0.
           APPEND VALUE #(
@@ -3979,14 +4108,14 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ELSEIF iv_use_fefo_batches = abap_true.
         CLEAR lv_demand_minimum_shelf_life.
         READ TABLE lt_fefo_minimum_map INTO ls_fefo_minimum
-          WITH TABLE KEY item_number = ls_order_item-item_number
-                         schedule_line = ls_order_item-schedule_line.
+          WITH TABLE KEY item_number                 = ls_order_item-item_number
+                         schedule_line               = ls_order_item-schedule_line.
         IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
           READ TABLE lt_fefo_minimum_map INTO ls_fefo_minimum
-            WITH TABLE KEY item_number = ls_order_item-item_number
-                           schedule_line = space.
+            WITH TABLE KEY item_number               = ls_order_item-item_number
+                           schedule_line             = space.
         ENDIF.
-        IF sy-subrc = 0.
+        IF sy-subrc               = 0.
           lv_demand_minimum_shelf_life =
             ls_fefo_minimum-minimum_shelf_life_days.
         ENDIF.
@@ -3996,17 +4125,17 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         IF it_batch_selections IS SUPPLIED.
           CLEAR ls_batch_selection.
           READ TABLE it_batch_selections INTO ls_batch_selection
-            WITH KEY item_number   = ls_order_item-item_number
-                     schedule_line = ls_order_item-schedule_line.
+            WITH KEY item_number                     = ls_order_item-item_number
+                     schedule_line                   = ls_order_item-schedule_line.
           IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
             READ TABLE it_batch_selections INTO ls_batch_selection
-              WITH KEY item_number   = ls_order_item-item_number
-                       schedule_line = space.
+              WITH KEY item_number                   = ls_order_item-item_number
+                       schedule_line                 = space.
           ENDIF.
-          IF sy-subrc = 0.
-            lv_fefo_batch = ls_batch_selection-batch.
-            lv_fefo_location = ls_batch_selection-storage_location.
-            lv_fefo_fallback = ls_batch_selection-allow_fallback.
+          IF sy-subrc                                = 0.
+            lv_fefo_batch                            = ls_batch_selection-batch.
+            lv_fefo_location                         = ls_batch_selection-storage_location.
+            lv_fefo_fallback                         = ls_batch_selection-allow_fallback.
             IF ls_batch_selection-minimum_shelf_life_days >
                 lv_demand_minimum_shelf_life.
               lv_demand_minimum_shelf_life =
@@ -4015,12 +4144,12 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           ENDIF.
         ELSEIF it_location_selections IS SUPPLIED.
           READ TABLE it_location_selections INTO ls_location_selection
-            WITH KEY item_number   = ls_order_item-item_number
-                     schedule_line = ls_order_item-schedule_line.
+            WITH KEY item_number                     = ls_order_item-item_number
+                     schedule_line                   = ls_order_item-schedule_line.
           IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
             READ TABLE it_location_selections INTO ls_location_selection
-              WITH KEY item_number   = ls_order_item-item_number
-                       schedule_line = space.
+              WITH KEY item_number                   = ls_order_item-item_number
+                       schedule_line                 = space.
           ENDIF.
           IF sy-subrc <> 0.
             APPEND VALUE #(
@@ -4029,8 +4158,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
               TO rs_prepared-messages.
             RETURN.
           ENDIF.
-          lv_fefo_location = ls_location_selection-storage_location.
-          lv_fefo_fallback = ls_location_selection-allow_fallback.
+          lv_fefo_location                           = ls_location_selection-storage_location.
+          lv_fefo_fallback                           = ls_location_selection-allow_fallback.
         ENDIF.
         APPEND VALUE #(
           request_id                  = lv_request_id
@@ -4043,18 +4172,18 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           require_full_quantity       = lv_require_full_quantity
           minimum_coverage_pct        = lv_minimum_coverage_pct
           fefo_as_of_date             = COND #(
-            WHEN iv_use_required_date_for_fefo = abap_true
+            WHEN iv_use_required_date_for_fefo       = abap_true
             THEN ls_order_item-requested_date )
           minimum_shelf_life_days     = lv_demand_minimum_shelf_life )
           TO lt_fefo_demands.
       ELSEIF it_location_selections IS SUPPLIED.
         READ TABLE it_location_selections INTO ls_location_selection
-          WITH KEY item_number   = ls_order_item-item_number
-                   schedule_line = ls_order_item-schedule_line.
+          WITH KEY item_number                       = ls_order_item-item_number
+                   schedule_line                     = ls_order_item-schedule_line.
         IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
           READ TABLE it_location_selections INTO ls_location_selection
-            WITH KEY item_number   = ls_order_item-item_number
-                     schedule_line = space.
+            WITH KEY item_number                     = ls_order_item-item_number
+                     schedule_line                   = space.
         ENDIF.
         IF sy-subrc <> 0.
           APPEND VALUE #(
@@ -4088,11 +4217,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     LOOP AT lt_fefo_minimum_map INTO ls_fefo_minimum.
       IF ls_fefo_minimum-schedule_line IS INITIAL.
         READ TABLE lt_open_selection_items TRANSPORTING NO FIELDS
-          WITH TABLE KEY item_number = ls_fefo_minimum-item_number.
+          WITH TABLE KEY item_number                 = ls_fefo_minimum-item_number.
       ELSE.
         READ TABLE lt_open_selection_keys TRANSPORTING NO FIELDS
-          WITH TABLE KEY item_number = ls_fefo_minimum-item_number
-                         schedule_line = ls_fefo_minimum-schedule_line.
+          WITH TABLE KEY item_number                 = ls_fefo_minimum-item_number
+                         schedule_line               = ls_fefo_minimum-schedule_line.
       ENDIF.
       IF sy-subrc <> 0.
         APPEND VALUE #(
@@ -4108,11 +4237,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       LOOP AT it_batch_selections INTO ls_batch_selection.
         IF ls_batch_selection-schedule_line IS INITIAL.
           READ TABLE lt_open_selection_items TRANSPORTING NO FIELDS
-            WITH TABLE KEY item_number = ls_batch_selection-item_number.
+            WITH TABLE KEY item_number               = ls_batch_selection-item_number.
         ELSE.
           READ TABLE lt_open_selection_keys TRANSPORTING NO FIELDS
-            WITH TABLE KEY item_number = ls_batch_selection-item_number
-                           schedule_line = ls_batch_selection-schedule_line.
+            WITH TABLE KEY item_number               = ls_batch_selection-item_number
+                           schedule_line             = ls_batch_selection-schedule_line.
         ENDIF.
         IF sy-subrc <> 0.
           APPEND VALUE #(
@@ -4134,11 +4263,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         LOOP AT it_location_selections INTO ls_location_selection.
           IF ls_location_selection-schedule_line IS INITIAL.
             READ TABLE lt_open_selection_items TRANSPORTING NO FIELDS
-              WITH TABLE KEY item_number = ls_location_selection-item_number.
+              WITH TABLE KEY item_number             = ls_location_selection-item_number.
           ELSE.
             READ TABLE lt_open_selection_keys TRANSPORTING NO FIELDS
-              WITH TABLE KEY item_number = ls_location_selection-item_number
-                             schedule_line = ls_location_selection-schedule_line.
+              WITH TABLE KEY item_number             = ls_location_selection-item_number
+                             schedule_line           = ls_location_selection-schedule_line.
           ENDIF.
           IF sy-subrc <> 0.
             APPEND VALUE #(
@@ -4163,11 +4292,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         LOOP AT it_location_selections INTO ls_location_selection.
           IF ls_location_selection-schedule_line IS INITIAL.
             READ TABLE lt_open_selection_items TRANSPORTING NO FIELDS
-              WITH TABLE KEY item_number = ls_location_selection-item_number.
+              WITH TABLE KEY item_number             = ls_location_selection-item_number.
           ELSE.
             READ TABLE lt_open_selection_keys TRANSPORTING NO FIELDS
-              WITH TABLE KEY item_number = ls_location_selection-item_number
-                             schedule_line = ls_location_selection-schedule_line.
+              WITH TABLE KEY item_number             = ls_location_selection-item_number
+                             schedule_line           = ls_location_selection-schedule_line.
           ENDIF.
           IF sy-subrc <> 0.
             APPEND VALUE #(
@@ -4188,6 +4317,11 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       rs_prepared-storage_allocations =
         ls_location_result-storage_allocations.
     ENDIF.
+    LOOP AT rs_prepared-allocations ASSIGNING FIELD-SYMBOL(<ls_allocation>).
+      IF <ls_allocation>-allocation_sequence <= 0.
+        <ls_allocation>-allocation_sequence = sy-tabix.
+      ENDIF.
+    ENDLOOP.
     rs_prepared-sales_unit_allocations = build_sales_unit_allocations(
       iv_sales_document          = iv_sales_document
       it_order_items             = rs_prepared-order_items
@@ -4218,15 +4352,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         AND remaining_quantity > 0.
       lv_remaining_quantity = <ls_reservation>-remaining_quantity.
       LOOP AT ct_order_items ASSIGNING <ls_order_item>
-        WHERE item_number = <ls_reservation>-item_number
-          AND material = <ls_reservation>-material
-          AND plant = <ls_reservation>-plant
-          AND schedule_line = <ls_reservation>-schedule_line.
+        WHERE item_number         = <ls_reservation>-item_number
+          AND material                               = <ls_reservation>-material
+          AND plant                                  = <ls_reservation>-plant
+          AND schedule_line                          = <ls_reservation>-schedule_line.
         IF <ls_order_item>-open_base_quantity <= 0.
           CONTINUE.
         ENDIF.
         IF lv_remaining_quantity >= <ls_order_item>-open_base_quantity.
-          lv_remaining_quantity = lv_remaining_quantity
+          lv_remaining_quantity                      = lv_remaining_quantity
             - <ls_order_item>-open_base_quantity.
           CLEAR <ls_order_item>-open_base_quantity.
         ELSE.
@@ -4243,15 +4377,15 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         AND remaining_quantity > 0.
       lv_remaining_quantity = <ls_reservation>-remaining_quantity.
       LOOP AT ct_order_items ASSIGNING <ls_order_item>
-        WHERE item_number = <ls_reservation>-item_number
-          AND material = <ls_reservation>-material
-          AND plant = <ls_reservation>-plant
-          AND requested_date = <ls_reservation>-requirement_date.
+        WHERE item_number         = <ls_reservation>-item_number
+          AND material                               = <ls_reservation>-material
+          AND plant                                  = <ls_reservation>-plant
+          AND requested_date                         = <ls_reservation>-requirement_date.
         IF <ls_order_item>-open_base_quantity <= 0.
           CONTINUE.
         ENDIF.
         IF lv_remaining_quantity >= <ls_order_item>-open_base_quantity.
-          lv_remaining_quantity = lv_remaining_quantity
+          lv_remaining_quantity                      = lv_remaining_quantity
             - <ls_order_item>-open_base_quantity.
           CLEAR <ls_order_item>-open_base_quantity.
         ELSE.
@@ -4267,14 +4401,14 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       WHERE remaining_quantity > 0.
       lv_remaining_quantity = <ls_reservation>-remaining_quantity.
       LOOP AT ct_order_items ASSIGNING <ls_order_item>
-        WHERE item_number = <ls_reservation>-item_number
-          AND material = <ls_reservation>-material
-          AND plant = <ls_reservation>-plant.
+        WHERE item_number         = <ls_reservation>-item_number
+          AND material                               = <ls_reservation>-material
+          AND plant                                  = <ls_reservation>-plant.
         IF <ls_order_item>-open_base_quantity <= 0.
           CONTINUE.
         ENDIF.
         IF lv_remaining_quantity >= <ls_order_item>-open_base_quantity.
-          lv_remaining_quantity = lv_remaining_quantity
+          lv_remaining_quantity                      = lv_remaining_quantity
             - <ls_order_item>-open_base_quantity.
           CLEAR <ls_order_item>-open_base_quantity.
         ELSE.
@@ -4308,8 +4442,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             ls_order_item-schedule_line
             INTO lv_request_id SEPARATED BY '/'.
         ENDIF.
-        IF lv_request_id = ls_allocation-request_id.
-          lv_item_found = abap_true.
+        IF lv_request_id          = ls_allocation-request_id.
+          lv_item_found                              = abap_true.
           EXIT.
         ENDIF.
       ENDLOOP.
@@ -4321,24 +4455,24 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
 
       CLEAR lv_priority.
       READ TABLE it_item_priorities INTO DATA(ls_item_priority)
-        WITH KEY item_number = ls_order_item-item_number
-                 schedule_line = ls_order_item-schedule_line.
+        WITH KEY item_number      = ls_order_item-item_number
+                 schedule_line                       = ls_order_item-schedule_line.
       IF sy-subrc = 0.
-        lv_priority = ls_item_priority-priority.
+        lv_priority               = ls_item_priority-priority.
       ENDIF.
 
       CLEAR lv_require_atp_confirmation.
       READ TABLE it_allocation_requirements
         INTO DATA(ls_allocation_requirement)
-        WITH KEY sales_document = iv_sales_document
-                 item_number = ls_order_item-item_number
-                 schedule_line = ls_order_item-schedule_line.
+        WITH KEY sales_document   = iv_sales_document
+                 item_number                         = ls_order_item-item_number
+                 schedule_line                       = ls_order_item-schedule_line.
       IF sy-subrc <> 0 AND ls_order_item-schedule_line IS NOT INITIAL.
         READ TABLE it_allocation_requirements
           INTO ls_allocation_requirement
-          WITH KEY sales_document = iv_sales_document
-                   item_number = ls_order_item-item_number
-                   schedule_line = space.
+          WITH KEY sales_document                    = iv_sales_document
+                   item_number                       = ls_order_item-item_number
+                   schedule_line                     = space.
       ENDIF.
       IF sy-subrc = 0.
         lv_require_atp_confirmation =
@@ -4346,52 +4480,55 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       ENDIF.
 
       IF ls_order_item-entry_unit = ls_order_item-base_unit.
-        lv_numerator = 1.
-        lv_denominator = 1.
+        lv_numerator              = 1.
+        lv_denominator            = 1.
       ELSE.
-        lv_numerator = ls_order_item-sales_unit_numerator.
-        lv_denominator = ls_order_item-sales_unit_denominator.
+        lv_numerator              = ls_order_item-sales_unit_numerator.
+        lv_denominator            = ls_order_item-sales_unit_denominator.
         IF lv_numerator <= 0 OR lv_denominator <= 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
       ENDIF.
 
       APPEND VALUE #(
-        request_id               = ls_allocation-request_id
-        sales_document           = iv_sales_document
-        item_number              = ls_order_item-item_number
-        schedule_line            = ls_order_item-schedule_line
-        material                 = ls_order_item-material
-        plant                    = ls_order_item-plant
-        required_date            = ls_order_item-requested_date
-        priority                 = lv_priority
-        require_full_quantity    = ls_allocation-require_full_quantity
-        minimum_coverage_pct     = ls_allocation-minimum_coverage_pct
-        allocation_outcome       = ls_allocation-allocation_outcome
-        allocation_coverage_pct  = ls_allocation-allocation_coverage_pct
-        require_atp_confirmation = lv_require_atp_confirmation
-        sales_unit               = ls_order_item-entry_unit
-        base_unit                = ls_order_item-base_unit
-        requested_quantity       = convert_base_to_sales_unit(
+        request_id                = ls_allocation-request_id
+        sales_document            = iv_sales_document
+        item_number               = ls_order_item-item_number
+        schedule_line             = ls_order_item-schedule_line
+        material                  = ls_order_item-material
+        plant                     = ls_order_item-plant
+        required_date             = ls_order_item-requested_date
+        priority                  = lv_priority
+        allocation_sequence       = ls_allocation-allocation_sequence
+        allocation_sequence_scope = c_sequence_scope_single_order
+        require_full_quantity     = ls_allocation-require_full_quantity
+        minimum_coverage_pct      = ls_allocation-minimum_coverage_pct
+        minimum_coverage_rejected = ls_allocation-minimum_coverage_rejected
+        allocation_outcome        = ls_allocation-allocation_outcome
+        allocation_coverage_pct   = ls_allocation-allocation_coverage_pct
+        require_atp_confirmation  = lv_require_atp_confirmation
+        sales_unit                = ls_order_item-entry_unit
+        base_unit                 = ls_order_item-base_unit
+        requested_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-requested_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        requested_base_quantity  = ls_allocation-requested_quantity
-        available_quantity       = convert_base_to_sales_unit(
+        requested_base_quantity   = ls_allocation-requested_quantity
+        available_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-available_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        available_base_quantity  = ls_allocation-available_quantity
-        allocated_quantity       = convert_base_to_sales_unit(
+        available_base_quantity   = ls_allocation-available_quantity
+        allocated_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-allocated_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        allocated_base_quantity  = ls_allocation-allocated_quantity
-        shortfall_quantity       = convert_base_to_sales_unit(
+        allocated_base_quantity   = ls_allocation-allocated_quantity
+        shortfall_quantity        = convert_base_to_sales_unit(
           iv_base_quantity = ls_allocation-shortfall_quantity
           iv_numerator     = lv_numerator
           iv_denominator   = lv_denominator )
-        shortfall_base_quantity  = ls_allocation-shortfall_quantity )
+        shortfall_base_quantity   = ls_allocation-shortfall_quantity )
         TO rt_allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -4402,12 +4539,25 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_summary> TYPE ty_order_summary.
 
     LOOP AT it_allocations INTO DATA(ls_allocation).
+      IF ls_allocation-allocation_sequence <= 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_allocation-allocation_sequence_scope <>
+           c_sequence_scope_single_order
+          AND ls_allocation-allocation_sequence_scope <>
+            c_sequence_scope_multi_order.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       READ TABLE lt_summary_map ASSIGNING <ls_summary>
         WITH TABLE KEY sales_document = ls_allocation-sales_document
                        material = ls_allocation-material
                        plant = ls_allocation-plant
                        base_unit = ls_allocation-base_unit.
       IF sy-subrc = 0.
+        IF <ls_summary>-allocation_sequence_scope <>
+            ls_allocation-allocation_sequence_scope.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
         <ls_summary>-demand_line_count =
           <ls_summary>-demand_line_count + 1.
         <ls_summary>-requested_base_quantity = sum_stock_quantities(
@@ -4419,16 +4569,75 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         <ls_summary>-shortfall_base_quantity = sum_stock_quantities(
           iv_left_quantity  = <ls_summary>-shortfall_base_quantity
           iv_right_quantity = ls_allocation-shortfall_base_quantity ).
+        CASE ls_allocation-allocation_outcome.
+          WHEN zif_stock_repository=>c_allocation_outcome_full.
+            ADD 1 TO <ls_summary>-fully_allocated_line_count.
+          WHEN zif_stock_repository=>c_allocation_outcome_partial.
+            ADD 1 TO <ls_summary>-partially_allocated_line_count.
+          WHEN zif_stock_repository=>c_allocation_outcome_none.
+            ADD 1 TO <ls_summary>-unallocated_line_count.
+        ENDCASE.
+        IF ls_allocation-minimum_coverage_rejected = abap_true.
+          ADD 1 TO <ls_summary>-floor_rejected_line_count.
+        ENDIF.
+        IF ls_allocation-required_date IS NOT INITIAL.
+          ADD 1 TO <ls_summary>-dated_line_count.
+          IF <ls_summary>-first_required_date IS INITIAL
+              OR ls_allocation-required_date <
+                <ls_summary>-first_required_date.
+            <ls_summary>-first_required_date =
+              ls_allocation-required_date.
+          ENDIF.
+          IF <ls_summary>-last_required_date IS INITIAL
+              OR ls_allocation-required_date >
+                <ls_summary>-last_required_date.
+            <ls_summary>-last_required_date =
+              ls_allocation-required_date.
+          ENDIF.
+        ENDIF.
+        IF ls_allocation-allocation_sequence <
+            <ls_summary>-first_allocation_sequence.
+          <ls_summary>-first_allocation_sequence =
+            ls_allocation-allocation_sequence.
+        ENDIF.
+        IF ls_allocation-allocation_sequence >
+            <ls_summary>-last_allocation_sequence.
+          <ls_summary>-last_allocation_sequence =
+            ls_allocation-allocation_sequence.
+        ENDIF.
       ELSE.
         INSERT VALUE #(
-          sales_document          = ls_allocation-sales_document
-          material                = ls_allocation-material
-          plant                   = ls_allocation-plant
-          base_unit               = ls_allocation-base_unit
-          demand_line_count       = 1
-          requested_base_quantity = ls_allocation-requested_base_quantity
-          allocated_base_quantity = ls_allocation-allocated_base_quantity
-          shortfall_base_quantity = ls_allocation-shortfall_base_quantity )
+          sales_document                 = ls_allocation-sales_document
+          material                       = ls_allocation-material
+          plant                          = ls_allocation-plant
+          base_unit                      = ls_allocation-base_unit
+          demand_line_count              = 1
+          dated_line_count               = COND i(
+            WHEN ls_allocation-required_date IS NOT INITIAL
+            THEN 1 ELSE 0 )
+          requested_base_quantity        = ls_allocation-requested_base_quantity
+          allocated_base_quantity        = ls_allocation-allocated_base_quantity
+          shortfall_base_quantity        = ls_allocation-shortfall_base_quantity
+          first_required_date            = ls_allocation-required_date
+          last_required_date             = ls_allocation-required_date
+          first_allocation_sequence      = ls_allocation-allocation_sequence
+          last_allocation_sequence       = ls_allocation-allocation_sequence
+          allocation_sequence_scope      = ls_allocation-allocation_sequence_scope
+          fully_allocated_line_count     = COND i(
+            WHEN ls_allocation-allocation_outcome =
+              zif_stock_repository=>c_allocation_outcome_full
+            THEN 1 ELSE 0 )
+          partially_allocated_line_count = COND i(
+            WHEN ls_allocation-allocation_outcome =
+              zif_stock_repository=>c_allocation_outcome_partial
+            THEN 1 ELSE 0 )
+          unallocated_line_count         = COND i(
+            WHEN ls_allocation-allocation_outcome =
+              zif_stock_repository=>c_allocation_outcome_none
+            THEN 1 ELSE 0 )
+          floor_rejected_line_count      = COND i(
+            WHEN ls_allocation-minimum_coverage_rejected = abap_true
+            THEN 1 ELSE 0 ) )
           INTO TABLE lt_summary_map.
       ENDIF.
     ENDLOOP.
@@ -4440,10 +4649,398 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF lv_covered_quantity <> ls_summary-requested_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      DATA(lv_outcome_line_count) =
+        ls_summary-fully_allocated_line_count
+        + ls_summary-partially_allocated_line_count
+        + ls_summary-unallocated_line_count.
+      IF lv_outcome_line_count <> ls_summary-demand_line_count
+          OR ls_summary-floor_rejected_line_count < 0
+          OR ls_summary-floor_rejected_line_count >
+            ls_summary-demand_line_count.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-dated_line_count < 0
+          OR ls_summary-dated_line_count > ls_summary-demand_line_count
+          OR ( ls_summary-dated_line_count = 0
+            AND ( ls_summary-first_required_date IS NOT INITIAL
+              OR ls_summary-last_required_date IS NOT INITIAL ) )
+          OR ( ls_summary-dated_line_count > 0
+            AND ( ls_summary-first_required_date IS INITIAL
+              OR ls_summary-last_required_date IS INITIAL ) )
+          OR ls_summary-first_required_date >
+            ls_summary-last_required_date.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-first_allocation_sequence <= 0
+          OR ls_summary-last_allocation_sequence <= 0
+          OR ( ls_summary-allocation_sequence_scope <>
+            c_sequence_scope_single_order
+            AND ls_summary-allocation_sequence_scope <>
+              c_sequence_scope_multi_order )
+          OR ls_summary-first_allocation_sequence >
+            ls_summary-last_allocation_sequence.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-allocated_base_quantity =
+         ls_summary-requested_base_quantity.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_full.
+      ELSEIF ls_summary-allocated_base_quantity > 0.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_partial.
+      ELSE.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_none.
+      ENDIF.
+      ls_summary-fully_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-fully_allocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-partially_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-partially_allocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-unallocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-unallocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-floor_rejected_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-floor_rejected_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      IF ls_summary-requested_base_quantity > 0.
+        ls_summary-allocation_coverage_pct =
+          CONV zcl_stock_service=>ty_allocation_coverage_pct(
+            CONV decfloat34( ls_summary-allocated_base_quantity )
+            * CONV decfloat34( 100 )
+            / CONV decfloat34( ls_summary-requested_base_quantity ) ).
+      ENDIF.
       APPEND ls_summary TO rt_summaries.
     ENDLOOP.
 
     SORT rt_summaries BY sales_document material plant base_unit.
+  ENDMETHOD.
+
+  METHOD summarize_sales_documents.
+    DATA lt_summary_map TYPE HASHED TABLE OF ty_sales_document_summary
+      WITH UNIQUE KEY sales_document.
+    FIELD-SYMBOLS <ls_summary> TYPE ty_sales_document_summary.
+
+    LOOP AT it_allocations INTO DATA(ls_allocation).
+      IF ls_allocation-allocation_sequence <= 0
+          OR ( ls_allocation-allocation_sequence_scope <>
+            c_sequence_scope_single_order
+            AND ls_allocation-allocation_sequence_scope <>
+              c_sequence_scope_multi_order ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_summary_map ASSIGNING <ls_summary>
+        WITH TABLE KEY sales_document = ls_allocation-sales_document.
+      IF sy-subrc <> 0.
+        INSERT VALUE #(
+          sales_document            = ls_allocation-sales_document
+          allocation_sequence_scope = ls_allocation-allocation_sequence_scope )
+          INTO TABLE lt_summary_map.
+        READ TABLE lt_summary_map ASSIGNING <ls_summary>
+          WITH TABLE KEY sales_document = ls_allocation-sales_document.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF <ls_summary>-allocation_sequence_scope <>
+          ls_allocation-allocation_sequence_scope.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      ADD 1 TO <ls_summary>-demand_line_count.
+      CASE ls_allocation-allocation_outcome.
+        WHEN zif_stock_repository=>c_allocation_outcome_full.
+          ADD 1 TO <ls_summary>-fully_allocated_line_count.
+        WHEN zif_stock_repository=>c_allocation_outcome_partial.
+          ADD 1 TO <ls_summary>-partially_allocated_line_count.
+        WHEN zif_stock_repository=>c_allocation_outcome_none.
+          ADD 1 TO <ls_summary>-unallocated_line_count.
+        WHEN OTHERS.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDCASE.
+      IF ls_allocation-minimum_coverage_rejected = abap_true.
+        ADD 1 TO <ls_summary>-floor_rejected_line_count.
+      ELSEIF ls_allocation-minimum_coverage_rejected <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_allocation-required_date IS NOT INITIAL.
+        ADD 1 TO <ls_summary>-dated_line_count.
+        IF <ls_summary>-first_required_date IS INITIAL
+            OR ls_allocation-required_date <
+              <ls_summary>-first_required_date.
+          <ls_summary>-first_required_date =
+            ls_allocation-required_date.
+        ENDIF.
+        IF <ls_summary>-last_required_date IS INITIAL
+            OR ls_allocation-required_date >
+              <ls_summary>-last_required_date.
+          <ls_summary>-last_required_date =
+            ls_allocation-required_date.
+        ENDIF.
+      ENDIF.
+      IF <ls_summary>-first_allocation_sequence = 0
+          OR ls_allocation-allocation_sequence <
+            <ls_summary>-first_allocation_sequence.
+        <ls_summary>-first_allocation_sequence =
+          ls_allocation-allocation_sequence.
+      ENDIF.
+      IF ls_allocation-allocation_sequence >
+          <ls_summary>-last_allocation_sequence.
+        <ls_summary>-last_allocation_sequence =
+          ls_allocation-allocation_sequence.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_summary_map ASSIGNING <ls_summary>.
+      DATA(lv_allocated_line_count) =
+        <ls_summary>-fully_allocated_line_count
+        + <ls_summary>-partially_allocated_line_count.
+      DATA(lv_outcome_line_count) = lv_allocated_line_count
+        + <ls_summary>-unallocated_line_count.
+      IF lv_outcome_line_count <> <ls_summary>-demand_line_count.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF <ls_summary>-demand_line_count <= 0
+          OR <ls_summary>-floor_rejected_line_count < 0
+          OR <ls_summary>-floor_rejected_line_count >
+            <ls_summary>-demand_line_count.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF <ls_summary>-dated_line_count < 0
+          OR <ls_summary>-dated_line_count >
+            <ls_summary>-demand_line_count
+          OR ( <ls_summary>-dated_line_count = 0
+            AND ( <ls_summary>-first_required_date IS NOT INITIAL
+              OR <ls_summary>-last_required_date IS NOT INITIAL ) )
+          OR ( <ls_summary>-dated_line_count > 0
+            AND ( <ls_summary>-first_required_date IS INITIAL
+              OR <ls_summary>-last_required_date IS INITIAL ) )
+          OR <ls_summary>-first_required_date >
+            <ls_summary>-last_required_date
+          OR <ls_summary>-first_allocation_sequence <= 0
+          OR <ls_summary>-last_allocation_sequence <= 0
+          OR <ls_summary>-first_allocation_sequence >
+            <ls_summary>-last_allocation_sequence.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF <ls_summary>-fully_allocated_line_count =
+         <ls_summary>-demand_line_count.
+        <ls_summary>-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_full.
+      ELSEIF lv_allocated_line_count = 0.
+        <ls_summary>-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_none.
+      ELSE.
+        <ls_summary>-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_partial.
+      ENDIF.
+      <ls_summary>-fully_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = <ls_summary>-fully_allocated_line_count
+        iv_demand_line_count = <ls_summary>-demand_line_count ).
+      <ls_summary>-partially_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = <ls_summary>-partially_allocated_line_count
+        iv_demand_line_count = <ls_summary>-demand_line_count ).
+      <ls_summary>-unallocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = <ls_summary>-unallocated_line_count
+        iv_demand_line_count = <ls_summary>-demand_line_count ).
+      <ls_summary>-floor_rejected_line_pct = calculate_line_share_pct(
+        iv_line_count        = <ls_summary>-floor_rejected_line_count
+        iv_demand_line_count = <ls_summary>-demand_line_count ).
+      APPEND <ls_summary> TO rt_summaries.
+    ENDLOOP.
+
+    SORT rt_summaries BY sales_document.
+  ENDMETHOD.
+
+  METHOD summarize_material_allocations.
+    DATA lt_summary_map TYPE HASHED TABLE OF ty_material_summary
+      WITH UNIQUE KEY material plant base_unit.
+    FIELD-SYMBOLS <ls_summary> TYPE ty_material_summary.
+
+    LOOP AT it_summaries INTO DATA(ls_order_summary).
+      IF ls_order_summary-dated_line_count < 0
+          OR ls_order_summary-dated_line_count >
+            ls_order_summary-demand_line_count
+          OR ( ls_order_summary-dated_line_count = 0
+            AND ( ls_order_summary-first_required_date IS NOT INITIAL
+              OR ls_order_summary-last_required_date IS NOT INITIAL ) )
+          OR ( ls_order_summary-dated_line_count > 0
+            AND ( ls_order_summary-first_required_date IS INITIAL
+              OR ls_order_summary-last_required_date IS INITIAL ) )
+          OR ls_order_summary-first_required_date >
+            ls_order_summary-last_required_date
+          OR ls_order_summary-first_allocation_sequence <= 0
+          OR ls_order_summary-last_allocation_sequence <= 0
+          OR ls_order_summary-allocation_sequence_scope <>
+            c_sequence_scope_multi_order.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      READ TABLE lt_summary_map ASSIGNING <ls_summary>
+        WITH TABLE KEY material = ls_order_summary-material
+                       plant = ls_order_summary-plant
+                       base_unit = ls_order_summary-base_unit.
+      IF sy-subrc = 0.
+        IF <ls_summary>-allocation_sequence_scope <>
+            ls_order_summary-allocation_sequence_scope.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        ADD 1 TO <ls_summary>-sales_document_count.
+        <ls_summary>-demand_line_count =
+          <ls_summary>-demand_line_count
+          + ls_order_summary-demand_line_count.
+        <ls_summary>-dated_line_count =
+          <ls_summary>-dated_line_count
+          + ls_order_summary-dated_line_count.
+        <ls_summary>-requested_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_summary>-requested_base_quantity
+          iv_right_quantity = ls_order_summary-requested_base_quantity ).
+        <ls_summary>-allocated_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_summary>-allocated_base_quantity
+          iv_right_quantity = ls_order_summary-allocated_base_quantity ).
+        <ls_summary>-shortfall_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_summary>-shortfall_base_quantity
+          iv_right_quantity = ls_order_summary-shortfall_base_quantity ).
+        <ls_summary>-fully_allocated_line_count =
+          <ls_summary>-fully_allocated_line_count
+          + ls_order_summary-fully_allocated_line_count.
+        <ls_summary>-partially_allocated_line_count =
+          <ls_summary>-partially_allocated_line_count
+          + ls_order_summary-partially_allocated_line_count.
+        <ls_summary>-unallocated_line_count =
+          <ls_summary>-unallocated_line_count
+          + ls_order_summary-unallocated_line_count.
+        <ls_summary>-floor_rejected_line_count =
+          <ls_summary>-floor_rejected_line_count
+          + ls_order_summary-floor_rejected_line_count.
+        IF ls_order_summary-first_required_date IS NOT INITIAL.
+          IF <ls_summary>-first_required_date IS INITIAL
+              OR ls_order_summary-first_required_date <
+                <ls_summary>-first_required_date.
+            <ls_summary>-first_required_date =
+              ls_order_summary-first_required_date.
+          ENDIF.
+          IF <ls_summary>-last_required_date IS INITIAL
+              OR ls_order_summary-last_required_date >
+                <ls_summary>-last_required_date.
+            <ls_summary>-last_required_date =
+              ls_order_summary-last_required_date.
+          ENDIF.
+        ENDIF.
+        IF ls_order_summary-first_allocation_sequence <= 0
+            OR ls_order_summary-last_allocation_sequence <= 0
+            OR ls_order_summary-first_allocation_sequence >
+              ls_order_summary-last_allocation_sequence.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF <ls_summary>-first_allocation_sequence = 0
+            OR ls_order_summary-first_allocation_sequence <
+              <ls_summary>-first_allocation_sequence.
+          <ls_summary>-first_allocation_sequence =
+            ls_order_summary-first_allocation_sequence.
+        ENDIF.
+        IF ls_order_summary-last_allocation_sequence >
+            <ls_summary>-last_allocation_sequence.
+          <ls_summary>-last_allocation_sequence =
+            ls_order_summary-last_allocation_sequence.
+        ENDIF.
+      ELSE.
+        INSERT VALUE #(
+          material                       = ls_order_summary-material
+          plant                          = ls_order_summary-plant
+          base_unit                      = ls_order_summary-base_unit
+          sales_document_count           = 1
+          demand_line_count              = ls_order_summary-demand_line_count
+          dated_line_count               = ls_order_summary-dated_line_count
+          first_required_date            = ls_order_summary-first_required_date
+          last_required_date             = ls_order_summary-last_required_date
+          first_allocation_sequence      = ls_order_summary-first_allocation_sequence
+          last_allocation_sequence       = ls_order_summary-last_allocation_sequence
+          allocation_sequence_scope      = ls_order_summary-allocation_sequence_scope
+          requested_base_quantity        = ls_order_summary-requested_base_quantity
+          allocated_base_quantity        = ls_order_summary-allocated_base_quantity
+          shortfall_base_quantity        = ls_order_summary-shortfall_base_quantity
+          fully_allocated_line_count     = ls_order_summary-fully_allocated_line_count
+          partially_allocated_line_count = ls_order_summary-partially_allocated_line_count
+          unallocated_line_count         = ls_order_summary-unallocated_line_count
+          floor_rejected_line_count      = ls_order_summary-floor_rejected_line_count )
+          INTO TABLE lt_summary_map.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_summary_map INTO DATA(ls_summary).
+      DATA(lv_covered_quantity) = sum_stock_quantities(
+        iv_left_quantity  = ls_summary-allocated_base_quantity
+        iv_right_quantity = ls_summary-shortfall_base_quantity ).
+      IF lv_covered_quantity <> ls_summary-requested_base_quantity.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      DATA(lv_outcome_line_count) =
+        ls_summary-fully_allocated_line_count
+        + ls_summary-partially_allocated_line_count
+        + ls_summary-unallocated_line_count.
+      IF lv_outcome_line_count <> ls_summary-demand_line_count
+          OR ls_summary-sales_document_count <= 0
+          OR ls_summary-sales_document_count >
+            ls_summary-demand_line_count
+          OR ls_summary-floor_rejected_line_count < 0
+          OR ls_summary-floor_rejected_line_count >
+            ls_summary-demand_line_count.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-dated_line_count < 0
+          OR ls_summary-dated_line_count > ls_summary-demand_line_count
+          OR ( ls_summary-dated_line_count = 0
+            AND ( ls_summary-first_required_date IS NOT INITIAL
+              OR ls_summary-last_required_date IS NOT INITIAL ) )
+          OR ( ls_summary-dated_line_count > 0
+            AND ( ls_summary-first_required_date IS INITIAL
+              OR ls_summary-last_required_date IS INITIAL ) )
+          OR ls_summary-first_required_date >
+            ls_summary-last_required_date.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-first_allocation_sequence <= 0
+          OR ls_summary-last_allocation_sequence <= 0
+          OR ls_summary-allocation_sequence_scope <>
+            c_sequence_scope_multi_order
+          OR ls_summary-first_allocation_sequence >
+            ls_summary-last_allocation_sequence.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_summary-allocated_base_quantity =
+         ls_summary-requested_base_quantity.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_full.
+      ELSEIF ls_summary-allocated_base_quantity > 0.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_partial.
+      ELSE.
+        ls_summary-allocation_outcome =
+          zif_stock_repository=>c_allocation_outcome_none.
+      ENDIF.
+      ls_summary-fully_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-fully_allocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-partially_allocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-partially_allocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-unallocated_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-unallocated_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      ls_summary-floor_rejected_line_pct = calculate_line_share_pct(
+        iv_line_count        = ls_summary-floor_rejected_line_count
+        iv_demand_line_count = ls_summary-demand_line_count ).
+      IF ls_summary-requested_base_quantity > 0.
+        ls_summary-allocation_coverage_pct =
+          CONV zcl_stock_service=>ty_allocation_coverage_pct(
+            CONV decfloat34( ls_summary-allocated_base_quantity )
+            * CONV decfloat34( 100 )
+            / CONV decfloat34( ls_summary-requested_base_quantity ) ).
+      ENDIF.
+      APPEND ls_summary TO rt_summaries.
+    ENDLOOP.
+
+    SORT rt_summaries BY material plant base_unit.
   ENDMETHOD.
 
   METHOD sum_stock_quantities.
@@ -4460,6 +5057,19 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       CATCH cx_sy_conversion_overflow.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDTRY.
+  ENDMETHOD.
+
+  METHOD calculate_line_share_pct.
+    IF iv_demand_line_count <= 0
+        OR iv_line_count < 0
+        OR iv_line_count > iv_demand_line_count.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rv_percentage = CONV zcl_stock_service=>ty_allocation_coverage_pct(
+      CONV decfloat34( iv_line_count )
+      * CONV decfloat34( 100 )
+      / CONV decfloat34( iv_demand_line_count ) ).
   ENDMETHOD.
 
   METHOD convert_base_to_sales_unit.

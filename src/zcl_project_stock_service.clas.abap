@@ -196,8 +196,9 @@ CLASS zcl_project_stock_service DEFINITION
       ty_dated_transfer_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_wbs_assignment,
-        request_id  TYPE c LENGTH 30,
-        wbs_element TYPE ty_wbs_element,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE ty_wbs_element,
+        allocation_sequence TYPE i,
       END OF ty_wbs_assignment.
     TYPES ty_wbs_assignments TYPE STANDARD TABLE OF
       ty_wbs_assignment WITH EMPTY KEY.
@@ -206,6 +207,7 @@ CLASS zcl_project_stock_service DEFINITION
         request_id              TYPE c LENGTH 30,
         source_wbs_element      TYPE ty_wbs_element,
         destination_wbs_element TYPE ty_wbs_element,
+        allocation_sequence     TYPE i,
       END OF ty_transfer_assignment.
     TYPES ty_transfer_assignments TYPE STANDARD TABLE OF
       ty_transfer_assignment WITH EMPTY KEY.
@@ -215,6 +217,7 @@ CLASS zcl_project_stock_service DEFINITION
         source_wbs_element      TYPE ty_wbs_element,
         destination_wbs_element TYPE ty_wbs_element,
         priority                TYPE i,
+        allocation_sequence     TYPE i,
       END OF ty_priority_transfer_assignment.
     TYPES ty_priority_transfer_assignments TYPE STANDARD TABLE OF
       ty_priority_transfer_assignment WITH EMPTY KEY.
@@ -238,23 +241,26 @@ CLASS zcl_project_stock_service DEFINITION
       END OF ty_fefo_atp_result.
     TYPES:
       BEGIN OF ty_priority_fefo_allocation,
-        allocation TYPE zcl_stock_service=>ty_unit_allocation_summary,
-        priority   TYPE i,
+        allocation          TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_fefo_allocation.
     TYPES ty_priority_fefo_allocations TYPE STANDARD TABLE OF
       ty_priority_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_fefo_batch_split,
-        split    TYPE zcl_stock_service=>ty_unit_batch_split,
-        priority TYPE i,
+        split               TYPE zcl_stock_service=>ty_unit_batch_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_fefo_batch_split.
     TYPES ty_priority_fefo_batch_splits TYPE STANDARD TABLE OF
       ty_priority_fefo_batch_split WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_wbs_assignment,
-        request_id  TYPE c LENGTH 30,
-        wbs_element TYPE ty_wbs_element,
-        priority    TYPE i,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE ty_wbs_element,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_wbs_assignment.
     TYPES ty_priority_wbs_assignments TYPE STANDARD TABLE OF
       ty_priority_wbs_assignment WITH EMPTY KEY.
@@ -272,15 +278,17 @@ CLASS zcl_project_stock_service DEFINITION
       END OF ty_priority_fefo_atp_result.
     TYPES:
       BEGIN OF ty_priority_location_allocation,
-        allocation TYPE zcl_stock_service=>ty_unit_allocation_summary,
-        priority   TYPE i,
+        allocation          TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_location_allocation.
     TYPES ty_priority_location_allocations TYPE STANDARD TABLE OF
       ty_priority_location_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_priority_location_split,
-        split    TYPE zcl_stock_service=>ty_unit_storage_split,
-        priority TYPE i,
+        split               TYPE zcl_stock_service=>ty_unit_storage_split,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_priority_location_split.
     TYPES ty_priority_location_splits TYPE STANDARD TABLE OF
       ty_priority_location_split WITH EMPTY KEY.
@@ -298,26 +306,29 @@ CLASS zcl_project_stock_service DEFINITION
       END OF ty_priority_loc_atp_result.
     TYPES:
       BEGIN OF ty_dated_fefo_allocation,
-        allocation    TYPE zcl_stock_service=>ty_unit_allocation_summary,
-        required_date TYPE d,
-        priority      TYPE i,
+        allocation          TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_fefo_allocation.
     TYPES ty_dated_fefo_allocations TYPE STANDARD TABLE OF
       ty_dated_fefo_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_fefo_batch_split,
-        split         TYPE zcl_stock_service=>ty_unit_batch_split,
-        required_date TYPE d,
-        priority      TYPE i,
+        split               TYPE zcl_stock_service=>ty_unit_batch_split,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_fefo_batch_split.
     TYPES ty_dated_fefo_batch_splits TYPE STANDARD TABLE OF
       ty_dated_fefo_batch_split WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_wbs_assignment,
-        request_id    TYPE c LENGTH 30,
-        wbs_element   TYPE ty_wbs_element,
-        required_date TYPE d,
-        priority      TYPE i,
+        request_id          TYPE c LENGTH 30,
+        wbs_element         TYPE ty_wbs_element,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_wbs_assignment.
     TYPES ty_dated_wbs_assignments TYPE STANDARD TABLE OF
       ty_dated_wbs_assignment WITH EMPTY KEY.
@@ -370,17 +381,19 @@ CLASS zcl_project_stock_service DEFINITION
       ty_dated_location_transfer_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_location_allocation,
-        allocation    TYPE zcl_stock_service=>ty_unit_allocation_summary,
-        required_date TYPE d,
-        priority      TYPE i,
+        allocation          TYPE zcl_stock_service=>ty_unit_allocation_summary,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_location_allocation.
     TYPES ty_dated_location_allocations TYPE STANDARD TABLE OF
       ty_dated_location_allocation WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_location_split,
-        split         TYPE zcl_stock_service=>ty_unit_storage_split,
-        required_date TYPE d,
-        priority      TYPE i,
+        split               TYPE zcl_stock_service=>ty_unit_storage_split,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_location_split.
     TYPES ty_dated_location_splits TYPE STANDARD TABLE OF
       ty_dated_location_split WITH EMPTY KEY.
@@ -425,6 +438,7 @@ CLASS zcl_project_stock_service DEFINITION
         destination_wbs_element TYPE ty_wbs_element,
         required_date           TYPE d,
         priority                TYPE i,
+        allocation_sequence     TYPE i,
       END OF ty_dated_transfer_assignment.
     TYPES ty_dated_transfer_assignments TYPE STANDARD TABLE OF
       ty_dated_transfer_assignment WITH EMPTY KEY.
@@ -1735,11 +1749,12 @@ CLASS zcl_project_stock_service DEFINITION
       ty_dated_fefo_works TYPE STANDARD TABLE OF
         ty_dated_fefo_work WITH EMPTY KEY,
       BEGIN OF ty_dated_fefo_index,
-        request_id        TYPE c LENGTH 30,
-        caller_request_id TYPE c LENGTH 30,
-        input_index       TYPE i,
-        required_date     TYPE d,
-        priority          TYPE i,
+        request_id          TYPE c LENGTH 30,
+        caller_request_id   TYPE c LENGTH 30,
+        input_index         TYPE i,
+        required_date       TYPE d,
+        priority            TYPE i,
+        allocation_sequence TYPE i,
       END OF ty_dated_fefo_index,
       ty_dated_fefo_indexes TYPE HASHED TABLE OF ty_dated_fefo_index
         WITH UNIQUE KEY request_id,
@@ -4491,6 +4506,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA lv_remaining_shelf_life_days TYPE i.
     DATA lv_available_quantity TYPE decfloat34.
     DATA lv_on_hand_from_date TYPE d.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_required_date( iv_date = iv_as_of_date ).
     validate_excluded_reservations(
@@ -4661,8 +4677,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_prepared_demands.
       APPEND VALUE #(
-        request_id  = ls_demand-request_id
-        wbs_element = ls_demand-wbs_element )
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        allocation_sequence = lines( lt_prepared_demands ) )
         TO rs_result-wbs_assignments.
     ENDLOOP.
 
@@ -4804,6 +4821,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT lt_prepared_demands INTO DATA(ls_prepared_demand).
+      ADD 1 TO lv_allocation_sequence.
       lv_demand_as_of_date = iv_as_of_date.
       IF ls_prepared_demand-fefo_as_of_date > lv_demand_as_of_date.
         lv_demand_as_of_date = ls_prepared_demand-fefo_as_of_date.
@@ -4930,6 +4948,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         request_id           = ls_prepared_demand-request_id
         material             = ls_prepared_demand-material
         plant                = ls_prepared_demand-plant
+        allocation_sequence  = lv_allocation_sequence
         requested_quantity   = ls_prepared_demand-base_quantity
         minimum_coverage_pct =
           ls_prepared_demand-minimum_coverage_pct ).
@@ -5025,7 +5044,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             base_unit                 = ls_prepared_demand-base_unit
             source_unit               = ls_prepared_demand-unit
             allocated_source_quantity =
-              ls_source_split-alternative_quantity )
+              ls_source_split-alternative_quantity
+            allocation_sequence       = lv_allocation_sequence )
             TO rs_result-allocation-batch_allocations.
           SUBTRACT lv_split_quantity FROM <ls_balance>-remaining_quantity.
           SUBTRACT lv_split_quantity FROM lv_remaining_quantity.
@@ -5041,6 +5061,12 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         ls_prepared_demand-require_known_expiry.
       ls_allocation-allow_undated_batches =
         ls_prepared_demand-allow_undated_batches.
+      ls_allocation-minimum_coverage_rejected = xsdbool(
+        CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_prepared_demand-base_quantity )
+            * CONV decfloat34(
+              ls_prepared_demand-minimum_coverage_pct ) ).
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_prepared_demand-base_quantity
@@ -5273,8 +5299,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-allocation-request_id = ls_context-request_id.
       ls_allocation-allocation-priority = ls_context-priority.
       APPEND VALUE #(
-        allocation = ls_allocation
-        priority   = ls_context-priority )
+        allocation          = ls_allocation
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-allocations.
 
       LOOP AT ls_base_result-allocation-batch_allocations
@@ -5283,15 +5311,19 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             ls_context-internal_request_id.
         ls_batch_split-batch_allocation-request_id = ls_context-request_id.
         APPEND VALUE #(
-          split    = ls_batch_split
-          priority = ls_context-priority )
+          split               = ls_batch_split
+          priority            = ls_context-priority
+          allocation_sequence =
+            ls_batch_split-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
 
       APPEND VALUE #(
-        request_id  = ls_context-request_id
-        wbs_element = ls_context-wbs_element
-        priority    = ls_context-priority )
+        request_id          = ls_context-request_id
+        wbs_element         = ls_context-wbs_element
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-wbs_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -5364,6 +5396,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA ls_internal_demand TYPE ty_dated_fefo_demand.
     DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       ADD 1 TO lv_input_index.
@@ -5449,6 +5482,13 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                     priority DESCENDING
                     input_index ASCENDING.
     LOOP AT lt_work INTO DATA(ls_work).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_demand_indexes ASSIGNING FIELD-SYMBOL(<ls_demand_index>)
+        WITH TABLE KEY request_id = ls_work-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_demand_index>-allocation_sequence = lv_allocation_sequence.
       DATA(lv_fefo_as_of_date) = ls_work-demand-fefo_as_of_date.
       IF lv_fefo_as_of_date < ls_work-required_date.
         lv_fefo_as_of_date = ls_work-required_date.
@@ -5508,9 +5548,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
-          allocation    = ls_local_allocation
-          required_date = ls_allocation_index-required_date
-          priority      = ls_allocation_index-priority ) )
+          allocation          = ls_local_allocation
+          required_date       = ls_allocation_index-required_date
+          priority            = ls_allocation_index-priority
+          allocation_sequence =
+            ls_allocation_index-allocation_sequence ) )
         TO lt_allocation_order.
     ENDLOOP.
     SORT lt_allocation_order BY input_index ASCENDING.
@@ -5533,9 +5575,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         input_index = ls_split_index-input_index
         split_index = lv_split_index
         result      = VALUE #(
-          split         = ls_local_split
-          required_date = ls_split_index-required_date
-          priority      = ls_split_index-priority ) )
+          split               = ls_local_split
+          required_date       = ls_split_index-required_date
+          priority            = ls_split_index-priority
+          allocation_sequence =
+            ls_split_index-allocation_sequence ) )
         TO lt_split_order.
     ENDLOOP.
     SORT lt_split_order BY input_index ASCENDING
@@ -5545,11 +5589,19 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_demands INTO ls_demand.
+      lv_internal_request_id = |D{ sy-tabix }|.
+      READ TABLE lt_demand_indexes INTO DATA(ls_assignment_index)
+        WITH TABLE KEY request_id = lv_internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       APPEND VALUE #(
-        request_id    = ls_demand-request_id
-        wbs_element   = ls_demand-wbs_element
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        required_date       = ls_demand-required_date
+        priority            = ls_demand-priority
+        allocation_sequence =
+          ls_assignment_index-allocation_sequence )
         TO rs_result-wbs_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -5761,6 +5813,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA lv_available_quantity TYPE decfloat34.
     DATA lv_effective_as_of_date TYPE d.
     DATA lv_on_hand_from_date TYPE d.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_required_date( iv_date = iv_as_of_date ).
     validate_excluded_reservations(
@@ -5909,8 +5962,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_prepared_demands.
       APPEND VALUE #(
-        request_id  = ls_demand-request_id
-        wbs_element = ls_demand-wbs_element )
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        allocation_sequence = lines( lt_prepared_demands ) )
         TO rs_result-wbs_assignments.
     ENDLOOP.
 
@@ -6020,6 +6074,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT lt_prepared_demands INTO DATA(ls_prepared_demand).
+      ADD 1 TO lv_allocation_sequence.
       CLEAR lt_candidates.
       lv_effective_as_of_date = iv_as_of_date.
       IF ls_prepared_demand-location_as_of_date
@@ -6105,6 +6160,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         request_id           = ls_prepared_demand-request_id
         material             = ls_prepared_demand-material
         plant                = ls_prepared_demand-plant
+        allocation_sequence  = lv_allocation_sequence
         requested_quantity   = ls_prepared_demand-base_quantity
         minimum_coverage_pct =
           ls_prepared_demand-minimum_coverage_pct ).
@@ -6190,7 +6246,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             base_unit                 = ls_prepared_demand-base_unit
             source_unit               = ls_prepared_demand-unit
             allocated_source_quantity =
-              ls_source_split-alternative_quantity )
+              ls_source_split-alternative_quantity
+            allocation_sequence       = lv_allocation_sequence )
             TO rs_result-allocation-storage_allocations.
           SUBTRACT lv_split_quantity
             FROM <ls_alloc_balance>-remaining_quantity.
@@ -6203,6 +6260,12 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-require_full_quantity = xsdbool(
         iv_require_full_quantity = abap_true
         OR ls_prepared_demand-require_full_quantity = abap_true ).
+      ls_allocation-minimum_coverage_rejected = xsdbool(
+        CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_prepared_demand-base_quantity )
+            * CONV decfloat34(
+              ls_prepared_demand-minimum_coverage_pct ) ).
       ls_allocation-allocation_outcome = COND #(
         WHEN ls_allocation-allocated_quantity =
             ls_prepared_demand-base_quantity
@@ -6405,8 +6468,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-allocation-request_id = ls_context-request_id.
       ls_allocation-allocation-priority = ls_context-priority.
       APPEND VALUE #(
-        allocation = ls_allocation
-        priority   = ls_context-priority )
+        allocation          = ls_allocation
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-allocations.
 
       LOOP AT ls_base_result-allocation-storage_allocations
@@ -6416,15 +6481,19 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         ls_storage_split-storage_allocation-request_id =
           ls_context-request_id.
         APPEND VALUE #(
-          split    = ls_storage_split
-          priority = ls_context-priority )
+          split               = ls_storage_split
+          priority            = ls_context-priority
+          allocation_sequence =
+            ls_storage_split-allocation_sequence )
           TO rs_result-storage_allocations.
       ENDLOOP.
 
       APPEND VALUE #(
-        request_id  = ls_context-request_id
-        wbs_element = ls_context-wbs_element
-        priority    = ls_context-priority )
+        request_id          = ls_context-request_id
+        wbs_element         = ls_context-wbs_element
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-wbs_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -6492,6 +6561,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA ls_internal_demand TYPE ty_dated_location_demand.
     DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       ADD 1 TO lv_input_index.
@@ -6575,6 +6645,13 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                     priority DESCENDING
                     input_index ASCENDING.
     LOOP AT lt_work INTO DATA(ls_work).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_demand_indexes ASSIGNING FIELD-SYMBOL(<ls_demand_index>)
+        WITH TABLE KEY request_id = ls_work-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_demand_index>-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         request_id              = ls_work-demand-request_id
         wbs_element             = ls_work-demand-wbs_element
@@ -6623,9 +6700,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
-          allocation    = ls_local_allocation
-          required_date = ls_allocation_index-required_date
-          priority      = ls_allocation_index-priority ) )
+          allocation          = ls_local_allocation
+          required_date       = ls_allocation_index-required_date
+          priority            = ls_allocation_index-priority
+          allocation_sequence =
+            ls_allocation_index-allocation_sequence ) )
         TO lt_allocation_order.
     ENDLOOP.
     SORT lt_allocation_order BY input_index ASCENDING.
@@ -6648,9 +6727,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         input_index = ls_split_index-input_index
         split_index = lv_split_index
         result      = VALUE #(
-          split         = ls_local_split
-          required_date = ls_split_index-required_date
-          priority      = ls_split_index-priority ) )
+          split               = ls_local_split
+          required_date       = ls_split_index-required_date
+          priority            = ls_split_index-priority
+          allocation_sequence = ls_split_index-allocation_sequence ) )
         TO lt_split_order.
     ENDLOOP.
     SORT lt_split_order BY input_index ASCENDING
@@ -6660,11 +6740,19 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_demands INTO ls_demand.
+      lv_internal_request_id = |D{ sy-tabix }|.
+      READ TABLE lt_demand_indexes INTO DATA(ls_assignment_index)
+        WITH TABLE KEY request_id = lv_internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       APPEND VALUE #(
-        request_id    = ls_demand-request_id
-        wbs_element   = ls_demand-wbs_element
-        required_date = ls_demand-required_date
-        priority      = ls_demand-priority )
+        request_id          = ls_demand-request_id
+        wbs_element         = ls_demand-wbs_element
+        required_date       = ls_demand-required_date
+        priority            = ls_demand-priority
+        allocation_sequence =
+          ls_assignment_index-allocation_sequence )
         TO rs_result-wbs_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -6789,7 +6877,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
         source_wbs_element      = ls_demand-source_wbs_element
-        destination_wbs_element = ls_demand-destination_wbs_element )
+        destination_wbs_element = ls_demand-destination_wbs_element
+        allocation_sequence     = lines( lt_stock_demands ) )
         TO rs_result-transfer_assignments.
     ENDLOOP.
 
@@ -7044,8 +7133,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-allocation-request_id = ls_context-request_id.
       ls_allocation-allocation-priority = ls_context-priority.
       APPEND VALUE #(
-        allocation = ls_allocation
-        priority   = ls_context-priority )
+        allocation          = ls_allocation
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-allocations.
 
       LOOP AT ls_base_result-allocation-batch_allocations
@@ -7055,8 +7146,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         ls_batch_split-batch_allocation-request_id =
           ls_context-request_id.
         APPEND VALUE #(
-          split    = ls_batch_split
-          priority = ls_context-priority )
+          split               = ls_batch_split
+          priority            = ls_context-priority
+          allocation_sequence =
+            ls_batch_split-allocation_sequence )
           TO rs_result-batch_allocations.
       ENDLOOP.
 
@@ -7064,7 +7157,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         request_id              = ls_context-request_id
         source_wbs_element      = ls_context-source_wbs_element
         destination_wbs_element = ls_context-destination_wbs_element
-        priority                = ls_context-priority )
+        priority                = ls_context-priority
+        allocation_sequence     =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-transfer_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -7137,6 +7232,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA ls_internal_demand TYPE ty_dated_transfer_demand.
     DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       ADD 1 TO lv_input_index.
@@ -7225,6 +7321,13 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                     priority DESCENDING
                     input_index ASCENDING.
     LOOP AT lt_work INTO DATA(ls_work).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_demand_indexes ASSIGNING FIELD-SYMBOL(<ls_demand_index>)
+        WITH TABLE KEY request_id = ls_work-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_demand_index>-allocation_sequence = lv_allocation_sequence.
       DATA(lv_fefo_as_of_date) = ls_work-demand-fefo_as_of_date.
       IF lv_fefo_as_of_date < ls_work-required_date.
         lv_fefo_as_of_date = ls_work-required_date.
@@ -7287,9 +7390,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
-          allocation    = ls_local_allocation
-          required_date = ls_allocation_index-required_date
-          priority      = ls_allocation_index-priority ) )
+          allocation          = ls_local_allocation
+          required_date       = ls_allocation_index-required_date
+          priority            = ls_allocation_index-priority
+          allocation_sequence =
+            ls_allocation_index-allocation_sequence ) )
         TO lt_allocation_order.
     ENDLOOP.
     SORT lt_allocation_order BY input_index ASCENDING.
@@ -7312,9 +7417,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         input_index = ls_split_index-input_index
         split_index = lv_split_index
         result      = VALUE #(
-          split         = ls_local_split
-          required_date = ls_split_index-required_date
-          priority      = ls_split_index-priority ) )
+          split               = ls_local_split
+          required_date       = ls_split_index-required_date
+          priority            = ls_split_index-priority
+          allocation_sequence = ls_split_index-allocation_sequence ) )
         TO lt_split_order.
     ENDLOOP.
     SORT lt_split_order BY input_index ASCENDING
@@ -7324,12 +7430,20 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_demands INTO ls_demand.
+      lv_internal_request_id = |D{ sy-tabix }|.
+      READ TABLE lt_demand_indexes INTO DATA(ls_assignment_index)
+        WITH TABLE KEY request_id = lv_internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
         source_wbs_element      = ls_demand-source_wbs_element
         destination_wbs_element = ls_demand-destination_wbs_element
         required_date           = ls_demand-required_date
-        priority                = ls_demand-priority )
+        priority                = ls_demand-priority
+        allocation_sequence     =
+          ls_assignment_index-allocation_sequence )
         TO rs_result-transfer_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -7407,7 +7521,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
         source_wbs_element      = ls_demand-source_wbs_element
-        destination_wbs_element = ls_demand-destination_wbs_element )
+        destination_wbs_element = ls_demand-destination_wbs_element
+        allocation_sequence     = lines( lt_stock_demands ) )
         TO rs_result-transfer_assignments.
     ENDLOOP.
 
@@ -7630,8 +7745,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-allocation-request_id = ls_context-request_id.
       ls_allocation-allocation-priority = ls_context-priority.
       APPEND VALUE #(
-        allocation = ls_allocation
-        priority   = ls_context-priority )
+        allocation          = ls_allocation
+        priority            = ls_context-priority
+        allocation_sequence =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-allocations.
 
       LOOP AT ls_base_result-allocation-storage_allocations
@@ -7641,8 +7758,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         ls_storage_split-storage_allocation-request_id =
           ls_context-request_id.
         APPEND VALUE #(
-          split    = ls_storage_split
-          priority = ls_context-priority )
+          split               = ls_storage_split
+          priority            = ls_context-priority
+          allocation_sequence =
+            ls_storage_split-allocation_sequence )
           TO rs_result-storage_allocations.
       ENDLOOP.
 
@@ -7650,7 +7769,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         request_id              = ls_context-request_id
         source_wbs_element      = ls_context-source_wbs_element
         destination_wbs_element = ls_context-destination_wbs_element
-        priority                = ls_context-priority )
+        priority                = ls_context-priority
+        allocation_sequence     =
+          ls_allocation-allocation-allocation_sequence )
         TO rs_result-transfer_assignments.
     ENDLOOP.
   ENDMETHOD.
@@ -7718,6 +7839,7 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     DATA ls_internal_demand TYPE ty_dated_location_transfer_demand.
     DATA lv_internal_request_id TYPE c LENGTH 30.
     DATA lv_input_index TYPE i.
+    DATA lv_allocation_sequence TYPE i.
 
     validate_optional_date( iv_date = iv_reservation_through_date ).
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -7806,6 +7928,13 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                     priority DESCENDING
                     input_index ASCENDING.
     LOOP AT lt_work INTO DATA(ls_work).
+      ADD 1 TO lv_allocation_sequence.
+      READ TABLE lt_demand_indexes ASSIGNING FIELD-SYMBOL(<ls_demand_index>)
+        WITH TABLE KEY request_id = ls_work-demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_demand_index>-allocation_sequence = lv_allocation_sequence.
       APPEND VALUE #(
         request_id              = ls_work-demand-request_id
         source_wbs_element      = ls_work-demand-source_wbs_element
@@ -7855,9 +7984,11 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         input_index = ls_allocation_index-input_index
         result      = VALUE #(
-          allocation    = ls_local_allocation
-          required_date = ls_allocation_index-required_date
-          priority      = ls_allocation_index-priority ) )
+          allocation          = ls_local_allocation
+          required_date       = ls_allocation_index-required_date
+          priority            = ls_allocation_index-priority
+          allocation_sequence =
+            ls_allocation_index-allocation_sequence ) )
         TO lt_allocation_order.
     ENDLOOP.
     SORT lt_allocation_order BY input_index ASCENDING.
@@ -7880,9 +8011,10 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         input_index = ls_split_index-input_index
         split_index = lv_split_index
         result      = VALUE #(
-          split         = ls_local_split
-          required_date = ls_split_index-required_date
-          priority      = ls_split_index-priority ) )
+          split               = ls_local_split
+          required_date       = ls_split_index-required_date
+          priority            = ls_split_index-priority
+          allocation_sequence = ls_split_index-allocation_sequence ) )
         TO lt_split_order.
     ENDLOOP.
     SORT lt_split_order BY input_index ASCENDING
@@ -7892,13 +8024,21 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_demands INTO ls_demand.
+      lv_internal_request_id = |D{ sy-tabix }|.
+      READ TABLE lt_demand_indexes INTO DATA(ls_assignment_index)
+        WITH TABLE KEY request_id = lv_internal_request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
         source_wbs_element      = ls_demand-source_wbs_element
         destination_wbs_element =
           ls_demand-destination_wbs_element
         required_date           = ls_demand-required_date
-        priority                = ls_demand-priority )
+        priority                = ls_demand-priority
+        allocation_sequence     =
+          ls_assignment_index-allocation_sequence )
         TO rs_result-transfer_assignments.
     ENDLOOP.
   ENDMETHOD.

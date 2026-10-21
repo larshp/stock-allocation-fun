@@ -206,11 +206,12 @@ await database.execute([
   );`,
   `CREATE TABLE 'mcha' (
     mandt NCHAR(3), matnr NCHAR(40), werks NCHAR(4), charg NCHAR(10),
-    vfdat NCHAR(8), bwtar NCHAR(10),
+    vfdat NCHAR(8), bwtar NCHAR(10), hsdat NCHAR(8),
     PRIMARY KEY(mandt, matnr, werks, charg)
   );`,
   `CREATE TABLE 'mch1' (
     mandt NCHAR(3), matnr NCHAR(40), charg NCHAR(10), vfdat NCHAR(8),
+    hsdat NCHAR(8),
     PRIMARY KEY(mandt, matnr, charg)
   );`,
   `CREATE TABLE 'mspr' (

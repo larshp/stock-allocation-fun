@@ -2,6 +2,95 @@
 
 ## 2026-10-21
 
+- Fixed the failures uncovered by the full `npm test` run: the stock test
+  double now carries valuation type into synthesized batch statuses, dated
+  location UOM storage splits preserve allocation sequence, and manufacturing
+  age/date-priority regression expectations now match the established output
+  ordering and report horizon. The full pipeline now passes through the native
+  Windows Node execution path; the regular WSL 1 launcher still cannot start
+  Node.
+
+- Batch expiry exposure details now include the recorded manufacturing date,
+  the plant/global source marker, and signed days since manufacture for dated
+  and undated batch rows. The repository prefers MCHA-HSDAT and falls back to
+  MCH1-HSDAT; unit-aware details preserve the base row metadata. The validator
+  and local stubs now cover both SAP date fields.
+
+- Batch expiry exposure now identifies the chronologically earliest recorded
+  manufacture date among positive-stock rows matching the exposure filters,
+  including expiry-undated rows. The result returns the batch identity, date
+  source, and signed age; the UOM result echoes those fields. The manufacturing
+  age regression covers the base and UOM results. The configured Node gates
+  could not be rerun in this WSL 1 environment.
+
+- Sales-order aggregate and FEFO issue previews now expose one-based
+  `allocation_sequence` ranks on summaries; FEFO batch splits echo the rank.
+  Base and unit-aware date-first previews retain caller-order results and
+  preserve the trace, including zero-allocation rows. Regressions cover date
+  and priority precedence.
+
+- Priority material/plant, cross-plant, and storage-location base and UOM
+  allocators now expose a one-based `allocation_sequence` for the actual
+  calculation order while retaining caller-order results. Priority UOM ATP
+  local estimates preserve it. Regressions cover priority order, ties,
+  repeated caller IDs, and zero-allocation rows. The WSL 1 Node launcher still
+  blocks the project validation pipeline.
+
+- Exact-batch base and UOM priority allocators now expose the same processing
+  sequence on summaries and batch splits. Date-first ranks follow date then
+  priority, and the ATP local estimate retains the ranks. Regressions cover
+  caller-order output, repeated IDs, and zero-allocation rows. Project
+  validation remains unavailable through the WSL 1 Node launcher.
+
+- WBS date-first location and transfer previews now expose the processing rank
+  on summaries, source splits, and assignment rows. Location and batch paths
+  retain caller order and repeated-ID distinctions; the ATP estimates preserve
+  the rank. Regressions cover date/priority order and adapter results. Validation
+  remains unavailable through the WSL 1 Node launcher.
+
+- Priority FEFO base and UOM allocators now expose the processing sequence on
+  summaries and batch splits. Date-first ordering and caller-order ATP local
+  estimates retain the same rank, including for zero-allocation demands.
+- Quality FEFO priority allocators now expose the same sequence for quality
+  summaries and batch splits; quality UOM ATP local estimates preserve it.
+
+- Cross-plant exact-batch and FEFO priority allocators now trace demand order on
+  summaries, source-plant rows, and location or batch splits. UOM ATP local
+  estimates preserve the ranks, including rows that allocate zero. Cross-plant
+  exact-batch ranks follow effective as-of date (blank means today), then
+  priority and stable input order.
+
+- Local multi-demand date-first allocation now exposes a one-based
+  `allocation_sequence` in calculation order while retaining caller-order
+  results. Single-request, UOM, and ATP local estimates preserve the rank;
+  regression coverage includes date precedence, same-date priority, and
+  zero-allocation requests.
+
+- Cross-plant date-first allocations now expose the same rank on demand
+  summaries, source-plant rows, and location splits. Date, priority, and stable
+  input order determine the rank; unit and ATP local estimates retain it.
+
+- Single-plant location allocation by date now exposes the sequence on demand
+  summaries and storage-location splits. UOM and ATP local estimates keep the
+  same date, priority, and stable caller-order ranks.
+
+- Cross-plant dated FEFO and exact-batch allocation now expose the processing
+  sequence on summaries and emitted splits. FEFO follows material, date,
+  priority, and input order; exact-batch follows date, priority, and input
+  order. UOM and ATP local estimates retain the ranks, including zero-stock
+  summaries.
+
+- WBS `PREVIEW_FEFO_BY_DATE` now reports processing order on summaries, batch
+  splits, and WBS assignment rows. Date, priority, and stable input order rank
+  the demands; ATP local estimates retain the trace for repeated caller IDs.
+
+- Quality FEFO release and send wrappers now reject all location-scope inputs
+  when the demand table is empty, including scopes carried by the preview,
+  shared and per-request priorities, and shared allowlists. Regressions cover
+  all four posting variants and assert empty calls make no stock reads or
+  movement calls. The local WSL 1 Node launcher is unavailable, so lint,
+  transpilation, and ABAP Unit could not be run in this environment.
+
 - Fixed the planned-order finish-window query after its special-procurement
   regression returned no rows under the transpiler. The transpiled SQL mishandled
   `@is_selection-material`; a typed local material value now feeds both query
@@ -11997,3 +12086,140 @@ ranges, result drift, and paged/unpaged SQL reads.
 - `READ_OPERATIONS_BULK` now groups returned page operations by AFVC-STEU control key, retaining blank keys and reporting each key's operation count and share.
 - Operation category, order-type, and control-key summaries now include distinct contributing order counts, so repeated operations from one order do not inflate order totals.
 - Operation summary groups now report `order_pct`, their distinct order count as a share of page `found_count`; work-center and control-key shares can overlap.
+- Cost-center date-first previews and reservation results now expose one-based allocation sequences on summaries and emitted storage or batch splits, preserving caller-order rows and scheduled ranks for skipped bulk requests.
+- Scoped production component previews now expose the allocator's one-based sequence on per-component local estimates and emitted batch or location splits; a priority fixture verifies processing order survives caller-order output. Source contract checks and scoped `git diff --check` pass. `npm test` cannot start because the environment's WSL 1 Node launcher fails before running the suite.
+- Production component sequence tracing now covers the unscoped date allocator too. `allocation_sequence_scope` distinguishes `D` date-group allocation from `S` scoped allocation; dated component rows follow material, plant, required date, and input order, while grouped estimates retain date-group ranks. Priority, same-date tie, ATP, and split propagation assertions plus source-contract checks are in place. `git diff --check` passes; `npm test` remains unavailable because the WSL 1 Node launcher fails before starting Node.
+
+- Scoped production component batch and location splits now include the `S` allocation sequence scope beside their rank, making split trace rows self-describing. Regressions and PLAN/README/validator contracts cover both split types. `npm test` could not start under WSL 1 because the Windows Node launcher reports that WSL 1 is unsupported; source contracts and CRLF-aware `git diff --check` passed.
+
+- Production component local estimates and direct scoped allocation results now report `minimum_coverage_rejected` when eligible stock fails a per-component coverage floor. The regression proves that the rejected demand takes no stock and the later component allocates it. PLAN, README, and source-contract checks cover the status; runtime validation remains unavailable under the recorded WSL 1 Node launcher failure.
+
+- Shared date-first scalar, base, UOM, and ATP allocation results now expose `minimum_coverage_rejected`; all adapters preserve the dated result field. Regression coverage checks rejection, stock preservation for a later demand, and the scalar, UOM, and ATP paths. Focused source contracts and diff checks passed; `npm test` failed before Node started because the Windows launcher rejects WSL 1.
+
+- Undated shared material/plant scalar, base, UOM, priority, and UOM ATP results now expose `minimum_coverage_rejected`. The same final-allocation status is populated by storage-location, date-first location, batch, FEFO, and quality FEFO summaries. Regressions cover wrapper propagation, full-quantity rejection, and stock preservation for the next demand. Focused source contracts and CRLF-aware `git diff --check` passed; full runtime validation remains unavailable under the WSL 1 Node launcher issue recorded in `ANOMALIES.md`.
+
+- Cross-plant ordinary, date-first, date/location, exact-batch, and FEFO summaries now expose `minimum_coverage_rejected`; unit, priority, date, and ATP wrappers preserve it. Regressions cover every summary shape and prove ordinary cross-plant rejection leaves stock for a later request. The date/location adapter now copies the flag when rebuilding its summary; focused source-contract checks and CRLF-aware `git diff --check` pass. ABAP lint, transpilation, and ABAP Unit remain unavailable under the WSL 1 Node launcher issue recorded in `ANOMALIES.md`.
+
+- Valuation-type allocation summaries now report `minimum_coverage_rejected` from final base-unit quantities. UOM and ATP local estimates preserve the field, including full-quantity rejection when provisional coverage meets the floor but cannot satisfy the full request. Regressions cover floor rejection, zero floors, and both wrappers; PLAN, README, and validator contracts were updated.
+
+- Single cost-center preview and reservation results now expose `minimum_coverage_rejected` from the final base-unit allocation. The prepared result copies the underlying status; regressions cover ordinary rejection, full-quantity rejection below the floor, and a zero floor.
+
+- Sales-order aggregate and FEFO issue summaries now expose `minimum_coverage_rejected` from final base-unit quantities. Base, UOM, and FEFO regressions cover rejected stock preservation, full-quantity rejection, zero floors, and both FEFO display units; PLAN, README, and validator contracts are updated.
+
+- Sales-order unit-aware allocation summaries now preserve the shared
+  allocator's `minimum_coverage_rejected` flag in single-order and
+  date-prioritized results. Regressions cover both summary builders, verify the
+  rejected line leaves stock available for the next line, and check the floor
+  pass status for an unconfigured line.
+
+- Sales-order allocation results and their unit-aware summaries now expose
+  one-based `allocation_sequence` values. Single-order results rank processing
+  order after any date sort; date-first multi-order results preserve the shared
+  allocator's global date rank while retaining result row order. Regressions
+  verify ranks on both arrays and 2/1 for caller-ordered rows with reversed dates.
+
+- Sales-order allocation trace rows now report `allocation_sequence_scope`:
+  `S` marks a single-order rank and `M` marks a global date-first multi-order
+  rank. Regressions check scope values on single, date-sorted single, and
+  caller-ordered multi-order results.
+
+- Valuation-type allocation summaries now report `F`, `P`, or `U` outcomes and a two-decimal base-unit coverage percentage. Floor and full-quantity rejections report `U` and zero coverage; UOM and ATP local estimates retain both fields. Regression assertions cover all three outcomes and wrapper propagation. PLAN, README, and validator contracts were updated.
+
+- Base WBS FEFO and location previews now rank demand summaries and emitted
+  splits and expose the same rank on WBS assignment rows. Base transfer
+  previews now include it on transfer assignments. Priority, date-first,
+  transfer, and ATP wrappers preserve the rank on their result rows.
+  PLAN, README, and validator contracts document the result shape.
+
+- WBS FEFO and location summaries now set `minimum_coverage_rejected` from the
+  final base-unit allocation. This includes all-or-none rejections below a
+  positive floor, while zero floors remain false; priority, dated, transfer,
+  and ATP previews preserve the nested summary field.
+
+- Added WBS regressions for caller-order and priority-order ranks on summaries,
+  splits, and assignment rows, plus FEFO/location floor-status behavior and
+  full-quantity/zero-floor cases. Focused source contracts and CRLF-aware diff
+  checks pass. `npm test` stops before validation because the WSL 1 Node shim
+  reports that WSL 1 is unsupported and cannot locate Node.js.
+
+- Added WBS FEFO, location, and transfer regressions proving floor-rejected
+  demands leave stock available to the next demand. The assertions also verify
+  that zero-allocation rows retain their sequence and that later-demand splits
+  echo the later row's sequence. PLAN now states the stock-reuse behavior
+  explicitly. Exact-threshold partial allocations also pass in all four base
+  issue and transfer preview paths.
+  Focused source checks and CRLF-aware diff checks pass; `npm test` again stops
+  before validation under the WSL 1 Node launcher issue recorded in
+  `ANOMALIES.md`.
+
+- Date-first WBS FEFO and location ATP regressions now verify that coverage-floor rejection and stock reuse survive the date and ATP adapters. Transfer FEFO and location date/ATP adapters receive the same checks, including later-demand split ranks. The static PLAN guard now requires these tests. Abaplint quick fixes aligned the source to the enabled rules; `npm run lint` passes with 0 issues across 252 files, and `npm run transpile` succeeds. `npm test` and `npm run validate:plan` still stop before Node starts because the WSL 1 launcher cannot locate Node.js; ABAP Unit therefore did not run.
+- Shared priority FEFO UOM result structures now declare the `allocation_sequence` fields already emitted by the adapter for source and batch split rows. Fixed malformed priority ATP assertions and related test paths, removed the invalid multi-order result access, normalized the sales-order class's missing spaces around 66 assignments/conditions, and corrected surfaced field-name/type mismatches. Abaplint's auto-fix pass applied alignment updates required by the enabled rules; the subsequent full lint and transpilation pass.
+- STO source-plant creation now has a three-supplier regression for a successful first commit, failure on the last attempted supplier, and a skipped third supplier. It verifies that earlier commits remain visible, the failure still sets `stopped_on_failure` on the last row, and success/failure/skip counts stay separate. The PLAN guard checks this scenario.
+
+- Sales-order `order_summaries` now expose aggregate F/P/U outcomes and
+  two-decimal coverage calculated from grouped base-unit totals. Summaries also
+  count full, partial, unallocated, and positive coverage-floor-rejected lines;
+  the three outcome counts are checked against the demand-line total. Regressions
+  cover weighted 5/15 coverage and all outcome groups through single- and
+  multi-order previews. Focused contract checks pass, abaplint reports 0 issues
+  across 252 files, and transpilation succeeds. The PLAN validator and ABAP Unit
+  could not run because the WSL Node launcher rejects WSL 1; direct `node.exe`
+  invocation also fails at the WSL vsock layer.
+
+- Added `document_summaries` to single-order, multi-order, and bulk reservation
+  results. Each represented document reports F/P/U from its line outcomes and
+  counts each outcome plus coverage-floor rejections without combining
+  quantities across base units. Bulk `order_results` also carry the matching
+  summary when a write fails or is skipped. Regressions cover all document
+  outcomes, reservation forwarding, and nested bulk-row summaries. Abaplint
+  reports 0 issues across 252 files; transpilation and focused checks pass. The
+  PLAN validator and ABAP Unit remain unavailable through the WSL 1 Node
+  launcher.
+
+- Multi-order preview, reservation, and bulk reservation results now include
+  `material_summaries` grouped across documents by material, plant, and base
+  unit. The summaries merge checked quantities and line outcomes, compute
+  weighted coverage, and report the number of represented sales documents.
+  Regressions cover mixed preview outcomes, reservation totals, and bulk totals.
+  Abaplint reports 0 issues across 252 files; transpilation and focused checks
+  pass. The PLAN validator and ABAP Unit remain blocked before startup by the
+  WSL 1 Node launcher.
+
+- Sales-order material and per-document material summaries now include the
+  earliest and latest nonblank required dates plus `dated_line_count`. Undated
+  lines do not change the span, and date fields stay initial when a group has
+  no dated demand. Lint and transpilation pass; the PLAN validator and ABAP
+  Unit remain unavailable through the WSL 1 Node launcher.
+
+- Sales-order allocation summaries now report the minimum and maximum
+  `allocation_sequence` represented by each material/unit group. The min/max
+  values retain the actual processing rank even when other groups occupy ranks
+  between them. `allocation_sequence_scope` marks single-order ranks as `S` and
+  global date-first ranks as `M`. Invalid or mixed scopes are rejected. Lint
+  and transpilation pass; the PLAN validator and ABAP Unit remain unavailable
+  through the WSL 1 Node launcher. The summaries also count dated demand lines
+  and validate that count against their date spans.
+
+- Sales-order order, document, and cross-document material summaries now
+  report `floor_rejected_line_pct`, the two-decimal share of demand lines
+  rejected by a positive coverage floor. Regressions cover zero, partial, and
+  full rejection shares at all three levels. Lint passes with 0 issues across
+  252 files, and transpilation succeeds. The PLAN validator still stops before
+  Node startup because the WSL 1 launcher cannot locate Node.js.
+
+- Sales-order `document_summaries` now retain the number and span of dated
+  demand lines, the minimum and maximum allocation ranks, and their `S`/`M`
+  scope. The nested summary remains available on bulk result rows that fail or
+  are skipped. Regressions cover single, date-first, and failed bulk rows.
+  Lint reports 0 issues across 252 files, and transpilation passes. The PLAN
+  validator remains blocked before Node startup by the WSL 1 launcher.
+
+- Sales-order order, document, and material summaries now report the full,
+  partial, and unallocated line shares, each rounded to two decimals. A mixed
+  three-line regression checks the 33.33% shares at all three summary levels;
+  the docs explain that independently rounded shares may not total exactly
+  100%. Abaplint reports 0 issues across 252 files and transpilation passes.
+  The focused percentage regression passes. The full ABAP Unit suite stops
+  earlier at `reports_cc_floor_rejection` in `zcl_cc_reservation_service`
+  (expected `X`, got initial), before reaching sales-order tests. The PLAN
+  validator still cannot start through the WSL 1 Node launcher.

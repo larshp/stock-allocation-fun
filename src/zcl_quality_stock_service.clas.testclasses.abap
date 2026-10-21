@@ -269,6 +269,7 @@ CLASS ltcl_quality_stock_service DEFINITION FINAL
     METHODS rechecks_req_loc_ranks FOR TESTING.
     METHODS rejects_q_location_scopes FOR TESTING.
     METHODS noops_empty_quality_demands FOR TESTING.
+    METHODS rejects_scopes_without_demands FOR TESTING.
 ENDCLASS.
 
 CLASS ltcl_quality_stock_service IMPLEMENTATION.
@@ -1104,5 +1105,88 @@ CLASS ltcl_quality_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0 act = mo_api->mv_create_calls ).
 
+  ENDMETHOD.
+
+  METHOD rejects_scopes_without_demands.
+    DATA(lv_rejected) = abap_false.
+    TRY.
+        mo_cut->release_quality_fefo(
+          is_allocation                = VALUE #( )
+          it_demands                   = VALUE #( )
+          is_header                    = VALUE #( )
+          it_material_units            = VALUE #( )
+          it_storage_location_priority = VALUE #( ( '0001' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->release_quality_fefo_priority(
+          is_allocation                  = VALUE #( )
+          it_demands                     = VALUE #( )
+          is_header                      = VALUE #( )
+          it_material_units              = VALUE #( )
+          it_request_location_priorities = VALUE #(
+            ( request_id       = 'QI-1'
+              storage_location = '0001'
+              priority_rank    = 1 ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->send_quality_fefo(
+          is_allocation                = VALUE #( )
+          it_demands                   = VALUE #( )
+          is_header                    = VALUE #( )
+          it_material_units            = VALUE #( )
+          it_allowed_storage_locations = VALUE #( ( '0001' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->send_quality_fefo_priority(
+          is_allocation        = VALUE #( )
+          it_demands           = VALUE #( )
+          is_header            = VALUE #( )
+          it_material_units    = VALUE #( )
+          it_request_locations = VALUE #(
+            ( request_id = 'QI-1' storage_location = '0001' ) ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->send_quality_fefo_priority(
+          is_allocation     = VALUE #(
+            request_locations = VALUE #(
+              ( request_id = 'QI-1' storage_location = '0001' ) ) )
+          it_demands        = VALUE #( )
+          is_header         = VALUE #( )
+          it_material_units = VALUE #( ) ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = mo_repository->get_batch_status_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = mo_uom_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = mo_api->mv_create_calls ).
   ENDMETHOD.
 ENDCLASS.

@@ -260,6 +260,7 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS rejects_batch_without_identity FOR TESTING.
     METHODS creates_multi_source_orders FOR TESTING.
     METHODS stops_source_plant_failures FOR TESTING.
+    METHODS keeps_source_commit_last_fail FOR TESTING.
     METHODS stops_atp_source_failures FOR TESTING.
     METHODS commits_atomic_source_orders FOR TESTING.
     METHODS rolls_back_atomic_sources FOR TESTING.
@@ -2205,6 +2206,98 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD keeps_source_commit_last_fail.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_write_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #( (
+          type    = 'E'
+          message = 'Last source STO failed' ) ) ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(ls_allocation) = get_multi_source_allocation( ).
+    ls_allocation-allocations[ 1 ]-allocation-requested_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocation-available_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocation-allocated_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocation-shortfall_quantity = '0.000'.
+    ls_allocation-allocations[ 1 ]-source_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-base_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-available_source_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocated_source_quantity = '6.000'.
+    APPEND VALUE #(
+      allocation                = VALUE #(
+        request_id         = 'REQ-1'
+        material           = 'MAT-1'
+        target_plant       = '2000'
+        source_plant       = '1200'
+        required_date      = '20261010'
+        available_quantity = '1.000'
+        allocated_quantity = '1.000' )
+      source_unit               = 'EA'
+      base_unit                 = 'EA'
+      available_source_quantity = '1.000'
+      allocated_source_quantity = '1.000' )
+      TO ls_allocation-plant_allocations.
+
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+    DATA(ls_result) = lo_cut->create_from_source_plants(
+      is_allocation       = ls_allocation
+      iv_receiving_plant  = '2000'
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_stop_on_failure  = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1200'
+      act = ls_result-orders[ 3 ]-supplying_plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_rollback_count( ) ).
   ENDMETHOD.
 
   METHOD stops_atp_source_failures.

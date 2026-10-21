@@ -19,6 +19,10 @@ demand remains unallocated and reports `U`. Unit-aware methods derive the code
 from base-unit quantities, independent of rounding in converted display
 quantities. The field complements `is_sufficient` by distinguishing partial
 coverage from no coverage.
+Aggregate base, unit-aware, and FEFO issue summaries also expose
+`minimum_coverage_rejected`. It is true when the final base-unit allocation
+fails a positive floor, including full-quantity rejections, and false when the
+floor passes or is zero.
 
 Each aggregate or FEFO request can set `minimum_coverage_pct` from 0 through
 100. Its initial value preserves partial-allocation behavior. The service
@@ -34,9 +38,62 @@ Sales-order allocation previews and reservation creation also accept
 document, item, and optional schedule line. A demand below its floor receives
 zero allocation before stock is consumed. Ordinary, location, batch, FEFO,
 and date-first paths preserve the floor and echo it with F/P/U outcome and
-two-decimal base-unit coverage. A line-wide requirement applies to schedule
-lines without a more specific requirement; full-allocation rules remain in
-force.
+two-decimal base-unit coverage. Their summaries also expose
+`minimum_coverage_rejected` when the final base-unit allocation fails a positive
+floor, including full-quantity rejections; the flag is false when the floor
+passes or is zero. A line-wide requirement applies to schedule lines without a
+more specific requirement; full-allocation rules remain in force.
+
+Single- and multi-order result `order_summaries` also report the aggregate
+`allocation_outcome` (`F`, `P`, or `U`) and two-decimal
+`allocation_coverage_pct`. Both are calculated from summed requested and
+allocated base-unit quantities for each sales document, material, plant, and
+base unit; coverage is zero when the grouped request quantity is zero. Each
+summary also counts fully allocated, partially allocated, and unallocated
+demand lines, counts lines rejected by a positive coverage floor, and validates
+that the three outcome counts cover every demand line. `floor_rejected_line_pct`
+reports the rejected-line count as a percentage of demand lines, rounded to two
+decimals. The summaries also report `fully_allocated_line_pct`,
+`partially_allocated_line_pct`, and `unallocated_line_pct`, each outcome count
+as a share of demand lines rounded to two decimals. Each share is rounded
+independently, so their displayed sum may differ slightly from 100%.
+
+Single- and multi-order preview and reservation results also return one
+`document_summaries` row for each sales document with positive open
+demand. Its `allocation_outcome` is `F` when every demand line is fully
+allocated, `U` when no line receives stock, and `P` otherwise. The row counts
+fully allocated, partially allocated, unallocated, and coverage-floor-rejected
+lines. It also reports `floor_rejected_line_pct` from the rejected share of demand
+lines. It also reports `fully_allocated_line_pct`,
+`partially_allocated_line_pct`, and `unallocated_line_pct` as each outcome's
+share of demand lines rounded to two decimals. It also reports the dated-line
+count and required-date span, plus the minimum and maximum allocation ranks and
+their `S` or `M` scope. It does not
+combine quantities across materials because their base units may differ; the
+line outcome counts and percentages cover the full document.
+Bulk reservation `order_results` also carry the matching `document_summary`
+beside each write status, including rows whose reservation failed or was
+skipped after an earlier failure; each nested summary retains its date and
+allocation-rank metadata.
+
+Multi-order preview and reservation results also expose `material_summaries`,
+grouped across the selected documents by material, plant, and base unit. They
+report checked requested, allocated, and shortfall totals, aggregate F/P/U
+outcome and coverage, distinct document counts, and line counts; totals from
+different base units remain separate. They also report `floor_rejected_line_pct`
+as the rejected-line count divided by the demand-line count, rounded to two
+decimals, and `fully_allocated_line_pct`, `partially_allocated_line_pct`, and
+`unallocated_line_pct` as the respective outcome shares of demand lines rounded
+to two decimals.
+Both `order_summaries` and `material_summaries` also report the first and last
+nonblank required dates among their demand lines; both fields stay initial when
+the group has no dated lines. `dated_line_count` reports how many demand lines
+contribute dates to the span.
+They also report `first_allocation_sequence` and `last_allocation_sequence`,
+the minimum and maximum processing ranks represented in the group. Other
+material groups can occupy ranks between those values.
+`allocation_sequence_scope` is `S` for a single-order summary and `M` for a
+global date-first multi-order summary; material summaries use `M`.
 
 ## Shared material/plant demand coverage floors
 
@@ -48,6 +105,152 @@ preserves partial allocation. The service compares provisional coverage in
 base units before consuming the shared balance; a demand below its floor gets
 zero allocation so later requests can use the stock. Values from 0 through 100
 are validated and the threshold is echoed on each allocation result.
+
+## Undated local coverage floor rejection status
+
+Undated material/plant allocation summaries expose
+`minimum_coverage_rejected` for scalar, base-demand, UOM, priority, and UOM ATP
+results. It is true when the resulting allocation fails a positive
+`minimum_coverage_pct`, including full-quantity rejections, and false when the
+floor passes or is zero. A rejected allocation consumes no shared stock, so a
+later demand can use that balance; unit and ATP adapters preserve the status.
+The same status is reported by storage-location, date-first location,
+exact-batch, FEFO, and quality FEFO summaries that use the shared allocation
+result type.
+
+## Local date-first coverage floor rejection status
+
+Date-first scalar, base-demand, UOM, and ATP allocations expose
+`minimum_coverage_rejected` on each dated allocation summary. It is true when
+the provisional base-unit allocation fails the configured positive
+`minimum_coverage_pct` and false when the floor passes or is zero. A rejected
+allocation consumes no shared stock, leaving it available to later demands.
+UOM and single or bulk ATP adapters preserve the same status.
+
+## Priority allocation trace sequences
+
+Priority material/plant allocators also return a one-based
+`allocation_sequence` on each result. It records the calculation order after
+sorting by descending priority and caller input order for ties, while result
+rows remain in caller order. The sequence includes rows allocated zero
+quantity. Base, UOM, and priority ATP local-estimate results preserve it;
+the corresponding non-priority material/plant allocation methods leave it
+initial.
+
+Sales-order aggregate and FEFO issue previews expose a one-based
+`allocation_sequence` on each demand summary. FEFO batch splits echo the
+summary's rank. It records the actual order after optional required-date and
+priority sorting, including stable input-order ties, while output rows remain in
+caller order. Every demand receives a rank, including zero-allocation rows.
+Base and unit-aware results preserve the sequence.
+
+Sales-order allocation results and their `sales_unit_allocations` summaries
+also expose a one-based `allocation_sequence`, including zero-allocation rows.
+Single-order previews rank the rows in the order passed to allocation after any
+requested-date and priority ordering. `PREVIEW_ORDERS_BY_DATE` preserves the
+shared allocator's date and priority rank while returning rows in its existing
+result order. Each unit-aware row also reports `allocation_sequence_scope`: `S`
+for a single-order sequence and `M` for the global multi-order sequence.
+
+Cross-plant `ALLOCATE_PLANTS_PRIORITY` and `ALLOCATE_PLANTS_UOM_PRIORITY`
+allocation summaries also expose this sequence. It follows descending demand
+priority with input-order ties, while summaries remain in caller order; the
+rank includes rows with zero allocation. The UOM priority ATP local estimate
+preserves the sequence. Source-plant ordering within each request remains
+caller-controlled.
+
+`ALLOCATE_PLANTS_BATCH_PRIORITY` and `ALLOCATE_PLANTS_BATCH_UOM_PRIO` expose
+the same sequence on demand summaries, source-plant rows, and location splits.
+Ranks follow effective `as_of_date` order, treating blank dates as today, then
+descending priority and stable input-order ties while results remain in caller
+order. Each summary receives a rank, including zero allocations, and each emitted
+split echoes its demand's rank. The UOM ATP local estimate preserves the summary
+and split ranks.
+
+`ALLOCATE_PLANTS_FEFO_PRIORITY` and `ALLOCATE_PLANTS_FEFO_UOM_PRIO` expose the
+sequence on demand summaries, source-plant rows, and FEFO batch splits. Ranks
+follow descending priority and stable input-order ties; rows return in caller
+order. The UOM ATP local estimate preserves the summary and split ranks.
+
+`ALLOCATE_LOCATION_PRIORITY` and `ALLOCATE_LOCATION_UOM_PRIORITY` expose the
+same sequence on allocation summaries and storage-location splits. Ranks follow
+descending demand priority and stable input-order ties, including rows with no
+allocation. UOM ATP local estimates preserve the summary and split ranks.
+Internal request mapping keeps repeated caller IDs distinguishable.
+
+`ALLOCATE_BY_BATCH_PRIORITY` and `ALLOCATE_BY_BATCH_UOM_PRIORITY` expose the
+same sequence on allocation summaries and batch splits. The default rank follows
+descending demand priority and stable input-order ties. With date-first ordering,
+earlier demand dates come first and priority breaks same-date ties. Results remain
+in caller order, including zero-allocation rows and repeated request IDs. Every
+summary receives a rank, and each emitted batch split echoes its demand's rank.
+The UOM ATP local estimate preserves summary and split ranks.
+
+`ALLOCATE_BY_EXPIRY_PRIORITY` and `ALLOCATE_FEFO_UOM_PRIORITY` expose the same
+sequence on allocation summaries and batch splits. Ranks follow the selected
+priority-first or date-first demand order, with stable input-order ties, while
+results remain in caller order. Every summary receives a rank, including when
+allocation is zero; each emitted batch split echoes its demand's rank. The UOM
+ATP local estimate preserves summary and split ranks.
+
+`ALLOCATE_QUALITY_FEFO_PRIORITY` and `ALLOCATE_QUALITY_UOM_PRIORITY` expose the
+same sequence for quality-inspection batch allocation. Their summaries and batch
+splits remain in caller order, and the quality UOM ATP local estimate preserves
+the summary and split ranks.
+
+`ALLOCATE_DEMANDS_BY_DATE` returns a one-based `allocation_sequence` on each
+summary. It follows the allocator's material and plant grouping, then required
+date ascending, priority descending, and caller order for ties. Results stay in
+caller order, and every request receives a rank even when it gets zero stock.
+`ALLOCATE_REQUEST_BY_DATE`, dated UOM results, and dated ATP local estimates
+preserve the same rank.
+
+`ALLOCATE_PLANTS_BY_DATE` exposes the same one-based sequence on each demand
+summary and emitted source-plant row. It follows required date ascending,
+priority descending, and caller order for ties. Summaries and source rows remain
+in caller order; UOM and ATP local estimates preserve the summary and split
+ranks. `ALLOCATE_PLANTS_BY_DATE_LOC` also exposes the rank on demand summaries,
+source-plant rows, and location splits. Its UOM and ATP local estimates preserve
+all three ranks.
+
+`ALLOCATE_PLANTS_FEFO_BY_DATE` exposes the sequence on demand summaries,
+source-plant rows, and FEFO batch splits. It follows material grouping, then
+required date ascending, priority descending, and caller order for ties. Each
+demand receives a rank even when it gets zero stock; emitted source and batch
+rows echo that rank. The unit-aware and ATP local estimates preserve it.
+`ALLOCATE_PLANTS_BATCH_BY_DATE` exposes the same trace on demand summaries,
+source-plant rows, and location splits. Its rank follows required date
+ascending, priority descending, and caller order for ties. Summaries remain in
+caller order, zero-allocation demands receive a rank, and UOM and ATP local
+estimates preserve each rank.
+
+`ALLOCATE_LOCATION_BY_DATE` exposes a one-based sequence on each summary and
+storage-location split. It follows required date ascending, priority descending,
+and caller order for ties while results remain in caller order. Its UOM and ATP
+local estimates preserve the summary and split ranks.
+
+WBS `PREVIEW_FEFO_BY_DATE` exposes a one-based `allocation_sequence` on demand
+summaries, batch splits, and WBS assignment rows. It follows required date
+ascending, priority descending, and stable input order for ties while returning
+rows in caller order. The sequence distinguishes repeated caller request IDs.
+`PREVIEW_FEFO_BY_DATE_ATP` preserves it in the local estimate.
+
+WBS `PREVIEW_BY_LOCATION_DATE` and `PREVIEW_TRANSFER_LOCATION_DATE` expose the
+same one-based `allocation_sequence` on demand summaries, storage-location
+splits, and WBS assignment rows. The rank follows required date ascending,
+priority descending, and stable input order, while the returned rows retain
+caller order. Their ATP adapters preserve the trace in each local estimate.
+WBS `PREVIEW_TRANSFER_FEFO_BY_DATE` also exposes the sequence on demand
+summaries, batch splits, and transfer assignment rows; its ATP adapter preserves
+the same rank.
+
+WBS priority FEFO and batchless location previews also expose a one-based
+`allocation_sequence` on demand summaries, emitted batch or location splits,
+and WBS assignment rows. Priority transfer FEFO and location previews expose
+the same rank on transfer assignments. The rank follows descending priority
+and stable input order, or required FEFO date followed by priority when
+date-first mode is enabled. Results remain in caller order, zero-allocation
+demands receive a rank, and ATP local estimates retain it.
 
 ## Production component minimum coverage floors
 
@@ -62,6 +265,32 @@ also expose `allocation_outcome` (`F`, `P`, or `U`) and the allocated/requested
 base-unit `allocation_coverage_pct`, rounded to two decimals and zero for a
 zero-quantity component. The grouped local estimate preserves the outcome and
 coverage percentage from its date-based plant summary.
+
+## Production component coverage floor rejection status
+
+Direct `ALLOCATE_COMPONENT_STOCK` results and per-component
+`component_local_estimate` rows expose `minimum_coverage_rejected`. It is true
+when eligible stock coverage is below a positive configured
+`minimum_coverage_pct`, including when no stock is available, and false when the
+floor is met or configured as zero. A floor-rejected component allocates zero and leaves eligible
+stock for later components. Production-component previews copy the flag from the
+scoped allocation result; the grouped `local_estimate` keeps this
+per-component status initial.
+
+## Production component allocation trace sequences
+
+Each production component result exposes a one-based `allocation_sequence` on
+its `component_local_estimate`, with `allocation_sequence_scope` identifying
+the allocator path: `D` for dated plant allocation and `S` for scoped
+component allocation. Dated per-component ranks follow material, plant,
+required date, and input order; their grouped `local_estimate` retains the
+date-group rank, which can be shared by components due on that date. Scoped
+per-component ranks follow required date, scope rank, priority, and stable input
+order, and every emitted batch or location split echoes that rank together with
+`allocation_sequence_scope` set to `S`, so split rows are self-describing. Each
+path has its own sequence counter. Component rows remain in repository order; a
+scoped grouped `local_estimate` remains an aggregate without a single demand
+sequence.
 
 ## Storage-location demand coverage floors
 
@@ -88,6 +317,12 @@ on allocation summaries, and FEFO results retain it on batch splits. UOM
 conversion does not change the coverage comparison. Existing full-quantity
 options remain in force alongside the minimum floor.
 
+Quality FEFO release and send wrappers reject any nonempty allocation rows or
+embedded allocation location scopes, plus all direct location-scope inputs,
+when the demand table is empty. The scope check covers shared location
+priority, request-specific location priority, the shared location allowlist,
+and request-specific allowed locations.
+
 Valuation-type allocation requests accept the same floor on base and UOM demand
 rows. Eligibility scopes for valuation type, location, batch, projected source,
 expiry, receipt date, and safety stock determine provisional base-unit
@@ -109,6 +344,30 @@ plants after exact-batch, expiry, shelf-life, location, projected-receipt, and
 safety-stock rules. The comparison happens before any batch balance is
 consumed. Base, UOM, priority, and ATP adapters preserve the threshold;
 allocation summaries echo it, and FEFO batch splits retain it.
+
+Cross-plant ordinary, date-first, exact-batch, and FEFO demand summaries also
+expose `minimum_coverage_rejected`. It is true when the final base-unit
+allocation fails a positive floor, including full-quantity rejections, and
+false when the floor passes or is zero. Priority, UOM, date, batch, and ATP
+wrappers preserve the status.
+
+## Valuation-type coverage floor rejection status
+
+Valuation-type allocation summaries also expose `minimum_coverage_rejected`.
+It is true when the final allocation fails a positive
+`minimum_coverage_pct`, including full-quantity rejections, and false when the
+floor passes or is zero. UOM and ATP local-estimate wrappers preserve the
+status from the base-unit allocation.
+
+## Valuation-type allocation outcomes and coverage
+
+`PREVIEW_BY_VALTYPE` allocation summaries also expose `allocation_outcome`:
+`F` for fully allocated, `P` for partially allocated, and `U` when no quantity
+was allocated. They report `allocation_coverage_pct` as allocated divided by
+requested base-unit quantity, rounded to two decimals and zero for a zero
+request. Full-quantity and minimum-floor rejections report `U` with zero
+coverage. UOM and ATP local-estimate wrappers preserve both values from the
+base-unit result.
 
 Shared material/plant, location, batch, FEFO, and cross-plant ordinary, dated,
 exact-batch, and FEFO allocation summaries expose `allocation_outcome`: `F`
@@ -157,7 +416,10 @@ rules. A request below the floor receives no allocation, and reservation
 creation is skipped when no stock remains allocated. The preview and
 reservation results echo the threshold, allocation outcome (`F`, `P`, or `U`),
 and two-decimal `allocation_coverage_pct` calculated from base-unit quantities.
-The optional input defaults to zero, preserving partial allocation.
+They also expose `minimum_coverage_rejected` when the final base-unit
+allocation fails a positive floor, including full-quantity rejections; the
+flag is false when the floor passes or is zero. The optional input defaults to
+zero, preserving partial allocation.
 
 Atomic and bulk cost-center reservation demand rows also accept
 `minimum_coverage_pct` from 0 through 100. The reservation preview applies the
@@ -166,6 +428,29 @@ eligibility. A rejected demand receives zero allocation and leaves stock
 available to later rows; date-first FEFO wrappers preserve the value. Atomic
 groups retain all-or-nothing posting, while bulk results report each demand
 independently.
+
+## Cost-center allocation trace sequences
+
+`PREVIEW_COST_CENTER_BY_DATE` exposes the shared allocator's one-based
+`allocation_sequence` on each result and nested allocation. It follows the
+material/plant grouping and then required-date, priority, and stable input
+ordering while results stay in caller order. ATP results preserve the same
+rank.
+
+`PREVIEW_CC_LOCATIONS_BY_DATE`, `PREVIEW_CC_BATCHES_BY_DATE`, and
+`PREVIEW_COST_CENTER_FEFO_DATE` expose a one-based `allocation_sequence` on
+each demand summary and every emitted storage-location or batch split. Ranks
+follow required date ascending, priority descending, and input order for ties;
+the exact-batch preview treats a blank required date as today. Returned rows
+remain in caller order, and zero-allocation demands keep their scheduled rank.
+ATP-enabled previews preserve the same summary and split ranks.
+
+`RESERVE_CC_ATOMIC_BY_DATE`, `RESERVE_CC_BULK_BY_DATE`,
+`RESERVE_CC_FEFO_DATE_ATOMIC`, and `RESERVE_CC_FEFO_DATE_BULK` expose the
+same trace on reservation result items, nested allocation summaries, and
+location or batch splits. Item rows remain in caller order. Bulk reservation
+items also expose the sequence for their actual caller or priority processing
+order; rows skipped after a stop-on-failure keep their scheduled rank.
 
 Cost-center goods-issue adapters revalidate the echoed floor before posting
 single, location, date-first location, exact-batch, and FEFO allocations. The
@@ -179,9 +464,14 @@ creating a movement.
 `PREVIEW_FEFO` and `PREVIEW_BY_LOCATION` WBS demands accept
 `minimum_coverage_pct` from 0 through 100. The local allocator compares the
 floor with eligible base-unit stock before consuming its shared WBS balance;
-a rejected demand receives zero allocation. Their priority, date-first, and
-ATP adapters preserve the row value. Allocation summaries expose F/P/U outcome
+a rejected demand receives zero allocation and leaves the stock available to
+later demands. Coverage equal to the floor passes. Their priority, date-first,
+and ATP adapters preserve the row value. Allocation summaries expose F/P/U outcome
 and two-decimal base-unit coverage; FEFO batch splits also echo the floor.
+Summaries also expose `minimum_coverage_rejected`, true when final allocated
+base quantity falls below a positive floor, including full-quantity rejections;
+it is false when the floor passes or is zero. Priority, date-first, transfer,
+and ATP results preserve the flag.
 WBS transfer FEFO and location previews apply the same floor to eligible stock
 on the source WBS. A rejected transfer receives zero allocation and leaves
 source stock available to later demands; priority, date-first, and ATP transfer
@@ -193,6 +483,14 @@ posting wrappers, carry the floor through their fresh stock rechecks.
 The shared batchless and FEFO issue writers, plus location and batch transfer
 writers, validate the echoed floor again against requested and allocated base
 quantities immediately before movement creation.
+
+Base WBS FEFO and location previews expose one-based `allocation_sequence`
+values on demand summaries, emitted splits, and WBS assignment rows. Base
+transfer FEFO and location previews expose the rank on transfer assignment
+rows. Base ranks follow caller order, including demands with zero allocation.
+Priority wrappers preserve the underlying rank after processing sorted demands;
+their WBS and transfer assignments echo the same sequence. ATP local estimates
+retain it.
 
 Stock transport order creation validates the per-demand minimum coverage floor
 carried by ordinary, date-first, date-location, exact-batch, and FEFO
@@ -217,8 +515,24 @@ storage location, and valuation type to keep equal-expiry FEFO allocation
 order deterministic. Each dated detail row includes `days_to_expiration`,
 calculated as `expiration_date - as_of_date`: negative values are expired, zero
 expires on the as-of date, and positive values are upcoming. UOM detail rows echo
-the same calendar-day distance in their nested base row. Each result counts
-returned batch/location/valuation rows
+the same calendar-day distance in their nested base row. Batch details also
+expose `manufacturing_date`, its `manufacturing_date_source`
+(`P` for plant-level MCHA-HSDAT, `G` for the global MCH1-HSDAT fallback, blank
+when unavailable), and signed `days_since_manufacture` calculated as
+`as_of_date - manufacturing_date`. The age is initial when no manufacture date
+is known; a future manufacture date produces a negative value. Dated and
+undated rows both carry these fields, and UOM detail rows preserve them in their
+nested base row. The date describes the batch's recorded manufacture date, not
+the date inventory was received. The result also identifies
+`oldest_manufacture_storage_loc`, `oldest_manufacture_batch`, and
+`oldest_manufacture_val_type` for the chronologically earliest recorded
+manufacture date among positive-stock rows that match the exposure filters.
+`oldest_manufacturing_date_src` retains its plant/global/other source,
+`days_since_oldest_manufacture` uses the same signed `as_of_date - date`
+calculation, and UOM results echo the identity and date fields unchanged. Rows
+without a manufacture date do not qualify; ties use batch, storage location,
+then valuation type. Each result counts returned
+batch/location/valuation rows
 with positive stock as `expired_batch_row_count` and
 `upcoming_batch_row_count`, plus `undated_batch_row_count` for positive-stock
 batch/location/valuation rows with no resolved expiry date. The cumulative
@@ -256,7 +570,7 @@ and two bounds must be in ascending order. When either bound is supplied,
 undated rows are omitted from the undated list, counts, and totals. The bounds
 do not change expiry status relative to `as_of_date` or the after-window test
 relative to `through_date`. The selected locations, batches, valuation types,
-expiry source, date bounds, and flags are echoed on base and UOM results. Set `filter_expiry_status = abap_true` with `expiry_status` `E` for dates before `as_of_date`, `U` for dates from `as_of_date` through `through_date` inclusive, or `A` for dates after `through_date`. The status scope intersects with location, batch, valuation, source, and expiration-date bounds before dated counts, totals, and batch paging. When active, undated rows are omitted from undated details, counts, and totals. Only `E`, `U`, and `A` are accepted; `expiry_status` must be initial when disabled, and base and UOM results echo both selector fields. Allocation trace rows retain their independent scope. Set `filter_expiry_age_band = abap_true` with `expiry_age_band` `1` for 1–7 days since expiry, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector returns only expired rows, composes with status, source, and date bounds before counts, totals, and paging, and omits upcoming, after-window, and undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both selector fields. Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Optional `filter_expiry_days_from` and `filter_expiry_days_to` with `expiry_days_from` and `expiry_days_to` set inclusive signed `expiration_date - as_of_date` bounds. Either bound may be used alone; expired values are negative, the as-of date is zero, future values are positive, and active bounds omit undated rows. Two active bounds must be ascending. These bounds compose before exposure counts, totals, and paging, and base and UOM results echo both flags and values.
+expiry source, date bounds, and flags are echoed on base and UOM results. Set `filter_expiry_status = abap_true` with `expiry_status` `E` for dates before `as_of_date`, `U` for dates from `as_of_date` through `through_date` inclusive, or `A` for dates after `through_date`. The status scope intersects with location, batch, valuation, source, and expiration-date bounds before dated counts, totals, and batch paging. When active, undated rows are omitted from undated details, counts, and totals. Only `E`, `U`, and `A` are accepted; `expiry_status` must be initial when disabled, and base and UOM results echo both selector fields. Allocation trace rows retain their independent scope. Set `filter_expiry_age_band = abap_true` with `expiry_age_band` `1` for 1–7 days since expiry, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector returns only expired rows, composes with status, source, and date bounds before counts, totals, and paging, and omits upcoming, after-window, and undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both selector fields. Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. Optional `filter_expiry_days_from` and `filter_expiry_days_to` with `expiry_days_from` and `expiry_days_to` set inclusive signed `expiration_date - as_of_date` bounds. Either bound may be used alone; expired values are negative, the as-of date is zero, future values are positive, and active bounds omit undated rows. Two active bounds must be ascending. These bounds compose before exposure counts, totals, and paging, and base and UOM results echo both flags and values. Optional inclusive `manufacturing_age_days_from` and `manufacturing_age_days_to` bounds, enabled by `filter_manufacturing_age_from` and `filter_manufacturing_age_to`, select rows by signed `days_since_manufacture` (`as_of_date - manufacturing_date`). Either bound may be used alone; future manufacture dates have negative ages and the as-of date has age zero. Active age bounds omit rows without a manufacture date, including expiry-undated detail rows. Two active bounds must be ascending. The bounds compose with other exposure filters before dated and undated summaries, counts, and paging; base and UOM results echo both flags and values.
 
 Set `positive_available_only` to `abap_true` to retain only rows whose reservation-net `available_quantity` is positive. The selector accepts only `abap_true` or `abap_false` and defaults to false. It applies to dated and undated rows before expiry counts, category totals, source/status summaries, and detail paging; category balances on retained rows are unchanged. Base and UOM results echo the selector.
 Optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`, filter each row by reservation-net available quantity. Either bound may be used alone; two active bounds must be ascending, and zero or negative thresholds are valid. Thresholds use the material base stock unit for both base and UOM requests. Inactive values must be initial; base and UOM results echo the flags and values. The bounds compose with `positive_available_only` and all other filters before dated and undated summaries, counts, and detail paging.
@@ -3328,7 +3642,10 @@ counts are reported separately. Earlier independent commits remain committed.
 result row per sales document. By default, row-level ATP, create, response, and
 commit failures do not prevent later orders; when enabled, later orders remain
 in caller order as skipped with separate outcome counts. Earlier independent
-commits remain committed.
+commits remain committed. Each `order_results` row also includes its
+document-level allocation summary when the order has positive open demand, so
+the preview outcome stays visible if reservation creation fails or the row is
+skipped.
 
 ## Reservation goods-issue bulk stop-on-failure
 

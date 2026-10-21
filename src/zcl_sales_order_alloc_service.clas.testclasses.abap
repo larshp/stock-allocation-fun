@@ -693,6 +693,9 @@ CLASS ltcl_sales_order_allocation DEFINITION FINAL
     METHODS rejects_bad_multi_res_result FOR TESTING.
     METHODS prepare_multi_res_fixture.
     METHODS maps_open_items_to_allocation FOR TESTING.
+    METHODS reports_order_floor_trace FOR TESTING.
+    METHODS summarizes_document_outcomes FOR TESTING.
+    METHODS summarizes_outcome_percentages FOR TESTING.
     METHODS previews_order_lines_with_atp FOR TESTING.
     METHODS previews_priority_atp FOR TESTING.
     METHODS rejects_atp_without_rule FOR TESTING.
@@ -2055,6 +2058,81 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       exp = '000020'
       act = ls_result-sales_unit_allocations[ 4 ]-item_number ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-material_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-material_summaries[ 1 ]-sales_document_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-material_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '48.000' )
+      act = ls_result-material_summaries[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '20.000' )
+      act = ls_result-material_summaries[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '28.000' )
+      act = ls_result-material_summaries[ 1 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-material_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_result-material_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-material_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-material_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_result-material_summaries[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-order_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-order_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_result-order_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-order_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_result-order_summaries[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-material_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '41.67' )
+      act = ls_result-material_summaries[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-material_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-material_summaries[ 1 ]-partially_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-material_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '25.00' )
+      act = ls_result-material_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '25.00' )
+      act = ls_result-material_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-material_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = mo_stock_repository->get_read_count( ) ).
   ENDMETHOD.
@@ -2698,6 +2776,15 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_availability_api->get_check_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-document_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-document_summaries[ 2 ]-allocation_outcome ).
   ENDMETHOD.
 
   METHOD prepare_multi_res_fixture.
@@ -2763,6 +2850,51 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       act = lines( ls_result-reservations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
+      act = lines( ls_result-document_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-document_summaries[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-material_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-material_summaries[ 1 ]-sales_document_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '12.000' )
+      act = ls_result-material_summaries[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = ls_result-material_summaries[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-material_summaries[ 1 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-material_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-material_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-material_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-material_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-material_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_result-material_summaries[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '83.33' )
+      act = ls_result-material_summaries[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
       act = lines( ls_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
@@ -2818,6 +2950,57 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-order_results ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-document_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-document_summaries[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-document_summaries[ 3 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-material_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-material_summaries[ 1 ]-sales_document_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-material_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-order_results[ 1 ]-document_summary-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-order_results[ 2 ]-document_summary-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-order_results[ 3 ]-document_summary-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_results[ 2 ]-document_summary-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = ls_result-order_results[ 2 ]-document_summary-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-order_results[ 2 ]-document_summary-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_result-order_results[ 2 ]-document_summary-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_result-order_results[ 2 ]-document_summary-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_results[ 2 ]-document_summary-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_results[ 2 ]-document_summary-unallocated_line_pct ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-order_results[ 1 ]-is_successful ).
@@ -3421,6 +3604,558 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
       act = lines( ls_result-reservations ) ).
   ENDMETHOD.
 
+  METHOD reports_order_floor_trace.
+    mo_stock_repository->set_stock( iv_quantity = '5.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          sales_document = '0000004711'
+          items          = VALUE #(
+            ( item_number        = '000010'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261020'
+              open_base_quantity = '10.000' )
+            ( item_number        = '000020'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '5.000' )
+            ( item_number        = '000030'
+              material           = 'MAT-1'
+              plant              = '2000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261021'
+              open_base_quantity = '10.000' )
+            ( item_number        = '000040'
+              material           = 'MAT-2'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261022'
+              open_base_quantity = '5.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      it_allocation_requirements = VALUE #(
+        ( sales_document       = '0000004711'
+          item_number          = '000010'
+          minimum_coverage_pct = '80.00' )
+        ( sales_document       = '0000004711'
+          item_number          = '000030'
+          minimum_coverage_pct = '80.00' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_result-order_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-order_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-order_summaries[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-order_summaries[ 1 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-order_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-order_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = ls_result-order_summaries[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 2 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 2 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_result-order_summaries[ 2 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 2 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 2 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_result-order_summaries[ 2 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_result-order_summaries[ 3 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_result-order_summaries[ 3 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 3 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-order_summaries[ 3 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 3 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_result-order_summaries[ 3 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 3 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-order_summaries[ 3 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_result-document_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-document_summaries[ 1 ]-demand_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-document_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-document_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-document_summaries[ 1 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-document_summaries[ 1 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-document_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_result-document_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_result-document_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-document_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_result-document_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = ls_result-document_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-document_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-document_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_single_order
+      act = ls_result-document_summaries[ 1 ]-allocation_sequence_scope ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_result-sales_unit_allocations[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-sales_unit_allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = ls_result-sales_unit_allocations[ 2 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-sales_unit_allocations[ 2 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-sales_unit_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_single_order
+      act = ls_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-sales_unit_allocations[ 2 ]-allocation_sequence ).
+
+    DATA(ls_single_date_result) = mo_cut->preview_order(
+      iv_sales_document          = '0000004711'
+      it_allocation_requirements = VALUE #(
+        ( sales_document       = '0000004711'
+          item_number          = '000010'
+          minimum_coverage_pct = '80.00' )
+        ( sales_document       = '0000004711'
+          item_number          = '000030'
+          minimum_coverage_pct = '80.00' ) )
+      iv_prioritize_by_date      = abap_true ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = ls_single_date_result-sales_unit_allocations[ 1 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_single_date_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_single_date_result-sales_unit_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_single_order
+      act = ls_single_date_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000010'
+      act = ls_single_date_result-sales_unit_allocations[ 2 ]-item_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_single_date_result-sales_unit_allocations[ 2 ]-allocation_sequence ).
+
+    DATA(ls_multi_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents         = VALUE #( ( '0000004711' ) )
+      it_allocation_requirements = VALUE #(
+        ( sales_document       = '0000004711'
+          item_number          = '000010'
+          minimum_coverage_pct = '80.00' )
+        ( sales_document       = '0000004711'
+          item_number          = '000030'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( ls_multi_result-order_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_multi_result-order_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_multi_result-order_summaries[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 1 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-order_summaries[ 1 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-order_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-order_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = ls_multi_result-order_summaries[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 2 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 2 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-order_summaries[ 2 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 2 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 2 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-order_summaries[ 2 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_multi_result-order_summaries[ 3 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-order_summaries[ 3 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-order_summaries[ 3 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_multi_result-order_summaries[ 3 ]-floor_rejected_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 3 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-order_summaries[ 3 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 3 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-order_summaries[ 3 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-material_summaries[ 1 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-material_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-material_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-material_summaries[ 2 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 2 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 2 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-material_summaries[ 2 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 3 ]-floor_rejected_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_multi_result-material_summaries[ 3 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 3 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-material_summaries[ 3 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_multi_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-document_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_multi_result-document_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = ls_multi_result-document_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_multi_result-document_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = ls_multi_result-document_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = ls_multi_result-document_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-document_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_multi_result-document_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_multi_result-document_summaries[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_multi_result-sales_unit_allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_multi_result-sales_unit_allocations[ 2 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_multi_result-sales_unit_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_multi_result-sales_unit_allocations[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-sales_unit_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_multi_order
+      act = ls_multi_result-sales_unit_allocations[ 2 ]-allocation_sequence_scope ).
+  ENDMETHOD.
+
+  METHOD summarizes_document_outcomes.
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          sales_document = '0000004711'
+          items          = VALUE #(
+            ( item_number        = '000010'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              open_base_quantity = '5.000' ) ) ) ) ).
+
+    mo_stock_repository->set_stock( iv_quantity = '5.000' ).
+    DATA(ls_full_result) = mo_cut->preview_order( '0000004711' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( ls_full_result-document_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = ls_full_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_full_result-document_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_full_result-document_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_full_result-document_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_full_result-document_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_full_result-document_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_single_order
+      act = ls_full_result-document_summaries[ 1 ]-allocation_sequence_scope ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_full_result-document_summaries[ 1 ]-floor_rejected_line_pct ).
+
+    mo_stock_repository->set_stock( iv_quantity = '0.000' ).
+    DATA(ls_none_result) = mo_cut->preview_order( '0000004711' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = ls_none_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_none_result-document_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_none_result-document_summaries[ 1 ]-unallocated_line_pct ).
+
+    mo_stock_repository->set_stock( iv_quantity = '3.000' ).
+    DATA(ls_partial_result) = mo_cut->preview_order( '0000004711' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_partial_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_partial_result-document_summaries[ 1 ]-partially_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_partial_result-document_summaries[ 1 ]-partially_allocated_line_pct ).
+  ENDMETHOD.
+
+  METHOD summarizes_outcome_percentages.
+    mo_stock_repository->set_stock( iv_quantity = '6.000' ).
+    mo_order_api->set_read_result(
+      is_result = VALUE #(
+        is_successful = abap_true
+        order         = VALUE #(
+          sales_document = '0000004711'
+          items          = VALUE #(
+            ( item_number        = '000010'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '4.000' )
+            ( item_number        = '000020'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '4.000' )
+            ( item_number        = '000030'
+              material           = 'MAT-1'
+              plant              = '1000'
+              entry_unit         = 'EA'
+              base_unit          = 'EA'
+              requested_date     = '20261001'
+              open_base_quantity = '4.000' ) ) ) ) ).
+
+    DATA(ls_result) = mo_cut->preview_order( '0000004711' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-partially_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-order_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-order_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-order_summaries[ 1 ]-unallocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-document_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-document_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_result-document_summaries[ 1 ]-unallocated_line_pct ).
+
+    DATA(ls_multi_result) = mo_cut->preview_orders_by_date(
+      it_sales_documents = VALUE #( ( '0000004711' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-material_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-material_summaries[ 1 ]-partially_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_multi_result-material_summaries[ 1 ]-unallocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_multi_result-material_summaries[ 1 ]-fully_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_multi_result-material_summaries[ 1 ]-partially_allocated_line_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = ls_multi_result-material_summaries[ 1 ]-unallocated_line_pct ).
+  ENDMETHOD.
+
   METHOD maps_open_items_to_allocation.
     mo_stock_repository->set_stock( iv_quantity = '5.000' ).
     mo_order_api->set_read_result(
@@ -3432,16 +4167,19 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
             ( item_number        = '000010'
               material           = 'MAT-1'
               plant              = '1000'
+              entry_unit         = 'EA'
               base_unit          = 'EA'
               open_base_quantity = '4.000' )
             ( item_number        = '000020'
               material           = 'MAT-1'
               plant              = '1000'
+              entry_unit         = 'EA'
               base_unit          = 'EA'
               open_base_quantity = '3.000' )
             ( item_number        = '000030'
               material           = 'MAT-1'
               plant              = '1000'
+              entry_unit         = 'EA'
               base_unit          = 'EA'
               open_base_quantity = '0.000' ) ) ) ) ).
 
@@ -3453,6 +4191,22 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-order_summaries[ 1 ]-dated_line_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-order_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = ls_result-order_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-order_summaries[ 1 ]-first_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-order_summaries[ 1 ]-last_allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_sales_order_alloc_service=>c_sequence_scope_single_order
+      act = ls_result-order_summaries[ 1 ]-allocation_sequence_scope ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0000004711/000010'
       act = ls_result-allocations[ 1 ]-request_id ).
@@ -4671,11 +5425,13 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
             ( item_number        = '000010'
               material           = 'MAT-1'
               plant              = '1000'
+              entry_unit         = 'EA'
               base_unit          = 'EA'
               open_base_quantity = '3.000' )
             ( item_number        = '000020'
               material           = 'MAT-1'
               plant              = '1000'
+              entry_unit         = 'EA'
               base_unit          = 'EA'
               open_base_quantity = '3.000' ) ) ) ) ).
 
@@ -4706,6 +5462,15 @@ CLASS ltcl_sales_order_allocation IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = mo_reservation_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = ls_result-document_summaries[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-document_summaries[ 1 ]-fully_allocated_line_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-document_summaries[ 1 ]-partially_allocated_line_count ).
   ENDMETHOD.
 
   METHOD reserves_due_items_first.

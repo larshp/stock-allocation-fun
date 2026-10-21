@@ -593,18 +593,21 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
       matnr = 'MAT-1'
       werks = '1000'
       charg = 'B-1'
-      vfdat = '20271231' ) TO lt_mcha.
+      vfdat = '20271231'
+      hsdat = '20261010' ) TO lt_mcha.
     mo_environment->insert_test_data( lt_mcha ).
 
     DATA lt_mch1 TYPE STANDARD TABLE OF mch1 WITH EMPTY KEY.
     APPEND VALUE #(
       matnr = 'MAT-1'
       charg = 'B-1'
-      vfdat = '20261130' ) TO lt_mch1.
+      vfdat = '20261130'
+      hsdat = '20260901' ) TO lt_mch1.
     APPEND VALUE #(
       matnr = 'MAT-2'
       charg = 'B-3'
-      vfdat = '20261215' ) TO lt_mch1.
+      vfdat = '20261215'
+      hsdat = '20261001' ) TO lt_mch1.
     mo_environment->insert_test_data( lt_mch1 ).
 
     DATA lt_resb TYPE STANDARD TABLE OF resb WITH EMPTY KEY.
@@ -702,6 +705,14 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
       act = lt_scalar_status[
         storage_location = '0001' batch = 'B-1' ]-expiration_date ).
     cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_scalar_status[
+        storage_location = '0001' batch = 'B-1' ]-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_mfg_date_src_plant
+      act = lt_scalar_status[
+        storage_location = '0001' batch = 'B-1' ]-manufacturing_date_source ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mchb-clabs( '0.000' )
       act = lt_scalar_status[
         storage_location = '0002' batch = 'B-1' ]-available_quantity ).
@@ -771,6 +782,22 @@ CLASS ltcl_mard_stock_repository IMPLEMENTATION.
       exp = '20271231'
       act = lt_statuses[ request_id = 'BATCH-2' ]-batches[
         storage_location = '0001' batch = 'B-1' ]-expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_statuses[ request_id = 'BATCH-1' ]-batches[
+        storage_location = '0001' batch = 'B-1' ]-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_mfg_date_src_plant
+      act = lt_statuses[ request_id = 'BATCH-1' ]-batches[
+        storage_location = '0001' batch = 'B-1' ]-manufacturing_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_statuses[ request_id = 'BATCH-3' ]-batches[
+        storage_location = '0003' batch = 'B-3' ]-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_mfg_date_src_global
+      act = lt_statuses[ request_id = 'BATCH-3' ]-batches[
+        storage_location = '0003' batch = 'B-3' ]-manufacturing_date_source ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mchb-clabs( '10.000' )
       act = lt_statuses[ request_id = 'BATCH-1' ]-batches[

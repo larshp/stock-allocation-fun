@@ -19,6 +19,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         allocated_quantity        TYPE mard-labst,
         shortfall_quantity        TYPE mard-labst,
         minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        minimum_coverage_rejected TYPE abap_bool,
         allocation_outcome        TYPE c LENGTH 1,
         allocation_coverage_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
         confirmed_base_quantity   TYPE mard-labst,
@@ -83,6 +84,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         request_id                TYPE c LENGTH 30,
         cost_center               TYPE bapi2093_res_head-costcenter,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         require_full_quantity     TYPE abap_bool,
         allocation                TYPE zcl_stock_service=>ty_date_unit_allocation,
         cumulative_base_quantity  TYPE mard-labst,
@@ -149,6 +151,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         cost_center               TYPE bapi2093_res_head-costcenter,
         required_date             TYPE d,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         require_full_quantity     TYPE abap_bool,
         allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
         storage_allocations       TYPE zcl_stock_service=>ty_dated_unit_location_splits,
@@ -189,6 +192,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         selected_batch            TYPE mchb-charg,
         required_date             TYPE d,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         require_full_quantity     TYPE abap_bool,
         minimum_shelf_life_days   TYPE i,
         include_undated_batches   TYPE abap_bool,
@@ -252,6 +256,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         cost_center               TYPE bapi2093_res_head-costcenter,
         required_date             TYPE d,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         as_of_date                TYPE d,
         minimum_shelf_life_days   TYPE i,
         include_undated_batches   TYPE abap_bool,
@@ -293,6 +298,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         request_id                TYPE c LENGTH 30,
         required_date             TYPE d,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
         storage_allocations       TYPE zcl_stock_service=>ty_unit_storage_splits,
         batch_allocations         TYPE zcl_stock_service=>ty_unit_batch_splits,
@@ -314,6 +320,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         request_id                TYPE c LENGTH 30,
         required_date             TYPE d,
         priority                  TYPE i,
+        allocation_sequence       TYPE i,
         allocation                TYPE zcl_stock_service=>ty_unit_allocation_summary,
         storage_allocations       TYPE zcl_stock_service=>ty_unit_storage_splits,
         batch_allocations         TYPE zcl_stock_service=>ty_unit_batch_splits,
@@ -1766,6 +1773,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             iv_require_full_quantity = abap_true
             OR ls_demand-require_full_quantity = abap_true )
           allocation                = ls_atp_allocation-local_estimate
+          allocation_sequence       =
+            ls_atp_allocation-local_estimate-allocation-allocation_sequence
           cumulative_base_quantity  =
             ls_atp_allocation-cumulative_base_quantity
           confirmed_base_quantity   =
@@ -1788,7 +1797,9 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           require_full_quantity = xsdbool(
             iv_require_full_quantity = abap_true
             OR ls_demand-require_full_quantity = abap_true )
-          allocation            = ls_allocation )
+          allocation            = ls_allocation
+          allocation_sequence   =
+            ls_allocation-allocation-allocation_sequence )
           TO rt_previews.
       ENDIF.
     ENDLOOP.
@@ -2108,10 +2119,16 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         iv_require_full_quantity = abap_true
         OR ls_demand-require_full_quantity = abap_true ).
       <ls_preview>-allocation = ls_allocation-allocation.
+      <ls_preview>-allocation_sequence =
+        ls_allocation-allocation-allocation-allocation_sequence.
       LOOP AT ls_location_result-storage_allocations
           INTO DATA(ls_storage_allocation).
         IF ls_storage_allocation-storage_split-storage_allocation-request_id
             = ls_demand-request_id.
+          ls_storage_allocation-allocation_sequence =
+            <ls_preview>-allocation_sequence.
+          ls_storage_allocation-storage_split-allocation_sequence =
+            <ls_preview>-allocation_sequence.
           APPEND ls_storage_allocation
             TO <ls_preview>-storage_allocations.
         ENDIF.
@@ -2325,15 +2342,17 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   METHOD preview_cc_batches_by_date.
     TYPES:
       BEGIN OF ty_indexed_batch_demand,
-        input_index    TYPE i,
-        effective_date TYPE d,
-        demand         TYPE ty_batch_preview_demand,
+        input_index         TYPE i,
+        effective_date      TYPE d,
+        allocation_sequence TYPE i,
+        demand              TYPE ty_batch_preview_demand,
       END OF ty_indexed_batch_demand,
       ty_indexed_batch_demands TYPE STANDARD TABLE OF
         ty_indexed_batch_demand WITH EMPTY KEY.
     DATA lt_indexed_demands TYPE ty_indexed_batch_demands.
     DATA lt_sorted_demands TYPE ty_batch_preview_demands.
     DATA lt_sorted_previews TYPE ty_batch_demand_previews.
+    DATA lv_allocation_sequence TYPE i.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       IF ls_demand-required_date IS NOT INITIAL
@@ -2353,8 +2372,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
 
     SORT lt_indexed_demands STABLE BY effective_date ASCENDING
       demand-priority DESCENDING.
-    LOOP AT lt_indexed_demands INTO DATA(ls_indexed_demand).
-      APPEND ls_indexed_demand-demand TO lt_sorted_demands.
+    LOOP AT lt_indexed_demands ASSIGNING FIELD-SYMBOL(<ls_indexed_demand>).
+      ADD 1 TO lv_allocation_sequence.
+      <ls_indexed_demand>-allocation_sequence = lv_allocation_sequence.
+      APPEND <ls_indexed_demand>-demand TO lt_sorted_demands.
     ENDLOOP.
 
     lt_sorted_previews = preview_cost_center_batches(
@@ -2380,6 +2401,20 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       IF sy-subrc <> 0.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      READ TABLE lt_indexed_demands INTO DATA(ls_indexed_demand)
+        WITH KEY demand-request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_preview-allocation_sequence =
+        ls_indexed_demand-allocation_sequence.
+      ls_preview-allocation-allocation-allocation_sequence =
+        ls_indexed_demand-allocation_sequence.
+      LOOP AT ls_preview-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_batch_split>).
+        <ls_batch_split>-allocation_sequence =
+          ls_indexed_demand-allocation_sequence.
+      ENDLOOP.
       APPEND ls_preview TO rt_previews.
     ENDLOOP.
   ENDMETHOD.
@@ -2572,9 +2607,18 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD preview_cost_center_fefo_date.
+    TYPES:
+      BEGIN OF ty_request_sequence,
+        request_id          TYPE c LENGTH 30,
+        allocation_sequence TYPE i,
+      END OF ty_request_sequence.
+    TYPES ty_request_sequences TYPE STANDARD TABLE OF ty_request_sequence
+      WITH EMPTY KEY.
     DATA lt_sorted_demands TYPE ty_dated_fefo_preview_demands.
     DATA lt_fefo_demands TYPE ty_fefo_preview_demands.
     DATA lt_sorted_previews TYPE ty_fefo_demand_previews.
+    DATA lt_request_sequences TYPE ty_request_sequences.
+    DATA lv_allocation_sequence TYPE i.
     DATA lv_effective_date TYPE d.
 
     LOOP AT it_demands INTO DATA(ls_demand).
@@ -2618,6 +2662,11 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     SORT lt_sorted_demands STABLE BY required_date ASCENDING
       priority DESCENDING.
     LOOP AT lt_sorted_demands INTO ls_demand.
+      ADD 1 TO lv_allocation_sequence.
+      APPEND VALUE #(
+        request_id          = ls_demand-request_id
+        allocation_sequence = lv_allocation_sequence )
+        TO lt_request_sequences.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
         material                    = ls_demand-material
@@ -2664,6 +2713,20 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       ENDIF.
       ls_preview-required_date = ls_demand-required_date.
       ls_preview-priority = ls_demand-priority.
+      READ TABLE lt_request_sequences INTO DATA(ls_request_sequence)
+        WITH KEY request_id = ls_demand-request_id.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      ls_preview-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
+      ls_preview-allocation-allocation-allocation_sequence =
+        ls_request_sequence-allocation_sequence.
+      LOOP AT ls_preview-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_batch_split>).
+        <ls_batch_split>-allocation_sequence =
+          ls_request_sequence-allocation_sequence.
+      ENDLOOP.
       APPEND ls_preview TO rt_previews.
     ENDLOOP.
   ENDMETHOD.
@@ -2739,6 +2802,23 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_request_locations           = it_request_locations ).
 
     lt_sorted_items = rs_result-items.
+    LOOP AT lt_sorted_items ASSIGNING FIELD-SYMBOL(<ls_fefo_atomic_item>).
+      DATA(lv_fefo_atomic_sequence) = sy-tabix.
+      <ls_fefo_atomic_item>-allocation_sequence =
+        lv_fefo_atomic_sequence.
+      <ls_fefo_atomic_item>-allocation-allocation-allocation_sequence =
+        lv_fefo_atomic_sequence.
+      LOOP AT <ls_fefo_atomic_item>-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_fefo_atomic_storage_split>).
+        <ls_fefo_atomic_storage_split>-allocation_sequence =
+          lv_fefo_atomic_sequence.
+      ENDLOOP.
+      LOOP AT <ls_fefo_atomic_item>-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_fefo_atomic_batch_split>).
+        <ls_fefo_atomic_batch_split>-allocation_sequence =
+          lv_fefo_atomic_sequence.
+      ENDLOOP.
+    ENDLOOP.
     IF lines( lt_sorted_items ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -2827,6 +2907,22 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_request_locations           = it_request_locations ).
 
     lt_sorted_items = rs_result-items.
+    LOOP AT lt_sorted_items ASSIGNING FIELD-SYMBOL(<ls_fefo_bulk_item>).
+      DATA(lv_fefo_bulk_sequence) = sy-tabix.
+      <ls_fefo_bulk_item>-allocation_sequence = lv_fefo_bulk_sequence.
+      <ls_fefo_bulk_item>-allocation-allocation-allocation_sequence =
+        lv_fefo_bulk_sequence.
+      LOOP AT <ls_fefo_bulk_item>-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_fefo_bulk_storage_split>).
+        <ls_fefo_bulk_storage_split>-allocation_sequence =
+          lv_fefo_bulk_sequence.
+      ENDLOOP.
+      LOOP AT <ls_fefo_bulk_item>-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_fefo_bulk_batch_split>).
+        <ls_fefo_bulk_batch_split>-allocation_sequence =
+          lv_fefo_bulk_sequence.
+      ENDLOOP.
+    ENDLOOP.
     IF lines( lt_sorted_items ) <> lines( it_demands ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
@@ -3558,6 +3654,23 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       it_request_locations           = it_request_locations ).
 
     lt_ordered_items = rs_result-items.
+    LOOP AT lt_ordered_items ASSIGNING FIELD-SYMBOL(<ls_dated_atomic_item>).
+      DATA(lv_dated_atomic_sequence) = sy-tabix.
+      <ls_dated_atomic_item>-allocation_sequence =
+        lv_dated_atomic_sequence.
+      <ls_dated_atomic_item>-allocation-allocation-allocation_sequence =
+        lv_dated_atomic_sequence.
+      LOOP AT <ls_dated_atomic_item>-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_dt_atomic_store_split>).
+        <ls_dt_atomic_store_split>-allocation_sequence =
+          lv_dated_atomic_sequence.
+      ENDLOOP.
+      LOOP AT <ls_dated_atomic_item>-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_dated_atomic_batch_split>).
+        <ls_dated_atomic_batch_split>-allocation_sequence =
+          lv_dated_atomic_sequence.
+      ENDLOOP.
+    ENDLOOP.
     CLEAR rs_result-items.
     LOOP AT it_demands INTO ls_demand.
       READ TABLE lt_ordered_items INTO ls_ordered_item
@@ -3822,6 +3935,23 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
     ENDLOOP.
 
     lt_ordered_items = rs_result-items.
+    LOOP AT lt_ordered_items ASSIGNING FIELD-SYMBOL(<ls_bulk_item_sequence>).
+      DATA(lv_bulk_item_sequence) = sy-tabix.
+      <ls_bulk_item_sequence>-allocation_sequence =
+        lv_bulk_item_sequence.
+      <ls_bulk_item_sequence>-allocation-allocation-allocation_sequence =
+        lv_bulk_item_sequence.
+      LOOP AT <ls_bulk_item_sequence>-storage_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_bulk_storage_sequence>).
+        <ls_bulk_storage_sequence>-allocation_sequence =
+          lv_bulk_item_sequence.
+      ENDLOOP.
+      LOOP AT <ls_bulk_item_sequence>-batch_allocations
+          ASSIGNING FIELD-SYMBOL(<ls_bulk_batch_sequence>).
+        <ls_bulk_batch_sequence>-allocation_sequence =
+          lv_bulk_item_sequence.
+      ENDLOOP.
+    ENDLOOP.
     CLEAR rs_result-items.
     LOOP AT it_demands INTO ls_demand.
       READ TABLE lt_ordered_items INTO DATA(ls_ordered_item)
@@ -4562,6 +4692,12 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       ls_allocation-shortfall_quantity.
     rs_prepared-result-allocation_outcome =
       ls_allocation-allocation_outcome.
+    rs_prepared-result-minimum_coverage_rejected = xsdbool(
+      ls_allocation-minimum_coverage_rejected = abap_true
+      OR ( iv_minimum_coverage_pct > 0
+        AND iv_require_full_alloc = abap_true
+        AND ls_allocation-allocated_quantity <
+          ls_allocation-requested_quantity ) ).
     rs_prepared-result-allocation_coverage_pct =
       ls_allocation-allocation_coverage_pct.
 

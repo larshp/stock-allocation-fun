@@ -777,6 +777,7 @@ CLASS lcl_stock_repository_double IMPLEMENTATION.
         APPEND VALUE #(
           storage_location      = ls_batch_stock-storage_location
           batch                 = ls_batch_stock-batch
+          valuation_type        = ls_batch_stock-valuation_type
           expiration_date       = ls_batch_stock-expiration_date
           unrestricted_quantity = ls_batch_stock-available_quantity
           available_quantity    = ls_batch_stock-available_quantity )
@@ -1000,6 +1001,9 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS requires_full_local_quantity FOR TESTING.
     METHODS rejects_date_receipt_overflow FOR TESTING.
     METHODS allocates_request_by_date FOR TESTING.
+    METHODS reports_dated_floor_reject FOR TESTING.
+    METHODS reports_shared_floor_reject FOR TESTING.
+    METHODS reports_valtype_floor_reject FOR TESTING.
     METHODS requires_full_local_date FOR TESTING.
     METHODS requires_full_detailed_local FOR TESTING.
     METHODS excludes_undated_fefo_local FOR TESTING.
@@ -1045,6 +1049,7 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS allocates_demands_in_order FOR TESTING.
     METHODS keeps_plant_stock_separate FOR TESTING.
     METHODS allocates_across_plants FOR TESTING.
+    METHODS reports_plant_floor_reject FOR TESTING.
     METHODS rejects_xplant_avail_overflow FOR TESTING.
     METHODS rejects_xplant_rcpt_overflow FOR TESTING.
     METHODS filters_cross_plant_locations FOR TESTING.
@@ -1264,6 +1269,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS filters_after_window_lead_band FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expiry_day_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_mfg_age_range FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expiration_date_range FOR TESTING
       RAISING zcx_invalid_stock_request.
@@ -5571,7 +5578,266 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_allocation-shortfall_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = ls_allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD reports_dated_floor_reject.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-4'
+      iv_plant    = '1000'
+      iv_date     = '20261001'
+      iv_quantity = '3.000' ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(ls_single) = lo_cut->allocate_request_by_date(
+      iv_material             = 'MAT-4'
+      iv_plant                = '1000'
+      iv_required_date        = '20261001'
+      iv_requested_quantity   = '4.000'
+      iv_minimum_coverage_pct = '80.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_single-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = ls_single-allocated_quantity ).
+
+    DATA(lt_base) = lo_cut->allocate_demands_by_date(
+      it_demands = VALUE zcl_stock_service=>ty_dated_demands(
+        ( request_id           = 'DATE-FLOOR-REJECT'
+          material             = 'MAT-4'
+          plant                = '1000'
+          required_date        = '20261001'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' )
+        ( request_id         = 'DATE-FLOOR-NEXT'
+          material           = 'MAT-4'
+          plant              = '1000'
+          required_date      = '20261001'
+          requested_quantity = '2.000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_base[ 2 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_base[ 2 ]-allocated_quantity ).
+
+    DATA(lt_uom) = lo_cut->allocate_date_demands_in_units(
+      it_demands = VALUE zcl_stock_service=>ty_date_unit_demands(
+        ( request_id           = 'DATE-UOM-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          required_date        = '20261001'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(lt_atp) = lo_cut->allocate_date_demands_atp(
+      it_demands    = VALUE zcl_stock_service=>ty_date_unit_demands(
+        ( request_id           = 'DATE-ATP-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          required_date        = '20261001'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      iv_check_rule = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_atp[ 1 ]-local_estimate-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_atp_request) = lo_cut->allocate_request_date_atp(
+      iv_material             = 'MAT-4'
+      iv_plant                = '1000'
+      iv_unit                 = 'BOX'
+      iv_check_rule           = 'A'
+      iv_required_date        = '20261001'
+      iv_requested_quantity   = '2.000'
+      iv_minimum_coverage_pct = '80.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_atp_request-local_estimate-minimum_coverage_rejected ).
+  ENDMETHOD.
+
+  METHOD reports_shared_floor_reject.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_stock( iv_quantity = '3.000' ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(ls_single) = lo_cut->allocate_request(
+      iv_material             = 'MAT-4'
+      iv_plant                = '1000'
+      iv_requested_quantity   = '4.000'
+      iv_minimum_coverage_pct = '80.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_single-minimum_coverage_rejected ).
+
+    DATA(lt_base) = lo_cut->allocate_demands(
+      it_demands = VALUE #(
+        ( request_id            = 'SHARED-FLOOR-REJECT'
+          material              = 'MAT-4'
+          plant                 = '1000'
+          requested_quantity    = '4.000'
+          require_full_quantity = abap_true
+          minimum_coverage_pct  = '80.00' )
+        ( request_id         = 'SHARED-FLOOR-NEXT'
+          material           = 'MAT-4'
+          plant              = '1000'
+          requested_quantity = '2.000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_base[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_base[ 2 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_base[ 2 ]-allocated_quantity ).
+
+    DATA(ls_unit_single) = lo_cut->allocate_request_in_unit(
+      iv_material             = 'MAT-4'
+      iv_plant                = '1000'
+      iv_requested_quantity   = '2.000'
+      iv_requested_unit       = 'BOX'
+      iv_minimum_coverage_pct = '80.00' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_unit_single-allocation-minimum_coverage_rejected ).
+
+    DATA(lt_uom) = lo_cut->allocate_demands_in_units(
+      it_demands = VALUE #(
+        ( request_id           = 'SHARED-UOM-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(lt_priority) = lo_cut->allocate_demands_by_priority(
+      it_demands = VALUE zcl_stock_service=>ty_priority_demands(
+        ( request_id           = 'SHARED-PRIORITY-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          priority             = 10
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_priority[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(lt_uom_priority) = lo_cut->allocate_demands_uom_priority(
+      it_demands = VALUE zcl_stock_service=>ty_priority_unit_demands(
+        ( request_id           = 'SHARED-UOM-PRIORITY-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          priority             = 10
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_priority[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_uom_atp) = lo_cut->allocate_demands_uom_atp(
+      it_demands    = VALUE #(
+        ( request_id           = 'SHARED-UOM-ATP-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      iv_check_rule = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom_atp-local_estimate[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_uom_priority_atp) = lo_cut->allocate_demands_uom_atp_prio(
+      it_demands    = VALUE zcl_stock_service=>ty_priority_unit_demands(
+        ( request_id           = 'SHARED-UOM-PRIORITY-ATP-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          priority             = 10
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      iv_check_rule = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom_priority_atp-local_estimate[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_batch_result) = lo_cut->allocate_by_batch(
+      it_demands = VALUE zcl_stock_service=>ty_batch_demands(
+        ( request_id           = 'SHARED-BATCH-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          batch                = 'B-1'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_batch_result-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_fefo_result) = lo_cut->allocate_by_expiry(
+      it_demands    = VALUE zcl_stock_service=>ty_fefo_demands(
+        ( request_id           = 'SHARED-FEFO-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      iv_as_of_date = '20261001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_result-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_quality_result) = lo_cut->allocate_quality_by_expiry(
+      it_demands    = VALUE zcl_stock_service=>ty_fefo_demands(
+        ( request_id           = 'SHARED-QUALITY-FLOOR'
+          material             = 'MAT-4'
+          plant                = '1000'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      iv_as_of_date = '20261001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_quality_result-allocations[ 1 ]-minimum_coverage_rejected ).
   ENDMETHOD.
 
   METHOD requires_full_local_date.
@@ -5624,6 +5890,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           material           = 'MAT-4'
           plant              = '1000'
           required_date      = '20261101'
+          priority           = 99
           requested_quantity = '3.000' ) )
       iv_require_full_quantity = abap_true ).
     cl_abap_unit_assert=>assert_equals(
@@ -5635,6 +5902,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
       act = lt_date_result[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_date_result[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_date_result[ 2 ]-allocation_sequence ).
 
     DATA(lt_row_date_result) = lo_cut->allocate_demands_by_date(
       it_demands = VALUE #(
@@ -5657,6 +5930,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = lt_row_date_result[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_date_result[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_row_date_result[ 2 ]-allocation_sequence ).
 
     DATA(lt_row_date_uom_result) = lo_cut->allocate_date_demands_in_units(
       it_demands = VALUE #(
@@ -5681,6 +5960,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = lt_row_date_uom_result[ 2 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_date_uom_result[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_row_date_uom_result[ 2 ]-allocation-allocation_sequence ).
 
     DATA(lt_atp_result) = lo_cut->allocate_date_demands_atp(
       it_demands               = VALUE #(
@@ -5698,6 +5983,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = lt_atp_result[ 1 ]-local_estimate-allocation-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_atp_result[ 1 ]-local_estimate-allocation-allocation_sequence ).
 
     DATA(ls_atp_request) = lo_cut->allocate_request_date_atp(
       iv_material              = 'MAT-4'
@@ -5713,6 +6001,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_atp_request-local_estimate-shortfall_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_request-local_estimate-allocation_sequence ).
   ENDMETHOD.
 
   METHOD requires_full_detailed_local.
@@ -7549,6 +7840,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 20
       act = lt_allocations[ 2 ]-allocation-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_allocations[ 2 ]-allocation-allocation_sequence ).
   ENDMETHOD.
 
   METHOD allocates_dated_unit_demands.
@@ -8465,6 +8762,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '2.750' )
       act = lt_allocations[ 2 ]-shortfall_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
 
@@ -8491,6 +8791,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '0.000' )
       act = lt_priority_allocations[ 1 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_priority_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'HIGH-PRIORITY'
       act = lt_priority_allocations[ 2 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
@@ -8499,6 +8802,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
       act = lt_priority_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_priority_allocations[ 2 ]-allocation_sequence ).
 
     lo_repository->set_stock( iv_quantity = '3.000' ).
     DATA(lt_equal_priority_allocations) = lo_cut->allocate_demands_by_priority(
@@ -8520,11 +8826,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '3.000' )
       act = lt_equal_priority_allocations[ 1 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_equal_priority_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'SECOND-TIE'
       act = lt_equal_priority_allocations[ 2 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = lt_equal_priority_allocations[ 2 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_equal_priority_allocations[ 2 ]-allocation_sequence ).
 
     DATA lv_duplicate_rejected TYPE abap_bool.
     TRY.
@@ -8703,6 +9015,348 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD reports_plant_floor_reject.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_plant_stock(
+      iv_material = 'MAT-4'
+      iv_plant    = '2000'
+      iv_quantity = '3.000' ).
+    lo_repository->set_date_stock(
+      iv_material = 'MAT-4'
+      iv_plant    = '2000'
+      iv_date     = '20261001'
+      iv_quantity = '3.000' ).
+    lo_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          expiration_date    = '20261231'
+          available_quantity = '3.000' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(lt_sources) = VALUE zcl_stock_service=>ty_plant_sources(
+      ( request_id = 'PLANT-FLOOR' source_plant = '2000' )
+      ( request_id = 'PLANT-NEXT' source_plant = '2000' ) ).
+    DATA(ls_ordinary) = lo_cut->allocate_across_plants(
+      it_demands = VALUE #(
+        ( request_id           = 'PLANT-FLOOR'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' )
+        ( request_id         = 'PLANT-NEXT'
+          material           = 'MAT-4'
+          target_plant       = '9000'
+          requested_quantity = '2.000' ) )
+      it_sources = lt_sources ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_ordinary-allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_ordinary-allocations[ 2 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_ordinary-allocations[ 2 ]-allocated_quantity ).
+
+    DATA(ls_priority) = lo_cut->allocate_plants_priority(
+      it_demands = VALUE zcl_stock_service=>ty_priority_plant_demands(
+        ( request_id           = 'PLANT-PRIORITY'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          priority             = 5
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-PRIORITY' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_priority-allocations[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_uom) = lo_cut->allocate_plants_in_units(
+      it_demands = VALUE zcl_stock_service=>ty_unit_plant_demands(
+        ( request_id           = 'PLANT-UOM'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-UOM' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom-allocations[ 1 ]-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_uom_atp) = lo_cut->allocate_plants_uom_atp_prio(
+      it_demands    = VALUE zcl_stock_service=>ty_priority_unit_plant_demands(
+        ( request_id           = 'PLANT-UOM-ATP'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          priority             = 5
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources    = VALUE #(
+        ( request_id = 'PLANT-UOM-ATP' source_plant = '2000' ) )
+      iv_check_rule = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom_atp-local_estimate-allocations[ 1 ]-allocation-allocation-minimum_coverage_rejected ).
+
+    DATA(ls_dated) = lo_cut->allocate_plants_by_date(
+      it_demands = VALUE zcl_stock_service=>ty_date_plant_demands(
+        ( request_id           = 'PLANT-DATE'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          required_date        = '20261001'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-DATE' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_dated-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(lo_location_repository) = NEW lcl_stock_repository_double( ).
+    lo_location_repository->set_plant_location_stock(
+      iv_material         = 'MAT-4'
+      iv_plant            = '2000'
+      iv_storage_location = '0001'
+      iv_quantity         = '3.000' ).
+    DATA(lo_location_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_location_repository ).
+    DATA(ls_dated_location) = lo_location_cut->allocate_plants_by_date_loc(
+      it_demands = VALUE zcl_stock_service=>ty_dated_plant_location_demands(
+        ( request_id           = 'PLANT-DATE-LOCATION'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          required_date        = '20261001'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-DATE-LOCATION' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_dated_location-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_fefo) = lo_cut->allocate_plants_by_expiry(
+      it_demands    = VALUE zcl_stock_service=>ty_plant_demands(
+        ( request_id           = 'PLANT-FEFO'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources    = VALUE #(
+        ( request_id = 'PLANT-FEFO' source_plant = '2000' ) )
+      iv_as_of_date = '20261001' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_fefo_date) = lo_cut->allocate_plants_fefo_by_date(
+      it_demands = VALUE zcl_stock_service=>ty_date_plant_demands(
+        ( request_id           = 'PLANT-FEFO-DATE'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          required_date        = '20261001'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-FEFO-DATE' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_fefo_date-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_batch) = lo_cut->allocate_plants_by_batch(
+      it_demands = VALUE zcl_stock_service=>ty_plant_batch_demands(
+        ( request_id           = 'PLANT-BATCH'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          batch                = 'B-1'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-BATCH' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_batch-allocations[ 1 ]-minimum_coverage_rejected ).
+
+    DATA(ls_date_batch) = lo_cut->allocate_plants_batch_by_date(
+      it_demands = VALUE zcl_stock_service=>ty_date_plant_batch_demands(
+        ( request_id           = 'PLANT-DATE-BATCH'
+          material             = 'MAT-4'
+          target_plant         = '9000'
+          required_date        = '20261001'
+          batch                = 'B-1'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_sources = VALUE #(
+        ( request_id = 'PLANT-DATE-BATCH' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_date_batch-allocations[ 1 ]-minimum_coverage_rejected ).
+  ENDMETHOD.
+
+  METHOD reports_valtype_floor_reject.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stocks(
+      it_stock = VALUE #(
+        ( storage_location   = '0001'
+          batch              = 'B-1'
+          valuation_type     = 'V1'
+          expiration_date    = '20261231'
+          available_quantity = '3.000' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository          = lo_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+
+    DATA(ls_base) = lo_cut->preview_by_valtype(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_demands(
+        ( request_id           = 'VALTYPE-FLOOR'
+          material             = 'MAT-4'
+          plant                = '2000'
+          valuation_type       = 'V1'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_base-allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_base-allocations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_base-allocations[ 1 ]-allocation_coverage_pct ).
+
+    DATA(ls_partial) = lo_cut->preview_by_valtype(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_demands(
+        ( request_id           = 'VALTYPE-PARTIAL'
+          material             = 'MAT-4'
+          plant                = '2000'
+          valuation_type       = 'V1'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '50.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = ls_partial-allocations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '75.00' )
+      act = ls_partial-allocations[ 1 ]-allocation_coverage_pct ).
+
+    DATA(ls_full_coverage) = lo_cut->preview_by_valtype(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_demands(
+        ( request_id         = 'VALTYPE-FULL-COVERAGE'
+          material           = 'MAT-4'
+          plant              = '2000'
+          valuation_type     = 'V1'
+          requested_quantity = '3.000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = ls_full_coverage-allocations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = ls_full_coverage-allocations[ 1 ]-allocation_coverage_pct ).
+
+    DATA(ls_full) = lo_cut->preview_by_valtype(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_demands(
+        ( request_id            = 'VALTYPE-FULL'
+          material              = 'MAT-4'
+          plant                 = '2000'
+          valuation_type        = 'V1'
+          requested_quantity    = '4.000'
+          require_full_quantity = abap_true
+          minimum_coverage_pct  = '50.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_full-allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_full-allocations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_full-allocations[ 1 ]-allocation_coverage_pct ).
+
+    DATA(ls_zero_floor) = lo_cut->preview_by_valtype(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_demands(
+        ( request_id            = 'VALTYPE-ZERO-FLOOR'
+          material              = 'MAT-4'
+          plant                 = '2000'
+          valuation_type        = 'V1'
+          requested_quantity    = '4.000'
+          require_full_quantity = abap_true
+          minimum_coverage_pct  = '0.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_zero_floor-allocations[ 1 ]-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_zero_floor-allocations[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_zero_floor-allocations[ 1 ]-allocation_coverage_pct ).
+
+    DATA(ls_uom) = lo_cut->preview_by_valtype_uom(
+      it_demands = VALUE zcl_stock_service=>ty_valtype_uom_demands(
+        ( request_id           = 'VALTYPE-UOM-FLOOR'
+          material             = 'MAT-4'
+          plant                = '2000'
+          valuation_type       = 'V1'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_uom-allocations[ 1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_uom-allocations[ 1 ]-allocation-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_uom-allocations[ 1 ]-allocation-allocation_coverage_pct ).
+
+    DATA(ls_atp) = lo_cut->preview_by_valtype_uom_atp(
+      it_demands    = VALUE zcl_stock_service=>ty_valtype_uom_demands(
+        ( request_id           = 'VALTYPE-ATP-FLOOR'
+          material             = 'MAT-4'
+          plant                = '2000'
+          valuation_type       = 'V1'
+          requested_quantity   = '2.000'
+          requested_unit       = 'BOX'
+          minimum_coverage_pct = '80.00' ) )
+      iv_check_rule = 'A' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_atp-local_estimate-allocations[ 1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = ls_atp-local_estimate-allocations[ 1 ]-allocation-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = ls_atp-local_estimate-allocations[ 1 ]-allocation-allocation_coverage_pct ).
   ENDMETHOD.
 
   METHOD rejects_xplant_avail_overflow.
@@ -9240,6 +9894,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '8.000' )
       act = ls_result-allocations[ 2 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lines( ls_result-plant_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -9263,6 +9923,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_result-plant_allocations[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 3 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = lo_repository->get_read_count( ) ).
@@ -9397,6 +10063,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 20
       act = ls_result-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-plant_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -9414,6 +10086,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
       act = ls_result-plant_allocations[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
   ENDMETHOD.
 
   METHOD allocates_plants_by_date_loc.
@@ -9503,17 +10181,29 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 99
       act = ls_result-allocations[ 1 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocations[ 2 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocations[ 3 ]-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = ls_result-allocations[ 4 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = ls_result-allocations[ 4 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 4 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-plant_allocations ) ).
@@ -9533,6 +10223,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY-HIGH'
       act = ls_result-plant_allocations[ 3 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-location_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -9548,6 +10247,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'EARLY-HIGH'
       act = ls_result-location_allocations[ 3 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-location_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-location_allocations[ 3 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
@@ -9859,6 +10567,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY-HIGH'
       act = ls_result-allocations[ 3 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 3 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
       act = ls_result-allocations[ 3 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -9867,6 +10584,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.500' )
       act = ls_result-plant_allocations[ 1 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-plant_allocations[ 1 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-location_allocations ) ).
@@ -9886,6 +10606,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY-HIGH'
       act = ls_result-location_allocations[
         3 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-location_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-location_allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-location_allocations[
+        3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_uom_repository->get_read_count( ) ).
@@ -9994,6 +10726,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-local_estimate-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'SHORT'
       act = ls_result-local_estimate-allocations[ 3 ]-allocation-request_id ).
@@ -10214,6 +10958,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY'
       act = ls_result-allocations[ 2 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '24.000' )
       act = ls_result-allocations[ 2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -10234,6 +10984,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '6.000' )
       act = ls_result-plant_allocations[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'EARLY'
       act = ls_result-plant_allocations[ 3 ]-allocation-request_id ).
@@ -10319,6 +11075,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-local_estimate-allocations ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = lines( ls_result-local_estimate-plant_allocations ) ).
@@ -10895,6 +11663,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'EARLY-HIGH'
       act = ls_result-local_estimate-allocations[ 3 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '22.000' )
       act = ls_result-local_estimate-allocations[ 1 ]-allocation-available_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -10903,6 +11683,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 30
       act = ls_result-local_estimate-allocations[ 3 ]-allocation-minimum_shelf_life_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-location_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-location_allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-plant_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-plant_allocations[
+        2 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-atp_checks ) ).
@@ -11580,6 +12376,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1000
       act = ls_result-allocations[ 1 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-EARLY-1'
       act = ls_result-allocations[ 2 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
@@ -11598,6 +12397,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_result-allocations[ 3 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -11609,6 +12414,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1000
       act = ls_result-batch_allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-batch_allocations[
+        1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-EARLY-1'
       act = ls_result-batch_allocations[ 2 ]-allocation-request_id ).
@@ -11627,6 +12436,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-batch_allocations[ 3 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-batch_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_batch_bulk_call_count( ) ).
@@ -12425,14 +13248,27 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1000
       act = ls_result-allocations[ 1 ]-allocation-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = ls_result-allocations[ 2 ]-allocation-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATE'
       act = ls_result-batch_allocations[ 1 ]-allocation-allocation-batch ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1000
       act = ls_result-batch_allocations[ 1 ]-allocation-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-batch_allocations[
+        1 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
       act = ls_result-batch_allocations[ 1 ]-allocation-allocation-allocated_quantity ).
@@ -12442,6 +13278,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.250' )
       act = ls_result-batch_allocations[ 2 ]-allocated_source_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-plant_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[
+        2 ]-allocation-allocation_sequence ).
     DATA(ls_restricted_result) = lo_cut->allocate_plants_fefo_date_uom(
       it_demands          = VALUE #(
         ( request_id              = 'REQ-STRICT'
@@ -12640,6 +13488,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-LATE'
       act = ls_result-local_estimate-allocations[ 1 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_result-local_estimate-allocations[ 3 ]-allocation-available_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -12648,6 +13508,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-EARLY'
       act = ls_result-local_estimate-batch_allocations[ 2 ]-allocation-allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-batch_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-batch_allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-plant_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-plant_allocations[
+        2 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( lt_requests ) ).
@@ -12997,10 +13873,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_result-allocations[ 2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
       act = lines( ls_result-plant_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-LOW'
       act = ls_result-plant_allocations[ 1 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-LOW'
       act = ls_result-batch_allocations[ 1 ]-allocation-request_id ).
@@ -13016,6 +13904,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-EARLY'
       act = ls_result-batch_allocations[ 2 ]-allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-batch_allocations[ 2 ]-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_plants_fefo_uom_prio(
       it_demands    = VALUE #(
@@ -13055,11 +13949,29 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '15.000' )
       act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-LOW-UOM'
       act = ls_uom_result-batch_allocations[ 1 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-LATER'
       act = ls_uom_result-batch_allocations[ 1 ]-allocation-allocation-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-batch_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-plant_allocations[ 2 ]-allocation_sequence ).
 
     DATA(lv_stock_read_count) = lo_repository->get_read_count( ).
     DATA(lv_uom_read_count) =
@@ -13679,6 +14591,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '15.000' )
       act = ls_result-local_estimate-allocations[ 2 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-plant_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -13773,6 +14697,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-LOW'
       act = ls_result-allocations[ 1 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = ls_result-allocations[ 1 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
@@ -13782,11 +14709,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-HIGH1'
       act = ls_result-allocations[ 2 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '10.000' )
       act = ls_result-allocations[ 2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-HIGH2'
       act = ls_result-allocations[ 3 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-allocations[ 3 ]-priority ).
@@ -13831,6 +14764,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-LOW-UOM'
       act = ls_uom_result-allocations[ 1 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '5.000' )
       act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -13840,8 +14776,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-HIGH1-UOM'
       act = ls_uom_result-allocations[ 2 ]-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-HIGH2-UOM'
       act = ls_uom_result-allocations[ 3 ]-allocation-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 3 ]-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_uom_result-allocations[ 3 ]-priority ).
@@ -13870,6 +14812,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           ( request_id = 'REQ-HIGH-ATP' required_date = sy-datum ) )
       iv_check_rule         = 'A' ).
     DATA(lt_atp_requests) = lo_availability_api->get_requests( ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-allocations[
+        2 ]-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_atp_result-atp_checks ) ).
@@ -14283,6 +15233,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '15.000' )
       act = ls_result-allocations[ 2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-LOW'
       act = ls_result-location_allocations[ 1 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
@@ -14294,6 +15256,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-HIGH'
       act = ls_result-location_allocations[ 2 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-location_allocations[ 2 ]-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_plants_batch_uom_prio(
       it_demands = VALUE #(
@@ -14329,6 +15297,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '15.000' )
       act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-plant_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-location_allocations[ 2 ]-allocation_sequence ).
 
     DATA(lv_stock_read_count) = lo_repository->get_read_count( ).
     DATA(lv_uom_read_count) = lo_uom_repository->get_read_count( ).
@@ -14691,6 +15677,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '5.000' )
       act = ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-location_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-location_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-plant_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -14820,6 +15824,30 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '6.000' )
       act = ls_result-local_estimate-allocations[ 3 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-allocations[
+        1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-allocations[
+        2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-allocations[
+        3 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-local_estimate-plant_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate-plant_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate-plant_allocations[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-atp_checks ) ).
     READ TABLE ls_result-atp_checks INTO DATA(ls_early_check)
@@ -14838,6 +15866,45 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = ls_late_check-allocated_base_quantity ).
+    DATA(ls_base_rank_result) = lo_cut->allocate_plants_batch_priority(
+      it_demands = VALUE #(
+        ( request_id         = 'LATE-HIGH'
+          material           = 'MAT-1'
+          target_plant       = '9000'
+          batch              = 'B-DATE-PRIO'
+          priority           = 10
+          requested_quantity = '6.000'
+          as_of_date         = lv_late_date )
+        ( request_id         = 'EARLY-LOW'
+          material           = 'MAT-1'
+          target_plant       = '9001'
+          batch              = 'B-DATE-PRIO'
+          priority           = 1
+          requested_quantity = '6.000'
+          as_of_date         = lv_early_date )
+        ( request_id         = 'EARLY-HIGH'
+          material           = 'MAT-1'
+          target_plant       = '9002'
+          batch              = 'B-DATE-PRIO'
+          priority           = 5
+          requested_quantity = '6.000'
+          as_of_date         = lv_early_date ) )
+      it_sources = VALUE #(
+        ( request_id = 'LATE-HIGH'  source_plant = '2000' )
+        ( request_id = 'EARLY-LOW'  source_plant = '2000' )
+        ( request_id = 'EARLY-HIGH' source_plant = '2000' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_base_rank_result-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_rank_result-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_rank_result-allocations[
+        3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_availability_api->get_check_count( ) ).
@@ -16051,11 +17118,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'LATE'
       act = ls_result-allocations[ 1 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_result-allocations[ 1 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV d( '20261201' )
       act = ls_result-allocations[ 2 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '6.000' )
       act = ls_result-allocations[ 2 ]-allocated_quantity ).
@@ -16063,11 +17136,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 0
       act = ls_result-allocations[ 3 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[ 3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_result-allocations[ 3 ]-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-allocations[ 4 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 4 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '5.000' )
       act = ls_result-allocations[ 4 ]-allocated_quantity ).
@@ -16077,6 +17156,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'B-1'
       act = ls_result-location_allocations[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-location_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-location_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
@@ -16160,6 +17253,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'LATE'
       act = ls_result-allocations[ 1 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'BOX'
       act = ls_result-allocations[ 1 ]-source_unit ).
     cl_abap_unit_assert=>assert_equals(
@@ -16172,6 +17269,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV d( '20261231' )
       act = ls_result-allocations[ 1 ]-allocation-required_date ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'EA'
       act = ls_result-allocations[ 2 ]-base_unit ).
     cl_abap_unit_assert=>assert_equals(
@@ -16183,6 +17284,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'EARLY'
       act = ls_result-location_allocations[ 1 ]-allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-location_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-location_allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-plant_allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-plant_allocations[
+        2 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lo_uom_repository->get_read_count( ) ).
@@ -18578,6 +19695,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'REQ-REPEAT'
       act = ls_result-allocations[ 1 ]-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = ls_result-allocations[ 1 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
@@ -18586,6 +19706,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_result-allocations[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '15.000' )
       act = ls_result-allocations[ 2 ]-allocated_quantity ).
@@ -18607,6 +19730,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = ls_result-storage_allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[ 3 ]-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_location_uom_priority(
       it_demands                     = VALUE #(
@@ -18630,6 +19762,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 0
       act = ls_uom_result-allocations[ 1 ]-allocation-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '10.000' )
       act = ls_uom_result-allocations[ 1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -18639,11 +19774,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 10
       act = ls_uom_result-allocations[ 2 ]-allocation-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '15.000' )
       act = ls_uom_result-allocations[ 2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'REQ-UOM-REPEAT'
       act = ls_uom_result-storage_allocations[ 1 ]-storage_split-storage_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-storage_allocations[ 1 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0002'
       act = ls_uom_result-storage_allocations[ 1 ]-storage_split-storage_allocation-storage_location ).
@@ -18653,6 +19794,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 10
       act = ls_uom_result-storage_allocations[ 2 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-storage_allocations[ 2 ]-allocation_sequence ).
 
     DATA lv_atp_check_date TYPE d.
     lv_atp_check_date                = sy-datum + 5.
@@ -18678,6 +19822,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           priority_rank              = 1 ) ) ).
     DATA(lt_atp_requests) = lo_availability_api->get_requests( ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_atp_result-atp_checks ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -18700,6 +19852,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = '0001'
       act = ls_atp_result-local_estimate-storage_allocations[
         2 ]-storage_split-storage_allocation-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-storage_allocations[
+        2 ]-allocation_sequence ).
 
     DATA(ls_scoped_priority_result) = lo_cut->allocate_location_priority(
       it_demands           = VALUE #(
@@ -18809,6 +19969,19 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '5.000' )
       act = ls_result-storage_allocations[ 2 ]-allocated_quantity ).
+
+    DATA(ls_rejected_result) = lo_cut->allocate_by_storage_location(
+      it_demands                   = VALUE #(
+        ( request_id           = 'ALLOW-LOC-FLOOR'
+          material             = 'MAT-1'
+          plant                = '1000'
+          storage_location     = '0001'
+          requested_quantity   = '4.000'
+          minimum_coverage_pct = '80.00' ) )
+      it_allowed_storage_locations = VALUE #( ( '0001' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_rejected_result-allocations[ 1 ]-minimum_coverage_rejected ).
   ENDMETHOD.
 
   METHOD rejects_bad_allowed_locations.
@@ -19763,11 +20936,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '5.000' )
       act = ls_base_result-allocations[ 1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 9
       act = ls_base_result-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '20.000' )
       act = ls_base_result-allocations[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 2 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'SHARED'
       act = ls_base_result-allocations[ 1 ]-allocation-request_id ).
@@ -19777,6 +20956,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '5.000' )
       act = ls_base_result-batch_allocations[ 1 ]-batch_allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-batch_allocations[ 2 ]-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_by_batch_uom_priority(
       it_demands = VALUE #(
@@ -19805,6 +20990,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '0.500' )
       act = ls_uom_result-allocations[ 1 ]-allocation-allocated_source_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 9
       act = ls_uom_result-allocations[ 2 ]-priority ).
     cl_abap_unit_assert=>assert_equals(
@@ -19815,7 +21003,16 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_uom_result-allocations[ 2 ]-allocation-allocated_source_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = ls_uom_result-batch_allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-batch_allocations[ 2 ]-allocation_sequence ).
 
     DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
     lo_availability_api->set_result(
@@ -19861,6 +21058,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '5.000' )
       act = ls_atp_result-atp_checks[ 1 ]-unconfirmed_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-batch_allocations[ 2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '25.000' )
       act = lo_availability_api->get_request( )-requested_quantity ).
@@ -19976,6 +21185,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '6.000' )
       act = ls_base_result-allocations[ 3 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_base_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 3 ]-allocation-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_by_batch_uom_priority(
       it_demands            = VALUE #(
@@ -20022,6 +21240,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '6.000' )
       act = ls_uom_result-allocations[ 3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 3 ]-allocation-allocation-allocation_sequence ).
 
     DATA(lo_availability_api) = NEW lcl_availability_api_double( ).
     lo_availability_api->set_result(
@@ -20083,6 +21310,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '6.000' )
       act = ls_atp_result-local_estimate-allocations[ 3 ]-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_atp_result-local_estimate-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_atp_result-local_estimate-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_atp_result-local_estimate-allocations[ 3 ]-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( ls_atp_result-atp_checks ) ).
@@ -23378,6 +24614,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_base_result-allocations[
         2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_base_result-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -23392,6 +24634,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'QI-HIGH'
       act = ls_base_result-batch_allocations[
         3 ]-batch_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-batch_allocations[ 3 ]-allocation_sequence ).
 
     DATA(ls_uom_result) = lo_cut->allocate_quality_uom_priority(
       it_demands    = VALUE #(
@@ -23439,6 +24687,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_uom_result-allocations[
         2 ]-allocation-allocated_source_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'QI-UOM-LOW'
       act = ls_uom_result-batch_allocations[
         1 ]-batch_allocation-batch_allocation-request_id ).
@@ -23446,6 +24700,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'QI-UOM-HIGH'
       act = ls_uom_result-batch_allocations[
         3 ]-batch_allocation-batch_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-batch_allocations[ 3 ]-allocation_sequence ).
 
     DATA lv_duplicate_rejected TYPE abap_bool.
     TRY.
@@ -23870,6 +25130,26 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_quality_atp-local_estimate-allocations[
         1 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_quality_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_quality_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_quality_atp-local_estimate-allocations[
+        3 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_quality_atp-local_estimate-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_quality_atp-local_estimate-batch_allocations[
+        3 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'EARLY-LOW'
       act = ls_quality_atp-local_estimate-allocations[
         2 ]-allocation-allocation-request_id ).
@@ -23914,6 +25194,26 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_unrestricted_atp-local_estimate-allocations[
         3 ]-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_unrestricted_atp-local_estimate-allocations[
+        1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_unrestricted_atp-local_estimate-allocations[
+        2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unrestricted_atp-local_estimate-allocations[
+        3 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_unrestricted_atp-local_estimate-batch_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unrestricted_atp-local_estimate-batch_allocations[
+        2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = '20260924'
       act = ls_unrestricted_atp-atp_checks[ 1 ]-check_date ).
 
@@ -23957,6 +25257,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '8.000' )
       act = ls_quality_base_result-allocations[
         3 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_quality_base_result-allocations[
+        1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_quality_base_result-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_quality_base_result-allocations[
+        3 ]-allocation-allocation_sequence ).
 
     DATA(ls_base_result) = lo_cut->allocate_by_expiry_priority(
       it_demands            = lt_base_demands
@@ -23974,6 +25286,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '8.000' )
       act = ls_base_result-allocations[ 3 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_base_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_availability_api->get_check_count( ) ).
@@ -24181,6 +25502,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_base_result-allocations[ 3 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
+      act = ls_base_result-allocations[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-allocations[ 2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-allocations[ 3 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
       act = lines( ls_base_result-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'HIGH-1'
@@ -24194,6 +25524,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'HIGH-2'
       act = ls_base_result-batch_allocations[
         3 ]-batch_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_base_result-batch_allocations[ 3 ]-allocation_sequence ).
 
     lo_repository->set_batch_stocks(
       it_stock = VALUE #(
@@ -24293,6 +25629,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_uom_result-allocations[
         3 ]-allocation-allocated_source_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_uom_result-allocations[ 1 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-allocations[ 2 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-allocations[ 3 ]-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lines( ls_uom_result-batch_allocations ) ).
     cl_abap_unit_assert=>assert_equals(
@@ -24307,6 +25652,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'UOM-HIGH-2'
       act = ls_uom_result-batch_allocations[
         4 ]-batch_allocation-batch_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_uom_result-batch_allocations[ 1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_uom_result-batch_allocations[ 2 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_uom_result-batch_allocations[ 4 ]-allocation_sequence ).
 
     DATA lv_duplicate_rejected TYPE abap_bool.
     TRY.
@@ -24933,6 +26287,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '3.000' )
       act = lt_priority_results[ 1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_priority_results[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'HIGH-BOX'
       act = lt_priority_results[ 2 ]-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
@@ -24941,6 +26298,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '12.000' )
       act = lt_priority_results[ 2 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_priority_results[ 2 ]-allocation-allocation_sequence ).
   ENDMETHOD.
 
   METHOD compares_uom_demand_atp.
@@ -25186,6 +26546,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1
       act = ls_result-local_estimate[ 1 ]-allocation-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-local_estimate[ 1 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = ls_low_allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -25194,6 +26557,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 9
       act = ls_result-local_estimate[ 2 ]-allocation-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-local_estimate[ 2 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_high_allocation-allocation-allocated_quantity ).
@@ -26254,12 +27620,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     DATA(lo_cut) = NEW zcl_stock_service(
       io_stock_repository = lo_repository ).
     DATA(lt_demands) = VALUE zcl_stock_service=>ty_dated_location_demands(
-        ( request_id         = 'LOCATION-LATE'
-          material           = 'MAT-1'
-          plant              = '1000'
-          required_date      = '20261220'
-          priority           = 100
-          requested_quantity = '1.000' )
+        ( request_id           = 'LOCATION-LATE'
+          material             = 'MAT-1'
+          plant                = '1000'
+          required_date        = '20261220'
+          priority             = 100
+          requested_quantity   = '1.000'
+          minimum_coverage_pct = '50.00' )
         ( request_id         = 'LOCATION-EARLY-LOW'
           material           = 'MAT-1'
           plant              = '1000'
@@ -26334,16 +27701,32 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = ls_result-allocations[
         1 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-allocations[
+        1 ]-allocation-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 100
       act = ls_result-allocations[ 1 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_result-allocations[
+        1 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocations[
         2 ]-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-allocations[
+        2 ]-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '0.000' )
       act = ls_result-allocations[
         3 ]-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_result-allocations[
+        3 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_result-allocations[
@@ -26351,6 +27734,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = ls_result-allocations[ 4 ]-priority ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-allocations[
+        4 ]-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-storage_allocations ) ).
@@ -26362,6 +27749,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'LOCATION-EARLY-HIGH'
       act = ls_result-storage_allocations[
         2 ]-storage_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-storage_allocations[
+        1 ]-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-storage_allocations[
+        2 ]-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
@@ -26729,6 +28124,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 100
       act = ls_late_allocation-priority ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = ls_late_allocation-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'LOCATION-EARLY-LOW'
       act = ls_early_low_allocation-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
@@ -26736,12 +28134,18 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act =
         ls_early_low_allocation-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_early_low_allocation-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'LOCATION-EARLY-TIE'
       act = ls_early_tie_allocation-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act =
         ls_early_tie_allocation-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_early_tie_allocation-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'LOCATION-EARLY-HIGH'
       act = ls_early_high_allocation-allocation-allocation-request_id ).
@@ -26752,6 +28156,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( '2.000' )
       act =
         ls_early_high_allocation-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_early_high_allocation-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lines( ls_result-storage_allocations ) ).
@@ -26767,6 +28174,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'LOCATION-EARLY-HIGH'
       act =
         ls_third_storage_split-storage_split-storage_allocation-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_first_storage_split-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = ls_second_storage_split-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_third_storage_split-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
@@ -26853,11 +28269,17 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 'DATED-LOCATION-LATE'
       act = ls_late_allocation-allocation-allocation-request_id ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_late_allocation-allocation-allocation-allocation_sequence ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = ls_late_allocation-allocation-allocation-allocated_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = ls_early_allocation-allocation-allocation-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_early_allocation-allocation-allocation-allocation_sequence ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( ls_result-atp_checks ) ).
@@ -27369,6 +28791,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch_managed               = abap_true
           expiration_date             = '20261017'
           expiration_date_source      = 'G'
+          manufacturing_date          = '20261012'
+          manufacturing_date_source   = 'G'
           unrestricted_quantity       = 2
           available_quantity          = 3
           quality_inspection_quantity = 1
@@ -27378,6 +28802,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch_managed               = abap_true
           expiration_date             = '20261017'
           expiration_date_source      = 'P'
+          manufacturing_date          = '20261010'
+          manufacturing_date_source   = 'P'
           unrestricted_quantity       = 10
           available_quantity          = 6
           quality_inspection_quantity = 2 )
@@ -27398,17 +28824,21 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unrestricted_quantity       = 3
           quality_inspection_quantity = 0
           blocked_quantity            = 0 )
-        ( storage_location      = '0002'
-          batch                 = 'HORIZON'
-          batch_managed         = abap_true
-          expiration_date       = '20261023'
-          unrestricted_quantity = 5
-          available_quantity    = 5 )
+        ( storage_location          = '0002'
+          batch                     = 'HORIZON'
+          batch_managed             = abap_true
+          expiration_date           = '20261023'
+          manufacturing_date        = '20261020'
+          manufacturing_date_source = 'P'
+          unrestricted_quantity     = 5
+          available_quantity        = 5 )
         ( storage_location            = '0001'
           batch                       = 'LATER'
           batch_managed               = abap_true
           expiration_date             = '20261024'
           expiration_date_source      = 'P'
+          manufacturing_date          = '20261020'
+          manufacturing_date_source   = 'P'
           unrestricted_quantity       = 7
           available_quantity          = 7
           quality_inspection_quantity = 0 )
@@ -27420,10 +28850,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unrestricted_quantity       = 4
           available_quantity          = 3
           quality_inspection_quantity = 1 )
-        ( storage_location      = '0001'
-          batch                 = 'UNDATED'
-          batch_managed         = abap_true
-          unrestricted_quantity = 4 )
+        ( storage_location          = '0001'
+          batch                     = 'UNDATED'
+          batch_managed             = abap_true
+          manufacturing_date        = '20261015'
+          manufacturing_date_source = 'G'
+          unrestricted_quantity     = 4 )
         ( storage_location      = '0001'
           batch                 = 'VALUATION'
           batch_managed         = abap_false
@@ -27478,6 +28910,21 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = lines( lt_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_results[ 1 ]-batches[ 1 ]-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-batches[ 1 ]-manufacturing_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-batches[ 1 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_results[ 1 ]-batches[ 5 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-undated_batches[ 1 ]-days_since_manufacture ).
     cl_abap_unit_assert=>assert_equals(
       exp = zcl_stock_service=>c_expiry_status_expired
       act = lt_results[ 1 ]-batches[ 1 ]-status ).
@@ -29942,6 +31389,197 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = abap_true act = lv_inactive_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true act = lv_bad_uom_rejected ).
+  ENDMETHOD.
+
+  METHOD filters_mfg_age_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'OLD'
+          batch_managed         = abap_true
+          expiration_date       = '20261130'
+          manufacturing_date    = '20261010'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'TODAY'
+          batch_managed         = abap_true
+          expiration_date       = '20261025'
+          manufacturing_date    = '20261018'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'FUTURE'
+          batch_managed         = abap_true
+          expiration_date       = '20261026'
+          manufacturing_date    = '20261020'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'UNDATED'
+          batch_managed         = abap_true
+          manufacturing_date    = '20261015'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'NO-MFG'
+          batch_managed         = abap_true
+          expiration_date       = '20261022'
+          unrestricted_quantity = 1 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_range) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-RANGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261030'
+          filter_manufacturing_age_from = abap_true
+          manufacturing_age_days_from = -2
+          filter_manufacturing_age_to = abap_true
+          manufacturing_age_days_to = 3 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-filter_manufacturing_age_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2 act = lt_range[ 1 ]-manufacturing_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_range[ 1 ]-filter_manufacturing_age_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_range[ 1 ]-manufacturing_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_range[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'TODAY' act = lt_range[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_range[ 1 ]-batches[ 1 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_range[ 1 ]-batches[ 2 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_range[ 1 ]-undated_batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_range[ 1 ]-undated_batches[ 1 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED'
+      act = lt_range[ 1 ]-oldest_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_range[ 1 ]-oldest_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_range[ 1 ]-days_since_oldest_manufacture ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-FROM' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261201'
+          filter_manufacturing_age_from = abap_true
+          manufacturing_age_days_from = 8 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_from_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OLD' act = lt_from_only[ 1 ]-batches[ 1 ]-batch ).
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-TO' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261030'
+          filter_manufacturing_age_to = abap_true
+          manufacturing_age_days_to = -2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_to_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE' act = lt_to_only[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_to_only[ 1 ]-oldest_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_to_only[ 1 ]-days_since_oldest_manufacture ).
+
+    DATA(lt_uom) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261030'
+          filter_manufacturing_age_from = abap_true
+          manufacturing_age_days_from = -2
+          filter_manufacturing_age_to = abap_true
+          manufacturing_age_days_to = 3 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom[ 1 ]-filter_manufacturing_age_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2 act = lt_uom[ 1 ]-manufacturing_age_days_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom[ 1 ]-filter_manufacturing_age_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_uom[ 1 ]-manufacturing_age_days_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_uom[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom[ 1 ]-batches[ 1 ]-base_row-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom[ 1 ]-undated_batches[ 1 ]-base_row-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED'
+      act = lt_uom[ 1 ]-oldest_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_uom[ 1 ]-oldest_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom[ 1 ]-days_since_oldest_manufacture ).
+
+    DATA(lv_inverted_rejected) = abap_false.
+    DATA(lv_inactive_rejected) = abap_false.
+    DATA(lv_uom_inactive_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-AGE-INVERTED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030'
+              filter_manufacturing_age_from = abap_true
+              manufacturing_age_days_from = 4
+              filter_manufacturing_age_to = abap_true
+              manufacturing_age_days_to = 3 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inverted_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-AGE-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030'
+              manufacturing_age_days_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_expiry_exposure_uom_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-AGE-UOM-INACTIVE' material = 'MAT-1'
+              plant = '1000' unit = 'BOX' as_of_date = '20261018'
+              through_date = '20261030'
+              manufacturing_age_days_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_uom_inactive_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inverted_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_uom_inactive_rejected ).
   ENDMETHOD.
 
   METHOD filters_expiry_status.
@@ -36405,6 +38043,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           batch_managed               = abap_true
           expiration_date             = '20261017'
           expiration_date_source      = 'P'
+          manufacturing_date          = '20261010'
+          manufacturing_date_source   = 'P'
           unrestricted_quantity       = 24
           available_quantity          = 12
           quality_inspection_quantity = 6
@@ -36491,6 +38131,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lt_results[ 1 ]-unit ).
     cl_abap_unit_assert=>assert_not_initial(
       act = lt_results[ 1 ]-snapshot_timestamp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_results[ 1 ]-batches[ 1 ]-base_row-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-batches[ 1 ]-base_row-days_since_manufacture ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_results[ 1 ]-days_since_first_expired_date ).
@@ -37816,6 +39462,8 @@ first_expiration_date      = '20261028'
           batch                       = 'A-BATCH'
           valuation_type              = 'V1'
           batch_managed               = abap_true
+          manufacturing_date          = '20261010'
+          manufacturing_date_source   = 'P'
           unrestricted_quantity       = 24
           available_quantity          = 12
           quality_inspection_quantity = 6
@@ -37864,6 +39512,12 @@ first_expiration_date      = '20261028'
     cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lt_results[ 1 ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_results[ 1 ]-undated_batches[ 1 ]-base_row-manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_results[ 1 ]-undated_batches[ 1 ]-base_row-days_since_manufacture ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mchb-clabs( 48 )
       act = lt_results[ 1 ]-base_undated_unrestricted_qty ).

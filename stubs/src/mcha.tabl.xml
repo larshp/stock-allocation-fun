@@ -69,6 +69,14 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000020</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>HSDAT</FIELDNAME>
+          <POSITION>0007</POSITION>
+          <DATATYPE>DATS</DATATYPE>
+          <LENG>000008</LENG>
+          <INTTYPE>D</INTTYPE>
+          <INTLEN>000016</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

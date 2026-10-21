@@ -4614,6 +4614,15 @@ CLASS zcl_goods_movement_service DEFINITION
       RETURNING
         VALUE(rv_same) TYPE abap_bool.
 
+    METHODS validate_alloc_cov_floor
+      IMPORTING
+        iv_requested_quantity   TYPE mard-labst
+        iv_allocated_quantity   TYPE mard-labst
+        iv_minimum_coverage_pct TYPE
+          zcl_stock_service=>ty_minimum_coverage_pct
+      RAISING
+        zcx_invalid_goods_movement.
+
     METHODS same_so_fefo_allocation
       IMPORTING
         is_first       TYPE zcl_so_stock_service=>ty_fefo_issue_result
@@ -9842,6 +9851,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         OR is_material_unit-base_unit_iso IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
     ENDIF.
+    validate_alloc_cov_floor(
+      iv_requested_quantity   = is_allocation-base_requested_quantity
+      iv_allocated_quantity   = is_allocation-allocated_quantity
+      iv_minimum_coverage_pct = is_allocation-minimum_coverage_pct ).
     IF is_allocation-batch_allocations IS NOT INITIAL
         AND is_allocation-storage_allocations IS NOT INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -9979,6 +9992,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     LOOP AT it_previews INTO DATA(ls_preview).
       DATA(ls_allocation) = ls_preview-allocation-allocation.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       IF ls_preview-request_id IS INITIAL
           OR ls_preview-cost_center IS INITIAL
           OR ls_allocation-request_id <> ls_preview-request_id
@@ -10247,6 +10264,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
 
     LOOP AT it_previews INTO DATA(ls_preview).
       DATA(ls_allocation) = ls_preview-allocation-allocation.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       IF ls_preview-require_full_quantity <> abap_true
           AND ls_preview-require_full_quantity <> abap_false.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
@@ -12054,6 +12075,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             ls_allocation-shortfall_base_quantity = 0 ).
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_base_quantity
+        iv_allocated_quantity   = ls_allocation-covered_base_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
@@ -14790,6 +14815,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
@@ -15130,7 +15159,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -15344,7 +15374,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -15582,6 +15613,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
@@ -15927,7 +15962,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         fefo_as_of_date         = ls_demand-fefo_as_of_date
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -16151,7 +16187,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         fefo_as_of_date         = ls_demand-fefo_as_of_date
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -16400,6 +16437,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
@@ -16572,6 +16613,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.
@@ -16971,7 +17016,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         minimum_shelf_life_days =
           ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -17237,7 +17283,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         fefo_as_of_date         = ls_demand-fefo_as_of_date
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -17756,7 +17803,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -18004,7 +18052,8 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       APPEND VALUE #(
         internal_request_id     = lv_internal_request_id
@@ -18883,6 +18932,29 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
       iv_require_full_allocation = iv_require_full_allocation ).
   ENDMETHOD.
 
+  METHOD validate_alloc_cov_floor.
+    DATA lv_allocated_coverage TYPE decfloat34.
+    DATA lv_required_coverage TYPE decfloat34.
+
+    IF iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100
+        OR iv_requested_quantity < 0
+        OR iv_allocated_quantity < 0
+        OR iv_allocated_quantity > iv_requested_quantity.
+      RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+    ENDIF.
+
+    IF iv_allocated_quantity > 0.
+      lv_allocated_coverage = CONV decfloat34( iv_allocated_quantity )
+        * CONV decfloat34( 100 ).
+      lv_required_coverage = CONV decfloat34( iv_requested_quantity )
+        * CONV decfloat34( iv_minimum_coverage_pct ).
+      IF lv_allocated_coverage < lv_required_coverage.
+        RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD same_sales_order_allocation.
     rv_same = abap_false.
     IF is_first-is_successful <> abap_true
@@ -19197,6 +19269,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_raw_allocation-shortfall_quantity < 0.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_raw_allocation-requested_quantity
+        iv_allocated_quantity   = ls_raw_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_raw_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_raw_allocation-request_id )
         INTO TABLE lt_seen_allocation_requests.
       IF sy-subrc <> 0.
@@ -19254,7 +19330,13 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
           OR ls_raw_allocation-allocated_quantity
             <> ls_sales_allocation-allocated_base_quantity
           OR ls_raw_allocation-shortfall_quantity
-            <> ls_sales_allocation-shortfall_base_quantity.
+            <> ls_sales_allocation-shortfall_base_quantity
+          OR ls_raw_allocation-minimum_coverage_pct
+            <> ls_sales_allocation-minimum_coverage_pct
+          OR ls_raw_allocation-allocation_outcome
+            <> ls_sales_allocation-allocation_outcome
+          OR ls_raw_allocation-allocation_coverage_pct
+            <> ls_sales_allocation-allocation_coverage_pct.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
 
@@ -24420,6 +24502,10 @@ CLASS zcl_goods_movement_service IMPLEMENTATION.
             > ls_allocation-available_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_goods_movement.
       ENDIF.
+      validate_alloc_cov_floor(
+        iv_requested_quantity   = ls_allocation-requested_quantity
+        iv_allocated_quantity   = ls_allocation-allocated_quantity
+        iv_minimum_coverage_pct = ls_allocation-minimum_coverage_pct ).
       INSERT VALUE #( request_id = ls_allocation-request_id )
         INTO TABLE lt_seen_requests.
       IF sy-subrc <> 0.

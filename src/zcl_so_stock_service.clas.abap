@@ -4,6 +4,9 @@ CLASS zcl_so_stock_service DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    CONSTANTS c_issue_outcome_full TYPE c LENGTH 1 VALUE 'F'.
+    CONSTANTS c_issue_outcome_partial TYPE c LENGTH 1 VALUE 'P'.
+    CONSTANTS c_issue_outcome_none TYPE c LENGTH 1 VALUE 'U'.
     TYPES ty_requests TYPE zif_so_stock_repository=>ty_requests.
     TYPES ty_item_requests TYPE zif_so_stock_repository=>ty_item_requests.
     TYPES:
@@ -60,25 +63,28 @@ CLASS zcl_so_stock_service DEFINITION
         reservation_through_date TYPE d,
         required_date            TYPE d,
         priority                 TYPE i,
+        minimum_coverage_pct     TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_issue_request.
     TYPES ty_issue_requests TYPE STANDARD TABLE OF ty_issue_request
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_issue_result,
-        request_id         TYPE c LENGTH 30,
-        sales_document     TYPE vbap-vbeln,
-        item_number        TYPE vbap-posnr,
-        material           TYPE mara-matnr,
-        plant              TYPE marc-werks,
-        base_unit          TYPE mara-meins,
-        requested_quantity TYPE mska-kalab,
-        available_quantity TYPE mska-kalab,
-        covered_quantity   TYPE mska-kalab,
-        shortfall_quantity TYPE mska-kalab,
-        is_sufficient      TYPE abap_bool,
-        stock_snapshot     TYPE ty_result,
-        required_date      TYPE d,
-        priority           TYPE i,
+        request_id           TYPE c LENGTH 30,
+        sales_document       TYPE vbap-vbeln,
+        item_number          TYPE vbap-posnr,
+        material             TYPE mara-matnr,
+        plant                TYPE marc-werks,
+        base_unit            TYPE mara-meins,
+        requested_quantity   TYPE mska-kalab,
+        available_quantity   TYPE mska-kalab,
+        covered_quantity     TYPE mska-kalab,
+        shortfall_quantity   TYPE mska-kalab,
+        is_sufficient        TYPE abap_bool,
+        stock_snapshot       TYPE ty_result,
+        required_date        TYPE d,
+        priority             TYPE i,
+        minimum_coverage_pct TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome   TYPE c LENGTH 1,
       END OF ty_issue_result.
     TYPES ty_issue_results TYPE STANDARD TABLE OF ty_issue_result
       WITH EMPTY KEY.
@@ -92,6 +98,7 @@ CLASS zcl_so_stock_service DEFINITION
         reservation_through_date TYPE d,
         required_date            TYPE d,
         priority                 TYPE i,
+        minimum_coverage_pct     TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_issue_unit_request.
     TYPES ty_issue_unit_requests TYPE STANDARD TABLE OF
       ty_issue_unit_request WITH EMPTY KEY.
@@ -116,6 +123,8 @@ CLASS zcl_so_stock_service DEFINITION
         stock_snapshot          TYPE ty_result,
         required_date           TYPE d,
         priority                TYPE i,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
       END OF ty_issue_unit_result.
     TYPES ty_issue_unit_results TYPE STANDARD TABLE OF
       ty_issue_unit_result WITH EMPTY KEY.
@@ -135,6 +144,7 @@ CLASS zcl_so_stock_service DEFINITION
         allow_undated_batches    TYPE abap_bool,
         require_full_quantity    TYPE abap_bool,
         allow_location_fallback  TYPE abap_bool,
+        minimum_coverage_pct     TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_fefo_issue_request.
     TYPES ty_fefo_issue_requests TYPE STANDARD TABLE OF
       ty_fefo_issue_request WITH EMPTY KEY.
@@ -155,6 +165,7 @@ CLASS zcl_so_stock_service DEFINITION
         allow_undated_batches    TYPE abap_bool,
         require_full_quantity    TYPE abap_bool,
         allow_location_fallback  TYPE abap_bool,
+        minimum_coverage_pct     TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_fefo_issue_unit_request.
     TYPES ty_fefo_issue_unit_requests TYPE STANDARD TABLE OF
       ty_fefo_issue_unit_request WITH EMPTY KEY.
@@ -202,6 +213,8 @@ CLASS zcl_so_stock_service DEFINITION
         priority                  TYPE i,
         selected_storage_location TYPE mard-lgort,
         allow_location_fallback   TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome        TYPE c LENGTH 1,
       END OF ty_fefo_issue_summary.
     TYPES ty_fefo_issue_summaries TYPE STANDARD TABLE OF
       ty_fefo_issue_summary WITH EMPTY KEY.
@@ -228,6 +241,7 @@ CLASS zcl_so_stock_service DEFINITION
         priority                  TYPE i,
         selected_storage_location TYPE mard-lgort,
         allow_location_fallback   TYPE abap_bool,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_fefo_issue_batch_allocation.
     TYPES ty_fefo_issue_batch_allocations TYPE STANDARD TABLE OF
       ty_fefo_issue_batch_allocation WITH EMPTY KEY.
@@ -377,6 +391,7 @@ CLASS zcl_so_stock_service DEFINITION
         required_date             TYPE d,
         priority                  TYPE i,
         requested_quantity        TYPE mska-kalab,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
         requested_unit            TYPE mara-meins,
         is_unit_quantity          TYPE abap_bool,
         reservation_through_date  TYPE d,
@@ -900,6 +915,8 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
           OR ls_request-sales_document IS INITIAL
           OR ls_request-item_number IS INITIAL
           OR ls_request-requested_quantity <= 0
+          OR ls_request-minimum_coverage_pct < 0
+          OR ls_request-minimum_coverage_pct > 100
           OR ( ls_request-required_date IS NOT INITIAL
             AND zcl_date_validation=>is_valid_gregorian_date(
               ls_request-required_date ) <> abap_true )
@@ -983,28 +1000,40 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
           AND lv_covered_quantity < ls_request-requested_quantity.
         CLEAR lv_covered_quantity.
       ENDIF.
+      IF CONV decfloat34( lv_covered_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_request-requested_quantity )
+            * CONV decfloat34( ls_request-minimum_coverage_pct ).
+        CLEAR lv_covered_quantity.
+      ENDIF.
       <ls_remaining>-remaining_quantity -= lv_covered_quantity.
       DATA(lv_shortfall_quantity) = ls_request-requested_quantity
         - lv_covered_quantity.
       DATA(ls_request_snapshot) = ls_stock_result.
       ls_request_snapshot-request_id = ls_request-request_id.
       APPEND VALUE #(
-        request_id         = ls_request-request_id
-        sales_document     = ls_stock_result-sales_document
-        item_number        = ls_stock_result-item_number
-        required_date      = ls_request-required_date
-        priority           = ls_request-priority
-        material           = ls_stock_result-material
-        plant              = ls_stock_result-plant
-        base_unit          = ls_stock_result-base_unit
-        requested_quantity = ls_request-requested_quantity
-        available_quantity = lv_available_quantity
-        covered_quantity   = lv_covered_quantity
-        shortfall_quantity = lv_shortfall_quantity
-        is_sufficient      = COND abap_bool(
+        request_id           = ls_request-request_id
+        sales_document       = ls_stock_result-sales_document
+        item_number          = ls_stock_result-item_number
+        required_date        = ls_request-required_date
+        priority             = ls_request-priority
+        material             = ls_stock_result-material
+        plant                = ls_stock_result-plant
+        base_unit            = ls_stock_result-base_unit
+        requested_quantity   = ls_request-requested_quantity
+        minimum_coverage_pct = ls_request-minimum_coverage_pct
+        available_quantity   = lv_available_quantity
+        covered_quantity     = lv_covered_quantity
+        shortfall_quantity   = lv_shortfall_quantity
+        is_sufficient        = COND abap_bool(
           WHEN lv_shortfall_quantity = 0 THEN abap_true
           ELSE abap_false )
-        stock_snapshot     = ls_request_snapshot ) TO rt_results.
+        allocation_outcome   = COND #(
+          WHEN lv_covered_quantity = ls_request-requested_quantity
+            THEN c_issue_outcome_full
+          WHEN lv_covered_quantity > 0 THEN c_issue_outcome_partial
+          ELSE c_issue_outcome_none )
+        stock_snapshot       = ls_request_snapshot ) TO rt_results.
     ENDLOOP.
 
     IF iv_prioritize_by_date = abap_true
@@ -1085,6 +1114,8 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
           OR ls_request-sales_document IS INITIAL
           OR ls_request-item_number IS INITIAL
           OR ls_request-requested_quantity <= 0
+          OR ls_request-minimum_coverage_pct < 0
+          OR ls_request-minimum_coverage_pct > 100
           OR ls_request-requested_unit IS INITIAL
           OR ( ls_request-required_date IS NOT INITIAL
             AND zcl_date_validation=>is_valid_gregorian_date(
@@ -1181,6 +1212,12 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
           AND lv_covered_base_quantity < ls_requested-base_quantity.
         CLEAR lv_covered_base_quantity.
       ENDIF.
+      IF CONV decfloat34( lv_covered_base_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_requested-base_quantity )
+            * CONV decfloat34( ls_request-minimum_coverage_pct ).
+        CLEAR lv_covered_base_quantity.
+      ENDIF.
       <ls_remaining>-remaining_quantity -= lv_covered_base_quantity.
       DATA lv_shortfall_base_quantity TYPE mard-labst.
       lv_shortfall_base_quantity = CONV mard-labst(
@@ -1217,6 +1254,7 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         material                = ls_stock_result-material
         plant                   = ls_stock_result-plant
         requested_quantity      = ls_request-requested_quantity
+        minimum_coverage_pct    = ls_request-minimum_coverage_pct
         requested_unit          = ls_request-requested_unit
         requested_base_quantity = ls_requested-base_quantity
         available_quantity      = ls_available_unit-alternative_quantity
@@ -1229,6 +1267,11 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         is_sufficient           = COND abap_bool(
           WHEN lv_shortfall_base_quantity = 0 THEN abap_true
           ELSE abap_false )
+        allocation_outcome      = COND #(
+          WHEN lv_covered_base_quantity = ls_requested-base_quantity
+            THEN c_issue_outcome_full
+          WHEN lv_covered_base_quantity > 0 THEN c_issue_outcome_partial
+          ELSE c_issue_outcome_none )
         stock_snapshot          = ls_request_snapshot ) TO rt_results.
     ENDLOOP.
 
@@ -1265,6 +1308,7 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         require_full_quantity     = ls_request-require_full_quantity
         allow_location_fallback   = ls_request-allow_location_fallback
         requested_quantity        = ls_request-requested_quantity
+        minimum_coverage_pct      = ls_request-minimum_coverage_pct
         is_unit_quantity          = abap_false
         reservation_through_date  =
           ls_request-reservation_through_date ) TO lt_requests.
@@ -1302,6 +1346,7 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         require_full_quantity     = ls_request-require_full_quantity
         allow_location_fallback   = ls_request-allow_location_fallback
         requested_quantity        = ls_request-requested_quantity
+        minimum_coverage_pct      = ls_request-minimum_coverage_pct
         requested_unit            = ls_request-requested_unit
         is_unit_quantity          = abap_true
         reservation_through_date  =
@@ -1487,6 +1532,8 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
           OR ls_request-sales_document IS INITIAL
           OR ls_request-item_number IS INITIAL
           OR ls_request-requested_quantity <= 0
+          OR ls_request-minimum_coverage_pct < 0
+          OR ls_request-minimum_coverage_pct > 100
           OR ls_request-minimum_shelf_life_days < 0
           OR ( ls_request-require_known_expiry <> abap_true
             AND ls_request-require_known_expiry <> abap_false )
@@ -1962,9 +2009,13 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
       SORT lt_allocation_orders STABLE BY sort_expiration_date batch
         location_priority_group location_priority storage_location.
 
-      IF ( iv_require_full_quantity = abap_true
-          OR ls_request-require_full_quantity = abap_true )
-          AND lv_available_base_quantity < lv_requested_base_quantity.
+      IF ( ( iv_require_full_quantity = abap_true
+            OR ls_request-require_full_quantity = abap_true )
+          AND lv_available_base_quantity < lv_requested_base_quantity )
+          OR CONV decfloat34( lv_available_base_quantity )
+            * CONV decfloat34( 100 )
+            < CONV decfloat34( lv_requested_base_quantity )
+              * CONV decfloat34( ls_request-minimum_coverage_pct ).
         lv_remaining_quantity = lv_requested_base_quantity.
       ELSE.
         lv_remaining_quantity = lv_requested_base_quantity.
@@ -2048,6 +2099,7 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
             include_undated_batches   = lv_request_include_undated
             require_known_expiry      = ls_request-require_known_expiry
             allow_undated_batches     = ls_request-allow_undated_batches
+            minimum_coverage_pct      = ls_request-minimum_coverage_pct
             base_unit                 = ls_stock_result-base_unit
             allocated_base_quantity   = lv_take_quantity
             requested_unit            = lv_source_unit
@@ -2113,6 +2165,7 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         material                  = ls_stock_result-material
         plant                     = ls_stock_result-plant
         requested_quantity        = ls_request-requested_quantity
+        minimum_coverage_pct      = ls_request-minimum_coverage_pct
         requested_unit            = lv_source_unit
         requested_base_quantity   = lv_requested_base_quantity
         available_quantity        = lv_available_quantity
@@ -2129,6 +2182,11 @@ CLASS zcl_so_stock_service IMPLEMENTATION.
         allow_undated_batches     = ls_request-allow_undated_batches
         is_sufficient             = xsdbool(
           lv_shortfall_base_quantity = 0 )
+        allocation_outcome        = COND #(
+          WHEN lv_covered_base_quantity = lv_requested_base_quantity
+            THEN c_issue_outcome_full
+          WHEN lv_covered_base_quantity > 0 THEN c_issue_outcome_partial
+          ELSE c_issue_outcome_none )
         stock_snapshot            = ls_request_snapshot
         selected_storage_location =
           ls_request-selected_storage_location

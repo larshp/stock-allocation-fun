@@ -36,6 +36,9 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         priority                 TYPE i,
         require_full_quantity    TYPE abap_bool,
         require_atp_confirmation TYPE abap_bool,
+        minimum_coverage_pct     TYPE zcl_stock_service=>ty_minimum_coverage_pct,
+        allocation_outcome       TYPE c LENGTH 1,
+        allocation_coverage_pct  TYPE zcl_stock_service=>ty_allocation_coverage_pct,
         sales_unit               TYPE c LENGTH 3,
         base_unit                TYPE mara-meins,
         requested_quantity       TYPE mard-labst,
@@ -88,6 +91,7 @@ CLASS zcl_sales_order_alloc_service DEFINITION
         schedule_line            TYPE c LENGTH 4,
         require_full_quantity    TYPE abap_bool,
         require_atp_confirmation TYPE abap_bool,
+        minimum_coverage_pct     TYPE zcl_stock_service=>ty_minimum_coverage_pct,
       END OF ty_item_allocation_requirement.
     TYPES ty_item_allocation_requirements TYPE STANDARD TABLE OF
       ty_item_allocation_requirement WITH EMPTY KEY.
@@ -2243,6 +2247,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     DATA lv_priority TYPE i.
     DATA lv_required_date TYPE d.
     DATA lv_require_full_quantity TYPE abap_bool.
+    DATA lv_minimum_coverage_pct TYPE zcl_stock_service=>ty_minimum_coverage_pct.
     DATA lv_require_atp_confirmation TYPE abap_bool.
 
     IF ( iv_include_po_receipts <> abap_true
@@ -2321,7 +2326,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                 abap_false )
           OR ( ls_item_allocation_requirement-require_atp_confirmation =
                  abap_true
-            AND iv_check_atp <> abap_true ).
+            AND iv_check_atp <> abap_true )
+          OR ls_item_allocation_requirement-minimum_coverage_pct < 0
+          OR ls_item_allocation_requirement-minimum_coverage_pct > 100.
         APPEND VALUE #(
           type    = 'E'
           message = 'Item allocation requirement needs an order, item, and valid Boolean flags' )
@@ -2587,6 +2594,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         ENDIF.
 
         CLEAR lv_require_full_quantity.
+        CLEAR lv_minimum_coverage_pct.
         READ TABLE lt_allocation_requirements
           INTO DATA(ls_effective_item_requirement)
           WITH TABLE KEY sales_document = lv_sales_document
@@ -2605,6 +2613,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
             ls_effective_item_requirement-require_full_quantity.
           lv_require_atp_confirmation =
             ls_effective_item_requirement-require_atp_confirmation.
+          lv_minimum_coverage_pct =
+            ls_effective_item_requirement-minimum_coverage_pct.
         ENDIF.
 
         APPEND VALUE #(
@@ -2614,6 +2624,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           required_date         = lv_required_date
           priority              = lv_priority
           require_full_quantity = lv_require_full_quantity
+          minimum_coverage_pct  = lv_minimum_coverage_pct
           requested_quantity    = ls_order_item-open_base_quantity )
           TO lt_demands.
         INSERT VALUE #(
@@ -2727,6 +2738,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         priority                 = ls_allocation-priority
         require_full_quantity    = ls_context-require_full_quantity
         require_atp_confirmation = ls_context-require_atp_confirmation
+        minimum_coverage_pct     = ls_allocation-minimum_coverage_pct
+        allocation_outcome       = ls_allocation-allocation_outcome
+        allocation_coverage_pct  = ls_allocation-allocation_coverage_pct
         sales_unit               = ls_context-order_item-entry_unit
         base_unit                = ls_context-order_item-base_unit
         requested_quantity       = convert_base_to_sales_unit(
@@ -3347,6 +3361,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
     DATA lt_unscheduled_dates TYPE HASHED TABLE OF ty_unscheduled_date
       WITH UNIQUE KEY sales_document item_number.
     DATA lv_require_full_quantity TYPE abap_bool.
+    DATA lv_minimum_coverage_pct TYPE zcl_stock_service=>ty_minimum_coverage_pct.
 
     IF iv_sales_document IS INITIAL.
       RAISE EXCEPTION TYPE zcx_invalid_sales_order.
@@ -3388,7 +3403,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
                 abap_false )
           OR ( ls_item_allocation_requirement-require_atp_confirmation =
                  abap_true
-            AND iv_check_atp <> abap_true ).
+            AND iv_check_atp <> abap_true )
+          OR ls_item_allocation_requirement-minimum_coverage_pct < 0
+          OR ls_item_allocation_requirement-minimum_coverage_pct > 100.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       INSERT ls_item_allocation_requirement
@@ -3906,6 +3923,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           INTO lv_request_id SEPARATED BY '/'.
       ENDIF.
       CLEAR lv_require_full_quantity.
+      CLEAR lv_minimum_coverage_pct.
       READ TABLE lt_allocation_requirements
         INTO ls_item_allocation_requirement
         WITH TABLE KEY sales_document = iv_sales_document
@@ -3921,6 +3939,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
       IF sy-subrc = 0.
         lv_require_full_quantity =
           ls_item_allocation_requirement-require_full_quantity.
+        lv_minimum_coverage_pct =
+          ls_item_allocation_requirement-minimum_coverage_pct.
       ENDIF.
       IF it_batch_selections IS SUPPLIED
           AND iv_use_fefo_batches <> abap_true.
@@ -3948,6 +3968,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           fallback_to_other_locations = ls_batch_selection-allow_fallback
           requested_quantity          = ls_order_item-open_base_quantity
           require_full_quantity       = lv_require_full_quantity
+          minimum_coverage_pct        = lv_minimum_coverage_pct
           minimum_shelf_life_days     =
             ls_batch_selection-minimum_shelf_life_days
           as_of_date                  = COND #(
@@ -4020,6 +4041,7 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           fallback_to_other_locations = lv_fefo_fallback
           requested_quantity          = ls_order_item-open_base_quantity
           require_full_quantity       = lv_require_full_quantity
+          minimum_coverage_pct        = lv_minimum_coverage_pct
           fefo_as_of_date             = COND #(
             WHEN iv_use_required_date_for_fefo = abap_true
             THEN ls_order_item-requested_date )
@@ -4048,7 +4070,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           storage_location            = ls_location_selection-storage_location
           fallback_to_other_locations = ls_location_selection-allow_fallback
           requested_quantity          = ls_order_item-open_base_quantity
-          require_full_quantity       = lv_require_full_quantity )
+          require_full_quantity       = lv_require_full_quantity
+          minimum_coverage_pct        = lv_minimum_coverage_pct )
           TO lt_demands.
       ELSE.
         APPEND VALUE #(
@@ -4056,7 +4079,8 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
           material              = ls_order_item-material
           plant                 = ls_order_item-plant
           requested_quantity    = ls_order_item-open_base_quantity
-          require_full_quantity = lv_require_full_quantity )
+          require_full_quantity = lv_require_full_quantity
+          minimum_coverage_pct  = lv_minimum_coverage_pct )
           TO lt_demands.
       ENDIF.
     ENDLOOP.
@@ -4342,6 +4366,9 @@ CLASS zcl_sales_order_alloc_service IMPLEMENTATION.
         required_date            = ls_order_item-requested_date
         priority                 = lv_priority
         require_full_quantity    = ls_allocation-require_full_quantity
+        minimum_coverage_pct     = ls_allocation-minimum_coverage_pct
+        allocation_outcome       = ls_allocation-allocation_outcome
+        allocation_coverage_pct  = ls_allocation-allocation_coverage_pct
         require_atp_confirmation = lv_require_atp_confirmation
         sales_unit               = ls_order_item-entry_unit
         base_unit                = ls_order_item-base_unit

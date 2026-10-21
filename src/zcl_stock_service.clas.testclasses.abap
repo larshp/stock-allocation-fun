@@ -40,6 +40,7 @@ CLASS lcl_stock_uom_repo_double IMPLEMENTATION.
   METHOD get_read_count.
     rv_count = mv_read_count.
   ENDMETHOD.
+
 ENDCLASS.
 
 CLASS lcl_stock_repository_double DEFINITION FINAL.
@@ -1240,9 +1241,21 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_scope_receipt_range FOR TESTING.
     METHODS reports_batch_expiry_exposure FOR TESTING
       RAISING zcx_invalid_stock_request.
+    METHODS report_exp_page_totals FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rep_page_exp_status_shares FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rep_page_exp_src_age_bands FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS rep_page_exp_src_window_bands FOR TESTING
+      RAISING zcx_invalid_stock_request.
     METHODS reports_expiry_source_spans FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expiry_status FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_expiry_valuation_type FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_exp_storage_location FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expired_age_band FOR TESTING
       RAISING zcx_invalid_stock_request.
@@ -1251,6 +1264,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS filters_after_window_lead_band FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expiry_day_range FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS filters_expiration_date_range FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS reports_expiry_risk_buckets FOR TESTING
       RAISING zcx_invalid_stock_request.
@@ -1264,6 +1279,10 @@ CLASS ltcl_stock_service DEFINITION FINAL
       RAISING zcx_invalid_stock_request.
     METHODS rejects_bad_expiry_horizon FOR TESTING.
     METHODS reports_expiry_exposure_uom FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_undated_expiry_uom FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_open_resv_uom_horizons FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_uncovered_due_horizon FOR TESTING
       RAISING zcx_invalid_stock_request.
@@ -27345,6 +27364,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       io_stock_repository = lo_repository ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
+        ( storage_location            = '0002'
+          batch                       = 'EXPIRED-2'
+          batch_managed               = abap_true
+          expiration_date             = '20261017'
+          expiration_date_source      = 'G'
+          unrestricted_quantity       = 2
+          available_quantity          = 3
+          quality_inspection_quantity = 1
+          blocked_quantity            = 2 )
         ( storage_location            = '0001'
           batch                       = 'EXPIRED'
           batch_managed               = abap_true
@@ -27353,10 +27381,10 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unrestricted_quantity       = 10
           available_quantity          = 6
           quality_inspection_quantity = 2 )
-        ( storage_location            = '0002'
-          batch                       = 'EXPIRED-2'
+        ( storage_location            = '0003'
+          batch                       = 'HORIZON-2'
           batch_managed               = abap_true
-          expiration_date             = '20261017'
+          expiration_date             = '20261018'
           expiration_date_source      = 'G'
           unrestricted_quantity       = 2
           available_quantity          = 3
@@ -27376,15 +27404,6 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           expiration_date       = '20261023'
           unrestricted_quantity = 5
           available_quantity    = 5 )
-        ( storage_location            = '0003'
-          batch                       = 'HORIZON-2'
-          batch_managed               = abap_true
-          expiration_date             = '20261018'
-          expiration_date_source      = 'G'
-          unrestricted_quantity       = 2
-          available_quantity          = 3
-          quality_inspection_quantity = 1
-          blocked_quantity            = 2 )
         ( storage_location            = '0001'
           batch                       = 'LATER'
           batch_managed               = abap_true
@@ -27418,7 +27437,43 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           material     = 'MAT-1'
           plant        = '1000'
           as_of_date   = '20261018'
-          through_date = '20261023' ) ) ).
+          through_date = '20261023' )
+        ( request_id            = 'EXP-2'
+          material              = 'MAT-1'
+          plant                 = '1000'
+          as_of_date            = '20261018'
+          through_date          = '20261023'
+          omit_dated_batch_rows = abap_true ) ) ).
+
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_results[ 1 ]-snapshot_timestamp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-snapshot_timestamp
+      act = lt_results[ 2 ]-snapshot_timestamp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_results[ 2 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EXPIRED'
+      act = lt_results[ 2 ]-first_expired_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 2 ]-first_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 2 ]-first_expiry_plant_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 2 ]-first_expiry_global_src_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ASOF'
+      act = lt_results[ 2 ]-next_upcoming_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 2 ]-next_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 3 )
+      act = lt_results[ 2 ]-next_expiry_available_qty ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 5
@@ -27444,6 +27499,42 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'ASOF'
       act = lt_results[ 1 ]-next_upcoming_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_results[ 1 ]-first_expired_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 10 )
+      act = lt_results[ 1 ]-first_expired_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_results[ 1 ]-first_expired_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 2 )
+      act = lt_results[ 1 ]-first_expired_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 0 )
+      act = lt_results[ 1 ]-first_expired_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-days_since_first_expired_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 1 ]-next_upcoming_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 3 )
+      act = lt_results[ 1 ]-next_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 0 )
+      act = lt_results[ 1 ]-next_upcoming_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 0 )
+      act = lt_results[ 1 ]-next_upcoming_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 0 )
+      act = lt_results[ 1 ]-next_upcoming_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-days_to_next_expiration ).
     cl_abap_unit_assert=>assert_equals(
       exp = 12
       act = lt_results[ 1 ]-expired_unrestricted_quantity ).
@@ -27614,107 +27705,2071 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_repository->get_batch_bulk_call_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_statuses(
-        ( source_group              = 'P'
-          expiry_status             = 'E'
-          row_count                 = 1
-          first_expiration_date     = '20261017'
-          last_expiration_date      = '20261017'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 10
-          available_qty             = 6
-          quality_qty               = 2
-          blocked_qty               = 0
+        ( source_group                  = 'P'
+          expiry_status                 = 'E'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '50.00' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '30.30' )
+          available_qty_share_pct       = CONV decfloat34( '22.22' )
+          quality_qty_share_pct         = CONV decfloat34( '40.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '83.33' )
+          status_available_share_pct    = CONV decfloat34( '66.67' )
+          status_quality_share_pct      = CONV decfloat34( '66.67' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '50.00' )
+          source_available_share_pct    = CONV decfloat34( '46.15' )
+          source_quality_share_pct      = CONV decfloat34( '100.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '20261017'
+          last_expiration_date          = '20261017'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 10
+          available_qty                 = 6
+          quality_qty                   = 2
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '60.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '4.000' )
         )
-        ( source_group              = 'P'
-          expiry_status             = 'U'
-          row_count                 = 1
-          first_expiration_date     = '20261018'
-          last_expiration_date      = '20261018'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 3
-          available_qty             = 0
-          quality_qty               = 0
-          blocked_qty               = 0
+        ( source_group                  = 'P'
+          expiry_status                 = 'U'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '33.33' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '9.09' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '30.00' )
+          status_available_share_pct    = CONV decfloat34( '0.00' )
+          status_quality_share_pct      = CONV decfloat34( '0.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '15.00' )
+          source_available_share_pct    = CONV decfloat34( '0.00' )
+          source_quality_share_pct      = CONV decfloat34( '0.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '20261018'
+          last_expiration_date          = '20261018'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 3
+          available_qty                 = 0
+          quality_qty                   = 0
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '3.000' )
         )
-        ( source_group              = 'P'
-          expiry_status             = 'A'
-          row_count                 = 1
-          first_expiration_date     = '20261024'
-          last_expiration_date      = '20261024'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 7
-          available_qty             = 7
-          quality_qty               = 0
-          blocked_qty               = 0
+        ( source_group                  = 'P'
+          expiry_status                 = 'A'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '50.00' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '21.21' )
+          available_qty_share_pct       = CONV decfloat34( '25.93' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '63.64' )
+          status_available_share_pct    = CONV decfloat34( '70.00' )
+          status_quality_share_pct      = CONV decfloat34( '0.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '35.00' )
+          source_available_share_pct    = CONV decfloat34( '53.85' )
+          source_quality_share_pct      = CONV decfloat34( '0.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '20261024'
+          last_expiration_date          = '20261024'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 7
+          available_qty                 = 7
+          quality_qty                   = 0
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '0.000' )
         )
-        ( source_group              = 'G'
-          expiry_status             = 'E'
-          row_count                 = 1
-          first_expiration_date     = '20261017'
-          last_expiration_date      = '20261017'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 2
-          available_qty             = 3
-          quality_qty               = 1
-          blocked_qty               = 2
+        ( source_group                  = 'G'
+          expiry_status                 = 'E'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '50.00' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '6.06' )
+          available_qty_share_pct       = CONV decfloat34( '11.11' )
+          quality_qty_share_pct         = CONV decfloat34( '20.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '16.67' )
+          status_available_share_pct    = CONV decfloat34( '33.33' )
+          status_quality_share_pct      = CONV decfloat34( '33.33' )
+          status_blocked_share_pct      = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '25.00' )
+          source_available_share_pct    = CONV decfloat34( '33.33' )
+          source_quality_share_pct      = CONV decfloat34( '33.33' )
+          source_blocked_share_pct      = CONV decfloat34( '50.00' )
+          first_expiration_date         = '20261017'
+          last_expiration_date          = '20261017'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 2
+          available_qty                 = 3
+          quality_qty                   = 1
+          blocked_qty                   = 2
+          available_pct_of_unrestricted = CONV decfloat34( '150.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '-1.000' )
         )
-        ( source_group              = 'G'
-          expiry_status             = 'U'
-          row_count                 = 1
-          first_expiration_date     = '20261018'
-          last_expiration_date      = '20261018'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 2
-          available_qty             = 3
-          quality_qty               = 1
-          blocked_qty               = 2
+        ( source_group                  = 'G'
+          expiry_status                 = 'U'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '33.33' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '6.06' )
+          available_qty_share_pct       = CONV decfloat34( '11.11' )
+          quality_qty_share_pct         = CONV decfloat34( '20.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '20.00' )
+          status_available_share_pct    = CONV decfloat34( '37.50' )
+          status_quality_share_pct      = CONV decfloat34( '100.00' )
+          status_blocked_share_pct      = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '25.00' )
+          source_available_share_pct    = CONV decfloat34( '33.33' )
+          source_quality_share_pct      = CONV decfloat34( '33.33' )
+          source_blocked_share_pct      = CONV decfloat34( '50.00' )
+          first_expiration_date         = '20261018'
+          last_expiration_date          = '20261018'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 2
+          available_qty                 = 3
+          quality_qty                   = 1
+          blocked_qty                   = 2
+          available_pct_of_unrestricted = CONV decfloat34( '150.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '-1.000' )
         )
-        ( source_group              = 'G'
-          expiry_status             = 'A'
-          row_count                 = 1
-          first_expiration_date     = '20261024'
-          last_expiration_date      = '20261024'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 4
-          available_qty             = 3
-          quality_qty               = 1
-          blocked_qty               = 0
+        ( source_group                  = 'G'
+          expiry_status                 = 'A'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '50.00' )
+          source_row_share_pct          = CONV decfloat34( '33.33' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '12.12' )
+          available_qty_share_pct       = CONV decfloat34( '11.11' )
+          quality_qty_share_pct         = CONV decfloat34( '20.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '36.36' )
+          status_available_share_pct    = CONV decfloat34( '30.00' )
+          status_quality_share_pct      = CONV decfloat34( '100.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '50.00' )
+          source_available_share_pct    = CONV decfloat34( '33.33' )
+          source_quality_share_pct      = CONV decfloat34( '33.33' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '20261024'
+          last_expiration_date          = '20261024'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 4
+          available_qty                 = 3
+          quality_qty                   = 1
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '75.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '1.000' )
         )
-        ( source_group              = 'O'
-          expiry_status             = 'E'
-          row_count                 = 0
-          first_expiration_date     = '00000000'
-          last_expiration_date      = '00000000'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 0
-          available_qty             = 0
-          quality_qty               = 0
-          blocked_qty               = 0
+        ( source_group                  = 'O'
+          expiry_status                 = 'E'
+          row_count                     = 0
+          row_share_pct                 = CONV decfloat34( '0.00' )
+          status_row_share_pct          = CONV decfloat34( '0.00' )
+          source_row_share_pct          = CONV decfloat34( '0.00' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          status_available_share_pct    = CONV decfloat34( '0.00' )
+          status_quality_share_pct      = CONV decfloat34( '0.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct    = CONV decfloat34( '0.00' )
+          source_quality_share_pct      = CONV decfloat34( '0.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '00000000'
+          last_expiration_date          = '00000000'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 0
+          available_qty                 = 0
+          quality_qty                   = 0
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '0.000' )
         )
-        ( source_group              = 'O'
-          expiry_status             = 'U'
-          row_count                 = 1
-          first_expiration_date     = '20261023'
-          last_expiration_date      = '20261023'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 5
-          available_qty             = 5
-          quality_qty               = 0
-          blocked_qty               = 0
+        ( source_group                  = 'O'
+          expiry_status                 = 'U'
+          row_count                     = 1
+          row_share_pct                 = CONV decfloat34( '14.29' )
+          status_row_share_pct          = CONV decfloat34( '33.33' )
+          source_row_share_pct          = CONV decfloat34( '100.00' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '15.15' )
+          available_qty_share_pct       = CONV decfloat34( '18.52' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '50.00' )
+          status_available_share_pct    = CONV decfloat34( '62.50' )
+          status_quality_share_pct      = CONV decfloat34( '0.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct    = CONV decfloat34( '100.00' )
+          source_quality_share_pct      = CONV decfloat34( '0.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '20261023'
+          last_expiration_date          = '20261023'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 5
+          available_qty                 = 5
+          quality_qty                   = 0
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '0.000' )
         )
-        ( source_group              = 'O'
-          expiry_status             = 'A'
-          row_count                 = 0
-          first_expiration_date     = '00000000'
-          last_expiration_date      = '00000000'
-          expiration_date_span_days = 0
-          unrestricted_qty          = 0
-          available_qty             = 0
-          quality_qty               = 0
-          blocked_qty               = 0
+        ( source_group                  = 'O'
+          expiry_status                 = 'A'
+          row_count                     = 0
+          row_share_pct                 = CONV decfloat34( '0.00' )
+          status_row_share_pct          = CONV decfloat34( '0.00' )
+          source_row_share_pct          = CONV decfloat34( '0.00' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
+          status_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          status_available_share_pct    = CONV decfloat34( '0.00' )
+          status_quality_share_pct      = CONV decfloat34( '0.00' )
+          status_blocked_share_pct      = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct    = CONV decfloat34( '0.00' )
+          source_quality_share_pct      = CONV decfloat34( '0.00' )
+          source_blocked_share_pct      = CONV decfloat34( '0.00' )
+          first_expiration_date         = '00000000'
+          last_expiration_date          = '00000000'
+          expiration_date_span_days     = 0
+          unrestricted_qty              = 0
+          available_qty                 = 0
+          quality_qty                   = 0
+          blocked_qty                   = 0
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty     = CONV mchb-clabs( '0.000' )
         )
       )
       act = lt_results[ 1 ]-expiry_src_statuses ).
+  ENDMETHOD.
+
+  METHOD report_exp_page_totals.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'EXPIRED'
+          batch_managed = abap_true expiration_date = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 1 )
+        ( storage_location = '0001' batch = 'UPCOMING-2'
+          batch_managed = abap_true expiration_date = '20261023'
+          unrestricted_quantity = 36 available_quantity = 18
+          quality_inspection_quantity = 12 blocked_quantity = 3 )
+        ( storage_location = '0001' batch = 'AFTER'
+          batch_managed = abap_true expiration_date = '20261026'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 48 available_quantity = 24
+          quality_inspection_quantity = 16 blocked_quantity = 4 )
+        ( storage_location = '0001' batch = 'UPCOMING-1'
+          batch_managed = abap_true expiration_date = '20261022'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 24 available_quantity = 12
+          quality_inspection_quantity = 8 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UNDATED-1'
+          batch_managed = abap_true expiration_date_source = 'P'
+          unrestricted_quantity = 12
+          available_quantity = 6 quality_inspection_quantity = 3
+          blocked_quantity = 1 )
+        ( storage_location = '0001' batch = 'UNDATED-2'
+          batch_managed = abap_true expiration_date_source = 'G'
+          unrestricted_quantity = 24
+          available_quantity = 12 quality_inspection_quantity = 6
+          blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UNDATED-3'
+          batch_managed = abap_true expiration_date_source = 'X'
+          unrestricted_quantity = 12 available_quantity = 12
+          quality_inspection_quantity = 12 blocked_quantity = 12 ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+
+    DATA(lt_first_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 2 maximum_undated_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_first_page[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_first_page[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_first_page[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_first_page[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_first_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-batches[ 1 ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_first_page[ 1 ]-page_expired_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_first_page[ 1 ]-page_upcoming_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_first_page[ 1 ]-page_after_window_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_first_page[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_first_page[ 1 ]-page_latest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_first_page[ 1 ]-page_expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_first_page[ 1 ]-page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_first_page[ 1 ]-page_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_first_page[ 1 ]-page_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 120 )
+      act = lt_first_page[ 1 ]-dated_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_first_page[ 1 ]-dated_available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 40 )
+      act = lt_first_page[ 1 ]-dated_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 10 )
+      act = lt_first_page[ 1 ]-dated_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 72 )
+      act = lt_first_page[ 1 ]-through_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_first_page[ 1 ]-through_available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 24 )
+      act = lt_first_page[ 1 ]-through_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_first_page[ 1 ]-through_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_first_page[ 1 ]-through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_first_page[ 1 ]-dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_first_page[ 1 ]-page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 3 )
+      act = lt_first_page[ 1 ]-page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_first_page[ 1 ]-page_expiry_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 4 )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 1 )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_first_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9
+      act = lines( lt_first_page[ 1 ]-page_expiry_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_first_page[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_first_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_first_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_first_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_first_page[ 1 ]-total_undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_first_page[ 1 ]-undated_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 30 )
+      act = lt_first_page[ 1 ]-undated_available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '62.50' )
+      act = lt_first_page[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_first_page[ 1 ]-undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 21 )
+      act = lt_first_page[ 1 ]-undated_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 15 )
+      act = lt_first_page[ 1 ]-undated_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_first_page[ 1 ]-returned_undated_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-undated_page_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-und_page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 3 )
+      act = lt_first_page[ 1 ]-undated_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 1 )
+      act = lt_first_page[ 1 ]-undated_page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_first_page[ 1 ]-undated_page_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-reservation_deduction_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_first_page[ 1 ]-undated_batches[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-undated_batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-undated_batches[ 1 ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_first_page[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_first_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_first_page[ 1 ]-undated_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-reservation_deduction_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '14.29' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '6.67' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '40.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '13.33' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '40.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '57.14' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_first_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-blocked_qty_share_pct ).
+
+    DATA(lt_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 2
+          filter_batch_cursor = abap_true
+          batch_cursor_status = lt_first_page[ 1 ]-next_cursor_status
+          batch_cursor_expiration_date =
+            lt_first_page[ 1 ]-next_cursor_expiration_date
+          batch_cursor_batch = lt_first_page[ 1 ]-next_cursor_batch
+          batch_cursor_storage_location =
+            lt_first_page[ 1 ]-next_cursor_storage_location
+          batch_cursor_valuation_type =
+            lt_first_page[ 1 ]-next_cursor_valuation_type
+          maximum_undated_batch_rows = 1
+          filter_undated_batch_cursor = abap_true
+          undated_cursor_batch =
+            lt_first_page[ 1 ]-next_undated_cursor_batch
+          undated_cursor_location =
+            lt_first_page[ 1 ]-next_undated_cursor_location
+          undated_cursor_val_type =
+            lt_first_page[ 1 ]-next_undated_cursor_val_type ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 72 )
+      act = lt_next_page[ 1 ]-through_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_next_page[ 1 ]-through_available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 24 )
+      act = lt_next_page[ 1 ]-through_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_next_page[ 1 ]-through_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_next_page[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_next_page[ 1 ]-through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_next_page[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_next_page[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_next_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_next_page[ 1 ]-page_upcoming_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_next_page[ 1 ]-page_expired_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_next_page[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_next_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_next_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023'
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023'
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_next_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_next_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_next_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_next_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'U' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023'
+      act = lt_next_page[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023'
+      act = lt_next_page[ 1 ]-page_latest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_next_page[ 1 ]-page_expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_next_page[ 1 ]-page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED-2'
+      act = lt_next_page[ 1 ]-undated_batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_next_page[ 1 ]-undated_page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_next_page[ 1 ]-undated_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_next_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_next_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_next_page[ 1 ]-undated_batches[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_next_page[ 1 ]-first_undated_expiry_source ).
+
+    DATA(lt_unknown_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-UNKNOWN'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 1 filter_batch_cursor = abap_true
+          batch_cursor_status = 'U'
+          batch_cursor_expiration_date = '20261023'
+          batch_cursor_batch = 'UPCOMING-2'
+          batch_cursor_storage_location = '0001'
+          maximum_undated_batch_rows = 1
+          filter_undated_batch_cursor = abap_true
+          undated_cursor_batch =
+            lt_next_page[ 1 ]-next_undated_cursor_batch
+          undated_cursor_location =
+            lt_next_page[ 1 ]-next_undated_cursor_location
+          undated_cursor_val_type =
+            lt_next_page[ 1 ]-next_undated_cursor_val_type ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_unknown_page[ 1 ]-returned_undated_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'X'
+      act = lt_unknown_page[ 1 ]-undated_batches[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_unknown_page[ 1 ]-first_undated_expiry_source ).
+
+    DATA(lt_empty_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-EMPTY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 1 filter_batch_cursor = abap_true
+          batch_cursor_status = 'U'
+          batch_cursor_expiration_date = '20261023'
+          batch_cursor_batch = 'UPCOMING-2'
+          batch_cursor_storage_location = '0001'
+          maximum_undated_batch_rows = 1
+          filter_undated_batch_cursor = abap_true
+          undated_cursor_batch = 'UNDATED-3'
+          undated_cursor_location = '0001' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_empty_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000000'
+      act = lt_empty_page[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000000'
+      act = lt_empty_page[ 1 ]-page_latest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty_page[ 1 ]-page_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-und_page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty_page[ 1 ]-und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_empty_page[ 1 ]-page_expiry_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9
+      act = lines( lt_empty_page[ 1 ]-page_expiry_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_empty_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_empty_page[ 1 ]-returned_undated_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_empty_page[ 1 ]-undated_page_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-reservation_deduction_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_empty_page[ 1 ]-undated_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_empty_page[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_empty_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+
+    DATA(lt_summary_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-SUMMARY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          omit_dated_batch_rows = abap_true
+          maximum_undated_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_summary_only[ 1 ]-omit_dated_batch_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_summary_only[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_summary_only[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_summary_only[ 1 ]-dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 40 )
+      act = lt_summary_only[ 1 ]-dated_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 10 )
+      act = lt_summary_only[ 1 ]-dated_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 72 )
+      act = lt_summary_only[ 1 ]-through_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_summary_only[ 1 ]-through_available_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 24 )
+      act = lt_summary_only[ 1 ]-through_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_summary_only[ 1 ]-through_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_summary_only[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_summary_only[ 1 ]-through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EXPIRED'
+      act = lt_summary_only[ 1 ]-first_expired_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_summary_only[ 1 ]-first_expired_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summary_only[ 1 ]-first_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_summary_only[ 1 ]-first_expiry_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UPCOMING-1'
+      act = lt_summary_only[ 1 ]-next_upcoming_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_summary_only[ 1 ]-next_upcoming_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summary_only[ 1 ]-next_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_summary_only[ 1 ]-next_expiry_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_summary_only[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lines( lt_summary_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false act = lt_summary_only[ 1 ]-is_truncated ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summary_only[ 1 ]-next_cursor_status ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_summary_only[ 1 ]-returned_undated_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_share_pct ).
+    DATA(lt_after_summary_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-AFTER-SUMMARY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status = zcl_stock_service=>c_expiry_status_after_window
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_summary_only[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_summary_only[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_after_summary_only[ 1 ]-batches ).
+    DATA(lt_undated_summary_only) =
+      lo_cut->get_batch_expiry_exposure_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'EXP-PAGE-TOTALS-UNDATED-SUMMARY'
+            material = 'MAT-1' plant = '1000'
+            as_of_date = '20261018' through_date = '20261025'
+            omit_undated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_undated_summary_only[ 1 ]-total_undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_undated_summary_only[ 1 ]-omit_undated_batch_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_undated_summary_only[ 1 ]-returned_undated_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_undated_summary_only[ 1 ]-is_undated_truncated ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_undated_summary_only[ 1 ]-undated_batches ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED-1'
+      act = lt_undated_summary_only[ 1 ]-first_undated_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_undated_summary_only[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_undated_summary_only[ 1 ]-undated_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '62.50' )
+      act = lt_undated_summary_only[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_undated_summary_only[ 1 ]-undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    DATA(lv_reads_before_omit_err) =
+      lo_repository->get_batch_bulk_call_count( ).
+    DATA(lv_dated_omit_error_rejected) = abap_false.
+    TRY.
+        DATA(lt_invalid_dated_omit) =
+          lo_cut->get_batch_expiry_exposure_bulk(
+            it_requests = VALUE #(
+              ( request_id = 'EXP-PAGE-TOTALS-SUMMARY-INVALID'
+                material = 'MAT-1' plant = '1000'
+                as_of_date = '20261018' through_date = '20261025'
+                omit_dated_batch_rows = abap_true
+                maximum_batch_rows = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_dated_omit_error_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_dated_omit_error_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_reads_before_omit_err
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+    DATA(lt_after_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-AFTER'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_expiry_status = abap_true expiry_status = 'A'
+          maximum_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_page[ 1 ]-page_after_window_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_after_page[ 1 ]-page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261026'
+      act = lt_after_page[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_after_page[ 1 ]-page_expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_after_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_after_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_after_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_after_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_page[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_after_page[ 1 ]-batches[ 1 ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '' act = lt_after_page[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_after_page[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_after_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-unrestricted_qty ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 2 maximum_undated_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-undated_batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-undated_batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-undated_batches[ 1 ]-source_resv_deduction_qty ).
+    DATA(lt_uom_summary_only) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-UOM-SUMMARY'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261018' through_date = '20261025'
+          omit_dated_batch_rows = abap_true
+          maximum_undated_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_summary_only[ 1 ]-omit_dated_batch_rows ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom_summary_only[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_summary_only[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lines( lt_uom_summary_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_summary_only[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_uom_summary_only[ 1 ]-base_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_uom_summary_only[ 1 ]-src_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 40 )
+      act = lt_uom_summary_only[ 1 ]-base_dated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.333' )
+      act = lt_uom_summary_only[ 1 ]-src_dated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 10 )
+      act = lt_uom_summary_only[ 1 ]-base_dated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.833' )
+      act = lt_uom_summary_only[ 1 ]-src_dated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_uom_summary_only[ 1 ]-src_through_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_summary_only[ 1 ]-src_through_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_summary_only[ 1 ]-src_through_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_summary_only[ 1 ]-src_through_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_summary_only[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_summary_only[ 1 ]-src_through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_uom_summary_only[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_summary_only[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EXPIRED'
+      act = lt_uom_summary_only[ 1 ]-first_expired_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UPCOMING-1'
+      act = lt_uom_summary_only[ 1 ]-next_upcoming_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_summary_only[ 1 ]-base_expired_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_summary_only[ 1 ]-src_expired_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_uom_summary_only[ 1 ]-base_next_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_summary_only[ 1 ]-src_next_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unit_reservation_deduction_qty ).
+    DATA(lt_uom_undated_summary_only) =
+      lo_uom_cut->get_expiry_exposure_uom_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'EXP-PAGE-TOTALS-UOM-UNDATED-SUMMARY'
+            material = 'MAT-1' plant = '1000' unit = 'BOX'
+            as_of_date = '20261018' through_date = '20261025'
+            omit_dated_batch_rows = abap_true
+            omit_undated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_uom_undated_summary_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( lt_uom_undated_summary_only[ 1 ]-undated_batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom_undated_summary_only[ 1 ]-total_undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED-1'
+      act = lt_uom_undated_summary_only[ 1 ]-first_undated_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_uom_undated_summary_only[ 1 ]-base_undated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_uom_undated_summary_only[ 1 ]-src_undated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '62.50' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_uom_undated_summary_only[ 1 ]-base_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_undated_summary_only[ 1 ]-src_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_pct_of_unrestricted ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_summary_only[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_uom_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-row_share_pct ).
+    DATA(lt_uom_unknown_page) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-UOM-UNKNOWN'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261018' through_date = '20261025'
+          maximum_batch_rows = 1 filter_batch_cursor = abap_true
+          batch_cursor_status = 'U'
+          batch_cursor_expiration_date = '20261023'
+          batch_cursor_batch = 'UPCOMING-2'
+          batch_cursor_storage_location = '0001'
+          maximum_undated_batch_rows = 1
+          filter_undated_batch_cursor = abap_true
+          undated_cursor_batch =
+            lt_next_page[ 1 ]-next_undated_cursor_batch
+          undated_cursor_location =
+            lt_next_page[ 1 ]-next_undated_cursor_location
+          undated_cursor_val_type =
+            lt_next_page[ 1 ]-next_undated_cursor_val_type ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'X'
+      act = lt_uom_unknown_page[ 1 ]-undated_batches[ 1 ]-base_row-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-base_reservation_deduction_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[
+        source_group = 'O' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-page_expired_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 1 ]-page_after_window_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_uom_results[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_uom_results[ 1 ]-page_expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9
+      act = lines( lt_uom_results[ 1 ]-page_expiry_src_statuses ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_uom_results[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_uom_results[ 1 ]-base_page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_page_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_uom_results[ 1 ]-base_page_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-src_page_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_uom_results[ 1 ]-base_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 120 )
+      act = lt_uom_results[ 1 ]-base_dated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 10 )
+      act = lt_uom_results[ 1 ]-src_dated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_uom_results[ 1 ]-base_dated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_uom_results[ 1 ]-src_dated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 40 )
+      act = lt_uom_results[ 1 ]-base_dated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.333' )
+      act = lt_uom_results[ 1 ]-src_dated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 10 )
+      act = lt_uom_results[ 1 ]-base_dated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.833' )
+      act = lt_uom_results[ 1 ]-src_dated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_uom_results[ 1 ]-base_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_uom_results[ 1 ]-src_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 72 )
+      act = lt_uom_results[ 1 ]-base_through_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_uom_results[ 1 ]-src_through_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_uom_results[ 1 ]-base_through_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_through_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 24 )
+      act = lt_uom_results[ 1 ]-base_through_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-src_through_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_uom_results[ 1 ]-base_through_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_through_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_uom_results[ 1 ]-base_through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-src_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_uom_results[ 1 ]-base_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-src_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 3 )
+      act = lt_uom_results[ 1 ]-base_page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_results[ 1 ]-src_page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-base_und_page_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-src_und_page_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-base_und_page_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_und_page_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '62.50' )
+      act = lt_uom_results[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_uom_results[ 1 ]-base_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-src_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-und_page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-base_und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 3 )
+      act = lt_uom_results[ 1 ]-base_und_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_results[ 1 ]-src_und_page_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 1 )
+      act = lt_uom_results[ 1 ]-base_und_page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.083' )
+      act = lt_uom_results[ 1 ]-src_und_page_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'G' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 1 ]-undated_batches[ 1 ]-base_row-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_uom_results[ 1 ]-undated_expiry_sources ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '14.29' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '6.67' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'G' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-base_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-base_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-base_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unit_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unit_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unit_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_uom_results[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-unit_unrestricted_qty ).
+    DATA(lt_unknown_source_summary) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-PAGE-TOTALS-UNKNOWN-SOURCE'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_batch = abap_true batch = 'UNDATED-3'
+          omit_undated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED-3'
+      act = lt_unknown_source_summary[ 1 ]-first_undated_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'X'
+      act = lt_unknown_source_summary[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_unknown_source_summary[ 1 ]-undated_batches ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unknown_source_summary[ 1 ]-undated_expiry_sources[
+        source_group = 'O' ]-row_count ).
+
+    DATA(lt_unknown_source_uom_summary) =
+      lo_uom_cut->get_expiry_exposure_uom_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'EXP-PAGE-TOTALS-UOM-UNKNOWN-SOURCE'
+            material = 'MAT-1' plant = '1000' unit = 'BOX'
+            as_of_date = '20261018' through_date = '20261025'
+            filter_batch = abap_true batch = 'UNDATED-3'
+            omit_undated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UNDATED-3'
+      act = lt_unknown_source_uom_summary[ 1 ]-first_undated_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'X'
+      act = lt_unknown_source_uom_summary[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_unknown_source_uom_summary[ 1 ]-undated_batches ).
+
+    DATA(lo_no_undated_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_no_undated_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_no_undated_repository ).
+    DATA(lt_no_undated) = lo_no_undated_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'NO-UNDATED-SHARES'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+
+    DATA(lo_no_undated_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_no_undated_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_no_undated_uom) =
+      lo_no_undated_uom_cut->get_expiry_exposure_uom_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'NO-UNDATED-SHARES-UOM'
+            material = 'MAT-1' plant = '1000' unit = 'BOX'
+            as_of_date = '20261018' through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated_uom[ 1 ]-undated_expiry_sources[
+        source_group = 'P' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_no_undated_uom[ 1 ]-undated_page_expiry_sources[
+        source_group = 'P' ]-blocked_qty_share_pct ).
+  ENDMETHOD.
+
+  METHOD filters_expiration_date_range.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'DATE-BEFOR'
+          batch_managed = abap_true expiration_date = '20261017'
+          unrestricted_quantity = 1 )
+        ( storage_location = '0001' batch = 'DATE-FROM'
+          batch_managed = abap_true expiration_date = '20261018'
+          unrestricted_quantity = 1 )
+        ( storage_location = '0001' batch = 'DATE-TO'
+          batch_managed = abap_true expiration_date = '20261023'
+          unrestricted_quantity = 1 )
+        ( storage_location = '0001' batch = 'DATE-AFTER'
+          batch_managed = abap_true expiration_date = '20261024'
+          unrestricted_quantity = 1 )
+        ( storage_location = '0001' batch = 'DATE-UNDATED'
+          batch_managed = abap_true unrestricted_quantity = 1 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_range) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DATE-RANGE' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          expiration_date_from = '20261018'
+          expiration_date_to = '20261023' maximum_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018' act = lt_range[ 1 ]-expiration_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023' act = lt_range[ 1 ]-expiration_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_range[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_range[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_true( lt_range[ 1 ]-is_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'DATE-FROM' act = lt_range[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_range[ 1 ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_range[ 1 ]-undated_unrestricted_quantity ).
+
+    DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DATE-FROM' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          expiration_date_from = '20261023' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_from_only[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_from_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_from_only[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_from_only[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_true(
+      line_exists( lt_from_only[ 1 ]-batches[ batch = 'DATE-TO' ] ) ).
+    cl_abap_unit_assert=>assert_false(
+      line_exists( lt_from_only[ 1 ]-batches[ batch = 'DATE-AFTER' ] ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_from_only[ 1 ]-undated_batch_row_count ).
+
+    DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DATE-TO' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          expiration_date_to = '20261018' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_to_only[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_to_only[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_to_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_true(
+      line_exists( lt_to_only[ 1 ]-batches[ batch = 'DATE-BEFOR' ] ) ).
+    cl_abap_unit_assert=>assert_true(
+      line_exists( lt_to_only[ 1 ]-batches[ batch = 'DATE-FROM' ] ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_to_only[ 1 ]-undated_batch_row_count ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'EXP-DATE-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          expiration_date_from = '20261018'
+          expiration_date_to = '20261023' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018' act = lt_uom_results[ 1 ]-expiration_date_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023' act = lt_uom_results[ 1 ]-expiration_date_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_uom_results[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_uom_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-expiration_date ).
+
+    DATA(lv_calls_before_invalid) =
+      lo_repository->get_batch_bulk_call_count( ).
+    DATA(lv_reversed_range_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'EXP-DATE-REVERSED'
+              material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261023'
+              expiration_date_from = '20261023'
+              expiration_date_to = '20261018' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_reversed_range_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_reversed_range_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_calls_before_invalid
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD filters_expiry_day_range.
@@ -28263,6 +30318,465 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_uom_repository->get_read_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_expiry_valuation_type.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( batch = 'OTHER-A' valuation_type = 'A'
+          batch_managed = abap_true expiration_date = '20261017'
+          unrestricted_quantity = 100 )
+        ( batch = 'B-EXPIRED' valuation_type = 'B'
+          batch_managed = abap_true expiration_date = '20261017'
+          expiration_date_source = 'P' unrestricted_quantity = 2 )
+        ( batch = 'B-UPCOMING' valuation_type = 'B'
+          batch_managed = abap_true expiration_date = '20261020'
+          expiration_date_source = 'G' unrestricted_quantity = 5 )
+        ( batch = 'BLANK-DATE'
+          batch_managed = abap_true expiration_date = '20261018'
+          expiration_date_source = 'P' unrestricted_quantity = 3 )
+        ( batch = 'B-UNDATED' valuation_type = 'B'
+          batch_managed = abap_true unrestricted_quantity = 11 )
+        ( batch = 'BLANK-UNDATED'
+          batch_managed = abap_true unrestricted_quantity = 7 ) ) ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'VAL-TYPE-B' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          filter_valuation_type = abap_true valuation_type = 'B'
+          maximum_batch_rows = 1 )
+        ( request_id = 'VAL-TYPE-B-IMPLICIT' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261023' valuation_type = 'B' )
+        ( request_id = 'VAL-TYPE-BLANK' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          filter_valuation_type = abap_true ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-filter_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 5 )
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-EXPIRED'
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 11 )
+      act = lt_results[ request_id = 'VAL-TYPE-B' ]-undated_unrestricted_quantity ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ request_id = 'VAL-TYPE-B-IMPLICIT' ]-filter_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_results[ request_id = 'VAL-TYPE-B-IMPLICIT' ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ request_id = 'VAL-TYPE-B-IMPLICIT' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_results[ request_id = 'VAL-TYPE-B-IMPLICIT' ]-batches ) ).
+
+    DATA(lt_next_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'VAL-TYPE-B-NEXT' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          filter_valuation_type = abap_true valuation_type = 'B'
+          maximum_batch_rows = 1 filter_batch_cursor = abap_true
+          batch_cursor_status =
+            lt_results[ request_id = 'VAL-TYPE-B' ]-next_cursor_status
+          batch_cursor_expiration_date =
+            lt_results[ request_id = 'VAL-TYPE-B' ]-next_cursor_expiration_date
+          batch_cursor_batch =
+            lt_results[ request_id = 'VAL-TYPE-B' ]-next_cursor_batch
+          batch_cursor_storage_location =
+            lt_results[ request_id = 'VAL-TYPE-B' ]-next_cursor_storage_location
+          batch_cursor_valuation_type =
+            lt_results[ request_id = 'VAL-TYPE-B' ]-next_cursor_valuation_type ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_next_page[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_next_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UPCOMING'
+      act = lt_next_page[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_next_page[ 1 ]-is_truncated ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-filter_valuation_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'BLANK-DATE'
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 7 )
+      act = lt_results[ request_id = 'VAL-TYPE-BLANK' ]-undated_unrestricted_quantity ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'VAL-TYPE-B-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          filter_valuation_type = abap_true valuation_type = 'B' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 1 ]-filter_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_uom_results[ 1 ]-valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_results[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_uom_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B'
+      act = lt_uom_results[ 1 ]-batches[ 1 ]-base_row-valuation_type ).
+
+    DATA(lv_calls_before_invalid) =
+      lo_repository->get_batch_bulk_call_count( ).
+    DATA(lv_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-VAL-TYPE-FLAG'
+              material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261023'
+              filter_valuation_type = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_calls_before_invalid
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+  ENDMETHOD.
+
+  METHOD filters_exp_storage_location.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location      = '0001'
+          batch                 = 'LOC-1'
+          batch_managed         = abap_true
+          expiration_date       = '20261017'
+          unrestricted_quantity = 2 )
+        ( storage_location      = '0001'
+          batch                 = 'LOC-1-UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 5 )
+        ( storage_location      = '0002'
+          batch                 = 'LOC-2'
+          batch_managed         = abap_true
+          expiration_date       = '20261020'
+          unrestricted_quantity = 7 )
+        ( batch                 = 'LOC-BLANK'
+          batch_managed         = abap_true
+          expiration_date       = '20261020'
+          unrestricted_quantity = 11 )
+        ( batch                 = 'LOC-BLANK-UNDATED'
+          batch_managed         = abap_true
+          unrestricted_quantity = 13 )
+        ( storage_location      = '0003'
+          batch                 = 'LOC-3'
+          batch_managed         = abap_true
+          expiration_date       = '20261020'
+          unrestricted_quantity = 19 )
+        ( storage_location      = '0004'
+          batch_managed         = abap_true
+          expiration_date       = '20261021'
+          unrestricted_quantity = 23 )
+        ( storage_location      = '0005'
+          batch_managed         = abap_true
+          unrestricted_quantity = 29 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'LOC-EXACT' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          batch = 'LOC-2'
+          storage_location = '0002' )
+        ( request_id = 'LOC-BLANK' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          filter_storage_location = abap_true )
+        ( request_id = 'BATCH-EXACT' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          batch = 'LOC-2' )
+        ( request_id = 'BATCH-BLANK' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261023'
+          filter_batch = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ request_id = 'LOC-EXACT' ]-filter_storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ request_id = 'LOC-EXACT' ]-filter_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_results[ request_id = 'LOC-EXACT' ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_results[ request_id = 'LOC-EXACT' ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'LOC-EXACT' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_results[ request_id = 'LOC-EXACT' ]-upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_results[ request_id = 'LOC-EXACT' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_results[ request_id = 'LOC-EXACT' ]-batches[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ request_id = 'LOC-EXACT' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ request_id = 'LOC-BLANK' ]-filter_storage_location ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'LOC-BLANK' ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'LOC-BLANK' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-BLANK'
+      act = lt_results[ request_id = 'LOC-BLANK' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'LOC-BLANK' ]-batches[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'LOC-BLANK' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 13 )
+      act = lt_results[ request_id = 'LOC-BLANK' ]-undated_unrestricted_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-filter_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 7 )
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ request_id = 'BATCH-EXACT' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-filter_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 23 )
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0004'
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-batches[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-undated_batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-undated_batches[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 29 )
+      act = lt_results[ request_id = 'BATCH-BLANK' ]-undated_unrestricted_quantity ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'LOC-EXACT-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          batch = 'LOC-2'
+          storage_location = '0002' )
+        ( request_id = 'LOC-BLANK-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          filter_storage_location = abap_true )
+        ( request_id = 'BATCH-EXACT-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          batch = 'LOC-2' )
+        ( request_id = 'BATCH-BLANK-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261023'
+          filter_batch = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_uom_results[ 1 ]-filter_storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_uom_results[ 1 ]-filter_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_uom_results[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_uom_results[ 1 ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 7 )
+      act = lt_uom_results[ 1 ]-base_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.500' )
+      act = lt_uom_results[ 1 ]-src_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ request_id = 'LOC-BLANK-UOM' ]-filter_storage_location ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ request_id = 'LOC-BLANK-UOM' ]-storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-BLANK'
+      act = lt_uom_results[ request_id = 'LOC-BLANK-UOM' ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ request_id = 'LOC-BLANK-UOM' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.500' )
+      act = lt_uom_results[ request_id = 'LOC-BLANK-UOM' ]-src_undated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_uom_results[ request_id = 'BATCH-EXACT-UOM' ]-filter_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_uom_results[ request_id = 'BATCH-EXACT-UOM' ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ request_id = 'BATCH-EXACT-UOM' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.500' )
+      act = lt_uom_results[ request_id = 'BATCH-EXACT-UOM' ]-src_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOC-2'
+      act = lt_uom_results[ request_id = 'BATCH-EXACT-UOM' ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-filter_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.500' )
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-src_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-undated_batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '14.500' )
+      act = lt_uom_results[ request_id = 'BATCH-BLANK-UOM' ]-src_undated_unrestricted_qty ).
+
+    DATA(lv_calls_before_invalid) =
+      lo_repository->get_batch_bulk_call_count( ).
+    DATA(lv_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-LOC-FLAG' material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261023'
+              filter_storage_location = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_calls_before_invalid
+      act = lo_repository->get_batch_bulk_call_count( ) ).
+
+    lv_rejected = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'BAD-BATCH-FLAG'
+              material = 'MAT-1' plant = '1000'
+              as_of_date = '20261018' through_date = '20261023'
+              filter_batch = 'Y' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_calls_before_invalid
       act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
@@ -29117,6 +31631,2415 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
+  METHOD rep_page_exp_status_shares.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'EXPIRED-SHARE'
+          batch_managed = abap_true expiration_date = '20261019'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 1 available_quantity = 1
+          quality_inspection_quantity = 0 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'UPCOMING-SHARE'
+          batch_managed = abap_true expiration_date = '20261023'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 2 available_quantity = 2
+          quality_inspection_quantity = 4 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'AFTER-WINDOW-SHARE'
+          batch_managed = abap_true expiration_date = '20261101'
+          expiration_date_source = 'O'
+          unrestricted_quantity = 1 available_quantity = 0
+          quality_inspection_quantity = 1 blocked_quantity = 1 ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 2 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+    DATA(lt_limited) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-LIMITED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_limited[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_limited[ 1 ]-is_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_limited[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_limited[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+
+    DATA(lt_cursor) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-CURSOR'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 1 filter_batch_cursor = abap_true
+          batch_cursor_status = lt_limited[ 1 ]-next_cursor_status
+          batch_cursor_expiration_date =
+            lt_limited[ 1 ]-next_cursor_expiration_date
+          batch_cursor_batch = lt_limited[ 1 ]-next_cursor_batch
+          batch_cursor_storage_location =
+            lt_limited[ 1 ]-next_cursor_storage_location
+          batch_cursor_valuation_type =
+            lt_limited[ 1 ]-next_cursor_valuation_type ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_cursor[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_cursor[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_cursor[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_cursor[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_cursor[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+
+    DATA(lo_empty_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_empty_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_empty_repository ).
+    DATA(lt_empty) = lo_empty_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-EMPTY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_expiry_status = abap_true expiry_status = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty[ 1 ]-dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-through_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty[ 1 ]-through_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( '0.000' )
+      act = lt_empty[ 1 ]-dated_quality_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( '0.000' )
+      act = lt_empty[ 1 ]-dated_blocked_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty[ 1 ]-undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-source_blocked_share_pct ).
+
+    DATA(lt_summary_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-SUMMARY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_summary_only[ 1 ]-expired_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_summary_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_summary_only[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 4
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+
+    DATA(lt_uom_summary_only) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-UOM-SUMMARY'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_uom_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '80.00' )
+      act = lt_uom_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_uom_summary_only[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+
+    DATA(lt_filtered) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-FILTERED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_expiry_status = abap_true expiry_status = 'E' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-blocked_qty_share_pct ).
+
+    DATA(lt_filtered_uom_summary) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-STATUS-QTY-SHARES-UOM-FILTERED'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_expiry_status = abap_true expiry_status = 'E'
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_filtered_uom_summary[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_limited[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_cursor[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_empty[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_summary_only[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-unit_reservation_deduction_qty ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_results[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-expiry_sources[
+        source_group = 'O' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_results[ 1 ]-expiry_sources[
+        source_group = 'O' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_results[ 1 ]-page_expiry_sources[
+        source_group = 'O' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_summary_only[ 1 ]-expiry_sources[
+        source_group = 'O' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_expiry_sources[
+        source_group = 'O' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_results[ 1 ]-expiry_sources[
+        source_group = 'O' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_uom_results[ 1 ]-page_expiry_sources[
+        source_group = 'O' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.250' )
+      act = lt_uom_summary_only[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-unit_reservation_deduction_qty ).
+    DATA(lo_negative_uom_repository) =
+      NEW lcl_stock_repository_double( ).
+    lo_negative_uom_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'NEGATIVE-DEDUCTION'
+          batch_managed = abap_true expiration_date = '20261019'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 3 available_quantity = 4
+          quality_inspection_quantity = 0 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'ZERO-DATED'
+          batch_managed = abap_true expiration_date = '20261021'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 0 available_quantity = 0
+          quality_inspection_quantity = 1 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'AFTER-ZERO'
+          batch_managed = abap_true expiration_date = '20261101'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 0 available_quantity = 0
+          quality_inspection_quantity = 1 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'NEGATIVE-UNDATED'
+          batch_managed = abap_true expiration_date_source = 'G'
+          unrestricted_quantity = 3 available_quantity = 4
+          quality_inspection_quantity = 0 blocked_quantity = 0 )
+        ( storage_location = '0001' batch = 'ZERO-UNDATED'
+          batch_managed = abap_true expiration_date_source = 'G'
+          unrestricted_quantity = 0 available_quantity = 0
+          quality_inspection_quantity = 1 blocked_quantity = 0 ) ) ).
+    DATA(lo_neg_uom_repo_units) =
+      NEW lcl_stock_uom_repo_double( ).
+    lo_neg_uom_repo_units->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 4
+      iv_denominator      = 1 ).
+    DATA(lo_negative_uom_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_neg_uom_repo_units ).
+    DATA(lo_negative_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_negative_uom_repository
+      io_uom_converter    = lo_negative_uom_converter ).
+    DATA(lt_negative_uom) = lo_negative_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'NEGATIVE-STATUS-DEDUCTION-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030' )
+        ( request_id = 'ZERO-DATED-DETAIL-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_batch = abap_true batch = 'ZERO-DATED' )
+        ( request_id = 'AFTER-ZERO-DETAIL-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261101'
+          filter_batch = abap_true batch = 'AFTER-ZERO' )
+        ( request_id = 'ZERO-UNDATED-DETAIL-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_batch = abap_true batch = 'ZERO-UNDATED' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 3 )
+      act = lt_negative_uom[ 1 ]-base_dated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.750' )
+      act = lt_negative_uom[ 1 ]-src_dated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 4 )
+      act = lt_negative_uom[ 1 ]-base_dated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_negative_uom[ 1 ]-src_dated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-base_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-src_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-base_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-src_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-und_page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-base_und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-src_und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-base_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-src_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_negative_uom[ 2 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_negative_uom[ 2 ]-batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_negative_uom[ 2 ]-batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_negative_uom[ 3 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_negative_uom[ 3 ]-batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_negative_uom[ 3 ]-batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_negative_uom[ 4 ]-undated_batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_negative_uom[ 4 ]-undated_batches[ 1 ]-base_row-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_negative_uom[ 4 ]-undated_batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_negative_uom[ 4 ]-und_page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_negative_uom[ 4 ]-base_und_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_negative_uom[ 4 ]-undated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.000' )
+      act = lt_negative_uom[ 4 ]-base_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_negative_uom[ 4 ]-src_undated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '133.33' )
+      act = lt_negative_uom[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-0.250' )
+      act = lt_negative_uom[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '-1.000' )
+      act = lt_negative_uom[ 1 ]-page_expiry_sources[
+        source_group = 'P' ]-base_reservation_deduction_qty ).
+
+    DATA(lo_row_share_repository) = NEW lcl_stock_repository_double( ).
+    lo_row_share_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( batch = 'G-EXPIRED'
+          batch_managed = abap_true expiration_date = '20261018'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 3 available_quantity = 2
+          quality_inspection_quantity = 1 blocked_quantity = 0 )
+        ( batch = 'P-EXPIRED'
+          batch_managed = abap_true expiration_date = '20261019'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 1 available_quantity = 1
+          quality_inspection_quantity = 0 blocked_quantity = 0 )
+        ( batch = 'G-UPCOMING'
+          batch_managed = abap_true expiration_date = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 5 available_quantity = 4
+          quality_inspection_quantity = 2 blocked_quantity = 1 )
+        ( batch = 'O-AFTER'
+          batch_managed = abap_true expiration_date = '20261101'
+          expiration_date_source = 'O'
+          unrestricted_quantity = 1 available_quantity = 0
+          quality_inspection_quantity = 1 blocked_quantity = 1 ) ) ).
+    DATA(lo_row_share_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_row_share_repository ).
+    DATA(lt_row_share_page) = lo_row_share_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ROW-SHARE-PAGE'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_page[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_row_share_page[ 1 ]-batches[ 1 ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_page[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '1.000' )
+      act = lt_row_share_page[ 1 ]-page_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '70.00' )
+      act = lt_row_share_page[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '3.000' )
+      act = lt_row_share_page[ 1 ]-dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_row_share_page[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-expiry_statuses[
+        expiry_status = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_row_share_page[ 1 ]-expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-expiry_sources[
+        source_group = 'P' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-expiry_sources[
+        source_group = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '75.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '37.50' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-expiry_src_statuses[
+        source_group = 'O' expiry_status = 'A' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_row_share_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_row_share_page[ 1 ]-total_dated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_row_share_page[ 1 ]-page_expiry_sources[
+        source_group = 'G' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_page[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_blocked_share_pct ).
+
+    DATA(lt_row_share_summary) = lo_row_share_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ROW-SHARE-SUMMARY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lines( lt_row_share_summary[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_row_share_summary[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_summary[ 1 ]-expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_summary[ 1 ]-page_expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_summary[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_row_share_summary[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+
+    DATA(lt_row_share_filtered) = lo_row_share_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ROW-SHARE-FILTERED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_expiry_status = abap_true expiry_status = 'E' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_row_share_filtered[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+
+    DATA(lo_row_share_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_row_share_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_row_share_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_row_share_uom_repository ).
+    DATA(lo_row_share_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_row_share_repository
+      io_uom_converter    = lo_row_share_converter ).
+    DATA(lt_row_share_uom) = lo_row_share_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'ROW-SHARE-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 3 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_uom[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_row_share_uom[ 1 ]-batches[ 1 ]-source_resv_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '77.78' )
+      act = lt_row_share_uom[ 1 ]-page_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_row_share_uom[ 1 ]-src_page_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '70.00' )
+      act = lt_row_share_uom[ 1 ]-dated_avail_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_row_share_uom[ 1 ]-src_dated_resv_deduct_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '75.00' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '37.50' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_row_share_uom[ 1 ]-expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_row_share_uom[ 1 ]-expiry_sources[
+        source_group = 'G' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_sources[
+        source_group = 'G' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '75.00' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-status_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '37.50' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'U' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_row_share_uom[ 1 ]-page_expiry_src_statuses[
+        source_group = 'G' expiry_status = 'E' ]-unit_unrestricted_qty ).
+  ENDMETHOD.
+
+  METHOD rep_page_exp_src_age_bands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'AGE-001'
+          batch_managed = abap_true expiration_date = '20261019'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AGE-007'
+          batch_managed = abap_true expiration_date = '20261013'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 24 available_quantity = 12
+          quality_inspection_quantity = 8 blocked_quantity = 4 )
+        ( storage_location = '0001' batch = 'AGE-008'
+          batch_managed = abap_true expiration_date = '20261012'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 36 available_quantity = 18 )
+        ( storage_location = '0001' batch = 'AGE-030'
+          batch_managed = abap_true expiration_date = '20260920'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 48 available_quantity = 24 )
+        ( storage_location = '0001' batch = 'AGE-031'
+          batch_managed = abap_true expiration_date = '20260919'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 60 available_quantity = 30 )
+        ( storage_location = '0001' batch = 'AGE-090'
+          batch_managed = abap_true expiration_date = '20260722'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 72 available_quantity = 36 )
+        ( storage_location = '0001' batch = 'AGE-091'
+          batch_managed = abap_true expiration_date = '20260721'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 84 available_quantity = 42 ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AGE'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_results[ 1 ]-page_expired_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_results[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-band_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-band_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '18' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261013'
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261019'
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '10.71' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '10.71' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '10.71' )
+      act = lt_results[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_results[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '42.86' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '57.14' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '42.86' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '57.14' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '18' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '24' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '2' ]-band_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '3' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = REDUCE i( INIT total = 0
+        FOR ls_band IN lt_results[ 1 ]-page_expiry_src_age_bands
+        NEXT total = total + ls_band-row_count ) ).
+
+    DATA(lt_one_row_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AGE-LIMITED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 1 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-quality_qty_share_pct ).
+
+    DATA(lt_empty_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AGE-EMPTY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20261030'
+          filter_expiry_status = abap_true expiry_status = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_empty_page[ 1 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_empty_page[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0' )
+      act = lt_empty_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-reservation_deduction_qty ).
+
+    DATA(lt_age_band_one_row_page) =
+      lo_cut->get_batch_expiry_exposure_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'PAGE-AGE-BAND-LIMITED'
+            material = 'MAT-1' plant = '1000'
+            as_of_date = '20261020' through_date = '20261030'
+            maximum_batch_rows = 1
+            filter_expiry_age_band = abap_true expiry_age_band = '1' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_unrestricted_share_pct ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    DATA(lt_age_band_two_one_row_page) =
+      lo_cut->get_batch_expiry_exposure_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'PAGE-AGE-BAND-TWO-LIMITED'
+            material = 'MAT-1' plant = '1000'
+            as_of_date = '20261020' through_date = '20261030'
+            maximum_batch_rows = 1
+            filter_expiry_age_band = abap_true expiry_age_band = '2' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '57.14' )
+      act = lt_age_band_two_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_age_band_two_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_age_band_two_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '24' )
+      act = lt_age_band_two_one_row_page[ 1 ]-expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '24' )
+      act = lt_age_band_two_one_row_page[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-reservation_deduction_qty ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AGE-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030' )
+        ( request_id = 'PAGE-AGE-UOM-LIMITED'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20261030'
+          maximum_batch_rows = 1
+          filter_expiry_age_band = abap_true expiry_age_band = '2' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_uom_results[ 1 ]-page_expiry_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '10.71' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 2 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '18' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.5' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '24' )
+      act = lt_uom_results[ 2 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2' )
+      act = lt_uom_results[ 2 ]-page_expiry_src_age_bands[
+        source_group = 'G' age_band = '2' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '10.71' )
+      act = lt_uom_results[ 1 ]-expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 18 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-base_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '1' ]-unit_blocked_qty ).
+  ENDMETHOD.
+  METHOD rep_page_exp_src_window_bands.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location = '0001' batch = 'UP-000'
+          batch_managed = abap_true expiration_date = '20261020'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-007'
+          batch_managed = abap_true expiration_date = '20261027'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-008'
+          batch_managed = abap_true expiration_date = '20261027'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-030'
+          batch_managed = abap_true expiration_date = '20261119'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-031'
+          batch_managed = abap_true expiration_date = '20261120'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-090'
+          batch_managed = abap_true expiration_date = '20270118'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'UP-091'
+          batch_managed = abap_true expiration_date = '20270119'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-001'
+          batch_managed = abap_true expiration_date = '20270120'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-007'
+          batch_managed = abap_true expiration_date = '20270126'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-008'
+          batch_managed = abap_true expiration_date = '20270126'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-030'
+          batch_managed = abap_true expiration_date = '20270218'
+          expiration_date_source = 'G'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-031'
+          batch_managed = abap_true expiration_date = '20270219'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-090'
+          batch_managed = abap_true expiration_date = '20270419'
+          expiration_date_source = 'X'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 )
+        ( storage_location = '0001' batch = 'AF-091'
+          batch_managed = abap_true expiration_date = '20270420'
+          expiration_date_source = 'P'
+          unrestricted_quantity = 12 available_quantity = 6
+          quality_inspection_quantity = 4 blocked_quantity = 2 ) ) ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository ).
+    DATA(lt_upcoming) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-UPCOMING'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          filter_expiry_status = abap_true expiry_status = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_upcoming[ 1 ]-page_upcoming_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_upcoming[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270119'
+      act = lt_upcoming[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 91
+      act = lt_upcoming[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_upcoming[ 1 ]-page_upcoming_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'G' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'G' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'G' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-quality_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261027'
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'G' through_band = '2' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'O' through_band = '3' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_upcoming[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '4' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = REDUCE i( INIT total = 0
+        FOR ls_band IN lt_upcoming[ 1 ]-page_upcoming_src_bands
+        NEXT total = total + ls_band-row_count ) ).
+
+    DATA(lt_upcoming_one_row) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-UPCOMING-LIMITED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          maximum_batch_rows = 1
+          filter_expiry_status = abap_true expiry_status = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_upcoming_one_row[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+
+    DATA(lt_after_window) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AFTER'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          filter_expiry_status = abap_true expiry_status = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_after_window[ 1 ]-page_after_window_row_count ).
+    DATA(lt_after_window_one_row) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-AFTER-LIMITED'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          maximum_batch_rows = 1
+          filter_expiry_status = abap_true expiry_status = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window_one_row[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_after_window_one_row[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_window_one_row[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_window_one_row[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_after_window_one_row[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_after_window_one_row[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270120'
+      act = lt_after_window[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270420'
+      act = lt_after_window[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 90
+      act = lt_after_window[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_after_window[ 1 ]-page_after_window_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-source_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-source_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'G' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_quality_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_blocked_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'G' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'G' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_after_window[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270120'
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270126'
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'G' through_band = '2' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'O' through_band = '3' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_after_window[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '4' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = REDUCE i( INIT total = 0
+        FOR ls_band IN lt_after_window[ 1 ]-page_after_window_src_bands
+        NEXT total = total + ls_band-row_count ) ).
+
+    DATA(lt_empty_page) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-WINDOW-EMPTY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          filter_expiry_status = abap_true expiry_status = 'E' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_empty_page[ 1 ]-page_upcoming_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_empty_page[ 1 ]-page_after_window_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_empty_page[ 1 ]-page_upcoming_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_empty_page[ 1 ]-page_after_window_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0' )
+      act = lt_empty_page[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_empty_page[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-blocked_qty_share_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_empty_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_empty_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-expiration_date_span_days ).
+
+    DATA(lt_summary_only) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-WINDOW-SUMMARY'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261020' through_date = '20270119'
+          omit_dated_batch_rows = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_summary_only[ 1 ]-upcoming_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_summary_only[ 1 ]-after_window_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_summary_only[ 1 ]-page_upcoming_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0 act = lt_summary_only[ 1 ]-page_after_window_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_summary_only[ 1 ]-page_upcoming_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_summary_only[ 1 ]-page_after_window_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summary_only[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summary_only[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_summary_only[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_summary_only[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '0.00' )
+      act = lt_summary_only[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_summary_only[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_summary_only[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0' )
+      act = lt_summary_only[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0' )
+      act = lt_summary_only[ 1 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_summary_only[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_summary_only[ 1 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summary_only[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-expiration_date_span_days ).
+
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_uom_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_uom_results) = lo_uom_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'PAGE-UPCOMING-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20270119'
+          filter_expiry_status = abap_true expiry_status = 'U' )
+        ( request_id = 'PAGE-AFTER-UOM'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20270119'
+          filter_expiry_status = abap_true expiry_status = 'A' )
+        ( request_id = 'PAGE-WINDOW-UOM-SUMMARY'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20270119'
+          omit_dated_batch_rows = abap_true )
+        ( request_id = 'PAGE-UPCOMING-UOM-LIMITED'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20270119'
+          maximum_batch_rows = 1
+          filter_expiry_status = abap_true expiry_status = 'U' )
+        ( request_id = 'PAGE-AFTER-UOM-LIMITED'
+          material = 'MAT-1' plant = '1000' unit = 'BOX'
+          as_of_date = '20261020' through_date = '20270119'
+          maximum_batch_rows = 1
+          filter_expiry_status = abap_true expiry_status = 'A' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 91
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270119'
+      act = lt_uom_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'U' ]-last_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lines( lt_uom_results[ 1 ]-page_upcoming_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_uom_results[ 2 ]-page_after_window_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_uom_results[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-through_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 4 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 4 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_uom_results[ 4 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1' )
+      act = lt_uom_results[ 4 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_uom_results[ 4 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_uom_results[ 4 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 4 ]-upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 4 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.333' )
+      act = lt_uom_results[ 1 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '28.57' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 2 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 2 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 5 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom_results[ 5 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1' )
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '12' )
+      act = lt_uom_results[ 5 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1' )
+      act = lt_uom_results[ 5 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '6' )
+      act = lt_uom_results[ 5 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.5' )
+      act = lt_uom_results[ 5 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '66.67' )
+      act = lt_uom_results[ 5 ]-after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_uom_results[ 5 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20270120'
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-first_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6
+      act = lt_uom_results[ 2 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_uom_results[ 3 ]-page_upcoming_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_uom_results[ 3 ]-page_after_window_src_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_uom_results[ 3 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_uom_results[ 3 ]-page_after_window_src_bands[
+        source_group = 'P' through_band = '1' ]-unit_blocked_qty ).
+  ENDMETHOD.
+
   METHOD reports_expiry_source_spans.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
     DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
@@ -29211,6 +34134,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 6
       act = ls_base_after_window-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_base_expiry_age-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_base_upcoming_window-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_base_after_window-row_share_pct ).
 
     DATA(lt_unit_results) = lo_cut->get_expiry_exposure_uom_bulk(
       it_requests = VALUE #(
@@ -29255,12 +34187,30 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 6
       act = ls_unit_after_window-expiration_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_unit_expiry_age-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_unit_upcoming_window-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = ls_unit_after_window-row_share_pct ).
   ENDMETHOD.
 
   METHOD reports_expiry_risk_buckets.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
     DATA(lo_cut) = NEW zcl_stock_service(
-      io_stock_repository = lo_repository ).
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
         ( storage_location            = '0001'
@@ -29391,54 +34341,460 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       act = lt_results[ 1 ]-upcoming_blocked_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
-        ( source_group = 'P' window_band = '1' row_count = 1
+        ( source_group = 'P' through_band = '1' row_count = 1
+          row_share_pct = CONV decfloat34( '16.67' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '5.56' )
+          source_available_share_pct = CONV decfloat34( '7.14' )
+          source_quality_share_pct = CONV decfloat34( '11.11' )
+          source_blocked_share_pct = CONV decfloat34( '10.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '2.38' )
+          available_qty_share_pct       = CONV decfloat34( '3.03' )
+          quality_qty_share_pct         = CONV decfloat34( '5.88' )
+          blocked_qty_share_pct         = CONV decfloat34( '5.56' )
           first_expiration_date = '20261025' last_expiration_date = '20261025'
           unrestricted_qty           = 1 available_qty = 1
           quality_qty                = 1 blocked_qty = 1 )
-        ( source_group = 'P' window_band = '2' row_count = 2
+        ( source_group = 'P' through_band = '2' row_count = 2
+          row_share_pct = CONV decfloat34( '33.33' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '38.89' )
+          source_available_share_pct = CONV decfloat34( '35.71' )
+          source_quality_share_pct = CONV decfloat34( '66.67' )
+          source_blocked_share_pct = CONV decfloat34( '80.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '71.43' )
+          reservation_deduction_qty = CONV mchb-clabs( '2.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '16.67' )
+          available_qty_share_pct       = CONV decfloat34( '15.15' )
+          quality_qty_share_pct         = CONV decfloat34( '35.29' )
+          blocked_qty_share_pct         = CONV decfloat34( '44.44' )
           first_expiration_date = '20261026' last_expiration_date = '20261117'
           expiration_date_span_days = 22
           unrestricted_qty           = 7 available_qty = 5
           quality_qty                = 6 blocked_qty = 8 )
-        ( source_group = 'P' window_band = '3' row_count = 1
+        ( source_group = 'P' through_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '16.67' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '55.56' )
+          source_available_share_pct = CONV decfloat34( '57.14' )
+          source_quality_share_pct = CONV decfloat34( '22.22' )
+          source_blocked_share_pct = CONV decfloat34( '10.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '47.62' )
+          band_available_share_pct = CONV decfloat34( '47.06' )
+          band_quality_share_pct = CONV decfloat34( '40.00' )
+          band_blocked_share_pct = CONV decfloat34( '33.33' )
+          available_pct_of_unrestricted = CONV decfloat34( '80.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '2.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '23.81' )
+          available_qty_share_pct       = CONV decfloat34( '24.24' )
+          quality_qty_share_pct         = CONV decfloat34( '11.76' )
+          blocked_qty_share_pct         = CONV decfloat34( '5.56' )
           first_expiration_date = '20261118' last_expiration_date = '20261118'
           unrestricted_qty           = 10 available_qty = 8
           quality_qty                = 2 blocked_qty = 1 )
-        ( source_group = 'P' window_band = '4' row_count = 0
+        ( source_group = 'P' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'G' window_band = '1' row_count = 0
+        ( source_group = 'G' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'G' window_band = '2' row_count = 0
+        ( source_group = 'G' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'G' window_band = '3' row_count = 1
+        ( source_group = 'G' through_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '16.67' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '52.38' )
+          band_available_share_pct = CONV decfloat34( '52.94' )
+          band_quality_share_pct = CONV decfloat34( '60.00' )
+          band_blocked_share_pct = CONV decfloat34( '66.67' )
+          available_pct_of_unrestricted = CONV decfloat34( '81.82' )
+          reservation_deduction_qty = CONV mchb-clabs( '2.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '26.19' )
+          available_qty_share_pct       = CONV decfloat34( '27.27' )
+          quality_qty_share_pct         = CONV decfloat34( '17.65' )
+          blocked_qty_share_pct         = CONV decfloat34( '11.11' )
           first_expiration_date = '20270116' last_expiration_date = '20270116'
           unrestricted_qty           = 11 available_qty = 9
           quality_qty                = 3 blocked_qty = 2 )
-        ( source_group = 'G' window_band = '4' row_count = 0
+        ( source_group = 'G' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '1' row_count = 0
+        ( source_group = 'O' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '2' row_count = 0
+        ( source_group = 'O' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '3' row_count = 0
+        ( source_group = 'O' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '4' row_count = 1
+        ( source_group = 'O' through_band = '4' row_count = 1
+          row_share_pct = CONV decfloat34( '16.67' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '76.92' )
+          reservation_deduction_qty = CONV mchb-clabs( '3.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '30.95' )
+          available_qty_share_pct       = CONV decfloat34( '30.30' )
+          quality_qty_share_pct         = CONV decfloat34( '29.41' )
+          blocked_qty_share_pct         = CONV decfloat34( '33.33' )
           first_expiration_date = '20270117' last_expiration_date = '20270117'
           unrestricted_qty           = 13 available_qty = 10
           quality_qty                = 5 blocked_qty = 6 )
       )
       act = lt_results[ 1 ]-upcoming_src_bands ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_results[ 1 ]-within_30d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-within_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-within_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-within_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-within_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8 act = lt_results[ 1 ]-within_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 6 act = lt_results[ 1 ]-within_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lt_results[ 1 ]-within_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 9 act = lt_results[ 1 ]-within_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5 act = lt_results[ 1 ]-within_90d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 29 act = lt_results[ 1 ]-within_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 23 act = lt_results[ 1 ]-within_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lt_results[ 1 ]-within_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12 act = lt_results[ 1 ]-within_90d_blocked_qty ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'RISK-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018'
+          through_date = '20270117' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-within_7d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_uom_results[ 1 ]-within_30d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5 act = lt_uom_results[ 1 ]-within_90d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_uom_results[ 1 ]-base_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_7d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_uom_results[ 1 ]-base_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_7d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 1 )
+      act = lt_uom_results[ 1 ]-base_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_7d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 1 )
+      act = lt_uom_results[ 1 ]-base_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_7d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 8 )
+      act = lt_uom_results[ 1 ]-base_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_uom_results[ 1 ]-src_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 6 )
+      act = lt_uom_results[ 1 ]-base_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 7 )
+      act = lt_uom_results[ 1 ]-base_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.500' )
+      act = lt_uom_results[ 1 ]-src_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 9 )
+      act = lt_uom_results[ 1 ]-base_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.500' )
+      act = lt_uom_results[ 1 ]-src_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 29 )
+      act = lt_uom_results[ 1 ]-base_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '14.500' )
+      act = lt_uom_results[ 1 ]-src_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 23 )
+      act = lt_uom_results[ 1 ]-base_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.500' )
+      act = lt_uom_results[ 1 ]-src_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_uom_results[ 1 ]-base_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_uom_results[ 1 ]-src_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_uom_results[ 1 ]-base_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_uom_results[ 1 ]-src_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 7 )
+      act = lt_uom_results[ 1 ]-base_8_to_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 5 )
+      act = lt_uom_results[ 1 ]-base_8_to_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_uom_results[ 1 ]-base_8_to_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 8 )
+      act = lt_uom_results[ 1 ]-base_8_to_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.500' )
+      act = lt_uom_results[ 1 ]-src_8_to_30d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_uom_results[ 1 ]-src_8_to_30d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_8_to_30d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_uom_results[ 1 ]-src_8_to_30d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 21 )
+      act = lt_uom_results[ 1 ]-base_31_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.500' )
+      act = lt_uom_results[ 1 ]-src_31_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 17 )
+      act = lt_uom_results[ 1 ]-base_31_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '8.500' )
+      act = lt_uom_results[ 1 ]-src_31_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 5 )
+      act = lt_uom_results[ 1 ]-base_31_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_uom_results[ 1 ]-src_31_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 3 )
+      act = lt_uom_results[ 1 ]-base_31_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-src_31_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 13 )
+      act = lt_uom_results[ 1 ]-base_over_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.500' )
+      act = lt_uom_results[ 1 ]-src_over_90d_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 10 )
+      act = lt_uom_results[ 1 ]-base_over_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_uom_results[ 1 ]-src_over_90d_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 5 )
+      act = lt_uom_results[ 1 ]-base_over_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_uom_results[ 1 ]-src_over_90d_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 6 )
+      act = lt_uom_results[ 1 ]-base_over_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_uom_results[ 1 ]-src_over_90d_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_results[ 1 ]-from_8_to_30d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_uom_results[ 1 ]-from_31_90d_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom_results[ 1 ]-over_90d_batch_row_count ).
   ENDMETHOD.
 
   METHOD reports_after_window_bands.
     DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
     lo_repository->set_batch_stock_status(
       it_status = VALUE #(
         ( storage_location = '0001' batch = 'AFTER-1'
@@ -29475,7 +34831,8 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           available_quantity         = 8 quality_inspection_quantity = 9
           blocked_quantity           = 10 ) ) ).
     DATA(lo_cut) = NEW zcl_stock_service(
-      io_stock_repository = lo_repository ).
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
 
     DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
       it_requests = VALUE #(
@@ -29496,52 +34853,334 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 49 act = lt_results[ 1 ]-after_window_blocked_qty ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-1' act = lt_results[ 1 ]-after_next_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-after_next_storage_location ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-after_next_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_results[ 1 ]-after_next_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261019' act = lt_results[ 1 ]-after_next_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-days_to_after_next_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-days_after_window_end ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-after_next_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_results[ 1 ]-after_next_exp_global_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_results[ 1 ]-after_next_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 2 )
+      act = lt_results[ 1 ]-after_next_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 3 )
+      act = lt_results[ 1 ]-after_next_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 4 )
+      act = lt_results[ 1 ]-after_next_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
-        ( source_group = 'P' window_band = '1' row_count = 0
+        ( source_group = 'P' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'P' window_band = '2' row_count = 1
+        ( source_group = 'P' through_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '36.36' )
+          source_available_share_pct = CONV decfloat34( '38.46' )
+          source_quality_share_pct = CONV decfloat34( '40.00' )
+          source_blocked_share_pct = CONV decfloat34( '41.18' )
+          band_unrestricted_share_pct = CONV decfloat34( '57.14' )
+          band_available_share_pct = CONV decfloat34( '55.56' )
+          band_quality_share_pct = CONV decfloat34( '54.55' )
+          band_blocked_share_pct = CONV decfloat34( '53.85' )
+          available_pct_of_unrestricted = CONV decfloat34( '125.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '-1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '14.29' )
+          available_qty_share_pct       = CONV decfloat34( '14.29' )
+          quality_qty_share_pct         = CONV decfloat34( '14.29' )
+          blocked_qty_share_pct         = CONV decfloat34( '14.29' )
           first_expiration_date = '20261117' last_expiration_date = '20261117'
           unrestricted_qty           = 4 available_qty = 5
           quality_qty                = 6 blocked_qty = 7 )
-        ( source_group = 'P' window_band = '3' row_count = 0
+        ( source_group = 'P' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'P' window_band = '4' row_count = 1
+        ( source_group = 'P' through_band = '4' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '63.64' )
+          source_available_share_pct = CONV decfloat34( '61.54' )
+          source_quality_share_pct = CONV decfloat34( '60.00' )
+          source_blocked_share_pct = CONV decfloat34( '58.82' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '114.29' )
+          reservation_deduction_qty = CONV mchb-clabs( '-1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '25.00' )
+          available_qty_share_pct       = CONV decfloat34( '22.86' )
+          quality_qty_share_pct         = CONV decfloat34( '21.43' )
+          blocked_qty_share_pct         = CONV decfloat34( '20.41' )
           first_expiration_date = '20270117' last_expiration_date = '20270117'
           unrestricted_qty           = 7 available_qty = 8
           quality_qty                = 9 blocked_qty = 10 )
-        ( source_group = 'G' window_band = '1' row_count = 2
+        ( source_group = 'G' through_band = '1' row_count = 2
+          row_share_pct = CONV decfloat34( '28.57' )
+          source_row_share_pct      = CONV decfloat34( '66.67' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '37.50' )
+          source_available_share_pct = CONV decfloat34( '45.45' )
+          source_quality_share_pct = CONV decfloat34( '50.00' )
+          source_blocked_share_pct = CONV decfloat34( '52.94' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '166.67' )
+          reservation_deduction_qty = CONV mchb-clabs( '-2.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '10.71' )
+          available_qty_share_pct       = CONV decfloat34( '14.29' )
+          quality_qty_share_pct         = CONV decfloat34( '16.67' )
+          blocked_qty_share_pct         = CONV decfloat34( '18.37' )
           first_expiration_date = '20261019' last_expiration_date = '20261025'
           expiration_date_span_days = 6
           unrestricted_qty           = 3 available_qty = 5
           quality_qty                = 7 blocked_qty = 9 )
-        ( source_group = 'G' window_band = '2' row_count = 0
+        ( source_group = 'G' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'G' window_band = '3' row_count = 1
+        ( source_group = 'G' through_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '33.33' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '62.50' )
+          source_available_share_pct = CONV decfloat34( '54.55' )
+          source_quality_share_pct = CONV decfloat34( '50.00' )
+          source_blocked_share_pct = CONV decfloat34( '47.06' )
+          band_unrestricted_share_pct = CONV decfloat34( '45.45' )
+          band_available_share_pct = CONV decfloat34( '46.15' )
+          band_quality_share_pct = CONV decfloat34( '46.67' )
+          band_blocked_share_pct = CONV decfloat34( '47.06' )
+          available_pct_of_unrestricted = CONV decfloat34( '120.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '-1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '17.86' )
+          available_qty_share_pct       = CONV decfloat34( '17.14' )
+          quality_qty_share_pct         = CONV decfloat34( '16.67' )
+          blocked_qty_share_pct         = CONV decfloat34( '16.33' )
           first_expiration_date = '20261118' last_expiration_date = '20261118'
           unrestricted_qty           = 5 available_qty = 6
           quality_qty                = 7 blocked_qty = 8 )
-        ( source_group = 'G' window_band = '4' row_count = 0
+        ( source_group = 'G' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '1' row_count = 0
+        ( source_group = 'O' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
-        ( source_group = 'O' window_band = '2' row_count = 1
+        ( source_group = 'O' through_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '33.33' )
+          source_available_share_pct = CONV decfloat34( '36.36' )
+          source_quality_share_pct = CONV decfloat34( '38.46' )
+          source_blocked_share_pct = CONV decfloat34( '40.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '42.86' )
+          band_available_share_pct = CONV decfloat34( '44.44' )
+          band_quality_share_pct = CONV decfloat34( '45.45' )
+          band_blocked_share_pct = CONV decfloat34( '46.15' )
+          available_pct_of_unrestricted = CONV decfloat34( '133.33' )
+          reservation_deduction_qty = CONV mchb-clabs( '-1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '10.71' )
+          available_qty_share_pct       = CONV decfloat34( '11.43' )
+          quality_qty_share_pct         = CONV decfloat34( '11.90' )
+          blocked_qty_share_pct         = CONV decfloat34( '12.24' )
           first_expiration_date = '20261026' last_expiration_date = '20261026'
           unrestricted_qty           = 3 available_qty = 4
           quality_qty                = 5 blocked_qty = 6 )
-        ( source_group = 'O' window_band = '3' row_count = 1
+        ( source_group = 'O' through_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '66.67' )
+          source_available_share_pct = CONV decfloat34( '63.64' )
+          source_quality_share_pct = CONV decfloat34( '61.54' )
+          source_blocked_share_pct = CONV decfloat34( '60.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '54.55' )
+          band_available_share_pct = CONV decfloat34( '53.85' )
+          band_quality_share_pct = CONV decfloat34( '53.33' )
+          band_blocked_share_pct = CONV decfloat34( '52.94' )
+          available_pct_of_unrestricted = CONV decfloat34( '116.67' )
+          reservation_deduction_qty = CONV mchb-clabs( '-1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '21.43' )
+          available_qty_share_pct       = CONV decfloat34( '20.00' )
+          quality_qty_share_pct         = CONV decfloat34( '19.05' )
+          blocked_qty_share_pct         = CONV decfloat34( '18.37' )
           first_expiration_date = '20270116' last_expiration_date = '20270116'
           unrestricted_qty           = 6 available_qty = 7
           quality_qty                = 8 blocked_qty = 9 )
-        ( source_group = 'O' window_band = '4' row_count = 0
+        ( source_group = 'O' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
       )
       act = lt_results[ 1 ]-after_window_src_bands ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'AFTER-BANDS-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018'
+          through_date = '20261018' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-days_to_after_next_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-days_after_window_end ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'AFTER-1' act = lt_uom_results[ 1 ]-after_next_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 1 ]-after_next_storage_location ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 1 ]-after_next_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom_results[ 1 ]-after_next_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lt_uom_results[ 1 ]-after_next_expiry_batch_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_uom_results[ 1 ]-base_after_next_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_uom_results[ 1 ]-src_after_next_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 2 )
+      act = lt_uom_results[ 1 ]-base_after_next_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_uom_results[ 1 ]-src_after_next_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 3 )
+      act = lt_uom_results[ 1 ]-base_after_next_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_uom_results[ 1 ]-src_after_next_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 4 )
+      act = lt_uom_results[ 1 ]-base_after_next_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_uom_results[ 1 ]-src_after_next_blocked_qty ).
   ENDMETHOD.
 
   METHOD reports_expired_age_buckets.
@@ -29745,46 +35384,250 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_ages(
         ( source_group = 'P' age_band = '1' row_count = 2
+          row_share_pct = CONV decfloat34( '28.57' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '6.20' )
+          source_available_share_pct = CONV decfloat34( '8.16' )
+          source_quality_share_pct = CONV decfloat34( '15.09' )
+          source_blocked_share_pct = CONV decfloat34( '24.24' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '3.10' )
+          available_qty_share_pct       = CONV decfloat34( '4.10' )
+          quality_qty_share_pct         = CONV decfloat34( '7.34' )
+          blocked_qty_share_pct         = CONV decfloat34( '12.70' )
           first_expiration_date = '20261011' last_expiration_date = '20261017'
           expiration_date_span_days = 6
           unrestricted_qty           = 8 available_qty = 8
           quality_qty                = 8 blocked_qty = 8 )
         ( source_group = 'P' age_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '23.26' )
+          source_available_share_pct = CONV decfloat34( '20.41' )
+          source_quality_share_pct = CONV decfloat34( '18.87' )
+          source_blocked_share_pct = CONV decfloat34( '15.15' )
+          band_unrestricted_share_pct = CONV decfloat34( '78.95' )
+          band_available_share_pct = CONV decfloat34( '74.07' )
+          band_quality_share_pct = CONV decfloat34( '62.50' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '66.67' )
+          reservation_deduction_qty = CONV mchb-clabs( '10.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '11.63' )
+          available_qty_share_pct       = CONV decfloat34( '10.26' )
+          quality_qty_share_pct         = CONV decfloat34( '9.17' )
+          blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date = '20260918' last_expiration_date = '20260918'
           unrestricted_qty           = 30 available_qty = 20
           quality_qty                = 10 blocked_qty = 5 )
         ( source_group = 'P' age_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
         ( source_group = 'P' age_band = '4' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          age_band_row_share_pct    = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '70.54' )
+          source_available_share_pct = CONV decfloat34( '71.43' )
+          source_quality_share_pct = CONV decfloat34( '66.04' )
+          source_blocked_share_pct = CONV decfloat34( '60.61' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '76.92' )
+          reservation_deduction_qty = CONV mchb-clabs( '21.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '35.27' )
+          available_qty_share_pct       = CONV decfloat34( '35.90' )
+          quality_qty_share_pct         = CONV decfloat34( '32.11' )
+          blocked_qty_share_pct         = CONV decfloat34( '31.75' )
           first_expiration_date = '20260719' last_expiration_date = '20260719'
           unrestricted_qty           = 91 available_qty = 70
           quality_qty                = 35 blocked_qty = 20 )
         ( source_group = 'G' age_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
         ( source_group = 'G' age_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
         ( source_group = 'G' age_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '25.62' )
+          band_available_share_pct = CONV decfloat34( '33.33' )
+          band_quality_share_pct = CONV decfloat34( '40.00' )
+          band_blocked_share_pct = CONV decfloat34( '40.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '96.77' )
+          reservation_deduction_qty = CONV mchb-clabs( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '12.02' )
+          available_qty_share_pct       = CONV decfloat34( '15.38' )
+          quality_qty_share_pct         = CONV decfloat34( '18.35' )
+          blocked_qty_share_pct         = CONV decfloat34( '15.87' )
           first_expiration_date = '20260917' last_expiration_date = '20260917'
           unrestricted_qty           = 31 available_qty = 30
           quality_qty                = 20 blocked_qty = 10 )
         ( source_group = 'G' age_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
         ( source_group = 'O' age_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
         ( source_group = 'O' age_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '8.16' )
+          source_available_share_pct = CONV decfloat34( '10.45' )
+          source_quality_share_pct = CONV decfloat34( '16.67' )
+          source_blocked_share_pct = CONV decfloat34( '25.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '21.05' )
+          band_available_share_pct = CONV decfloat34( '25.93' )
+          band_quality_share_pct = CONV decfloat34( '37.50' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '87.50' )
+          reservation_deduction_qty = CONV mchb-clabs( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '3.10' )
+          available_qty_share_pct       = CONV decfloat34( '3.59' )
+          quality_qty_share_pct         = CONV decfloat34( '5.50' )
+          blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date = '20261010' last_expiration_date = '20261010'
           unrestricted_qty           = 8 available_qty = 7
           quality_qty                = 6 blocked_qty = 5 )
         ( source_group = 'O' age_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '91.84' )
+          source_available_share_pct = CONV decfloat34( '89.55' )
+          source_quality_share_pct = CONV decfloat34( '83.33' )
+          source_blocked_share_pct = CONV decfloat34( '75.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '74.38' )
+          band_available_share_pct = CONV decfloat34( '66.67' )
+          band_quality_share_pct = CONV decfloat34( '60.00' )
+          band_blocked_share_pct = CONV decfloat34( '60.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '66.67' )
+          reservation_deduction_qty = CONV mchb-clabs( '30.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '34.88' )
+          available_qty_share_pct       = CONV decfloat34( '30.77' )
+          quality_qty_share_pct         = CONV decfloat34( '27.52' )
+          blocked_qty_share_pct         = CONV decfloat34( '23.81' )
           first_expiration_date = '20260720' last_expiration_date = '20260720'
           unrestricted_qty           = 90 available_qty = 60
           quality_qty                = 30 blocked_qty = 15 )
         ( source_group = 'O' age_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
       )
@@ -30086,6 +35929,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_age_uoms(
         ( source_group = 'P' age_band = '1' row_count = 2
+          row_share_pct = CONV decfloat34( '28.57' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '6.20' )
+          source_available_share_pct = CONV decfloat34( '8.16' )
+          source_quality_share_pct = CONV decfloat34( '15.09' )
+          source_blocked_share_pct = CONV decfloat34( '24.24' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '3.10' )
+          available_qty_share_pct       = CONV decfloat34( '4.10' )
+          quality_qty_share_pct         = CONV decfloat34( '7.34' )
+          blocked_qty_share_pct         = CONV decfloat34( '12.70' )
           first_expiration_date      = '20261011'
           last_expiration_date       = '20261017'
           expiration_date_span_days = 6
@@ -30098,6 +35959,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 96 )
           unit_blocked_qty           = CONV mard-labst( '8' ) )
         ( source_group = 'P' age_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '23.26' )
+          source_available_share_pct = CONV decfloat34( '20.41' )
+          source_quality_share_pct = CONV decfloat34( '18.87' )
+          source_blocked_share_pct = CONV decfloat34( '15.15' )
+          band_unrestricted_share_pct = CONV decfloat34( '78.95' )
+          band_available_share_pct = CONV decfloat34( '74.07' )
+          band_quality_share_pct = CONV decfloat34( '62.50' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '66.67' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '120.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '10.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '11.63' )
+          available_qty_share_pct       = CONV decfloat34( '10.26' )
+          quality_qty_share_pct         = CONV decfloat34( '9.17' )
+          blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date      = '20260918'
           last_expiration_date       = '20260918'
           base_unrestricted_qty      = CONV mchb-clabs( 360 )
@@ -30109,6 +35988,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 60 )
           unit_blocked_qty           = CONV mard-labst( '5' ) )
         ( source_group = 'P' age_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30118,6 +36015,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
         ( source_group = 'P' age_band = '4' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '25.00' )
+          age_band_row_share_pct    = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '70.54' )
+          source_available_share_pct = CONV decfloat34( '71.43' )
+          source_quality_share_pct = CONV decfloat34( '66.04' )
+          source_blocked_share_pct = CONV decfloat34( '60.61' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '76.92' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '252.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '21.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '35.27' )
+          available_qty_share_pct       = CONV decfloat34( '35.90' )
+          quality_qty_share_pct         = CONV decfloat34( '32.11' )
+          blocked_qty_share_pct         = CONV decfloat34( '31.75' )
           first_expiration_date      = '20260719'
           last_expiration_date       = '20260719'
           base_unrestricted_qty      = CONV mchb-clabs( 1092 )
@@ -30129,6 +36044,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 240 )
           unit_blocked_qty           = CONV mard-labst( '20' ) )
         ( source_group = 'G' age_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30138,6 +36071,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
         ( source_group = 'G' age_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30147,6 +36098,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
         ( source_group = 'G' age_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '25.62' )
+          band_available_share_pct = CONV decfloat34( '33.33' )
+          band_quality_share_pct = CONV decfloat34( '40.00' )
+          band_blocked_share_pct = CONV decfloat34( '40.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '96.77' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '12.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '12.02' )
+          available_qty_share_pct       = CONV decfloat34( '15.38' )
+          quality_qty_share_pct         = CONV decfloat34( '18.35' )
+          blocked_qty_share_pct         = CONV decfloat34( '15.87' )
           first_expiration_date      = '20260917'
           last_expiration_date       = '20260917'
           base_unrestricted_qty      = CONV mchb-clabs( 372 )
@@ -30158,6 +36127,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 120 )
           unit_blocked_qty           = CONV mard-labst( '10' ) )
         ( source_group = 'G' age_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30167,6 +36154,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
         ( source_group = 'O' age_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30176,6 +36181,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
         ( source_group = 'O' age_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '8.16' )
+          source_available_share_pct = CONV decfloat34( '10.45' )
+          source_quality_share_pct = CONV decfloat34( '16.67' )
+          source_blocked_share_pct = CONV decfloat34( '25.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '21.05' )
+          band_available_share_pct = CONV decfloat34( '25.93' )
+          band_quality_share_pct = CONV decfloat34( '37.50' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '87.50' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '12.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '3.10' )
+          available_qty_share_pct       = CONV decfloat34( '3.59' )
+          quality_qty_share_pct         = CONV decfloat34( '5.50' )
+          blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date      = '20261010'
           last_expiration_date       = '20261010'
           base_unrestricted_qty      = CONV mchb-clabs( 96 )
@@ -30187,6 +36210,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 60 )
           unit_blocked_qty           = CONV mard-labst( '5' ) )
         ( source_group = 'O' age_band = '3' row_count = 1
+          row_share_pct = CONV decfloat34( '14.29' )
+          source_row_share_pct      = CONV decfloat34( '50.00' )
+          age_band_row_share_pct    = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '91.84' )
+          source_available_share_pct = CONV decfloat34( '89.55' )
+          source_quality_share_pct = CONV decfloat34( '83.33' )
+          source_blocked_share_pct = CONV decfloat34( '75.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '74.38' )
+          band_available_share_pct = CONV decfloat34( '66.67' )
+          band_quality_share_pct = CONV decfloat34( '60.00' )
+          band_blocked_share_pct = CONV decfloat34( '60.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '66.67' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '360.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '30.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '34.88' )
+          available_qty_share_pct       = CONV decfloat34( '30.77' )
+          quality_qty_share_pct         = CONV decfloat34( '27.52' )
+          blocked_qty_share_pct         = CONV decfloat34( '23.81' )
           first_expiration_date      = '20260720'
           last_expiration_date       = '20260720'
           base_unrestricted_qty      = CONV mchb-clabs( 1080 )
@@ -30198,6 +36239,24 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 180 )
           unit_blocked_qty           = CONV mard-labst( '15' ) )
         ( source_group = 'O' age_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          age_band_row_share_pct    = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty      = CONV mchb-clabs( 0 )
           unit_unrestricted_qty      = CONV mard-labst( '0' )
           base_available_qty         = CONV mchb-clabs( 0 )
@@ -30430,9 +36489,102 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'BOX'
       act = lt_results[ 1 ]-unit ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_results[ 1 ]-snapshot_timestamp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-days_since_first_expired_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-days_to_next_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-first_expired_storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EXPIRED'
+      act = lt_results[ 1 ]-first_expired_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-first_expired_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-first_expired_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_results[ 1 ]-first_expired_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_expired_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_expired_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_expired_first_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_expired_first_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_results[ 1 ]-base_expired_first_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-src_expired_first_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_results[ 1 ]-base_expired_first_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_expired_first_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_results[ 1 ]-next_upcoming_storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'UPCOMING'
+      act = lt_results[ 1 ]-next_upcoming_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-next_upcoming_valuation_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_results[ 1 ]-next_upcoming_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_results[ 1 ]-next_upcoming_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_next_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_next_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_next_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_next_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 0 )
+      act = lt_results[ 1 ]-base_next_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_results[ 1 ]-src_next_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 0 )
+      act = lt_results[ 1 ]-base_next_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 0 )
+      act = lt_results[ 1 ]-src_next_blocked_qty ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 36 )
       act = lt_results[ 1 ]-base_expired_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_expired_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_results[ 1 ]-base_expired_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 24 )
+      act = lt_results[ 1 ]-base_expired_blocked_qty ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 3 )
       act = lt_results[ 1 ]-src_expired_unrestricted_qty ).
@@ -30599,6 +36751,27 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( 5 )
       act = lt_results[ 1 ]-src_upcoming_unrestricted_qty ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 60 )
+      act = lt_results[ 1 ]-base_upcoming_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_results[ 1 ]-base_upcoming_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_results[ 1 ]-src_upcoming_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 18 )
+      act = lt_results[ 1 ]-base_upcoming_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.500' )
+      act = lt_results[ 1 ]-src_upcoming_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 24 )
+      act = lt_results[ 1 ]-base_upcoming_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_upcoming_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lt_results[ 1 ]-next_expiry_batch_count ).
     cl_abap_unit_assert=>assert_equals(
@@ -30613,6 +36786,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 36 )
       act = lt_results[ 1 ]-base_nexp_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_results[ 1 ]-base_nexp_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_results[ 1 ]-base_nexp_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_results[ 1 ]-base_nexp_blocked_qty ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 3 )
       act = lt_results[ 1 ]-src_nexp_unrestricted_qty ).
@@ -30668,6 +36850,30 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = CONV mard-labst( 2 )
       act = lt_results[ 1 ]-src_anexp_blocked_qty ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 36 )
+      act = lt_results[ 1 ]-base_after_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_after_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_after_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_after_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 12 )
+      act = lt_results[ 1 ]-base_after_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 1 )
+      act = lt_results[ 1 ]-src_after_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 24 )
+      act = lt_results[ 1 ]-base_after_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_after_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_results[ 1 ]-from_8_to_30d_batch_row_count ).
     cl_abap_unit_assert=>assert_equals(
@@ -30691,6 +36897,27 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_uom_repository->get_read_count( ) ).
+    DATA(lt_actual_statuses) = lt_results[ 1 ]-expiry_src_statuses.
+    LOOP AT lt_actual_statuses ASSIGNING FIELD-SYMBOL(<ls_actual_status>).
+      CLEAR: <ls_actual_status>-row_share_pct,
+             <ls_actual_status>-status_row_share_pct,
+             <ls_actual_status>-source_row_share_pct,
+             <ls_actual_status>-unrestricted_qty_share_pct,
+             <ls_actual_status>-available_qty_share_pct,
+             <ls_actual_status>-quality_qty_share_pct,
+             <ls_actual_status>-blocked_qty_share_pct,
+             <ls_actual_status>-status_unrestricted_share_pct,
+             <ls_actual_status>-status_available_share_pct,
+             <ls_actual_status>-status_quality_share_pct,
+             <ls_actual_status>-status_blocked_share_pct,
+             <ls_actual_status>-source_unrestricted_share_pct,
+             <ls_actual_status>-source_available_share_pct,
+             <ls_actual_status>-source_quality_share_pct,
+             <ls_actual_status>-source_blocked_share_pct,
+             <ls_actual_status>-available_pct_of_unrestricted,
+             <ls_actual_status>-base_reservation_deduction_qty,
+             <ls_actual_status>-unit_reservation_deduction_qty.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_status_uoms(
         ( source_group              = 'P'
@@ -30829,10 +37056,93 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unit_blocked_qty          = CONV mard-labst( '0' )
         )
       )
-      act = lt_results[ 1 ]-expiry_src_statuses ).
+      act = lt_actual_statuses ).
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'UOM-EXP-BASE'
+          material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261026' ) ) ).
+    LOOP AT lt_results[ 1 ]-expiry_src_statuses INTO DATA(ls_uom_status).
+      DATA(ls_base_status) = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = ls_uom_status-source_group
+        expiry_status = ls_uom_status-expiry_status ].
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-row_share_pct
+        act = ls_uom_status-row_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-status_row_share_pct
+        act = ls_uom_status-status_row_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-source_row_share_pct
+        act = ls_uom_status-source_row_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-unrestricted_qty_share_pct
+        act = ls_uom_status-unrestricted_qty_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-available_qty_share_pct
+        act = ls_uom_status-available_qty_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-quality_qty_share_pct
+        act = ls_uom_status-quality_qty_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-blocked_qty_share_pct
+        act = ls_uom_status-blocked_qty_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-status_unrestricted_share_pct
+        act = ls_uom_status-status_unrestricted_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-status_available_share_pct
+        act = ls_uom_status-status_available_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-status_quality_share_pct
+        act = ls_uom_status-status_quality_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-status_blocked_share_pct
+        act = ls_uom_status-status_blocked_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-source_unrestricted_share_pct
+        act = ls_uom_status-source_unrestricted_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-source_available_share_pct
+        act = ls_uom_status-source_available_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-source_quality_share_pct
+        act = ls_uom_status-source_quality_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-source_blocked_share_pct
+        act = ls_uom_status-source_blocked_share_pct ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-available_pct_of_unrestricted
+        act = ls_uom_status-available_pct_of_unrestricted ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = ls_base_status-reservation_deduction_qty
+        act = ls_uom_status-base_reservation_deduction_qty ).
+      cl_abap_unit_assert=>assert_equals(
+        exp = CONV mard-labst(
+          ls_base_status-reservation_deduction_qty / 12 )
+        act = ls_uom_status-unit_reservation_deduction_qty ).
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
-        ( source_group = 'P' window_band = '1' row_count = 1
+        ( source_group = 'P' through_band = '1' row_count = 1
+          row_share_pct = CONV decfloat34( '33.33' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '33.33' )
+          band_available_share_pct = CONV decfloat34( '33.33' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '20.00' )
+          available_qty_share_pct       = CONV decfloat34( '25.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
 first_expiration_date      = '20261020'
           last_expiration_date       = '20261020'
           base_unrestricted_qty = CONV mchb-clabs( 12 )
@@ -30843,7 +37153,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'P' window_band = '2' row_count = 0
+        ( source_group = 'P' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30852,7 +37180,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'P' window_band = '3' row_count = 0
+        ( source_group = 'P' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30861,7 +37207,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'P' window_band = '4' row_count = 0
+        ( source_group = 'P' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30870,7 +37234,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '1' row_count = 1
+        ( source_group = 'G' through_band = '1' row_count = 1
+          row_share_pct = CONV decfloat34( '33.33' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '66.67' )
+          band_available_share_pct = CONV decfloat34( '66.67' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '40.00' )
+          available_qty_share_pct       = CONV decfloat34( '50.00' )
+          quality_qty_share_pct         = CONV decfloat34( '66.67' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261020'
           last_expiration_date       = '20261020'
           base_unrestricted_qty = CONV mchb-clabs( 24 )
@@ -30881,7 +37263,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '1' )
           base_blocked_qty    = CONV mchb-cspem( 12 )
           unit_blocked_qty    = CONV mard-labst( '1' ) )
-        ( source_group = 'G' window_band = '2' row_count = 0
+        ( source_group = 'G' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30890,7 +37290,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '3' row_count = 0
+        ( source_group = 'G' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30899,7 +37317,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '4' row_count = 0
+        ( source_group = 'G' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30908,7 +37344,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '1' row_count = 0
+        ( source_group = 'O' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30917,7 +37371,25 @@ first_expiration_date      = '20261020'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '2' row_count = 1
+        ( source_group = 'O' through_band = '2' row_count = 1
+          row_share_pct = CONV decfloat34( '33.33' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '100.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          band_available_share_pct = CONV decfloat34( '100.00' )
+          band_quality_share_pct = CONV decfloat34( '100.00' )
+          band_blocked_share_pct = CONV decfloat34( '100.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '50.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '12.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '40.00' )
+          available_qty_share_pct       = CONV decfloat34( '25.00' )
+          quality_qty_share_pct         = CONV decfloat34( '33.33' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261026'
           last_expiration_date       = '20261026'
           base_unrestricted_qty = CONV mchb-clabs( 24 )
@@ -30928,7 +37400,25 @@ first_expiration_date      = '20261026'
           unit_quality_qty    = CONV mard-labst( '0.5' )
           base_blocked_qty    = CONV mchb-cspem( 12 )
           unit_blocked_qty    = CONV mard-labst( '1' ) )
-        ( source_group = 'O' window_band = '3' row_count = 0
+        ( source_group = 'O' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30937,7 +37427,25 @@ first_expiration_date      = '20261026'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '4' row_count = 0
+        ( source_group = 'O' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30950,7 +37458,25 @@ first_expiration_date      = '20261026'
       act = lt_results[ 1 ]-upcoming_src_bands ).
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
-        ( source_group = 'P' window_band = '1' row_count = 1
+        ( source_group = 'P' through_band = '1' row_count = 1
+          row_share_pct = CONV decfloat34( '50.00' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '66.67' )
+          band_available_share_pct = CONV decfloat34( '50.00' )
+          band_quality_share_pct = CONV decfloat34( '50.00' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '50.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '12.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '1.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '66.67' )
+          available_qty_share_pct       = CONV decfloat34( '50.00' )
+          quality_qty_share_pct         = CONV decfloat34( '50.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261028'
           last_expiration_date       = '20261028'
           base_unrestricted_qty = CONV mchb-clabs( 24 )
@@ -30961,7 +37487,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0.5' )
           base_blocked_qty    = CONV mchb-cspem( 12 )
           unit_blocked_qty    = CONV mard-labst( '1' ) )
-        ( source_group = 'P' window_band = '2' row_count = 0
+        ( source_group = 'P' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30970,7 +37514,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'P' window_band = '3' row_count = 0
+        ( source_group = 'P' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30979,7 +37541,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'P' window_band = '4' row_count = 0
+        ( source_group = 'P' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -30988,7 +37568,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '1' row_count = 1
+        ( source_group = 'G' through_band = '1' row_count = 1
+          row_share_pct = CONV decfloat34( '50.00' )
+          source_row_share_pct      = CONV decfloat34( '100.00' )
+          through_band_row_share_pct = CONV decfloat34( '50.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '100.00' )
+          source_available_share_pct = CONV decfloat34( '100.00' )
+          source_quality_share_pct = CONV decfloat34( '100.00' )
+          source_blocked_share_pct = CONV decfloat34( '100.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '33.33' )
+          band_available_share_pct = CONV decfloat34( '50.00' )
+          band_quality_share_pct = CONV decfloat34( '50.00' )
+          band_blocked_share_pct = CONV decfloat34( '50.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '100.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '33.33' )
+          available_qty_share_pct       = CONV decfloat34( '50.00' )
+          quality_qty_share_pct         = CONV decfloat34( '50.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261028'
           last_expiration_date       = '20261028'
           base_unrestricted_qty = CONV mchb-clabs( 12 )
@@ -30999,7 +37597,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0.5' )
           base_blocked_qty    = CONV mchb-cspem( 12 )
           unit_blocked_qty    = CONV mard-labst( '1' ) )
-        ( source_group = 'G' window_band = '2' row_count = 0
+        ( source_group = 'G' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31008,7 +37624,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '3' row_count = 0
+        ( source_group = 'G' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31017,7 +37651,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'G' window_band = '4' row_count = 0
+        ( source_group = 'G' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31026,7 +37678,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '1' row_count = 0
+        ( source_group = 'O' through_band = '1' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31035,7 +37705,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '2' row_count = 0
+        ( source_group = 'O' through_band = '2' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31044,7 +37732,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '3' row_count = 0
+        ( source_group = 'O' through_band = '3' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31053,7 +37759,25 @@ first_expiration_date      = '20261028'
           unit_quality_qty    = CONV mard-labst( '0' )
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
-        ( source_group = 'O' window_band = '4' row_count = 0
+        ( source_group = 'O' through_band = '4' row_count = 0
+          row_share_pct = CONV decfloat34( '0.00' )
+          source_row_share_pct      = CONV decfloat34( '0.00' )
+          through_band_row_share_pct = CONV decfloat34( '0.00' )
+          source_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          source_available_share_pct = CONV decfloat34( '0.00' )
+          source_quality_share_pct = CONV decfloat34( '0.00' )
+          source_blocked_share_pct = CONV decfloat34( '0.00' )
+          band_unrestricted_share_pct = CONV decfloat34( '0.00' )
+          band_available_share_pct = CONV decfloat34( '0.00' )
+          band_quality_share_pct = CONV decfloat34( '0.00' )
+          band_blocked_share_pct = CONV decfloat34( '0.00' )
+          available_pct_of_unrestricted = CONV decfloat34( '0.00' )
+          base_reservation_deduction_qty = CONV mchb-clabs( '0.000' )
+          unit_reservation_deduction_qty = CONV mard-labst( '0.000' )
+          unrestricted_qty_share_pct    = CONV decfloat34( '0.00' )
+          available_qty_share_pct       = CONV decfloat34( '0.00' )
+          quality_qty_share_pct         = CONV decfloat34( '0.00' )
+          blocked_qty_share_pct         = CONV decfloat34( '0.00' )
           base_unrestricted_qty = CONV mchb-clabs( 0 )
           unit_unrestricted_qty = CONV mard-labst( '0' )
           base_available_qty  = CONV mchb-clabs( 0 )
@@ -31064,6 +37788,492 @@ first_expiration_date      = '20261028'
           unit_blocked_qty    = CONV mard-labst( '0' ) )
       )
       act = lt_results[ 1 ]-after_window_src_bands ).
+  ENDMETHOD.
+
+  METHOD reports_undated_expiry_uom.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location      = '0002'
+          batch                 = 'Z-BATCH'
+          valuation_type        = 'V1'
+          batch_managed         = abap_true
+          unrestricted_quantity = 6
+          available_quantity    = 6 )
+        ( storage_location      = '0001'
+          batch                 = 'A-BATCH'
+          valuation_type        = 'V2'
+          batch_managed         = abap_true
+          unrestricted_quantity = 12
+          available_quantity    = 6 )
+        ( storage_location      = '0002'
+          batch                 = 'A-BATCH'
+          valuation_type        = 'V1'
+          batch_managed         = abap_true
+          unrestricted_quantity = 6
+          available_quantity    = 6 )
+        ( storage_location            = '0001'
+          batch                       = 'A-BATCH'
+          valuation_type              = 'V1'
+          batch_managed               = abap_true
+          unrestricted_quantity       = 24
+          available_quantity          = 12
+          quality_inspection_quantity = 6
+          blocked_quantity            = 12 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'UNDATED-BASE'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_base_results[ 1 ]-first_undated_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_base_results[ 1 ]-first_undated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_base_results[ 1 ]-first_undated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_base_results[ 1 ]-first_undated_blocked_qty ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'UNDATED-UOM'
+          material     = 'MAT-1'
+          plant        = '1000'
+          unit         = 'BOX'
+          as_of_date   = '20261018'
+          through_date = '20261025' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-undated_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 48 )
+      act = lt_results[ 1 ]-base_undated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 24 )
+      act = lt_results[ 1 ]-src_undated_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 30 )
+      act = lt_results[ 1 ]-base_undated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 15 )
+      act = lt_results[ 1 ]-src_undated_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_results[ 1 ]-base_undated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_undated_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_results[ 1 ]-base_undated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_results[ 1 ]-src_undated_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-BATCH'
+      act = lt_results[ 1 ]-first_undated_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-first_undated_storage_location ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'V1'
+      act = lt_results[ 1 ]-first_undated_valuation_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_results[ 1 ]-first_undated_expiry_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 24 )
+      act = lt_results[ 1 ]-base_undated_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 12 )
+      act = lt_results[ 1 ]-src_undated_first_unrestr_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 12 )
+      act = lt_results[ 1 ]-base_undated_first_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_results[ 1 ]-src_undated_first_avail_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cinsm( 6 )
+      act = lt_results[ 1 ]-base_undated_first_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_undated_first_quality_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-cspem( 12 )
+      act = lt_results[ 1 ]-base_undated_first_blocked_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_results[ 1 ]-src_undated_first_blocked_qty ).
+  ENDMETHOD.
+
+  METHOD reports_open_resv_uom_horizons.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_bulk_response(
+      it_status = VALUE #(
+        ( request_id                     = 'UOM-RESV'
+          material                       = 'MAT-1'
+          plant                          = '1000'
+          open_reservation_quantity      = 24
+          open_reservation_row_count     = 7
+          matched_allocation_quantity    = 12
+          fallback_allocation_quantity   = 8
+          fully_alloc_resv_open_qty      = 6
+          part_alloc_resv_open_qty       = 11
+          unalloc_resv_open_qty          = 7
+          excluded_open_resv_quantity    = 6
+          excluded_open_resv_row_count   = 2
+          unmatched_open_resv_excl_count = 1
+          unmatched_excl_reservations    = VALUE #(
+            ( reservation_number = '0000000999'
+              reservation_item   = '0002' ) )
+          uncovered_open_resv_quantity   = 4
+          uncovered_open_resv_row_count  = 4
+          first_uncovered_required_date  = '20261017'
+          first_uncovered_resv_number    = '0000000080'
+          first_uncovered_resv_item      = '0001'
+          uncovered_open_resv_keys       = VALUE #(
+            ( reservation_number = '0000000080'
+              reservation_item   = '0001' )
+            ( reservation_number = '0000000081'
+              reservation_item   = '0001' )
+            ( reservation_number = '0000000082'
+              reservation_item   = '0001' )
+            ( reservation_number = '0000000083'
+              reservation_item   = '0001' ) )
+          uncovered_open_reservations    = VALUE #(
+            ( reservation_number = '0000000080'
+              reservation_item   = '0001'
+              required_date      = '20261017'
+              open_quantity      = 1
+              uncovered_quantity = 1 )
+            ( reservation_number = '0000000081'
+              reservation_item   = '0001'
+              required_date      = '20261018'
+              open_quantity      = 1
+              uncovered_quantity = 1 )
+            ( reservation_number = '0000000082'
+              reservation_item   = '0001'
+              required_date      = '20261019'
+              open_quantity      = 1
+              uncovered_quantity = 1 )
+            ( reservation_number = '0000000083'
+              reservation_item   = '0001'
+              open_quantity      = 1
+              uncovered_quantity = 1 ) )
+          resv_allocation_summaries      = VALUE #(
+            ( reservation_number = '0000000100'
+              reservation_item   = '0001'
+              required_date      = '20261017'
+              open_quantity      = 5
+              allocation_outcome = 'F' )
+            ( reservation_number = '0000000200'
+              reservation_item   = '0001'
+              required_date      = '20261018'
+              open_quantity      = 4
+              allocation_outcome = 'P' )
+            ( reservation_number = '0000000300'
+              reservation_item   = '0001'
+              required_date      = '20261025'
+              open_quantity      = 1
+              allocation_outcome = 'F' )
+            ( reservation_number = '0000000400'
+              reservation_item   = '0001'
+              required_date      = '20261026'
+              open_quantity      = 2
+              allocation_outcome = 'P' )
+            ( reservation_number = '0000000500'
+              reservation_item   = '0001'
+              required_date      = '20261118'
+              open_quantity      = 3
+              allocation_outcome = 'U' )
+            ( reservation_number = '0000000600'
+              reservation_item   = '0001'
+              required_date      = '20270117'
+              open_quantity      = 4
+              allocation_outcome = 'U' )
+            ( reservation_number = '0000000700'
+              reservation_item   = '0001'
+              open_quantity      = 5
+              allocation_outcome = 'P' ) ) ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 2
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'UOM-RESV'
+          material     = 'MAT-1'
+          plant        = '1000'
+          as_of_date   = '20261018'
+          through_date = '20261026' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_base_results[ 1 ]-overdue_uncovered_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_base_results[ 1 ]-due_today_uncovered_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_base_results[ 1 ]-future_uncovered_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_base_results[ 1 ]-undated_uncovered_resv_qty ).
+
+    DATA(lt_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id   = 'UOM-RESV'
+          material     = 'MAT-1'
+          plant        = '1000'
+          unit         = 'BOX'
+          as_of_date   = '20261018'
+          through_date = '20261026' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-base_overdue_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_results[ 1 ]-src_overdue_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-base_due_today_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_results[ 1 ]-src_due_today_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 10 )
+      act = lt_results[ 1 ]-base_future_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_results[ 1 ]-src_future_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-base_undated_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_results[ 1 ]-src_undated_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 24 )
+      act = lt_results[ 1 ]-base_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 12 )
+      act = lt_results[ 1 ]-src_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 12 )
+      act = lt_results[ 1 ]-base_matched_allocation_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 6 )
+      act = lt_results[ 1 ]-src_matched_allocation_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-base_fallback_allocation_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 4 )
+      act = lt_results[ 1 ]-src_fallback_allocation_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_results[ 1 ]-excluded_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 6 )
+      act = lt_results[ 1 ]-base_excluded_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 3 )
+      act = lt_results[ 1 ]-src_excluded_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-unmatched_open_resv_excl_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000999'
+      act = lt_results[ 1 ]-unmatched_excl_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_results[ 1 ]-uncovered_open_resv_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-base_uncovered_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-src_uncovered_open_resv_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_results[ 1 ]-base_overdue_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-src_overdue_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-overdue_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_results[ 1 ]-base_due_today_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-src_due_today_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-due_today_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_results[ 1 ]-base_future_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-src_future_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-future_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 1 )
+      act = lt_results[ 1 ]-base_undated_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-src_undated_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-undated_uncovered_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261017'
+      act = lt_results[ 1 ]-first_uncovered_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000080'
+      act = lt_results[ 1 ]-first_uncovered_resv_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-first_uncovered_resv_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_results[ 1 ]-days_until_first_uncovered_req ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018'
+      act = lt_results[ 1 ]-next_open_resv_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000200'
+      act = lt_results[ 1 ]-next_open_resv_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_results[ 1 ]-next_open_resv_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_results[ 1 ]-days_until_next_open_resv_req ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lines( lt_results[ 1 ]-open_resv_due_horizon_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 1 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'T'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 2 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 3 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '2'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 4 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '3'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 5 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '4'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 6 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 7 ]-due_horizon_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 3 ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 3 ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 4 )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 6 ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_results[ 1 ]-open_resv_due_horizon_bands[ 6 ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-open_reservation_row_count
+      act = REDUCE i(
+        INIT row_count = 0
+        FOR band IN lt_results[ 1 ]-open_resv_due_horizon_bands
+        NEXT row_count = row_count + band-row_count ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_open_resv_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR band IN lt_results[ 1 ]-open_resv_due_horizon_bands
+        NEXT quantity = quantity + band-base_open_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 12 )
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR band IN lt_results[ 1 ]-open_resv_due_horizon_bands
+        NEXT quantity = quantity + band-source_open_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 12
+      act = lines( lt_results[ 1 ]-resv_alloc_open_demand_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'O' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 5 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'O' ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.500' )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'F' required_date_bucket = 'O' ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 2 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'P' required_date_bucket = 'T' ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 7 )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'U' required_date_bucket = 'F' ]-base_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.500' )
+      act = lt_results[ 1 ]-resv_alloc_open_demand_bands[
+        allocation_outcome = 'U' required_date_bucket = 'F' ]-source_open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_results[ 1 ]-base_open_resv_qty
+      act = REDUCE resb-bdmng(
+        INIT quantity = CONV resb-bdmng( 0 )
+        FOR band IN lt_results[ 1 ]-resv_alloc_open_demand_bands
+        NEXT quantity = quantity + band-base_open_quantity ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 12 )
+      act = REDUCE mard-labst(
+        INIT quantity = CONV mard-labst( 0 )
+        FOR band IN lt_results[ 1 ]-resv_alloc_open_demand_bands
+        NEXT quantity = quantity + band-source_open_quantity ) ).
   ENDMETHOD.
 
   METHOD rejects_bad_expiry_uom_dates.
@@ -32922,6 +40132,16 @@ first_expiration_date      = '20261028'
       exp = 3
       act = lt_results[ 1 ]-total_uncovered_detail_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_results[ 1 ]-filtered_uncovered_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 72 )
+      act = lt_results[ 1 ]-filtered_open_demand_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_results[ 1 ]-filtered_uncov_due_horizons[
+        due_horizon_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lt_results[ 1 ]-returned_uncovered_row_count ).
     cl_abap_unit_assert=>assert_equals(
@@ -33292,8 +40512,14 @@ first_expiration_date      = '20261028'
       exp = CONV resb-bdmng( 8 )
       act = lt_mixed_uom[ 1 ]-base_uncov_partial_short_qty ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.667' )
+      act = lt_mixed_uom[ 1 ]-src_uncov_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV resb-bdmng( 60 )
       act = lt_mixed_uom[ 1 ]-base_uncov_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( 5 )
+      act = lt_mixed_uom[ 1 ]-src_uncov_unalloc_short_qty ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'P'
       act = lt_mixed_uom[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome ).
@@ -35266,6 +42492,12 @@ first_expiration_date      = '20261028'
       exp = 1
       act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
     cl_abap_unit_assert=>assert_equals(
@@ -35939,6 +43171,12 @@ first_expiration_date      = '20261028'
       exp = 1
       act = lt_results[ 1 ]-total_resv_alloc_summary_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_resv_open_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 8 )
+      act = lt_results[ 1 ]-filtered_resv_alloc_qty ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lt_results[ 1 ]-returned_resv_alloc_row_count ).
     cl_abap_unit_assert=>assert_equals(
@@ -35984,6 +43222,9 @@ first_expiration_date      = '20261028'
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_results[ 1 ]-total_allocation_detail_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( 3 )
+      act = lt_results[ 1 ]-filtered_allocation_quantity ).
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lt_results[ 1 ]-returned_allocation_row_count ).

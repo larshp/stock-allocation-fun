@@ -22,6 +22,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_demand.
     TYPES ty_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY.
     TYPES:
@@ -65,6 +66,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_fefo_demand.
     TYPES ty_priority_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_fefo_demand WITH EMPTY KEY.
@@ -81,6 +83,7 @@ CLASS zcl_project_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         unit                    TYPE mara-meins,
         location_as_of_date     TYPE d,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_location_demand.
     TYPES ty_priority_location_demands TYPE STANDARD TABLE OF
       ty_priority_location_demand WITH EMPTY KEY.
@@ -102,6 +105,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_fefo_demand.
     TYPES ty_dated_fefo_demands TYPE STANDARD TABLE OF
       ty_dated_fefo_demand WITH EMPTY KEY.
@@ -123,6 +127,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_transfer_demand.
     TYPES ty_transfer_demands TYPE STANDARD TABLE OF
       ty_transfer_demand WITH EMPTY KEY.
@@ -144,6 +149,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_transfer_fefo_demand.
     TYPES ty_priority_transfer_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_transfer_fefo_demand WITH EMPTY KEY.
@@ -161,6 +167,7 @@ CLASS zcl_project_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         unit                    TYPE mara-meins,
         location_as_of_date     TYPE d,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_location_transfer_demand.
     TYPES ty_priority_location_transfer_demands TYPE STANDARD TABLE OF
       ty_priority_location_transfer_demand WITH EMPTY KEY.
@@ -183,6 +190,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_transfer_demand.
     TYPES ty_dated_transfer_demands TYPE STANDARD TABLE OF
       ty_dated_transfer_demand WITH EMPTY KEY.
@@ -338,6 +346,7 @@ CLASS zcl_project_stock_service DEFINITION
         requested_quantity      TYPE mard-labst,
         require_full_quantity   TYPE abap_bool,
         unit                    TYPE mara-meins,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_location_demand.
     TYPES ty_dated_location_demands TYPE STANDARD TABLE OF
       ty_dated_location_demand WITH EMPTY KEY.
@@ -355,6 +364,7 @@ CLASS zcl_project_stock_service DEFINITION
         requested_quantity      TYPE mard-labst,
         require_full_quantity   TYPE abap_bool,
         unit                    TYPE mara-meins,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_location_transfer_demand.
     TYPES ty_dated_location_transfer_demands TYPE STANDARD TABLE OF
       ty_dated_location_transfer_demand WITH EMPTY KEY.
@@ -1712,6 +1722,7 @@ CLASS zcl_project_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_prepared_demand,
       ty_prepared_demands TYPE STANDARD TABLE OF
         ty_prepared_demand WITH EMPTY KEY,
@@ -4571,6 +4582,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             AND ls_policy_demand-require_full_quantity <> abap_false )
           OR ( ls_policy_demand-allow_location_fallback <> abap_true
             AND ls_policy_demand-allow_location_fallback <> abap_false )
+          OR ls_policy_demand-minimum_coverage_pct < 0
+          OR ls_policy_demand-minimum_coverage_pct > 100
           OR ( ls_policy_demand-require_known_expiry = abap_true
             AND ls_policy_demand-allow_undated_batches = abap_true ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -4592,6 +4605,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             AND ls_demand-allow_undated_batches <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-allow_location_fallback = abap_true
             AND ls_demand-storage_location IS INITIAL )
           OR ( ls_demand-require_known_expiry = abap_true
@@ -4642,7 +4657,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         minimum_shelf_life_days =
           ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_prepared_demands.
       APPEND VALUE #(
         request_id  = ls_demand-request_id
@@ -4911,10 +4927,12 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                             available_from_date ASCENDING.
 
       DATA(ls_allocation) = VALUE zcl_stock_service=>ty_allocation(
-        request_id         = ls_prepared_demand-request_id
-        material           = ls_prepared_demand-material
-        plant              = ls_prepared_demand-plant
-        requested_quantity = ls_prepared_demand-base_quantity ).
+        request_id           = ls_prepared_demand-request_id
+        material             = ls_prepared_demand-material
+        plant                = ls_prepared_demand-plant
+        requested_quantity   = ls_prepared_demand-base_quantity
+        minimum_coverage_pct =
+          ls_prepared_demand-minimum_coverage_pct ).
       CLEAR lv_available_quantity.
       LOOP AT lt_candidates INTO DATA(ls_candidate).
         READ TABLE lt_stock_balances ASSIGNING FIELD-SYMBOL(<ls_balance>)
@@ -4941,6 +4959,14 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             OR ls_prepared_demand-require_full_quantity = abap_true )
           AND ls_prepared_demand-base_quantity
             > ls_allocation-available_quantity.
+        ls_allocation-shortfall_quantity =
+          ls_prepared_demand-base_quantity.
+      ELSEIF lv_available_quantity <
+          CONV decfloat34( ls_prepared_demand-base_quantity )
+          AND lv_available_quantity * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_prepared_demand-base_quantity )
+              * CONV decfloat34(
+                ls_prepared_demand-minimum_coverage_pct ).
         ls_allocation-shortfall_quantity =
           ls_prepared_demand-base_quantity.
       ELSE.
@@ -4989,6 +5015,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                 ls_prepared_demand-require_known_expiry
               allow_undated_batches   =
                 ls_prepared_demand-allow_undated_batches
+              minimum_coverage_pct    =
+                ls_prepared_demand-minimum_coverage_pct
               available_from_date     =
                 ls_candidate-available_from_date
               allocated_quantity      = lv_split_quantity )
@@ -5013,6 +5041,18 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         ls_prepared_demand-require_known_expiry.
       ls_allocation-allow_undated_batches =
         ls_prepared_demand-allow_undated_batches.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_prepared_demand-base_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_prepared_demand-base_quantity ) ).
 
       DATA lv_allocated_source_quantity TYPE mard-labst.
       DATA lv_shortfall_source_quantity TYPE mard-labst.
@@ -5141,7 +5181,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         require_known_expiry    =
           ls_indexed_demand-demand-require_known_expiry
         allow_undated_batches   =
-          ls_indexed_demand-demand-allow_undated_batches )
+          ls_indexed_demand-demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_base_demands.
       APPEND VALUE #(
         input_index         = ls_indexed_demand-input_index
@@ -5427,7 +5469,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         minimum_shelf_life_days =
           ls_work-demand-minimum_shelf_life_days
         require_known_expiry    = ls_work-demand-require_known_expiry
-        allow_undated_batches   = ls_work-demand-allow_undated_batches )
+        allow_undated_batches   = ls_work-demand-allow_undated_batches
+        minimum_coverage_pct    = ls_work-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -5797,6 +5840,13 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    LOOP AT it_demands INTO DATA(ls_coverage_demand).
+      IF ls_coverage_demand-minimum_coverage_pct < 0
+          OR ls_coverage_demand-minimum_coverage_pct > 100.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
     LOOP AT it_demands INTO DATA(ls_demand).
       IF ls_demand-request_id IS INITIAL
           OR ls_demand-wbs_element IS INITIAL
@@ -5806,6 +5856,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-allow_location_fallback <> abap_true
             AND ls_demand-allow_location_fallback <> abap_false )
           OR ( ls_demand-allow_location_fallback = abap_true
@@ -5853,7 +5905,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         unit                    = ls_demand-unit
         base_quantity           = ls_conversion-base_quantity
         base_unit               = ls_conversion-base_unit
-        location_as_of_date     = ls_demand-location_as_of_date )
+        location_as_of_date     = ls_demand-location_as_of_date
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_prepared_demands.
       APPEND VALUE #(
         request_id  = ls_demand-request_id
@@ -6049,10 +6102,12 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
                             available_from_date ASCENDING.
 
       DATA(ls_allocation) = VALUE zcl_stock_service=>ty_allocation(
-        request_id         = ls_prepared_demand-request_id
-        material           = ls_prepared_demand-material
-        plant              = ls_prepared_demand-plant
-        requested_quantity = ls_prepared_demand-base_quantity ).
+        request_id           = ls_prepared_demand-request_id
+        material             = ls_prepared_demand-material
+        plant                = ls_prepared_demand-plant
+        requested_quantity   = ls_prepared_demand-base_quantity
+        minimum_coverage_pct =
+          ls_prepared_demand-minimum_coverage_pct ).
       CLEAR lv_available_quantity.
       LOOP AT lt_candidates INTO DATA(ls_candidate).
         READ TABLE lt_location_balances INTO DATA(ls_available_balance)
@@ -6079,6 +6134,14 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
             OR ls_prepared_demand-require_full_quantity = abap_true )
           AND ls_prepared_demand-base_quantity
             > ls_allocation-available_quantity.
+        ls_allocation-shortfall_quantity =
+          ls_prepared_demand-base_quantity.
+      ELSEIF lv_available_quantity <
+          CONV decfloat34( ls_prepared_demand-base_quantity )
+          AND lv_available_quantity * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_prepared_demand-base_quantity )
+              * CONV decfloat34(
+                ls_prepared_demand-minimum_coverage_pct ).
         ls_allocation-shortfall_quantity =
           ls_prepared_demand-base_quantity.
       ELSE.
@@ -6140,6 +6203,18 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
       ls_allocation-require_full_quantity = xsdbool(
         iv_require_full_quantity = abap_true
         OR ls_prepared_demand-require_full_quantity = abap_true ).
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_prepared_demand-base_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_allocation-allocated_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_prepared_demand-base_quantity ) ).
 
       DATA lv_allocated_source_quantity TYPE mard-labst.
       DATA lv_shortfall_source_quantity TYPE mard-labst.
@@ -6241,7 +6316,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-require_full_quantity
         unit                    = ls_indexed_demand-demand-unit
         location_as_of_date     =
-          ls_indexed_demand-demand-location_as_of_date )
+          ls_indexed_demand-demand-location_as_of_date
+        minimum_coverage_pct    =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_base_demands.
       APPEND VALUE #(
         input_index         = ls_indexed_demand-input_index
@@ -6509,7 +6586,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         requested_quantity      = ls_work-demand-requested_quantity
         require_full_quantity   = ls_work-demand-require_full_quantity
         unit                    = ls_work-demand-unit
-        location_as_of_date     = ls_work-demand-required_date )
+        location_as_of_date     = ls_work-demand-required_date
+        minimum_coverage_pct    = ls_work-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -6705,7 +6783,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         minimum_shelf_life_days =
           ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_stock_demands.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
@@ -6871,7 +6950,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         require_known_expiry    =
           ls_indexed_demand-demand-require_known_expiry
         allow_undated_batches   =
-          ls_indexed_demand-demand-allow_undated_batches )
+          ls_indexed_demand-demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_base_demands.
       APPEND VALUE #(
         input_index             = ls_indexed_demand-input_index
@@ -7168,7 +7249,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         require_known_expiry    =
           ls_work-demand-require_known_expiry
         allow_undated_batches   =
-          ls_work-demand-allow_undated_batches )
+          ls_work-demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_work-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -7318,7 +7401,8 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
-        location_as_of_date     = ls_demand-location_as_of_date )
+        location_as_of_date     = ls_demand-location_as_of_date
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_stock_demands.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
@@ -7454,7 +7538,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-require_full_quantity
         unit                    = ls_indexed_demand-demand-unit
         location_as_of_date     =
-          ls_indexed_demand-demand-location_as_of_date )
+          ls_indexed_demand-demand-location_as_of_date
+        minimum_coverage_pct    =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_base_demands.
       APPEND VALUE #(
         input_index             = ls_indexed_demand-input_index
@@ -7733,7 +7819,9 @@ CLASS zcl_project_stock_service IMPLEMENTATION.
         location_as_of_date     = ls_work-demand-required_date
         requested_quantity      = ls_work-demand-requested_quantity
         require_full_quantity   = ls_work-demand-require_full_quantity
-        unit                    = ls_work-demand-unit )
+        unit                    = ls_work-demand-unit
+        minimum_coverage_pct    =
+          ls_work-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 

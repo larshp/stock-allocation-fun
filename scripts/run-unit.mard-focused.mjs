@@ -184,7 +184,8 @@ await database.execute([
     plgrp NCHAR(3), verid NCHAR(4), berid NCHAR(10), knttp NCHAR(1),
     kdpos NCHAR(6), kdein NCHAR(4), plwrk NCHAR(4), pertr NCHAR(8),
     gstrs NCHAR(8), gsuzs NCHAR(6), gltrs NCHAR(8), gluzs NCHAR(6),
-    puser NCHAR(12), pstmp DECIMAL(15,0), PRIMARY KEY(mandt, plnum)
+    puser NCHAR(12), pstmp DECIMAL(15,0), sobes NCHAR(1),
+    PRIMARY KEY(mandt, plnum)
   );`,
   `CREATE TABLE 'mard' (
     mandt NCHAR(3), matnr NCHAR(40), werks NCHAR(4), lgort NCHAR(4),

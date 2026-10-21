@@ -4212,7 +4212,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         minimum_shelf_life_days =
           ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_priority_demands.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
@@ -4226,7 +4227,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         require_full_quantity   = ls_demand-require_full_quantity
         unit                    = ls_demand-unit
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_validation_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id
@@ -4527,7 +4529,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         fefo_as_of_date         = ls_demand-fefo_as_of_date
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       INSERT VALUE #(
         request_id    = lv_internal_request_id
@@ -4815,7 +4818,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_internal_demands.
       INSERT VALUE #(
         request_id    = lv_internal_request_id
@@ -5187,7 +5191,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_priority_demands.
       APPEND VALUE #(
         request_id              = ls_demand-request_id
@@ -5198,7 +5203,8 @@ CLASS zcl_project_resv_service IMPLEMENTATION.
         allow_location_fallback = ls_demand-allow_location_fallback
         requested_quantity      = ls_demand-requested_quantity
         require_full_quantity   = ls_demand-require_full_quantity
-        unit                    = ls_demand-unit )
+        unit                    = ls_demand-unit
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_validation_demands.
       APPEND VALUE #(
         internal_request_id = lv_internal_request_id

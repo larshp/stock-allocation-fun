@@ -89,6 +89,20 @@ while `stock_snapshot` retains the original balance. Different cutoffs use
 independent availability pools, so one cutoff scenario does not consume another
 scenario's balance. Both previews report aggregate coverage without assigning
 net availability to a location or batch.
+Each result also reports `allocation_outcome`: `F` when the request is fully
+covered, `P` when it is partially covered, and `U` when none of its quantity is
+covered. With `iv_require_full_quantity = abap_true`, an underfilled request is
+reported as `U` because its covered quantity is zero. The unit-aware preview
+determines the outcome from base-unit quantities, so unit conversion rounding
+does not change the outcome code.
+Set `minimum_coverage_pct` on an individual request to require a minimum fill
+from 0 through 100 percent; the initial value, zero, preserves partial
+allocation behavior. If provisional coverage falls below the threshold, the
+preview allocates nothing for that request and leaves the stock for later
+requests sharing the same item and cutoff. The threshold is compared against
+unrounded base-unit quantities and is echoed on the result. The unit-aware
+preview uses the same base-unit rule. `iv_require_full_quantity = abap_true`
+continues to require 100 percent coverage.
 Set `iv_prioritize_by_date = abap_true` on either aggregate preview to process
 rows by ascending `required_date`, then descending integer `priority`; input
 order breaks ties. This option requires a valid required date on every row and
@@ -111,7 +125,14 @@ partial coverage. The unit-aware form makes this comparison in base units.
 `PREVIEW_ISSUE_DEMANDS_BY_FEFO` returns an eligible batch/location split for
 each demand, ordered by expiration date, batch, and storage location.
 `PREVIEW_ISSUE_FEFO_UOM` accepts alternative-unit quantities and returns split
-quantities in both source and base units. Both methods exclude expired batches;
+quantities in both source and base units. Both methods exclude expired batches.
+Each request can set `minimum_coverage_pct` from 0 through 100. If total
+eligible base-unit stock is below that threshold, the preview allocates nothing
+to the request and leaves its candidate batches available to later requests.
+The threshold is echoed on the summary and any batch split. FEFO summaries also
+report `allocation_outcome` as `F`, `P`, or `U`; unit-aware results derive the
+code from base quantities. Call-wide and per-request full-quantity options
+continue to require complete coverage.
 `iv_as_of_date` defaults to today, `iv_min_days` defaults to zero, and undated
 batches are included by default. A reservation with location or batch detail is
 deducted from matching balances first. Unscoped reservations consume eligible
@@ -300,6 +321,53 @@ reserve stock. Ordinary base and UOM demand rows can set
 `require_full_quantity = abap_true` individually; dated base and UOM rows do
 the same through their ATP wrappers. Single-plant location and dated-location
 demand rows also carry the per-row option into their base and UOM previews.
+`ALLOCATE_REQUEST` and `ALLOCATE_REQUEST_IN_UNIT` accept scalar
+`iv_minimum_coverage_pct`; base, UOM, priority, and ATP bulk demand rows use
+`minimum_coverage_pct`. Both accept values from 0 to 100, and zero preserves
+partial allocation. Each demand compares provisional base-unit coverage with
+the requested percentage before consuming the shared material/plant balance.
+A demand below the floor receives zero allocation and leaves stock available
+to later demands. Results echo the threshold; unit-aware variants apply it
+after conversion to base units. Local date-first single requests and base/UOM
+demand rows accept the same threshold, including date-first ATP wrappers. The
+floor is applied against eligible availability on the required date before the
+shared balance is consumed, and the dated allocation summary echoes it.
+Undated `ALLOCATE_BY_STORAGE_LOCATION` demand rows also accept
+`minimum_coverage_pct`. The floor is compared after allowed locations, request
+scopes, fallback rules, and safety-stock protection determine eligible
+base-unit availability. A rejected location demand consumes no location
+balance, so later demands can use it; UOM, priority, and ATP wrappers preserve
+the row threshold.
+`ALLOCATE_LOCATION_BY_DATE` and its UOM and ATP forms accept the same row
+threshold. With projected receipts, the service compares coverage using stock
+available by that demand's required date after earlier demands have consumed
+their share. A rejected dated demand leaves that balance for later requests.
+Exact-batch, FEFO, and quality FEFO demand rows also accept
+`minimum_coverage_pct` from 0 through 100. Their base, UOM, priority, and ATP
+forms compare the floor with eligible base-unit stock after batch, expiry,
+shelf-life, location, receipt-date, and safety-stock rules. A row below its
+floor consumes no stock, and later demands can use the balance. FEFO summaries
+and batch splits echo the floor; UOM conversion does not affect the comparison.
+`PREVIEW_BY_VALTYPE` base and UOM demand rows accept the same floor. It is
+compared with eligible base-unit availability after valuation-type, location,
+batch, projected-source, expiry, receipt-date, and safety-stock scopes. A row
+below its floor consumes no balance, and its allocation summary echoes the
+threshold; UOM and ATP wrappers preserve it.
+Cross-plant ordinary, priority, UOM, and dated demands also accept the
+per-row floor. It is compared with combined eligible source-plant availability
+after location, receipt, cutoff, and safety-stock rules; a rejected row
+preserves every source balance for later demands. Date-based previews evaluate
+availability at each required date, and UOM and ATP wrappers preserve the
+threshold.
+Shared material/plant, location, batch, FEFO, and cross-plant ordinary, dated,
+exact-batch, and FEFO allocation summaries report `allocation_outcome`: `F`
+for full coverage, `P` for partial coverage, or `U` when no quantity was
+allocated. They also report `allocation_coverage_pct`, the allocated quantity
+as a percentage of requested quantity in base units, rounded to two decimal
+places. It is zero when requested quantity is zero. Unit-aware, priority, and
+ATP results preserve both values on their local allocation summary. Local
+date-first request and demand allocations report the same outcome and
+percentage, and their UOM and ATP results preserve them from base quantities.
 `ALLOCATE_BY_STORAGE_LOCATION`, `ALLOCATE_BY_BATCH`, and `ALLOCATE_BY_EXPIRY`
 also accept `iv_require_full_quantity`, as do their unit-aware variants. The
 request must fit within eligible stock after location filters, safety-stock
@@ -367,6 +435,17 @@ rows can also set `require_full_quantity = abap_true` individually. The
 row flag combines with the shared option, leaves source balances untouched when
 that request is short, and is forwarded through the corresponding ATP wrappers.
 Invalid row values are rejected before stock reads or UOM conversion.
+Ordinary cross-plant rows can also set a minimum coverage floor from zero
+through 100. It uses combined eligible availability from the selected source
+plants after location scopes, projected-receipt cutoffs, and safety-stock
+protection. A rejected row consumes no source balance; priority, UOM, and ATP
+adapters carry the threshold and allocation summaries echo it.
+Cross-plant exact-batch and FEFO demands, including date-first variants, accept
+the same floor. Their combined source-plant availability reflects exact-batch,
+expiry, shelf-life, location, projected-receipt, and safety-stock eligibility.
+A rejected demand leaves those batch balances for later requests. Base, UOM,
+priority, and ATP adapters preserve the value, allocation summaries echo it,
+and FEFO batch splits retain the floor.
 `ALLOCATE_PLANTS_ATP` adds a current-date SAP ATP comparison to the
 unit-aware cross-plant preview. It groups positive local source allocations by
 material, source plant, and base unit, then checks each group once with the
@@ -400,7 +479,12 @@ location priority, allowlists, safety-stock protection, and full-quantity
 allocation. Each demand row can also set `require_full_quantity = abap_true`;
 it combines with the shared option and passes through the unit and ATP
 wrappers. Invalid row flags fail before stock reads or UOM conversion. Its
-optional `it_projected_receipts` input accepts caller-resolved
+demands also accept a minimum coverage floor. Coverage uses eligible stock by
+the required date, including projected receipts, before any source balance is
+consumed. Rejected rows preserve the balance, and allocation summaries echo
+the floor through UOM and ATP wrappers. The planning-source date method applies
+the same floor to its date-scoped availability and carries it through UOM and
+ATP forms. The optional `it_projected_receipts` input accepts caller-resolved
 material, source plant, storage location, receipt date, and base-unit quantity.
 Receipts become available on their receipt date, are shared with later
 demands, and first replenish any remaining static safety-stock buffer.
@@ -1089,7 +1173,19 @@ expired or expires within each request's inclusive date window. It preserves
 storage location, batch, valuation type, expiry, and unrestricted, available,
 quality-inspection, and blocked quantities on each balance row. Per-request
 totals separate expired from upcoming stock and use checked positive balances;
-the available quantity is the local estimate after open reservations. Each
+the available quantity is the local estimate after open reservations.
+
+Set `positive_available_only` to `abap_true` to retain only rows whose reservation-net `available_quantity` is positive. The selector accepts only `abap_true` or `abap_false` and defaults to false. It applies to dated and undated rows before expiry counts, category totals, source/status summaries, and detail paging; category balances on retained rows are unchanged. Base and UOM results echo the selector.
+Optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`, filter each row by reservation-net available quantity. Either bound may be used alone; two active bounds must be ascending, and zero or negative thresholds are valid. Thresholds use the material base stock unit for both base and UOM requests. Inactive values must be initial; base and UOM results echo the flags and values. The bounds compose with `positive_available_only` and all other filters before dated and undated summaries, counts, and detail paging.
+Optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`, select rows by their two-decimal `available_pct_of_unrestricted` value. The value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative. Thresholds are unitless; either bound may be used alone, and two active bounds must be ascending. Inactive values must be initial. Base and UOM results echo the flags and values. These bounds compose with availability quantity bounds and all other filters before dated and undated summaries, counts, and detail paging.
+
+Set `filter_positive_category` to `abap_true` and `positive_stock_category` to `U` for unrestricted, `A` for reservation-net available, `Q` for quality-inspection, or `B` for blocked quantity. Only these codes are accepted; the category must be initial when disabled. The filter retains rows with a positive balance in the selected category and composes with `positive_available_only` and all availability filters before counts, totals, and paging. Other category balances remain unchanged. Base and UOM results echo the selector, and allocation trace rows keep their independent scope.
+
+Optional inclusive `category_quantity_from` and `category_quantity_to` bounds, enabled by `filter_category_quantity_from` and `filter_category_quantity_to`, further narrow rows selected by `filter_positive_category`. They use the category named by `positive_stock_category`, in material base units for both base and UOM requests. Either bound may be used alone; two active bounds must be ascending, inactive values must be initial, and base and UOM results echo the flags and values. These bounds apply before exposure summaries, counts, and paging; other category balances remain unchanged.
+
+Optional inclusive `resv_deduction_from` and `resv_deduction_to` bounds, enabled by `filter_resv_deduction_from` and `filter_resv_deduction_to`, filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`. Either bound may be used alone; two active bounds must be ascending, and inactive values must be initial. The thresholds use material base stock units for both base and UOM requests. Base and UOM results echo the flags and values. The bounds apply before expiry summaries, counts, and detail paging.
+
+Each
 dated row includes `expiration_date_source`: `P` means plant-level MCHA,
 `G` means global MCH1 fallback, and blank means no expiry date resolved. The
 expired, upcoming, and after-window row summaries echo their corresponding
@@ -1130,13 +1226,35 @@ by source (`P`, `G`, `O`) and age band (`1` = 1–7 days, `2` = 8–30,
 and last expiration dates, and four category totals. These dates show the actual
 span within each source-age combination and remain initial when the row is empty.
 The matrix partitions every disjoint expired-age bucket by date source and
-retains zero-count combinations. UOM rows preserve the same order, counts, and
-date spans with base and requested-unit category quantities.
+retains zero-count combinations. Each row's `row_share_pct` is its percentage of
+all matching expired rows, and its four `*_qty_share_pct` fields give its
+percentage of each matching full expired category total. `source_row_share_pct`
+shows its share of expired rows for that source, while `age_band_row_share_pct`
+shows its share of all expired rows in that band across sources. Percentages round to
+two decimals, are zero when their denominator is zero, and may sum slightly away
+from 100 due to independent rounding. UOM rows preserve the
+same order, counts, percentages, and date spans with base and requested-unit
+category quantities. Four `source_*_share_pct` fields divide each category
+quantity by the full expired total for that source; their shares across age
+bands sum to 100 per nonzero source/category, aside from rounding. Four
+`band_*_share_pct` fields divide the category quantity by the matching full
+category total for that age band across sources.
 `after_window_src_bands` applies the source split to the rows beyond the
 inclusive `through_date`, with 1–7, 8–30, 31–90, and over-90 day overrun bands.
 Its 12 rows partition the after-window summary and preserve zero combinations.
-Every row reports its first and last expiration dates; both stay initial when
-empty and UOM results echo them unchanged alongside counts and base/requested-unit
+Each row's `row_share_pct` is its percentage of all matching after-window rows,
+rounded to two decimals and zero when none match; independent rounding may shift
+the sum slightly from 100. Every row reports its first and last expiration
+dates; both stay initial when empty. `source_row_share_pct` gives its share of
+after-window rows for the same source, and `through_band_row_share_pct` gives
+its share of rows in that band across sources. Four `source_*_share_pct` fields
+divide each category quantity by the full after-window total for that source;
+their shares across bands sum to 100 per nonzero source/category, aside from
+rounding. Four `band_*_share_pct` fields divide each category quantity by the
+full total for that band across sources. Four `*_qty_share_pct` fields give each row's share of the
+corresponding full after-window category total, rounded to two decimals and
+zero when the denominator is zero. UOM results echo the
+percentages and dates unchanged alongside counts and base/requested-unit
 category totals.
 The result also reports `expired_batch_row_count` and
 `upcoming_batch_row_count`,
@@ -1157,9 +1275,20 @@ bucket in base and requested units and preserve the counts. `upcoming_src_bands`
 adds a fixed 12-row source/lead-time matrix for upcoming stock, ordered by
 `P`/`G`/`O` source and the `1` (0–7 days), `2` (8–30), `3` (31–90), and `4`
 (over 90) bands. Every row also reports its first and last expiration date,
-which show the actual span and remain initial for empty combinations. It includes
-zero combinations, partitions upcoming counts and quantities, and carries base
-and requested-unit category totals plus unchanged date spans in UOM results. Expired positive-stock rows are also split into non-overlapping age buckets:
+which show the actual span and remain initial for empty combinations. Each row's
+`row_share_pct` is its percentage of all matching upcoming rows, rounded to two
+decimals and zero when none match; independent rounding may shift the sum
+slightly from 100. Each row also has four `*_qty_share_pct` fields showing its
+share of the matching full upcoming category total. Quantity shares round to
+two decimals and are zero when their denominator is zero. It includes zero
+combinations. `source_row_share_pct` gives its share of upcoming rows for the
+same source, and `through_band_row_share_pct` gives its share of rows in that
+lead-time band across sources. Four `source_*_share_pct` fields divide each
+category quantity by the full total for that source; their shares across bands
+sum to 100 per nonzero source/category, aside from rounding. It partitions
+upcoming counts and quantities, and carries base and
+requested-unit category totals, percentages, and unchanged date spans in UOM
+results. Expired positive-stock rows are also split into non-overlapping age buckets:
 `expired_1_7_row_count` (1–7 days overdue), `expired_8_30_row_count`
 (8–30 days), `expired_31_90_row_count` (31–90 days), and
 `expired_ov90_row_count` (91 or more days). Matching `expired_*` totals report
@@ -1182,8 +1311,10 @@ each positive-stock undated row, sorted by batch, storage location, and
 valuation type. UOM results include the base row, base and requested units, and
 converted category balances for each undated row. The result also identifies
 the first undated row through
-`first_undated_storage_location`, `first_undated_batch`, and
-`first_undated_valuation_type`, ordered by batch, location, and valuation.
+`first_undated_storage_location`, `first_undated_batch`,
+`first_undated_valuation_type`, and `first_undated_expiry_source`, ordered by
+batch, location, and valuation. The source marker preserves the selected row's
+raw value, including blank or unknown values, and is echoed unchanged by UOM.
 Its four stock-category balances are included in base units; UOM results carry
 base and requested-unit values. These identity fields are initial and balances
 zero when there is no positive-stock undated row. Each result includes a UTC `snapshot_timestamp`
@@ -1229,7 +1360,229 @@ returned row; otherwise the continuation fields are initial. The cursor is exclu
 and follows status, date, batch, location, and valuation
 type order. Blank batch, location, and valuation values are valid cursor keys;
 without an active cursor, all cursor fields must be initial. Summary counts,
-quantities, and first/next cohorts still cover the full filtered result. Undated rows use an independent page limit: `maximum_undated_batch_rows = 0`
+quantities, and first/next cohorts still cover the full filtered result. Set
+`omit_dated_batch_rows = abap_true` to suppress the dated `batches` list while
+preserving full-scope summaries; it requires `maximum_batch_rows = 0` and no
+active dated cursor. The returned dated count and page summaries are zero, page
+dates and cursors remain initial, and `is_truncated` is false. Undated paging
+continues independently. Base and UOM results echo the flag, and UOM full
+summaries retain their converted values. The dated page also reports
+`page_expired_row_count`, `page_upcoming_row_count`, and
+`page_after_window_row_count`, plus four category totals in `page_*_qty`. The
+independent undated page reports its category totals in `undated_page_*_qty`.
+Both page totals also expose `page_avail_pct` and signed
+`page_reservation_deduction_qty`; the undated page uses
+`und_page_avail_pct` and
+`und_page_resv_deduct_qty`. Percentages are available quantity as
+a share of unrestricted quantity, rounded to two decimals and zero for a zero
+denominator. Deductions are unrestricted minus available and preserve negative
+values. UOM results echo both percentages and provide base/requested-unit
+values through `base_page_resv_deduct_qty` /
+`src_page_resv_deduct_qty` and
+`base_und_page_resv_deduct_qty` /
+`src_und_page_resv_deduct_qty`.
+
+Each dated page also reports its earliest and latest expiration date and the
+elapsed day span in `page_earliest_expiration_date`,
+`page_latest_expiration_date`, and `page_expiration_date_span_days`. These
+values cover only returned rows; empty pages have initial dates and a zero
+span, and UOM results echo them unchanged.
+
+Each dated page includes a fixed `page_expiry_statuses` breakdown for expired,
+upcoming, and after-window rows. Each status row reports its count, `row_share_pct`, and four stock-category
+quantities. The percentage uses the returned dated row count, rounds to two
+decimals, and stays zero on an empty page; independent rounding may shift the sum
+slightly from 100. Each status also reports its first and last expiration date
+and elapsed span across returned rows of that status. Empty status buckets have
+initial dates and a zero span. UOM status rows echo the percentage and date
+range and carry both base and requested-unit quantities.
+
+Each page status also reports what percentage of the page total comes from that
+status for unrestricted, available, quality-inspection, and blocked quantities.
+These percentages use the matching category's page total, round to two decimals,
+and remain zero when that category total is zero. UOM results preserve them.
+
+Paged results also return `page_expiry_src_statuses`, the fixed nine-cell
+source/status matrix. It reports row counts, `row_share_pct` across the page,
+`status_row_share_pct` within each matching status, and `source_row_share_pct`
+within each matching source, plus date ranges and category quantities and
+shares. Row percentages use the returned dated row count; status-relative
+percentages use the matching page status count; source-relative percentages use
+the matching page source count. All round to two decimals and stay zero when
+their denominator is empty. Blank and unknown sources appear in `O`. The full
+`expiry_src_statuses` matrix reports the same three row-share percentages
+across all matching positive-stock dated rows after request filters,
+including after-window rows and independent of page cursors and limits.
+Status-relative percentages use the full matching status count, while
+source-relative percentages use the full matching source count. The four
+`*_qty_share_pct` fields give each cell's share of its page or full category
+total. The four `status_*_share_pct` fields give its share of the matching
+status's category total, summing to 100 across sources for a nonzero status
+category except for rounding. The four `source_*_share_pct` fields give each
+cell's share of the matching source's category total, summing to 100 across
+statuses for a nonzero source category except for rounding. All sets are zero
+when their denominator is zero. UOM rows preserve keys, dates, and percentages
+and include base and requested quantities.
+
+Full results also include `expiry_statuses`, a fixed three-row summary for
+expired, upcoming, and after-window stock. Each row reports its count and share
+of all matching dated rows, first/last expiration dates and their span, four
+category totals, and each category's share of the complete dated total. These
+values include after-window stock and remain stable across cursors, page limits,
+and omitted detail rows. Empty statuses remain present with zero shares and
+initial date ranges. UOM results preserve dates, counts, spans, and percentages
+while providing base and requested-unit quantities.
+
+
+`expiry_sources` and `page_expiry_sources` provide direct three-row summaries
+for plant (`P`), global (`G`), and other (`O`) dated stock; blank and unknown
+markers map to `O`. They report row counts, date ranges, all four stock-category
+quantities, and row/category shares rounded to two decimals. Page shares use
+returned dated rows and page totals; full shares use all matching dated rows
+and full totals, including after-window stock. Shares are zero when their
+denominator is zero, and full summaries remain stable across cursors and page
+limits. UOM results preserve counts, dates, and shares and include base and
+requested-unit quantities.
+
+
+Each page source/status cell reports its share of each category's total
+page quantity and of its matching status's category total. The first set uses
+the returned-page category total; the second uses the matching page status
+total. Percentages round to two decimals, sum to 100 across source/status cells
+for each nonzero page category and across sources for each nonzero status
+category, and stay zero when their denominator is zero. UOM results preserve
+these percentages.
+
+Each dated page also includes `page_expiry_src_age_bands`, a fixed 12-cell
+source/age matrix for expired rows only. It crosses `P`, `G`, and `O` expiry
+sources with the 1–7, 8–30, 31–90, and over-90-day age bands. Rows include
+counts, shares of the page's expired rows, expiration-date spans, all four
+stock-category quantities, and shares of each matching page-expired category
+total. Empty cells remain present; all shares are zero when their denominator
+is zero. `source_row_share_pct` divides each cell by returned expired rows for
+its source; `age_band_row_share_pct` divides it by returned expired rows in the
+same age band across sources. Four `band_*_share_pct` fields divide category
+quantities by the matching returned-page category total for that age band across
+sources. UOM rows preserve keys, dates, counts, and shares
+and include base and requested-unit quantities. Four `source_*_share_pct`
+fields divide each cell's category quantity by the matching returned-page
+expired category total for its source.
+
+Paged expiry results also include `page_upcoming_src_bands` and
+`page_after_window_src_bands`. Each is a fixed 12-cell matrix crossing `P`,
+`G`, and `O` sources with four lead-time bands. Upcoming bands use days from
+`as_of_date` (0–7, 8–30, 31–90, and over 90) and include only dates through
+`through_date`; after-window bands use 1–7, 8–30, 31–90, and over 90 days after
+`through_date`. Rows report counts and `row_share_pct` within their matching
+page status, `source_row_share_pct` within that status and source, and
+`through_band_row_share_pct` within that status and band. They also include
+expiration-date spans, all four stock-category quantities, and four
+`*_qty_share_pct` fields using their matching page status category totals.
+Four `source_*_share_pct` fields use the matching page-status category total
+for that source. Four `band_*_share_pct` fields use the matching page-status
+category total within each band across sources. Source row shares use returned
+rows for that status and source; band row shares use returned rows for that
+status and band across sources.
+Empty cells remain present;
+quantity shares are zero when their denominator is zero. UOM results preserve
+metadata and include base and requested-unit values.
+
+## Batch expiry age/window availability ratios
+
+Full and page source/age and source/window cells include
+`available_pct_of_unrestricted`, calculated as the cell's reservation-net
+`available_qty` divided by its `unrestricted_qty`, times 100. Full matrices
+use full filtered cell quantities, while page matrices use only returned
+rows. The percentage rounds to two decimals and is zero when unrestricted
+quantity is zero. Each cell also reports `reservation_deduction_qty` as
+unrestricted quantity minus available quantity. UOM rows provide
+`base_reservation_deduction_qty` and converted
+`unit_reservation_deduction_qty`; negative raw differences are preserved.
+UOM rows echo the percentage unchanged.
+
+## Batch expiry summary availability and reservation deductions
+
+Full and page `expiry_statuses`, `page_expiry_statuses`, `expiry_sources`,
+`page_expiry_sources`, `undated_expiry_sources`,
+`undated_page_expiry_sources`, and source/status matrix rows report
+`available_pct_of_unrestricted` and `reservation_deduction_qty` for their own
+aggregate. The ratio is reservation-net `available_qty` divided by
+`unrestricted_qty`, multiplied by 100 and rounded to two decimals; it is zero
+when unrestricted quantity is zero. The deduction is unrestricted quantity
+minus available quantity and preserves signed differences. UOM status rows,
+source rows, undated source rows, and source/status rows echo the ratio and
+provide base and converted deduction quantities. Full and summary-only results
+use full filtered totals; page results use their returned detail scope.
+The result also reports `dated_unrestricted_quantity`,
+`dated_available_quantity`, `dated_quality_quantity`, and
+`dated_blocked_quantity` across expired, upcoming, and after-window rows,
+with `dated_avail_pct` and signed
+`dated_resv_deduct_qty`. The ratio uses the combined dated total and
+is zero when unrestricted quantity is zero. UOM results echo the percentage
+and provide `base_dated_unrestricted_qty` / `src_dated_unrestricted_qty`,
+`base_dated_available_qty` / `src_dated_available_qty`,
+`base_dated_quality_qty` / `src_dated_quality_qty`,
+`base_dated_blocked_qty` / `src_dated_blocked_qty`, and
+`base_dated_resv_deduct_qty` /
+`src_dated_resv_deduct_qty`. These full-scope values remain available
+when dated details are omitted.
+
+## Batch expiry full through-date aggregates
+
+`through_unrestricted_quantity`, `through_available_quantity`,
+`through_quality_quantity`, and `through_blocked_quantity` combine the expired
+(`E`) and upcoming (`U`) status totals for stock with expiration dates on or
+before the requested `through_date`; they exclude after-window (`A`) stock.
+The totals are calculated before page limits and cursors and remain available
+when dated detail rows are omitted. `through_avail_pct`
+and `through_resv_deduct_qty` use those same through-date
+unrestricted and available totals; the ratio is zero for a zero denominator
+and the signed deduction is unrestricted minus available. UOM results echo
+the ratio and provide `base_through_unrestricted_qty` /
+`src_through_unrestricted_qty`, `base_through_available_qty` /
+`src_through_available_qty`, `base_through_quality_qty` /
+`src_through_quality_qty`, `base_through_blocked_qty` /
+`src_through_blocked_qty`, and `base_through_resv_deduct_qty` /
+`src_through_resv_deduct_qty`.
+
+## Batch expiry detail availability and reservation deductions
+
+Dated and undated batch detail rows report `available_pct_of_unrestricted` and
+`reservation_deduction_qty` for that batch. The percentage is available quantity
+as a share of unrestricted quantity, rounded to two decimals; it is zero when
+unrestricted quantity is zero and may exceed 100 when available quantity is
+larger. The signed deduction is unrestricted quantity minus available quantity.
+After-window rows use the same fields. UOM detail rows echo the percentage and
+carry the base deduction in `base_row-reservation_deduction_qty` plus its
+requested-unit value in `source_resv_deduction_qty`.
+
+Undated rows preserve their raw `expiration_date_source`, and each undated page
+adds a fixed `undated_page_expiry_sources` summary for `P`, `G`, and `O`. Each
+source row reports its count, `row_share_pct`, four category quantities, and
+`unrestricted_qty_share_pct`, `available_qty_share_pct`,
+`quality_qty_share_pct`, and `blocked_qty_share_pct`. Blank and unknown sources
+map to `O`. Page shares use returned-row and returned-category totals, remain
+zero when their denominator is zero, and UOM summaries echo them unchanged
+while exposing base and requested-unit quantities. Independent rounding can
+make source percentages sum to slightly above or below 100.
+
+The full result also includes `undated_expiry_sources`, a fixed `P`, `G`, and
+`O` breakdown across every matching positive-stock undated row. It stays stable
+across cursor continuations and is independent of page limits or omitted detail
+rows. Each source's `row_share_pct` uses the full undated row count; its four
+category-share fields use the full filtered undated category totals. All shares
+are rounded to two decimals and zero when their denominator is zero. Row counts
+and category quantities reconcile to the full undated totals; UOM results echo
+percentages and provide base and requested-unit values. The full undated scalar
+totals also report `undated_avail_pct` and signed
+`undated_resv_deduct_qty`. UOM results echo the percentage and provide
+`base_undated_resv_deduct_qty` and
+`src_undated_resv_deduct_qty`.
+
+These page values describe rows returned after the cursor and page limit. UOM
+results preserve the counts and expose dated totals through `base_page_*_qty`
+and `src_page_*_qty`, and undated totals through `base_und_page_*_qty` and
+`src_und_page_*_qty`; full filtered summaries remain unchanged. Undated rows use an independent page limit: `maximum_undated_batch_rows = 0`
 keeps the full list, and 1–500 caps each page. A continuation sets
 `filter_undated_batch_cursor` and supplies the previous page's
 `next_undated_cursor_*` tuple in `undated_cursor_batch`,
@@ -1388,7 +1741,7 @@ be initial. `total_uncovered_detail_count` counts all matching residual rows,
 last returned row. In paged requests, `uncovered_open_resv_keys` and
 `uncovered_open_reservations` contain the same page. UOM results echo the page
 metadata and convert the returned details. Each continuation recalculates
-from current reservation data; pages do not retain a shared snapshot. Set `filter_uncovered_due_horizon = abap_true` with `uncovered_due_horizon` set to `O`, `T`, `1`, `2`, `3`, `4`, or `U` to select overdue, due-today, 1–7, 8–30, 31–90, over-90, or undated detail rows. Each returned uncovered detail row also exposes `due_horizon_band` using the same codes relative to `as_of_date`; UOM detail rows echo the code unchanged. Each uncovered detail also exposes `allocation_outcome`: `P` when allocated quantity is positive and `U` when it is zero; UOM detail rows echo the code unchanged. Overdue rows also report `overdue_age_days` as the exact positive calendar days late and `overdue_age_band` as `1` for 1–7 days late, `2` for 8–30, `3` for 31–90, or `4` for more than 90 days late. Both fields are initial for due-today, future, and undated rows; UOM detail rows echo them unchanged. `filtered_uncov_overdue_ages` returns four stable rows for 1-7, 8-30, 31-90, and over-90 days late, including empty bands. Each row summarizes every selector-matching overdue detail before cursor and page selection with partial/unallocated counts, base and source quantities, and weighted coverage, shortage, matched, and fallback percentages; percentages stay zero for empty demand. Partial and unallocated open quantities partition each band's open demand, and their shortage quantities partition uncovered demand. Each band also reports partial-only coverage, shortage, matched, and fallback percentages using partial open quantity as the denominator; these remain zero without partial demand. UOM rows convert all four outcome quantities and echo the percentages. Each row also reports `first_required_date` and `last_required_date` across its matching dated reservations; both remain initial for empty bands and UOM results echo both dates. UOM results preserve the band order and percentages and convert quantities. Set `filter_uncovered_age_band = abap_true` with `uncovered_age_band` set to `1`, `2`, `3`, or `4` to select overdue details 1-7, 8-30, 31-90, or over 90 days late. It composes with the other detail selectors before filtered summaries, counts, and paging; the disabled value must be initial, and UOM results echo both fields. Set `filter_overdue_age_days_from` and/or `filter_overdue_age_days_to` with the matching `overdue_age_days_from` and `overdue_age_days_to` values to select an inclusive overdue-age day range. Either bound may be omitted; active bounds must be positive and ascending, and inactive values must be initial. A day range excludes due-today, future, and undated rows, composes with the age-band and other detail selectors before totals and paging, and UOM results echo both flags and bounds. The selector filters details before cursor and page selection; `total_uncovered_detail_count` counts all horizon-matching rows independent of the cursor, while `uncovered_open_resv_row_count` and the reservation-level quantity summaries stay full-scope. Invalid active values and nonblank inactive selectors are rejected, and UOM results echo both fields. Set `omit_uncovered_detail_rows = abap_true` to return no uncovered detail rows or parallel keys while retaining the filtered detail total and full-scope shortage summaries. The flag requires `maximum_uncovered_rows = 0` and no active uncovered cursor; UOM results echo it, and non-boolean values are rejected. Set `filter_uncovered_sequence = abap_true` with a positive `uncovered_sequence` to select one reservation's shortage row in shared-stock allocation order. It composes with the due-horizon filter and cursor before detail totals and paging. The disabled selector must be initial, and UOM results echo both fields. Optional inclusive `uncovered_required_date_from` and `uncovered_required_date_to` bounds select a caller-chosen required-date window. Either bound may be supplied; two bounds must be valid and ascending. When a bound is set, undated rows are omitted. The bounds compose with sequence, due-horizon, and cursor scopes before counts and paging, and UOM results echo both dates. Set `filter_uncovered_reservation = abap_true` with both `uncovered_reservation_number` and `uncovered_reservation_item` to select one shortage row. Both key fields are required when active and must be initial otherwise. This selector composes with sequence, due-horizon, date bounds, and cursor scopes before counts and paging; an active cursor must match the selected key, and UOM results echo all three selector fields. Set `filter_uncovered_outcome = abap_true` with `uncovered_outcome` set to `P` for rows with positive local allocated quantity (partially allocated), or `U` for rows with zero local allocated quantity (unallocated). The selector composes with reservation, sequence, due-horizon, date-window, and cursor scopes before filtered totals and paging; full-scope shortage summaries stay unchanged. Only `P` and `U` are valid active values, the disabled selector must be initial, and UOM results echo both fields. Set `filter_uncovered_pct_from = abap_true` with `uncovered_pct_from` and/or `filter_uncovered_pct_to = abap_true` with `uncovered_pct_to` to filter each row by `allocation_shortage_pct`. Bounds are inclusive and accept 0–100; if both are active they must ascend, and inactive values must be initial. The selector composes with the other detail filters before filtered totals and page selection; full-scope shortage summaries stay unchanged. UOM results echo both flags and values. Set `filter_uncovered_qty_from = abap_true` with `uncovered_qty_from` and/or `filter_uncovered_qty_to = abap_true` with `uncovered_qty_to` to filter each detail row by inclusive `uncovered_quantity` in the material base unit. Bounds must be nonnegative; either bound is optional, and when both are enabled the lower bound must not exceed the upper bound. Disabled values must be initial. Quantity bounds compose with the other detail filters before filtered totals and page selection; full-scope shortage summaries stay unchanged. UOM results echo both flags and base-unit bounds unchanged. The result also reports `filtered_uncovered_qty`, the sum of `uncovered_quantity` for every row matching the detail selectors before cursor and page selection. The total stays the same across cursor continuations; UOM results report `base_filtered_uncovered_qty` and `src_filtered_uncovered_qty`. Set an open-demand detail range with `filter_uncovered_open_from = abap_true` and `uncovered_open_qty_from` and/or `filter_uncovered_open_to = abap_true` and `uncovered_open_qty_to` to filter each uncovered row by inclusive `open_quantity` in the material base unit. Bounds must be nonnegative; either is optional, both must be ascending, and disabled values must be initial. The range composes with the other detail selectors before filtered counts and sums, cursor, and page selection; UOM results echo both flags and base-unit bounds. The filtered uncovered-detail totals also include `filtered_open_demand_qty`, the sum of `open_quantity` for every row matching the detail selectors before cursor and page selection. This total stays the same across cursor continuations; `filtered_uncovered_qty` continues to report the shortage amount. UOM results report `base_filtered_open_demand_qty` and `src_filtered_open_demand_qty`. Filtered details also report `filtered_uncovered_alloc_qty`, the sum of `allocated_quantity` for every matching row before cursor and page selection. Filtered open demand reconciles as allocated plus uncovered quantity. UOM results report `base_filtered_uncov_alloc_qty` and `src_filtered_uncov_alloc_qty`. Filtered allocation is also split into `filtered_uncov_matched_qty` and `filtered_uncov_fallback_qty`, summing the matched and fallback quantities for the same rows. These totals reconcile with `filtered_uncovered_alloc_qty`; together with shortage they reconcile to open demand. UOM results report `base_uncov_matched_qty` / `src_uncov_matched_qty` and `base_uncov_fallback_qty` / `src_uncov_fallback_qty`. Results also include `filtered_uncov_partial_count` and `filtered_uncov_unalloc_count` across that same selector-matching row set before cursor and page selection. The two counts partition `total_uncovered_detail_count`; UOM results echo them unchanged. The weighted `filtered_uncov_coverage_pct` and `filtered_uncov_shortage_pct` use the same matched rows: allocated and uncovered totals divided by open-demand total. They sum to 100 when matching open demand exists and remain zero for an empty result; UOM results echo both percentages unchanged. Weighted `filtered_uncov_matched_pct` and `filtered_uncov_fallback_pct` also report matched/open and fallback/open for the same filtered rows; together they equal coverage. UOM results echo all four percentages unchanged. `filtered_uncov_due_horizons` returns the same selector-matching residual rows as a fixed seven-row due-horizon summary (`O`, `T`, `1`, `2`, `3`, `4`, `U`), including empty bands. Each band’s `partial_row_count` and `unalloc_row_count` partition its `row_count`. Open, allocated, matched, fallback, and uncovered quantities reconcile to the filtered totals before cursor and page selection; UOM results preserve band order and all counts and provide base and source quantities. Each band also reports weighted `coverage_pct`, `shortage_pct`, `matched_pct`, and `fallback_pct` from its own totals. Coverage and shortage, and matched and fallback, reconcile within 0.01 percentage points from independent rounding; percentages are zero for empty bands. UOM results echo these percentages unchanged. Partial-only `partial_coverage_pct`, `partial_shortage_pct`, `partial_matched_pct`, and `partial_fallback_pct` use `partial_open_qty` as their denominator: allocated, partial shortage, matched, and fallback quantities respectively. They stay zero when a band has no partial rows. Coverage and shortage, and matched and fallback, reconcile within 0.01 percentage points from independent rounding. UOM results echo these percentages unchanged.  The filtered detail result also exposes `filtered_partial_open_qty`, `filtered_unalloc_open_qty`, `filtered_partial_short_qty`, and `filtered_unalloc_short_qty`. The open quantities partition `filtered_open_demand_qty`; the shortage quantities partition `filtered_uncovered_qty`. UOM results provide base and source quantities for all four totals. Top-level `partial_coverage_pct`, `partial_shortage_pct`, `partial_matched_pct`, and `partial_fallback_pct` use the filtered partial open quantity as their denominator, matching the seven-band partial-only percentages. They remain zero when no partial rows match, reconcile within 0.01 percentage points from independent rounding, and UOM results echo unchanged. The outcome split also exposes `partial_open_qty`, `unalloc_open_qty`, `partial_short_qty`, and `unalloc_short_qty`; the first pair sums to `open_demand_quantity` and the second to `uncovered_quantity`. UOM rows return base and source quantities for all four. `first_required_date` and `last_required_date` show the actual date span among dated rows in each band. They remain initial for empty or undated bands; UOM results echo both dates unchanged.
+from current reservation data; pages do not retain a shared snapshot. Set `filter_uncovered_due_horizon = abap_true` with `uncovered_due_horizon` set to `O`, `T`, `1`, `2`, `3`, `4`, or `U` to select overdue, due-today, 1–7, 8–30, 31–90, over-90, or undated detail rows. Each returned uncovered detail row also exposes `due_horizon_band` using the same codes relative to `as_of_date`; UOM detail rows echo the code unchanged. Each uncovered detail also exposes `allocation_outcome`: `P` when allocated quantity is positive and `U` when it is zero; UOM detail rows echo the code unchanged. Overdue rows also report `overdue_age_days` as the exact positive calendar days late and `overdue_age_band` as `1` for 1–7 days late, `2` for 8–30, `3` for 31–90, or `4` for more than 90 days late. Both fields are initial for due-today, future, and undated rows; UOM detail rows echo them unchanged. `filtered_uncov_overdue_ages` returns four stable rows for 1-7, 8-30, 31-90, and over-90 days late, including empty bands. Each row summarizes every selector-matching overdue detail before cursor and page selection with partial/unallocated counts, base and source quantities, and weighted coverage, shortage, matched, and fallback percentages; percentages stay zero for empty demand. Partial and unallocated open quantities partition each band's open demand, and their shortage quantities partition uncovered demand. Each band also reports partial-only coverage, shortage, matched, and fallback percentages using partial open quantity as the denominator; these remain zero without partial demand. UOM rows convert all four outcome quantities and echo the percentages. Each row also reports `first_required_date` and `last_required_date` across its matching dated reservations; both remain initial for empty bands and UOM results echo both dates. UOM results preserve the band order and percentages and convert quantities. Set `filter_uncovered_age_band = abap_true` with `uncovered_age_band` set to `1`, `2`, `3`, or `4` to select overdue details 1-7, 8-30, 31-90, or over 90 days late. It composes with the other detail selectors before filtered summaries, counts, and paging; the disabled value must be initial, and UOM results echo both fields. Set `filter_overdue_age_days_from` and/or `filter_overdue_age_days_to` with the matching `overdue_age_days_from` and `overdue_age_days_to` values to select an inclusive overdue-age day range. Either bound may be omitted; active bounds must be positive and ascending, and inactive values must be initial. A day range excludes due-today, future, and undated rows, composes with the age-band and other detail selectors before totals and paging, and UOM results echo both flags and bounds. The selector filters details before cursor and page selection; `total_uncovered_detail_count` counts all horizon-matching rows independent of the cursor, while `uncovered_open_resv_row_count` and the reservation-level quantity summaries stay full-scope. Invalid active values and nonblank inactive selectors are rejected, and UOM results echo both fields. Set `omit_uncovered_detail_rows = abap_true` to return no uncovered detail rows or parallel keys while retaining the filtered detail total and full-scope shortage summaries. The flag requires `maximum_uncovered_rows = 0` and no active uncovered cursor; UOM results echo it, and non-boolean values are rejected. Summary-only mode still calculates the filtered totals and fixed due-horizon and overdue-age summaries from repository reservation rows without building detail or key tables. Set `filter_uncovered_sequence = abap_true` with a positive `uncovered_sequence` to select one reservation's shortage row in shared-stock allocation order. It composes with the due-horizon filter and cursor before detail totals and paging. The disabled selector must be initial, and UOM results echo both fields. Optional inclusive `uncovered_required_date_from` and `uncovered_required_date_to` bounds select a caller-chosen required-date window. Either bound may be supplied; two bounds must be valid and ascending. When a bound is set, undated rows are omitted. The bounds compose with sequence, due-horizon, and cursor scopes before counts and paging, and UOM results echo both dates. Set `filter_uncovered_reservation = abap_true` with both `uncovered_reservation_number` and `uncovered_reservation_item` to select one shortage row. Both key fields are required when active and must be initial otherwise. This selector composes with sequence, due-horizon, date bounds, and cursor scopes before counts and paging; an active cursor must match the selected key, and UOM results echo all three selector fields. Set `filter_uncovered_outcome = abap_true` with `uncovered_outcome` set to `P` for rows with positive local allocated quantity (partially allocated), or `U` for rows with zero local allocated quantity (unallocated). The selector composes with reservation, sequence, due-horizon, date-window, and cursor scopes before filtered totals and paging; full-scope shortage summaries stay unchanged. Only `P` and `U` are valid active values, the disabled selector must be initial, and UOM results echo both fields. Set `filter_uncovered_pct_from = abap_true` with `uncovered_pct_from` and/or `filter_uncovered_pct_to = abap_true` with `uncovered_pct_to` to filter each row by `allocation_shortage_pct`. Bounds are inclusive and accept 0–100; if both are active they must ascend, and inactive values must be initial. The selector composes with the other detail filters before filtered totals and page selection; full-scope shortage summaries stay unchanged. UOM results echo both flags and values. Set `filter_uncovered_qty_from = abap_true` with `uncovered_qty_from` and/or `filter_uncovered_qty_to = abap_true` with `uncovered_qty_to` to filter each detail row by inclusive `uncovered_quantity` in the material base unit. Bounds must be nonnegative; either bound is optional, and when both are enabled the lower bound must not exceed the upper bound. Disabled values must be initial. Quantity bounds compose with the other detail filters before filtered totals and page selection; full-scope shortage summaries stay unchanged. UOM results echo both flags and base-unit bounds unchanged. The result also reports `filtered_uncovered_qty`, the sum of `uncovered_quantity` for every row matching the detail selectors before cursor and page selection. The total stays the same across cursor continuations; UOM results report `base_filtered_uncovered_qty` and `src_filtered_uncovered_qty`. Set an open-demand detail range with `filter_uncovered_open_from = abap_true` and `uncovered_open_qty_from` and/or `filter_uncovered_open_to = abap_true` and `uncovered_open_qty_to` to filter each uncovered row by inclusive `open_quantity` in the material base unit. Bounds must be nonnegative; either is optional, both must be ascending, and disabled values must be initial. The range composes with the other detail selectors before filtered counts and sums, cursor, and page selection; UOM results echo both flags and base-unit bounds. The filtered uncovered-detail totals also include `filtered_open_demand_qty`, the sum of `open_quantity` for every row matching the detail selectors before cursor and page selection. This total stays the same across cursor continuations; `filtered_uncovered_qty` continues to report the shortage amount. UOM results report `base_filtered_open_demand_qty` and `src_filtered_open_demand_qty`. Filtered details also report `filtered_uncovered_alloc_qty`, the sum of `allocated_quantity` for every matching row before cursor and page selection. Filtered open demand reconciles as allocated plus uncovered quantity. UOM results report `base_filtered_uncov_alloc_qty` and `src_filtered_uncov_alloc_qty`. Filtered allocation is also split into `filtered_uncov_matched_qty` and `filtered_uncov_fallback_qty`, summing the matched and fallback quantities for the same rows. These totals reconcile with `filtered_uncovered_alloc_qty`; together with shortage they reconcile to open demand. UOM results report `base_uncov_matched_qty` / `src_uncov_matched_qty` and `base_uncov_fallback_qty` / `src_uncov_fallback_qty`. Results also include `filtered_uncov_partial_count` and `filtered_uncov_unalloc_count` across that same selector-matching row set before cursor and page selection. The two counts partition `total_uncovered_detail_count`; UOM results echo them unchanged. The weighted `filtered_uncov_coverage_pct` and `filtered_uncov_shortage_pct` use the same matched rows: allocated and uncovered totals divided by open-demand total. They sum to 100 when matching open demand exists and remain zero for an empty result; UOM results echo both percentages unchanged. Weighted `filtered_uncov_matched_pct` and `filtered_uncov_fallback_pct` also report matched/open and fallback/open for the same filtered rows; together they equal coverage. UOM results echo all four percentages unchanged. `filtered_uncov_due_horizons` returns the same selector-matching residual rows as a fixed seven-row due-horizon summary (`O`, `T`, `1`, `2`, `3`, `4`, `U`), including empty bands. Each band’s `partial_row_count` and `unalloc_row_count` partition its `row_count`. Open, allocated, matched, fallback, and uncovered quantities reconcile to the filtered totals before cursor and page selection; UOM results preserve band order and all counts and provide base and source quantities. Each band also reports weighted `coverage_pct`, `shortage_pct`, `matched_pct`, and `fallback_pct` from its own totals. Coverage and shortage, and matched and fallback, reconcile within 0.01 percentage points from independent rounding; percentages are zero for empty bands. UOM results echo these percentages unchanged. Partial-only `partial_coverage_pct`, `partial_shortage_pct`, `partial_matched_pct`, and `partial_fallback_pct` use `partial_open_qty` as their denominator: allocated, partial shortage, matched, and fallback quantities respectively. They stay zero when a band has no partial rows. Coverage and shortage, and matched and fallback, reconcile within 0.01 percentage points from independent rounding. UOM results echo these percentages unchanged.  The filtered detail result also exposes `filtered_partial_open_qty`, `filtered_unalloc_open_qty`, `filtered_partial_short_qty`, and `filtered_unalloc_short_qty`. The open quantities partition `filtered_open_demand_qty`; the shortage quantities partition `filtered_uncovered_qty`. UOM results provide base and source quantities for all four totals. Top-level `partial_coverage_pct`, `partial_shortage_pct`, `partial_matched_pct`, and `partial_fallback_pct` use the filtered partial open quantity as their denominator, matching the seven-band partial-only percentages. They remain zero when no partial rows match, reconcile within 0.01 percentage points from independent rounding, and UOM results echo unchanged. The outcome split also exposes `partial_open_qty`, `unalloc_open_qty`, `partial_short_qty`, and `unalloc_short_qty`; the first pair sums to `open_demand_quantity` and the second to `uncovered_quantity`. UOM rows return base and source quantities for all four. `first_required_date` and `last_required_date` show the actual date span among dated rows in each band. They remain initial for empty or undated bands; UOM results echo both dates unchanged.
 `allocation_details` returns every positive reservation deduction by
 reservation and actual stock row. Each row includes the reservation's requested
 location, batch, and valuation type alongside the actual stock row's location,
@@ -1992,6 +2345,10 @@ Base and UOM exact-batch demand rows can also set
 `require_full_quantity = abap_true` individually. It combines with the shared
 option, leaves a short row's batch balances for later demands, and passes
 through ATP. Invalid row values fail before stock reads or UOM conversion.
+They can also set `minimum_coverage_pct`; the service compares eligible stock
+for the selected batch and location scope before consuming any location
+balance. A row below its floor receives no split, preserving that stock for
+later demands. UOM, priority, and ATP adapters carry the value through.
 The base, unit-aware, and ATP variants also accept caller-resolved
 `it_projected_batch_receipts` in material base units. Each receipt names its
 material, plant, storage location, exact batch, expiry, receipt date, and
@@ -2013,9 +2370,12 @@ undated stock for just that request, or `allow_undated_batches = abap_true` to
 opt into undated stock when the shared setting is false. Cost-center batch and
 FEFO preview and reservation demand rows support the same overrides, and the
 single cost-center preview and reservation methods accept them as scalar
-inputs. The flags cannot both be true. Base summaries and batch/location splits
-echo both row settings. Date, priority, UOM, and ATP wrappers forward them.
-Invalid values are rejected before UOM or stock reads.
+inputs. Those single methods also accept `iv_minimum_coverage_pct` from 0
+through 100; it is checked against eligible base-unit stock and echoed on the
+result, and a reservation is skipped when the floor leaves no allocation. The
+flags cannot both be true. Base summaries and batch/location splits echo both
+row settings. Date, priority, UOM, and ATP wrappers forward them. Invalid
+values are rejected before UOM or stock reads.
 `ALLOCATE_BY_BATCH_IN_UNITS` accepts multiple requests in material-specific
 units while keeping each requested batch fixed. It shares that batch's stock
 across demands in input order and supports the same preferred-location fallback
@@ -2131,6 +2491,13 @@ make that row all-or-nothing. A short row receives no batch split and leaves
 its eligible balance for later rows. The request flag combines with the
 existing shared `iv_require_full_quantity`; an invalid row value is rejected
 before stock reads or unit conversion.
+These demand rows also accept `minimum_coverage_pct` from 0 through 100. FEFO
+compares eligible dated or undated batch stock after per-demand expiry,
+shelf-life, location, and receipt-date rules; quality FEFO applies the same
+floor to quality-inspection stock. The check happens before any batch balance
+is consumed. A demand below the floor receives no allocation, and the summary
+and batch splits echo the requested threshold through UOM, priority, and ATP
+wrappers.
 `ALLOCATE_BY_EXPIRY_ATP` accepts unit-aware FEFO demands and a checking rule.
 It returns the local FEFO estimate plus ATP checks grouped by material, plant,
 base unit, and effective FEFO date. Each check covers the cumulative local
@@ -2204,8 +2571,17 @@ API call instead of overflowing during validation. Dated location and FEFO
 ATP transfer rechecks also aggregate source and batch/location totals in high
 precision before comparing them with the confirmed plant quantities. Plant
 transfer split totals use the same high-precision check before one-step or
-two-step movement creation. Row-wise independent-commit bulk goods-movement
-results expose top-level `is_committed`: it is true when at least one non-test
+two-step movement creation. Cost-center goods-issue adapters revalidate each
+echoed `minimum_coverage_pct` against requested and allocated base quantities
+before posting; a positive allocation below its floor is rejected, while zero
+allocation remains a floor rejection subject to the existing
+`iv_require_full_allocation` behavior. Sales-order aggregate and FEFO issue
+adapters and quality FEFO posting adapters also revalidate each echoed floor
+against requested and allocated base-unit quantities before movement creation.
+Project-WBS issue and transfer adapters validate each echoed floor against
+requested and allocated base-unit quantities before movement creation.
+Row-wise independent-commit bulk goods-movement results expose top-level
+`is_committed`: it is true when at least one non-test
 row committed, including partial batches, and false for test runs or when no
 row committed. Per-row statuses retain which movement succeeded.
 `REVERSE_TO_COST_CENTER` posts movement type 202 for caller-selected return
@@ -3016,6 +3392,21 @@ variants use the same scope for both the initial allocation and the fresh
 pre-reservation check, so a changed out-of-scope lot cannot alter the recheck.
 Project-stock FEFO and location previews subtract open Q reservations before
 allocation; their results remain snapshots and do not lock project stock.
+`PREVIEW_FEFO` and `PREVIEW_BY_LOCATION` demand rows may set
+`minimum_coverage_pct` from 0 through 100. The local allocator compares
+eligible base-unit availability with the floor before consuming WBS stock; a
+demand below it receives zero so later rows can use the balance. Their
+priority, date-first, and ATP previews preserve the floor. Allocation
+summaries report F/P/U outcome and two-decimal base-unit coverage, and FEFO
+batch splits echo the floor.
+WBS transfer FEFO and location previews apply the same floor to eligible stock
+on the source WBS. A rejected transfer receives zero allocation and leaves
+source stock available to later demands; priority, date-first, and ATP transfer
+adapters preserve the threshold.
+WBS FEFO and location reservation methods carry the floor through their first
+preview and fresh recheck, including priority and date-first methods.
+Priority and date-first WBS location and FEFO issue wrappers, and WBS transfer
+posting wrappers, carry the floor through their fresh stock rechecks.
 `PREVIEW_FEFO` also accepts caller-resolved `it_projected_batch_receipts` for
 WBS-specific future supply. Each base-unit row names its WBS element, material,
 plant, storage location, batch, receipt date, and expiry date. FEFO and WBS
@@ -3236,6 +3627,17 @@ authority when stock or order state changes before posting.
 recomputes with the same allocation options immediately before issue. It
 compares summaries and all location or batch splits, then posts the fresh
 result as movement 231 only when they match.
+`PREVIEW_ORDER` and `RESERVE_ORDER` accept `minimum_coverage_pct` on each
+`it_allocation_requirements` row, keyed by sales document, item, and optional
+schedule line. A row without a schedule line applies to that item's schedule
+lines unless a line-specific row is supplied. The floor ranges from 0 to 100
+and is checked against eligible base-unit stock before the shared balance is
+consumed; a demand below its floor receives zero allocation and leaves stock
+for later demands. `PREVIEW_ORDERS_BY_DATE`, `RESERVE_ORDERS_BY_DATE`, and the
+bulk dated reservation method preserve the same per-item floor. Allocation
+results echo the floor, F/P/U outcome, and two-decimal base-unit coverage
+percentage. Full-allocation requirements continue to apply alongside the
+floor.
 `ISSUE_UNPLANNED_PROD_ORDER` posts direct movement 261 withdrawals to a
 production order, including materials not listed as order components. Its
 unit-aware variant converts quantities to the material base unit using the
@@ -3437,7 +3839,11 @@ order without delivery, with subsequent 351/101 goods movements
 Schedule dates taken from dated allocations and caller-supplied batch delivery
 dates must be valid Gregorian calendar dates before `BAPI_PO_CREATE1` is called.
 SAP still determines whether a valid date satisfies purchasing and planning
-rules for the target system.
+rules for the target system. Before building any order request, the service
+also validates each carried `minimum_coverage_pct` from 0 through 100 against
+the demand's requested and allocated base quantities. A positive allocation
+below its floor is rejected; a zero allocation remains a valid floor-rejected
+demand and follows the existing partial-allocation rules.
 The adapter maps the request through `BAPI_PO_CREATE1`; live creates require
 the returned purchase-order number before reporting success, while successful
 test runs may omit that simulated number. Its `TESTRUN` flag suppresses
@@ -4837,21 +5243,753 @@ after failures by default. The response preserves each SAP message and commit re
 production orders from `AFRU` and resolves operations and sequences through
 `AFVC`. Each row includes the internal AFVC operation counter, operation and
 suboperation numbers, routing sequence, operation description, control key,
-and order category.
+resource object ID from `AFVC-ARBID`, work-center code and plant from
+`CRHD-ARBPL` and `CRHD-WERKS`, order category, and order type from `AUFK-AUART`.
+Pass `iv_work_center` or `iv_work_center_plant` to select an exact work-center
+code or plant; a nonblank value filters by default. Set
+`iv_filter_work_center` or `iv_filter_work_center_plant` to `abap_true` to
+select a blank code or plant, including confirmations whose AFVC resource has
+no matching CRHD row. Both flags accept only `abap_true` or `abap_false`; a
+nonblank value continues to filter when its flag is false. The repository
+applies these selectors before pagination, and the service checks returned
+work-center scope. Each page includes `work_center_summaries`, grouped by
+plant and code; blank assignments form a group. `confirmation_count` covers
+only returned confirmations, excludes the lookahead row and later pages, and
+the summary counts sum to `returned_count`. Each work-center group also has
+`quantity_summaries`, split by confirmation unit (`AFRU-MEINH`). Per-unit
+`confirmation_count` and gross `yield_quantity_total`, `rework_quantity_total`,
+and `scrap_quantity_total` remain separate so unlike units are not added
+together. `yield_non_reversed_total`, `rework_non_reversed_total`, and
+`scrap_non_reversed_total` omit confirmations flagged as reversed; per-unit
+counts sum to the work-center count. Work-center groups also report
+`first_posting_date` and `last_posting_date` among dated confirmations, final,
+partial, and reversed confirmation counts, and their percentages. Final and
+partial counts partition the confirmation count; reversal count is independent.
+Percentages use the confirmation count as their denominator. Each unit row
+also reports its own dated posting span, final, partial, and reversed counts,
+and percentages using that unit's confirmation count. Work-center rows, unit
+rows, base-unit rows, operation summaries, and order summaries also report
+`execution_start_count` and
+`execution_finish_count` for confirmations with actual execution dates. They
+also report `execution_start_pct` and `execution_finish_pct`, using each
+summary's confirmation count as the denominator and returning zero for an
+empty group. They identify the earliest start and latest finish as date/time
+pairs, comparing date first and time second. A date with time `000000` counts
+as midnight.
+These metrics cover returned page rows; their dates and times stay initial
+when no corresponding execution date is present. `exec_duration_seconds_total`
+sums elapsed whole seconds across complete, valid execution intervals, and
+`exec_duration_count` counts those intervals. `exec_duration_seconds_avg`
+divides the total by that valid-interval count and is zero when the group has
+no valid duration. `valid_exec_duration_pct` reports `exec_duration_count` as a
+percentage of the group's `confirmation_count`, rounded to two decimal places;
+it is zero for an empty group. `exec_duration_seconds_min` and
+`exec_duration_seconds_max` report the shortest and longest valid interval in
+seconds; both are zero when no valid interval exists.
+`exec_duration_seconds_median` reports the middle valid duration after
+sorting the group's intervals. Zero-duration rows participate; with an even
+count it averages the two middle durations and retains half seconds. Reversed
+confirmations remain included, and the value is zero when no valid duration
+exists.
+`exec_duration_seconds_p90` reports the nearest-rank 90th percentile of
+valid durations. It selects the first sorted duration whose rank reaches 90%
+of the valid count; zero-duration and reversed rows participate. It is zero
+when no valid duration exists.
+`exec_duration_p90_median_ratio`, `exec_nonrev_p90_median_ratio`, and
+`exec_reversed_p90_median_ratio` divide each group's p90 duration by its
+median. These ratios are dimensionless and return zero when the median is zero.
+`exec_duration_p90_exceed_count` counts valid durations strictly greater than
+the group's nearest-rank p90 threshold; `exec_duration_p90_exceed_pct` divides
+that count by valid duration rows. Ties at p90 are excluded. The non-reversed
+and reversed groups expose matching count and percentage fields using their own
+p90 thresholds and valid row counts.
+`exec_p90_tail_secs` sums valid durations strictly above p90;
+`exec_p90_tail_pct` reports that sum as a share of all valid elapsed seconds.
+The non-reversed and reversed groups expose matching tail seconds and share
+fields using their own p90 thresholds and duration totals. Empty and zero-total
+groups return zero.
+`exec_duration_seconds_p95` reports the nearest-rank 95th percentile
+of valid durations using the same sorted values. Zero-duration and reversed
+rows participate, and it is zero when no valid duration exists.
+`exec_duration_p95_exceed_count` counts valid durations strictly greater than
+the group's nearest-rank p95 threshold; `exec_duration_p95_exceed_pct` reports
+that count as a percentage of valid duration rows. Rows tied at p95 are not
+counted, and both fields are zero when the group has no valid durations.
+`exec_duration_p95_median_ratio` divides the group's p95 duration by its
+median duration. It has no time unit and is zero when there are no valid
+durations or the median is zero.
+`exec_p95_tail_secs` sums valid durations strictly above
+the p95 threshold; `exec_p95_tail_pct` reports that sum as a
+share of all valid elapsed seconds. Both are zero when the valid-duration total
+is zero.
+`exec_duration_seconds_p99` reports the nearest-rank 99th percentile
+of valid durations. Zero-duration and reversed rows participate, and it is
+zero when no valid duration exists.
+`exec_duration_seconds_p25` and `exec_duration_seconds_p75` report the
+nearest-rank 25th and 75th percentile durations. Zero-duration and reversed
+rows participate, and both are zero when no valid duration exists.
+`exec_duration_seconds_iqr` reports the interquartile range: the nearest-rank
+75th-percentile duration minus the nearest-rank 25th-percentile duration.
+Zero-duration and reversed rows participate; it is zero when no valid duration
+exists.
+`exec_duration_iqr_median_ratio`, `exec_nonrev_iqr_median_ratio`, and
+`exec_reversed_iqr_median_ratio` divide each group's IQR by its median. These
+ratios are dimensionless and return zero when the median is zero.
+`exec_duration_seconds_mad` reports the median absolute deviation of
+valid durations: the median of each duration's absolute distance from the
+group median. Zero-duration and reversed rows participate; it is zero when
+no valid duration exists.
+`exec_duration_mad_median_ratio`, `exec_nonrev_mad_median_ratio`, and
+`exec_reversed_mad_median_ratio` divide each group's median absolute deviation
+by its median. These ratios are dimensionless and return zero when the median
+is zero.
+`exec_pos_duration_count`, `exec_pos_median_secs`, and
+`exec_pos_p90_secs` report the count, median, and nearest-rank 90th percentile
+of valid durations strictly greater than zero. The non-reversed and reversed
+groups expose matching `exec_nonrev_pos_count`, `exec_nonrev_pos_median_secs`,
+`exec_nonrev_pos_p90_secs`, `exec_reversed_pos_count`,
+`exec_reversed_pos_median_secs`, and `exec_reversed_pos_p90_secs` fields using
+their own positive-duration rows. Zero-duration rows are excluded; an empty
+positive-duration group returns zero for all three fields.
+`exec_pos_duration_pct` divides `exec_pos_duration_count` by the summary's
+`confirmation_count`. `exec_nonrev_pos_duration_pct` and
+`exec_reversed_pos_duration_pct` use each reversal cohort's positive count and
+confirmation count. Zero-duration, invalid, and missing-duration confirmations
+remain in their cohort denominators; empty groups return zero.
+`exec_pos_valid_pct` divides the positive-duration count by valid duration
+count. `exec_nonrev_pos_valid_pct` and `exec_rev_pos_valid_pct` apply the same
+measure within non-reversed and reversed valid intervals. These percentages
+show the positive-versus-zero mix among valid durations; invalid and missing
+rows are excluded, and a cohort without valid durations returns zero.
+`exec_zero_valid_pct`, `exec_nonrev_zero_valid_pct`, and
+`exec_rev_zero_valid_pct` report the zero-duration share among valid intervals
+for the same cohorts. Each positive-valid and zero-valid pair partitions its
+valid intervals; independent two-decimal rounding can differ from 100.00 by
+0.01. Cohorts without valid intervals return zero.
+`exec_zero_valid_count`, `exec_nonrev_zero_valid_count`, and
+`exec_rev_zero_valid_count` expose the matching integer counts. Each is
+the valid count minus the positive count for that cohort; empty cohorts
+return zero.
+`exec_nonrev_invalid_count` and `exec_rev_invalid_count` count invalid
+duration statuses in their respective reversal cohorts.
+`exec_nonrev_missing_count` and `exec_rev_missing_count` count missing
+duration statuses. Together with the valid duration counts, the invalid
+and missing counts partition each cohort’s confirmations; valid zero
+durations remain in the valid count. Empty cohorts return zero.
+`exec_nonrev_valid_pct`, `exec_nonrev_invalid_pct`, and
+`exec_nonrev_missing_pct` divide each non-reversed status count by the
+non-reversed confirmation count. The matching `exec_rev_valid_pct`,
+`exec_rev_invalid_pct`, and `exec_rev_missing_pct` use the reversed
+confirmation count. Each three-percentage set partitions its cohort;
+independent rounding may differ from 100.00 by 0.01. Empty cohorts
+return zero.
+`exec_pos_p95_secs` and `exec_pos_p99_secs` report the nearest-rank 95th
+and 99th percentile of valid positive durations. The non-reversed and reversed
+groups expose matching `exec_nonrev_pos_p95_secs`, `exec_nonrev_pos_p99_secs`,
+`exec_rev_pos_p95_secs`, and `exec_rev_pos_p99_secs` fields. Zero-duration rows
+are excluded; an empty positive-duration group returns zero for both values.
+`exec_pos_p25_secs`, `exec_pos_p75_secs`, `exec_pos_iqr_secs`, and
+`exec_pos_mad_secs` report positive-only quartiles and robust spread. The
+non-reversed and reversed groups expose matching `exec_nonrev_pos_*` and
+`exec_rev_pos_*` fields. Their `*_iqr_med_ratio` and `*_mad_med_ratio` values
+divide the spread by the same group's positive-only median; a zero median
+returns zero. Zero-duration rows are excluded, and empty groups return zero.
+`exec_pos_avg_secs`, `exec_nonrev_pos_avg_secs`, and
+`exec_rev_pos_avg_secs` report arithmetic mean duration over each group's
+strictly positive rows. The matching `exec_pos_avg_med_ratio`,
+`exec_nonrev_pos_avg_med_ratio`, and `exec_rev_pos_avg_med_ratio` fields divide
+each mean by that group's positive-only median; empty groups return zero.
+`exec_pos_min_secs`, `exec_pos_max_secs`, and `exec_pos_range_secs` report the
+minimum, maximum, and maximum-minus-minimum among positive valid durations.
+The non-reversed and reversed groups expose matching `exec_nonrev_pos_*` and
+`exec_rev_pos_*` fields. Zero-duration rows are excluded; empty groups return
+zero for all three values.
+`exec_pos_p95_gt_count` and `exec_pos_p99_gt_count` count positive durations
+strictly above their own nearest-rank thresholds; matching `*_gt_pct` fields
+divide by the positive-duration count. Matching `*_tail_secs` fields sum those
+values, and `*_tail_pct` reports the sum as a share of positive elapsed seconds.
+Non-reversed and reversed groups expose matching `exec_nonrev_pos_*` and
+`exec_rev_pos_*` fields. Ties at the threshold are excluded; empty groups
+return zero.
+`exec_pos_p95_med_ratio`, `exec_nonrev_pos_p95_med_ratio`, and
+`exec_rev_pos_p95_med_ratio` divide each positive-only p95 by the median from
+the same cohort. The matching `*_p99_med_ratio` fields compare p99 to the same
+median. These ratios are dimensionless and return zero when the positive median
+is zero.
+`exec_pos_p90_gt_count` counts positive durations strictly greater than
+the nearest-rank positive-only p90; `exec_pos_p90_gt_pct` divides by the
+positive-duration count. Ties at p90 are excluded. `exec_pos_p90_tail_secs`
+sums those durations, and `exec_pos_p90_tail_pct` reports their share of total
+valid elapsed seconds. The non-reversed group exposes matching
+`exec_nonrev_pos_p90_gt_count`, `exec_nonrev_pos_p90_gt_pct`,
+`exec_nonrev_pos_p90_tail_secs`, and `exec_nonrev_pos_p90_tail_pct` fields;
+the reversed group exposes `exec_rev_pos_p90_gt_count`,
+`exec_rev_pos_p90_gt_pct`, `exec_rev_pos_p90_tail_secs`, and
+`exec_rev_pos_p90_tail_pct`. Each group uses its own positive-only p90 and
+count. Empty groups return zero for all four fields.
+`exec_pos_p90_med_ratio`, `exec_nonrev_pos_p90_med_ratio`, and
+`exec_rev_pos_p90_med_ratio` divide each positive-only p90 by the median
+from the same group. The ratios are dimensionless and return zero when the
+group has no positive median.
+`exec_duration_avg_median_ratio`, `exec_nonrev_avg_median_ratio`, and
+`exec_reversed_avg_median_ratio` divide each group's average duration by its
+median. These dimensionless ratios compare the arithmetic mean with the median;
+a value above one means longer durations have raised the mean above the median.
+They return zero when the median is zero.
+`exec_nonrev_min_secs`, `exec_nonrev_max_secs`, `exec_reversed_min_secs`,
+and `exec_reversed_max_secs` report the minimum and maximum valid elapsed
+duration in each reversal group. Valid zero-duration rows participate, and
+an empty subgroup returns zero.
+`exec_nonrev_median_secs` and
+`exec_reversed_median_secs` report the median valid duration for
+each reversal group. They include valid zero-duration rows and return zero
+for a group with no valid durations.
+`zero_exec_duration_count` also counts complete valid intervals whose start
+and finish match; `zero_exec_duration_pct` reports that count as a share of
+the summary's `confirmation_count`, rounded to two decimals. These intervals
+remain valid and contribute to all duration totals and extrema. Both fields
+are zero when the group has no zero-duration interval.
+`invalid_exec_duration_count` counts complete pairs with invalid dates/times or
+a finish before its start;
+`invalid_exec_duration_pct` reports that count as a share of
+`confirmation_count`, rounded to two decimals. Rows missing either execution
+date are omitted. `missing_exec_duration_count` and
+`missing_exec_duration_pct` report their count and share of
+`confirmation_count`; both percentages are zero for an empty group. Valid,
+invalid, and missing counts partition the summary's confirmations. Totals include reversed
+confirmations and may double-count overlapping intervals. Work-center
+summaries also report `exec_covered_seconds`, the union of valid execution
+intervals with overlaps merged and idle gaps excluded. The center-level value
+combines confirmation units; each unit row computes its own union, and
+base-work-center rows report the union within their base unit. Unit unions can
+overlap across units and should not be summed to derive the center union.
+Operation summaries also report the union within each operation and
+confirmation-unit group; order summaries report it within each production-order
+and confirmation-unit group. Base operation and order summaries report the
+union within each base-unit group, merging source-unit intervals converted to
+that unit. Each group computes its own union, so unions from different
+operation, order, work-center, or unit groups should not be summed as though
+they shared a scope. Reversed confirmations remain included in `exec_covered_seconds`.
+`exec_nonrev_covered_secs` reports the same valid-interval union after
+excluding confirmations marked reversed. Both values merge overlaps and
+exclude idle gaps; invalid and missing intervals contribute nothing, and
+zero-duration rows add no covered seconds. `exec_nonrev_duration_count`
+counts valid non-reversed intervals, including zero-duration rows, and
+`exec_nonrev_total_secs` sums their elapsed seconds, counting
+overlaps per confirmation. `exec_nonrev_duration_avg_secs` divides that
+total by the count, retains fractional seconds, and is zero when the
+count is zero. `exec_nonrev_excess_secs` is `exec_nonrev_total_secs` minus
+`exec_nonrev_covered_secs`, so it reports duration beyond the non-reversed
+union. Invalid and missing rows contribute nothing.
+`exec_reversed_duration_count` counts valid reversed intervals, including
+zero-duration rows, and `exec_reversed_total_secs` sums their elapsed
+seconds. `exec_rev_duration_avg_secs` divides that total by the count, retains
+fractional seconds, and is zero when the count is zero.
+`exec_reversed_covered_secs` reports the union
+of positive-duration reversed intervals; `exec_reversed_excess_secs` is the
+total minus that union. Invalid and missing rows do not contribute.
+`exec_nonrev_duration_pct` and `exec_reversed_duration_pct` divide each
+side's valid duration total by the group's total valid duration and round to
+two decimal places. Overlapping intervals count once per confirmation in
+both sums, so these shares describe summed duration rather than covered wall
+time. Both percentages are zero when the group total is zero; otherwise they
+partition 100 percent, with at most 0.01 percentage point difference from
+independent rounding. These
+`exec_overlap_excess_seconds` reports the difference between a group's summed
+valid duration and its `exec_covered_seconds`. It represents duration counted
+beyond the covered-time union, so a 30-second triple overlap contributes 60
+excess seconds; touching or disjoint intervals contribute none. These
+summaries also report `exec_peak_concurrency`, the maximum number of
+simultaneously active valid, positive-duration intervals in each group. The
+intervals use half-open boundaries, so a finish coinciding with another start
+does not increase concurrency. Missing, invalid, and zero-duration intervals
+do not count, and the value is zero when the group has no positive interval.
+`exec_peak_concurrency_secs` reports elapsed time when active interval count
+equaled the group's peak concurrency. It sums separate segments at the maximum
+and is zero when the group has no positive interval.
+`exec_peak_concurrency_pct` reports that time as a percentage of the same
+positive-interval span, rounded to two decimal places. It is zero when the group
+has no positive span.
+`exec_peak_episode_count` counts continuous stretches at the final peak
+concurrency. A higher peak discovered later replaces the earlier peak's
+episodes; touching intervals that preserve the peak do not split one.
+`exec_longest_peak_secs` reports the longest such stretch, and
+`exec_peak_episode_avg_secs` divides `exec_peak_concurrency_secs` by the episode
+count while retaining fractional seconds. All three are zero when there is no
+positive interval.
+`exec_avg_concurrency` divides summed valid interval duration by that span. It
+includes uncovered time within the first-to-last interval envelope, can exceed
+one when intervals overlap, and is zero when no positive span exists.
+`exec_nonrev_p90_secs` and `exec_reversed_p90_secs` report nearest-rank
+90th-percentile durations within their respective reversal groups. Valid
+zero-duration rows participate, and an empty subgroup returns zero.
+`exec_nonrev_p95_secs` and `exec_reversed_p95_secs` report nearest-rank
+95th-percentile durations within their respective reversal groups. Valid
+zero-duration rows participate, and an empty subgroup returns zero.
+`exec_nonrev_p95_exceed_count` and `exec_reversed_p95_exceed_count` count
+valid rows strictly above each group's p95 threshold; the matching
+`exec_nonrev_p95_exceed_pct` and `exec_reversed_p95_exceed_pct` divide those
+counts by each group's valid duration count. Ties at p95 are excluded, and
+empty subgroups return zero for all four fields.
+`exec_nonrev_p95_median_ratio` and `exec_reversed_p95_median_ratio` divide
+each reversal group's p95 duration by its median duration. They have no time
+unit and are zero for empty groups or groups with a zero median.
+`exec_nonrev_p95_tail_secs` and
+`exec_reversed_p95_tail_secs` sum valid durations above each group's
+p95; `exec_nonrev_p95_tail_pct` and
+`exec_reversed_p95_tail_pct` report those sums as shares of each group's
+valid elapsed seconds. Empty or zero-total groups return zero.
+`exec_duration_p99_exceed_count` counts valid durations strictly greater than
+the group's nearest-rank p99 threshold; `exec_duration_p99_exceed_pct` divides
+that count by valid duration rows. Ties at p99 are excluded, and both fields
+are zero when the group has no valid durations. The non-reversed and reversed
+groups expose matching `exec_nonrev_p99_exceed_count`,
+`exec_nonrev_p99_exceed_pct`, `exec_reversed_p99_exceed_count`, and
+`exec_reversed_p99_exceed_pct` fields using each subgroup's own p99 and valid
+row count.
+`exec_p99_tail_secs` sums valid durations strictly above the p99 threshold;
+`exec_p99_tail_pct` reports that sum as a share of all valid elapsed seconds.
+The non-reversed and reversed groups expose `exec_nonrev_p99_tail_secs`,
+`exec_nonrev_p99_tail_pct`, `exec_reversed_p99_tail_secs`, and
+`exec_reversed_p99_tail_pct` using each subgroup's own threshold and duration
+total. All tail fields are zero when their group has no valid elapsed seconds.
+`exec_duration_p99_median_ratio`, `exec_nonrev_p99_median_ratio`, and
+`exec_reversed_p99_median_ratio` divide each group's p99 duration by its
+median. The ratios have no time unit and return zero when the group's median is
+zero.
+`exec_nonrev_p99_secs` and `exec_reversed_p99_secs` report nearest-rank
+99th-percentile durations within their respective reversal groups. Valid
+zero-duration rows participate, and an empty subgroup returns zero.
+`exec_nonrev_p25_secs`, `exec_nonrev_p75_secs`,
+`exec_reversed_p25_secs`, and `exec_reversed_p75_secs` report the nearest-rank
+25th and 75th percentile durations within each reversal group. Valid
+zero-duration rows participate, and an empty subgroup returns zero.
+`exec_nonrev_iqr_secs` and `exec_reversed_iqr_secs` report the nearest-rank
+75th-percentile duration minus the nearest-rank 25th-percentile duration in
+each reversal group. Valid zero-duration rows participate, and an empty
+subgroup returns zero.
+`exec_nonrev_mad_secs` and `exec_reversed_mad_secs` report median
+absolute deviation within each reversal group. Valid zero-duration rows
+participate, and an empty subgroup returns zero.
+`exec_idle_gap_seconds` reports uncovered elapsed time inside the envelope
+from the earliest start to latest finish of those intervals. It is that
+envelope's elapsed seconds minus `exec_covered_seconds`; time before the first
+or after the last positive interval is not counted, and zero-duration rows do
+not set the envelope. A continuous chain of touching or overlapping intervals
+has zero idle gap. No work calendar or shift availability is applied.
+`exec_longest_idle_gap_secs` reports the longest continuous uncovered segment
+between merged positive-duration intervals. It stays inside the same envelope,
+so time before the first or after the last interval does not count. Touching or
+overlapping intervals add no gap, and the value is zero when no internal gap
+exists.
+`exec_idle_gap_episode_count` reports the number of positive-duration internal
+gaps between merged positive-duration intervals. Leading and trailing time,
+touching intervals, zero-duration rows, and nonpositive intervals do not add
+gaps; the value is zero when the group has no internal gap.
+`exec_idle_gap_avg_secs` reports the arithmetic mean duration of those internal
+gaps, computed from `exec_idle_gap_seconds` divided by
+`exec_idle_gap_episode_count`. It is zero when no internal gap exists and keeps
+fractional seconds when the mean is not a whole second.
+`exec_interval_coverage_pct` reports the covered union as a percentage of the
+elapsed span from the first to last positive-duration interval, rounded to two
+decimal places. Overlapping time counts once; it is zero when no positive
+interval sets a span. This ratio does not apply a work calendar or shift.
+`exec_overlap_wall_pct` reports overlap wall time as a percentage of that same
+positive-interval span, rounded to two decimal places. Instants with two or more
+active intervals count once; the value is zero when no positive interval sets
+a span.
+`exec_single_active_seconds` reports time inside the covered union when exactly
+one valid positive-duration interval is active. It partitions covered time with
+`exec_overlap_wall_seconds`: their sum equals `exec_covered_seconds`. Missing,
+invalid, and zero-duration intervals do not contribute.
+`exec_single_active_pct` reports that single-active time as a percentage of the
+positive-interval span, rounded to two decimal places. Together with
+`exec_overlap_wall_pct`, it partitions `exec_interval_coverage_pct`; independent
+rounding can leave a difference of at most 0.01 percentage point.
+`exec_single_episode_count` reports distinct continuous stretches with
+exactly one valid positive-duration interval active. Positive-duration overlaps
+and uncovered gaps split episodes; touching intervals that preserve one active
+interval do not. Missing, invalid, and zero-duration intervals do not count.
+`exec_longest_single_secs` reports the duration of the longest such stretch in
+seconds. Overlaps and uncovered gaps end a stretch; touching intervals that
+preserve one active interval keep it continuous. It is zero when no such stretch
+exists.
+`exec_single_active_avg_secs` reports the arithmetic mean duration of those
+stretches, calculated from `exec_single_active_seconds` divided by
+`exec_single_episode_count`. It is zero when no single-active episode exists
+and retains fractional seconds when episode lengths do not divide evenly.
+`exec_high_concurrency_secs` reports wall-clock time with at least three valid
+positive-duration intervals active. Each instant counts once regardless of
+whether three or more intervals overlap; time below three-way concurrency and
+missing, invalid, or zero-duration intervals do not contribute.
+`exec_exactly_two_secs` reports wall-clock time with exactly two valid
+positive-duration intervals active. Together with `exec_high_concurrency_secs`,
+it partitions `exec_overlap_wall_seconds`; each instant counts once and
+missing, invalid, or zero-duration intervals do not contribute.
+`exec_exactly_two_pct` reports that time as a percentage of the same positive-
+interval span, rounded to two decimal places. With `exec_3plus_pct`, it
+partitions `exec_overlap_wall_pct`; independent rounding can differ by at most
+0.01 percentage point. It is zero when no positive span exists.
+`exec_3plus_episode_count` reports separate continuous stretches
+with at least three valid positive-duration intervals active. Overlaps below
+three-way concurrency and uncovered gaps split episodes; touching intervals
+that preserve three-way concurrency do not. Missing, invalid, and zero-duration
+intervals do not count.
+`exec_longest_3plus_secs` reports the longest continuous stretch with at least
+three valid positive-duration intervals active. `exec_3plus_avg_secs` divides
+`exec_high_concurrency_secs` by `exec_3plus_episode_count` and retains fractional
+seconds. Both values are zero when no three-way episode exists. A touching
+interval that keeps the active count at three continues the episode; a gap or
+drop below three ends it.
+`exec_3plus_pct` reports `exec_high_concurrency_secs` as a percentage of the
+same first-to-last positive-interval span used by `exec_interval_coverage_pct`,
+rounded to two decimal places. It is zero when the group has no positive span
+and cannot exceed `exec_overlap_wall_pct`, except for independent rounding.
+`exec_overlap_wall_seconds` reports elapsed wall-clock time inside the positive
+intervals' envelope when at least two valid positive-duration intervals were
+active. Each instant counts once: a 30-second triple overlap contributes 30
+seconds here and 60 excess seconds to `exec_overlap_excess_seconds`. Touching
+and zero-duration intervals add no overlap wall time.
+`exec_pairwise_overlap_secs` sums overlap duration for every unordered pair of
+valid positive-duration intervals. A segment with `n` active intervals adds
+`n * (n - 1) / 2` times its duration; a 30-second triple overlap therefore
+contributes 90 pairwise seconds. Missing, invalid, and zero-duration intervals
+do not contribute.
+`exec_overlap_pair_count` counts each distinct pair of valid positive-duration
+intervals that overlap for a positive duration once. Endpoint-only contact does
+not count, and one shared three-way interval contributes three pairs. The count
+is independent of how long each pair overlaps.
+`exec_overlap_pair_avg_secs` divides `exec_pairwise_overlap_secs` by that pair
+count. It reports the mean positive overlap duration per intersecting pair,
+retains fractional seconds, and is zero when no pair overlaps.
+`exec_longest_pair_overlap_secs` reports the longest positive-duration
+intersection between any one pair of valid intervals. It compares individual
+pairs rather than group-wide concurrency episodes and is zero when no pair
+overlaps.
+`exec_longest_overlap_secs` reports the longest continuous stretch with at least
+two valid positive-duration intervals active. Separate episodes are compared
+individually, and touching intervals do not create overlap.
+`exec_overlap_episode_count` reports the number of separate continuous stretches
+with at least two active intervals. A positive-duration gap starts a new episode;
+overlap periods that meet at an endpoint remain one episode. Zero-duration,
+missing, and invalid intervals do not contribute.
+`exec_overlap_avg_secs` reports the arithmetic mean overlap-episode duration,
+calculated from `exec_overlap_wall_seconds` divided by
+`exec_overlap_episode_count`. It is zero when no episode exists and retains
+fractional seconds when episode lengths do not divide evenly.
+These page-level coverage values do not measure utilization because shift
+calendars and availability are not applied. Pairwise overlap, overlap-pair
+summaries, concurrency shares and averages, and peak-concurrency episodes use
+the same returned page rows. Operation summaries group duration metrics by
+operation and confirmation unit; order summaries aggregate them by production
+order and confirmation unit. Each group uses its own confirmation count for
+coverage percentages and selects its earliest start and latest finish.
+Set `iv_order_category` to `10` for production orders or `40` for process
+orders. Other nonblank values fail before the repository read; the repository
+filters AUFK before operation resolution, and the service checks returned
+category scope. Pass `iv_order_type` to restrict confirmations to one exact
+AUFK order type; initial omits the filter. The repository applies the selection
+before resolving operations, and the service checks returned order-type scope.
+Pass `iv_operation_counter` to restrict confirmations to one exact AFVC-APLZL
+counter; an initial value omits that filter. Set `iv_operation_counter_from`
+and/or `iv_operation_counter_to` for inclusive AFVC-APLZL bounds; initial
+values omit their bound, paired active bounds must ascend, and the exact
+counter selector intersects with the range. The repository filters before
+pagination, and the service validates returned counters. Optional
+`iv_posting_date_from` and `iv_posting_date_to` bounds
+select inclusive AFRU-BUDAT dates. Each noninitial bound must be a valid
+Gregorian date; either bound can be omitted, and two active bounds must be
+ascending. The repository applies these bounds before resolving operations,
+and the service checks returned posting dates. Optional `iv_entry_date_from`
+and `iv_entry_date_to` independently filter inclusive AFRU-ERSDA dates; each
+active bound must be a valid Gregorian date, two active bounds must ascend, and
+active entry-date filters omit confirmations without an entry date. The
+repository filters before resolving operations, and the service checks returned
+entry-date scope. Pass `iv_entered_by` or `iv_changed_by` to filter an exact
+AFRU user; a nonblank value filters by default. Set `iv_filter_entered_by` or
+`iv_filter_changed_by` to `abap_true` to select the exact blank user. The flags
+accept only `abap_true` or `abap_false`, and service validation checks returned
+user scope. Optional `iv_last_change_date_from` and
+`iv_last_change_date_to` bounds filter AFRU-LAEDA inclusively. Each active bound
+must be a valid Gregorian date; either may be omitted, and two active bounds
+must ascend. Active bounds omit confirmations without a last-change date. The
+repository filters before operation resolution and the service checks returned
+dates. Each result also exposes AFRU-ISDD/ISDZ and AFRU-IEDD/IEDZ as
+`execution_start_date`, `execution_start_time`, `execution_finish_date`, and
+`execution_finish_time`; the service validates noninitial returned timestamps.
+`exec_duration_status` is `V` for a complete valid interval, including a
+zero-duration interval; `I` for a complete pair with invalid dates/times or a
+finish before its start; and `M` when either execution date is missing. Each
+row also exposes `exec_duration_issue_code` to identify the first applicable
+cause: `MS` for missing start date, `MF` for missing finish date, `MD` when both
+dates are missing, `IS` for an invalid start date, `IF` for an invalid finish
+date, `TS` for an invalid start time, `TF` for an invalid finish time, or `NE`
+when finish precedes start. Both missing dates take precedence, then a missing
+start date, then a missing finish date; invalid date/time checks run in start
+date, finish date, start time, finish time order, and negative duration is
+checked last. The issue code is blank for a valid interval. Time `000000` is a
+valid midnight value. The service calculates status and issue code on each
+returned confirmation, and base-unit detail rows echo both. All seven summary
+scopes also include `exec_duration_issue_counts`, a fixed eight-row table
+sorted by issue code for `IF`, `IS`, `MD`, `MF`, `MS`, `NE`, `TF`, and `TS`.
+Each row reports its `status` and `confirmation_count`; codes with no matching
+confirmation stay present with count zero. Each row also reports
+`confirmation_pct` against the summary's `confirmation_count`, returning zero
+for an empty summary. Rows also split `nonrev_confirmation_count` and
+`reversed_confirmation_count`, with `nonrev_confirmation_pct` and
+`reversed_confirmation_pct` using the matching cohort's confirmation count.
+An empty cohort returns zero percentages. Counts and percentages reconcile to
+the invalid and missing totals for the full summary and each reversal cohort.
+`issue_share_pct` reports each reason's share of all invalid and missing
+confirmations, and is zero when the summary has no such confirmations.
+`nonrev_issue_share_pct` and `reversed_issue_share_pct` report each reason's
+share within the corresponding non-reversed or reversed invalid/missing
+confirmations. They are zero when that cohort has no invalid or missing rows.
+`status_share_pct` reports a reason's share within its own status: invalid
+reasons use the invalid count, and missing reasons use the missing count. It is
+zero when no invalid or missing intervals have that status.
+`nonrev_status_share_pct` and `reversed_status_share_pct` split that
+status-specific reason distribution by reversal cohort, using the cohort's
+invalid or missing count. Empty cohort/status groups return zero.
+Each summary also reports `exec_top_issue_code`, `exec_top_issue_status`,
+`exec_top_issue_count`, and `exec_top_issue_pct` for its most frequent issue.
+The percentage uses the summary's full `confirmation_count`. Ties select the
+lexically first issue code; when the summary has no issues, code and status are
+initial and count and percentage are zero.
+Each summary also reports the most frequent invalid reason with
+`exec_top_invalid_issue_code`, `exec_top_invalid_issue_count`, and
+`exec_top_invalid_share_pct`, plus matching `exec_top_missing_*` fields. The
+shares use all invalid and all missing confirmations respectively. Ties select
+the lexically first code within each status; an empty status returns an initial
+code and zero count and share.
+Each summary also reports the most frequent issue within non-reversed and
+reversed confirmations through `exec_top_nonrev_issue_code`,
+`exec_top_nonrev_issue_status`, `exec_top_nonrev_issue_count`,
+`exec_top_nonrev_issue_pct`, and matching `exec_top_reversed_issue_*` fields.
+These percentages use each cohort's full `confirmation_count`. Ties select the
+lexically first code; empty cohorts or cohorts without issues return initial
+code/status and zero count and percentage.
+Each row also exposes `exec_duration_seconds`, the elapsed whole seconds for a valid
+interval, including zero. It is initial for invalid and missing intervals; use
+the status and issue code to distinguish them from a valid zero-duration
+interval. Base-unit detail rows echo the calculated value.
+Optional `iv_execution_start_date_from` and `iv_execution_start_date_to` bounds
+filter AFRU-ISDD inclusively. Either bound may be omitted; active bounds must be
+valid Gregorian dates, paired bounds must ascend, and active bounds omit rows
+without an actual execution start date. `iv_execution_finish_date_from` and
+`iv_execution_finish_date_to` apply the same rules to AFRU-IEDD. Both date
+ranges are applied before operation resolution and pagination, and the service
+checks returned date scope. Set `iv_filter_execution_start_time` to
+`abap_true` with both valid `iv_execution_start_time_from` and
+`iv_execution_start_time_to` values to filter AFRU-ISDZ inclusively. Use
+`iv_filter_exec_finish_time` with both valid
+`iv_execution_finish_time_from` and `iv_execution_finish_time_to` values for
+AFRU-IEDZ. A time filter requires a nonblank corresponding execution date;
+`000000` is valid midnight, bounds must ascend, and disabled filters require
+initial bounds. Both flags accept only `abap_true` or `abap_false`. The
+repository applies them before pagination, and the service checks returned
+timestamp scope. Set `iv_filter_entry_time` to `abap_true` with both valid
+`iv_entry_time_from` and `iv_entry_time_to` bounds to select AFRU-ERZET
+inclusively. Midnight `000000` is valid; bounds must ascend. Disabled filters
+require initial bounds. The repository filters before operation resolution and
+pagination, and the service checks returned times. Pass `iv_quantity_unit` to
+restrict rows to one AFRU confirmation unit;
+a nonblank value filters by default. Set `iv_filter_quantity_unit` to
+`abap_true` to select only confirmations with a blank unit. The flag accepts
+only `abap_true` or `abap_false`; the repository applies the scope before
+operation resolution and the service validates returned units. Set
+`iv_positive_yield_only`, `iv_positive_rework_only`, or
+`iv_positive_scrap_only` to `abap_true` to require a positive corresponding
+AFRU quantity. Set `iv_filter_yield_quantity_from` and `iv_filter_yield_quantity_to` with
+the corresponding `iv_yield_quantity_from` and `iv_yield_quantity_to` values
+to select inclusive AFRU-LMNGA ranges. The corresponding
+`iv_filter_rework_quantity_from` / `iv_filter_rework_quantity_to` flags and
+`iv_rework_quantity_from` / `iv_rework_quantity_to` values select AFRU-RMNGA;
+the matching scrap flags and values select AFRU-XMNGA. Each bound is enabled
+independently, disabled values must be initial, and paired bounds must ascend. Quantity ranges require one unit scope: provide a nonblank
+`iv_quantity_unit`, or set `iv_filter_quantity_unit` to `abap_true` to select
+one exact unit, including blank. Positive-only flags do not require a unit.
+Repository filters run before operation resolution and pagination, and the
+service validates returned quantities against every active selector. Repeat
+the same order list and filters on cursor continuation requests.
+Pass `iv_operation_number` to restrict confirmations to one exact AFVC-VORNR
+value. It can be combined with the counter selector; initial omits the filter.
+Set `iv_operation_number_from` and/or `iv_operation_number_to` for inclusive
+AFVC-VORNR bounds; initial values omit their bound, paired active bounds must
+ascend, and the exact `iv_operation_number` selector intersects with the range.
+The repository filters before pagination, and the service validates returned
+operation numbers. `iv_control_key`, `iv_operation_description`, and
+`iv_resource_object_id` add
+exact AFVC filters, with nonblank values filtering by default. Set the matching
+`iv_filter_control_key`, `iv_filter_op_description`, or
+`iv_filter_resource_object_id` flag to `abap_true` to match a blank value
+exactly; each flag accepts only `abap_true` or `abap_false`. Resource IDs are
+internal AFVC-ARBID object IDs. The repository filters these fields before
+paging, and the service checks returned metadata scope.
+Pass `iv_operation_sequence` to select one routing sequence; a nonblank value
+filters by default. Set `iv_filter_operation_sequence` to `abap_true` to match
+the exact initial sequence. Set `iv_operation_sequence_from` and/or
+`iv_operation_sequence_to` for inclusive AFVC-PLNFL bounds; initial values omit
+their bound, paired active bounds must ascend, and the exact sequence selector
+intersects with the range. The repository applies the range before pagination,
+and the service validates returned sequence scope. Pass `iv_suboperation_number` to select one suboperation; set `iv_filter_suboperation_number` to `abap_true` to select only
+base operations. Set `iv_suboperation_number_from` and/or
+`iv_suboperation_number_to` for inclusive AFVC-UVORN bounds; initial values omit
+their bound, and paired active bounds must ascend. An active range requires an
+exact noninitial `iv_operation_number`; the exact suboperation selector
+intersects with the range. Both flags accept only `abap_true` or `abap_false`,
+and the service checks returned routing scope. The repository applies these
+selectors before mapping and pagination.
+Pass `iv_confirmation_number` to select one AFRU confirmation; optionally pass
+`iv_confirmation_counter` to select one counter, which requires a confirmation
+number. The repository applies this pair before resolving operations, and the
+service validates both returned fields.
+Reversed rows are included by default. Set `iv_exclude_reversed` to
+`abap_true` to omit them, or set `iv_reversed_only` to `abap_true` to return
+only reversed rows. Both flags accept only `abap_true` or `abap_false`, cannot
+both be true, and the service validates returned reversal scope.
+`iv_final_only` keeps final confirmations; `iv_partial_only` keeps rows not
+marked final. Both flags default to false, accept only `abap_true` or
+`abap_false`, and cannot both be true. The repository applies these filters
+before resolving operations, and the service validates returned status scope.
+Set `iv_maximum_results` to limit each page to 1 through 500 rows; it defaults
+to 500. Results sort by production order ascending, posting date descending,
+confirmation number descending, and confirmation counter descending. A
+truncated result returns `next_production_order`, `next_posting_date`,
+`next_confirmation`, and `next_confirmation_counter`; pass all four back as
+the matching `iv_after_*` parameters to continue. Partial cursors, invalid
+posting dates, and cursor orders outside the request are rejected before the
+repository read. Each order's `confirmation_count` and the result's
+`returned_count` describe only rows returned on the current page.
 The result includes confirmation number/counter, posting date, actual
 yield/rework/scrap quantities and their entry unit, final status, and reversal
 status. Quantity values remain in SAP's confirmation unit and are not converted
 or netted; reversed rows remain visible so callers can distinguish them before
-cancellation. Empty confirmation lists are reported per order. Nonempty bulk
-results include a UTC `snapshot_timestamp` captured after the repository read;
+cancellation. Empty confirmation lists are reported per order. Each requested
+order reports `confirmation_count`; the result's `returned_count` is the sum of
+those per-order counts. Nonempty bulk results include a UTC `snapshot_timestamp`
+captured after the repository read;
 empty input leaves it initial. SAP documents
 the AFRU yield, rework, scrap, and quantity-unit fields
 ([SAP confirmation API guide](https://help.sap.com/doc/9840fb99f9a74026ab7f1929fde9c454/3.0.3/en-US/SAPEdgeServicesOnPremEssentialBusinessFunctionsAPIGuide30FP03.pdf),
 [confirmation fields](https://help.sap.com/docs/SAP_ERP/bfece09273bd474d82fdd97bae070c25/327cb6535fe6b74ce10000000a174cb4.html)).
 `READ_OPERATIONS_BULK` returns routing operations for requested production and
-process orders, including internal operation counter, sequence, operation and
-suboperation numbers, description, and control key. Results are grouped per
+process orders, including `order_category` from `AUFK-AUTYP`, `order_type` from
+`AUFK-AUART`, internal operation counter, sequence, operation and suboperation
+numbers, description, control key, and `resource_object_id` from `AFVC-ARBID`.
+Each operation also returns work-center code and plant from CRHD. Pass
+`iv_work_center` or `iv_work_center_plant` for an exact nonblank value; set
+`iv_filter_work_center` or `iv_filter_work_center_plant` to `abap_true` with
+an initial value to select blank assignments, including missing CRHD rows.
+Both flags accept only `abap_true` or `abap_false`. The repository applies
+these selectors before pagination, and the service checks returned code and
+plant scope before grouping. Each page includes `work_center_summaries`,
+grouped by work-center plant and code. Blank assignments form their own group;
+summary counts include only returned operations, exclude the lookahead row and
+later pages, and sum to `total_operation_count`. Each group reports
+`order_count`, the distinct requested orders with returned operations in the
+group. An order counts once per work-center group, even if it has multiple
+operations there, and may count in more than one group. Each group also reports
+`order_pct`, its distinct order count as a share of `found_count`, rounded to
+two decimals. `found_count` is the number of requested orders with operations
+on the returned page; order percentages are initial when it is zero.
+Work-center groups can overlap, so their order percentages may
+sum above 100. Each group also reports `operation_pct`, its share of page
+operations rounded to two decimals. Its
+denominator is `total_operation_count`; percentages are computed from page
+counts, not averaged across orders. Empty pages leave percentages initial, and
+nonempty page percentages sum to 100 before independent rounding.
+Each page also includes `order_category_summaries`, grouped by AUFK-AUTYP.
+Blank categories remain visible; counts include returned page operations only,
+exclude lookahead and later pages, and sum to `total_operation_count`. Each
+category reports `operation_pct`, its share of page operations rounded to two
+decimals using `total_operation_count` as the denominator. Empty pages leave
+these percentages initial. Each category also reports `order_count`, the
+distinct requested orders with a returned operation in that category. Each
+category also reports `order_pct`, its order count as a share of `found_count`,
+rounded to two decimals. Each page also includes `order_type_summaries`,
+grouped by AUFK-AUART. Blank order types remain visible; counts include
+returned page operations only, exclude lookahead and later pages, and sum to
+`total_operation_count`. Each order type reports `operation_pct`, its share of
+page operations rounded to two decimals using `total_operation_count` as the
+denominator. Empty pages leave these percentages initial. Each order type also
+reports `order_count`, the distinct requested orders with a returned operation
+of that type. Each order type also reports `order_pct`, its order count as a
+share of `found_count`, rounded to two decimals. Each page also includes
+`control_key_summaries`, grouped by
+AFVC-STEU. Blank control keys
+remain visible; counts include returned page operations only, exclude lookahead
+and later pages, and sum to `total_operation_count`. Each control key reports
+`operation_pct`, its share of page operations rounded to two decimals using
+`total_operation_count` as the denominator. Empty pages leave these percentages
+initial. Each control key also reports `order_count`, the distinct requested
+orders with at least one returned operation using that key. Each control key
+also reports `order_pct`, its order count as a share of `found_count`, rounded
+to two decimals. An order may count in more than one control-key group, so
+control-key order percentages may sum above 100.
+Results are grouped per
 order in request order; orders with no operation rows are reported as empty.
+Set `iv_order_category` to `10` for production orders or `40` for process
+orders; when omitted, both categories are included. Other nonblank values are
+rejected before the repository read, and the service validates returned rows
+against the selected category. Pass `iv_order_type` to restrict results to one
+exact AUFK-AUART order type. Rows expose `order_type`, and the service checks
+returned type scope. The repository applies this filter before pagination.
+Pass `iv_resource_object_id` to restrict the rows to one assigned resource; a
+nonblank value filters automatically. Set `iv_filter_resource_object_id` to
+`abap_true` with an initial ID to select unassigned operations exactly. The
+flag must be `abap_true` or `abap_false`; the service validates returned
+resource scope before grouping. Pass `iv_control_key` to select a routing
+control key; a nonblank key filters by default. Set `iv_filter_control_key` to
+`abap_true` with an initial key to select operations whose control key is
+blank. The flag must be `abap_true` or `abap_false`; the service validates
+returned control-key scope before grouping.
+Pass `iv_operation_description` to select an exact AFVC-LTXA1 operation text;
+a nonblank value filters by default. Set `iv_filter_op_description` to
+`abap_true` with an initial text to select operations with a blank description.
+The flag must be `abap_true` or `abap_false`, and the service validates
+returned operation-description scope before grouping.
+Pass `iv_operation_number` to restrict results to one AFVC operation number;
+an initial value leaves operation numbers unfiltered. It can be combined with
+the resource and control-key selectors. Pass `iv_operation_counter` to select
+one exact AFVC-APLZL counter, with or without an operation number. Set
+`iv_operation_counter_from` and/or `iv_operation_counter_to` for inclusive
+APLZL bounds; initial values omit their bound, and noninitial bounds must
+ascend when both are supplied. The exact counter selector intersects with this
+range. These filters apply before pagination, and the service validates
+returned operation-number and counter scope before grouping. Set `iv_operation_number_from` and/or
+`iv_operation_number_to` for inclusive AFVC-VORNR bounds; initial values omit
+their bound, and noninitial bounds must ascend when both are supplied. The exact
+`iv_operation_number` selector intersects with this range. The repository
+applies the range before paging, and the service validates each returned operation number. Pass
+`iv_operation_sequence` to select a routing sequence; set
+`iv_filter_operation_sequence` to `abap_true` with an initial sequence to match
+it exactly. Set `iv_operation_sequence_from` and/or
+`iv_operation_sequence_to` for inclusive AFVC-PLNFL bounds; initial values omit
+their bound, and noninitial bounds must ascend when both are supplied. The
+exact sequence selector intersects with the range. The repository applies the
+range before paging, and the service validates returned sequence scope. Pass
+`iv_suboperation_number` to select
+one suboperation; set `iv_filter_suboperation_number` to `abap_true` with an
+initial value to select base operations only. Set `iv_suboperation_number_from`
+and/or `iv_suboperation_number_to` for inclusive AFVC-UVORN bounds. Initial
+values omit their bound, paired active bounds must ascend, and an active range
+requires an exact noninitial `iv_operation_number`. The exact suboperation
+selector intersects with the range. Both flags must be `abap_true` or
+`abap_false`, and the service validates returned routing-key scope before
+grouping. `iv_maximum_results` limits each page to 1 through 500 operations and
+defaults to 500. Order, category, type, resource, control-key,
+operation-description, operation-number, operation-counter, sequence,
+suboperation, and suboperation-range filters apply before pagination.
+Cursor traversal orders operation rows by production order, routing sequence,
+operation number, suboperation number, and AFVC operation counter.
+When `is_truncated` is true, pass all five `next_*` values back as the
+corresponding `iv_after_*` values; pass the sequence and suboperation values
+even when initial. Partial cursors and cursors for orders outside the request
+are rejected. Keep the order list and filters unchanged across pages. Each order
+reports its page-level `operation_count`; `total_operation_count` sums those
+counts. `found_count` and `empty_count` describe the current page. Each page
+is a separate read; multiple pages do not form one consistent snapshot.
 Nonempty bulk results include a UTC `snapshot_timestamp` captured after the
 repository read; empty input leaves it initial. The repository follows SAP's
 routing linkage and operation identifiers
@@ -4968,9 +6106,57 @@ commits remain committed. Invalid values are rejected before the first BAPI
 call.
 `ZCL_PROD_ORDER_READ_SERVICE->READ_ORDERS_BULK` bulk-reads requested PP
 production orders and process orders. Each order result retains all output
-items rather than choosing a primary item, and reports ordered, received, and
-open quantities in the material base unit. It also returns the order and base
-units; basic and scheduled start/finish dates; raw AUFK phase and deletion
+items rather than choosing a primary item. Each item reports
+`order_quantity_base`, `received_quantity_base`, `open_quantity_base`, and
+`over_receipt_quantity_base` in the material base unit. The over-receipt base
+quantity uses the converted positive excess when receipt progress is valid and
+conversion succeeds; it is zero for valid items without excess and initial
+otherwise. Each item also reports
+`open_quantity_order_unit`, `over_receipt_qty_order_unit`, and received
+and open percentages of the AFPO order quantity in the order unit, plus
+`over_receipt_pct_of_order_qty`, the over-receipt quantity as a percentage of
+the order quantity before two-decimal rounding. It is zero for valid items
+without an over-receipt and can exceed 100.00. Invalid AFPO quantities leave it
+initial. Each item also reports `receipt_progress_status`: `N` (not started),
+`P` (partial), `C` (fully
+received), or `O` (over-received); matching `c_receipt_progress_*` constants
+are exposed by the service. Open quantity is clamped at zero after full
+receipt; received percentages can exceed 100, while open percentage is zero at
+or above full receipt. Over-receipt quantity reports the excess in order units.
+The status and quantities remain available independently of base-unit
+conversion; invalid AFPO quantities leave the status initial. A valid
+not-started item reports its full order quantity as open and an open percentage
+of 100.00.
+Each item also exposes `is_receipt_progress_valid`, true when the order
+quantity is positive and received quantity is nonnegative. It remains false
+for invalid raw quantities, independently of base-unit conversion success.
+`receipt_progress_counts` exposes `not_started_item_count`,
+`partial_item_count`, `complete_item_count`, `over_received_item_count`, and
+`invalid_item_count`, and `total_item_count`. Each returned item contributes to
+one status count, and `total_item_count` is the sum of the five status counts.
+The invalid count covers nonpositive order quantities and negative received
+quantities.
+Each returned order also exposes `receipt_progress_counts` over every item
+returned for that order. Its counts and total reconcile to the order's detail
+rows; an itemless order leaves the summary initial. For finish-window reads the
+all-item summary includes nonmatching detail items retained for scope-drift
+reporting.
+Each finish-window order's `matching_progress_counts` counts only its items
+marked `matches_finish_selection`; direct bulk reads leave this structure
+initial. The page-level `finish_match_progress_counts` aggregates those order
+summaries, and its five counts sum to the `finish_window_match_count` values
+across returned orders. Each finish-window order's matching-summary total
+equals its `finish_window_match_count`, and the page-level matching total is
+the sum of those per-order totals. Direct bulk reads leave matching totals
+initial. A base-unit conversion failure does not erase a valid order-unit
+progress state.
+Each progress-count structure also exposes `not_started_pct`, `partial_pct`,
+`complete_pct`, `over_received_pct`, and `invalid_pct`, using the sum of all
+five state counts, including invalid items, exposed by `total_item_count` as the
+denominator. Percentages are rounded to two decimal places; empty summaries
+leave the total and percentages initial.
+It also returns the order and base units; basic and scheduled start/finish
+dates; raw AUFK phase and deletion
 indicators; AFPO sales-order assignment, item, and schedule line, account-assignment category,
 MRP area, planning and delivery plants, goods recipient, unloading point, special-stock indicator, stock type, production version, planned-order start date, storage location, batch, WBS element, and planned-order reference;
 receipt and delivery-complete indicators;
@@ -4979,9 +6165,71 @@ logon-language names. Blank or duplicate
 order numbers are rejected before repository reads; missing orders and
 unit-conversion failures are reported per result. Categories other than 10 and
 40 are not returned. The service rejects repository item/status rows for
-unrequested orders and duplicate item or status keys before mapping. Status codes
-remain available when the logon-language text
-is missing. Nonempty bulk results include a UTC `snapshot_timestamp` captured
+unrequested orders and duplicate item or status keys before mapping. The
+page-level `conversion_succeeded_count` and `conversion_failed_count`, and the
+same per-order counts, reconcile to all returned detail items, including
+nonmatching items retained by finish-window reads. These counts describe
+base-unit conversion and are independent of receipt-progress validity.
+Finish-window results also report `finish_match_conv_ok_count` and
+`finish_match_conv_fail_count`, with per-order `matching_conv_ok_count` and
+`matching_conv_fail_count`. These matching-only counts reconcile to
+`finish_window_match_count`; direct bulk reads leave them initial.
+Finish-window results also expose `finish_match_base_qty_summary` and per-order
+`matching_base_qty_summary`, each with `item_count`, `excluded_item_count`,
+`contributing_progress_counts`, `contributing_progress_qty`,
+`invalid_progress_count`,
+`valid_progress_conv_fail_count`,
+`order_qty_base_total`, `received_qty_base_total`, `open_qty_base_total`, and
+`over_rcpt_qty_base_total` in the selected material's base unit. `item_count`
+includes matching items with valid receipt progress and successful conversion;
+valid items without excess count and add zero to the over-receipt total.
+`invalid_progress_count` includes invalid-progress rows even when conversion
+also failed. `valid_progress_conv_fail_count` counts only conversion failures
+with valid progress. These disjoint reason counts sum to `excluded_item_count`.
+Per-order contributing and excluded counts sum to `finish_window_match_count`;
+page counts sum across orders. Page values sum the
+per-order summaries. Order plus over-receipt totals reconcile with received plus open
+totals, subject to decfloat34 rounding. Direct bulk reads leave these
+finish-window-only summaries initial. `contributing_item_pct` and
+`excluded_item_pct` report the two counts as percentages of matched items,
+rounded to two decimals; page values are weighted across matching items, not
+averaged from order percentages. Empty summaries leave these percentages
+initial. `invalid_progress_pct` and `valid_progress_conv_fail_pct` report each
+disjoint exclusion reason as a percentage of all matched items. Their exact
+shares sum to the excluded percentage, though independent two-decimal rounding
+can create a 0.01 point difference. Empty summaries leave these percentages
+initial too. `invalid_excluded_share_pct` and `conv_fail_excluded_share_pct`
+report each disjoint reason's share of the
+excluded items; their exact shares sum to 100%, subject to independent rounding.
+Summaries without excluded items leave these shares initial.
+`contributing_progress_counts` breaks contributing items down by not-started,
+partial, complete, and over-received states. Its `total_item_count` equals
+`item_count`, and percentages use `item_count` as the denominator. Page counts
+sum per-order counts and percentages are weighted across contributing items.
+This distribution can differ from the matching progress counts, which include
+rows that failed conversion. Empty summaries leave its counts and percentages
+initial. `contributing_progress_qty` reports order, received, open, and
+over-receipt base-unit totals for the not-started, partial, complete,
+over-received, and invalid groups. Sums across these groups reconcile with the
+overall totals, subject to decfloat34 rounding; page groups sum per-order
+groups. The invalid group is normally empty because invalid raw-progress items
+do not contribute; it captures an unexpected status on a contributing row.
+Empty summaries leave these groups initial. Each group also reports
+`order_qty_total_share_pct`, `received_qty_total_share_pct`,
+`open_qty_total_share_pct`, and `over_rcpt_qty_total_share_pct` as shares of the
+corresponding overall totals. Page shares use aggregated page totals. A share
+uses only a positive denominator and remains initial when that total is zero;
+shares sum to 100 before independent two-decimal rounding. Each summary also includes
+`received_pct_of_order_qty`, `open_pct_of_order_qty`, and
+`over_rcpt_pct_of_order_qty`, calculated from the aggregate totals and rounded
+to two decimals. These are weighted ratios, not averages of item percentages;
+empty summaries leave the percentages initial, and over-receipt-to-order
+percentages may exceed 100. `over_rcpt_pct_of_received_qty` divides the
+aggregate over-receipt total by aggregate received quantity; it is at most
+100% for valid contributing quantities and remains initial when received
+quantity is zero.
+Status codes remain available when the logon-language text is missing.
+Nonempty bulk results include a UTC `snapshot_timestamp` captured
 after the item and status reads; empty input leaves it initial. The
 finish-window-only `key_selection_timestamp` remains initial for this method. It
 marks read completion and does not make the separate reads transactionally
@@ -4994,8 +6242,69 @@ dates in its manufacturing references
 ([production-order header and item](https://help.sap.com/saphelp_autoid2007/helpdata/en/89/6166370f5a2a68e10000009b38f8cf/content.htm?no_cache=true),
 [AFPO quantity fields](https://help.sap.com/doc/419ffea5f9b6488da138a9b8d65d508b/3.15/en-US/Sample%20Content%20Process%20Mining%20on%20SAP%20S4HANA%20Production%20Planning.pdf)).
 `READ_ORDERS_BY_FINISH_WINDOW` finds production or process orders for one
-material and plant with an inclusive basic-finish-date range. Set the optional
-`sales_order` to filter AFPO-KDAUF assignments before pagination. Set
+material and plant with an inclusive basic-finish-date range. Its returned
+items include the same order-unit open and over-receipt quantities,
+over-receipt percentage, receipt-progress percentages, and status as
+`READ_ORDERS_BULK`. Its top-level
+`receipt_progress_counts` summarizes every output item on returned orders.
+Set `filter_receipt_progress_status` to `abap_true` and provide
+`receipt_progress_status` to select orders with a matching material/plant item
+in that receipt state before pagination: `N` for not started, `P` for partial,
+`C` for complete, `O` for over-received, or blank for invalid quantities
+(nonpositive AFPO-PSMNG or negative AFPO-WEMNG). With the flag set to
+`abap_false`, the status field must be blank. The flag accepts only
+`abap_true` or `abap_false`, and invalid selections fail before repository
+reads. The service checks the selected state again against detail rows and
+reports drift through `finish_filter_lost`; all output items on selected orders
+remain in the result and contribute to the progress counts.
+Each item exposes `matches_finish_selection` to identify detail rows
+that still match the selected item scope after the detail read. Other items
+remain in the result with the flag false; direct `READ_ORDERS_BULK` results
+leave it initial. Active status is checked separately through
+`status_filter_lost`.
+Each finish-window order exposes `finish_window_match_count`, the
+number of returned detail rows that still match the selected item scope. Direct
+bulk reads leave this count at zero.
+Set `filter_received_qty_from` and `filter_received_qty_to` to apply inclusive
+lower and upper bounds to AFPO-WEMNG in the order unit before pagination. Either
+bound can be used alone; zero is valid, negative bounds are rejected, and two
+active bounds must be ascending. Inactive flags require initial values, both
+flags accept only `abap_true` or `abap_false`, and detail reads recheck the
+selected bounds against returned receipt quantities.
+Optional inclusive `filter_over_receipt_qty_from` and
+`filter_over_receipt_qty_to` bounds select `over_receipt_qty_order_unit` in the
+AFPO order unit. Either bound can be used alone; active bounds must be
+nonnegative, inactive values must be initial, and two active bounds must be
+ordered. The key query requires valid receipt progress and applies the bounds
+before pagination; valid items without an over-receipt have a zero quantity.
+Detail reads recheck the calculated over-receipt quantity and its validity.
+Set `filter_over_receipt_pct_from` and `filter_over_receipt_pct_to` for inclusive
+bounds on the raw over-receipt-to-order quantity ratio as a percentage before
+two-decimal display rounding. Either bound can be used alone; active values
+must be nonnegative with no upper cap, inactive values must be initial, and two
+active bounds must be ordered. A zero lower bound includes all valid receipt
+progress, and upper bounds include valid items with no over-receipt at zero
+percent. The key query applies the bounds before pagination, and detail reads
+recheck the raw quantity ratio.
+Set `filter_received_pct_from` and `filter_received_pct_to` to apply inclusive
+bounds to the raw received-to-order quantity ratio as a percentage, before the
+two-decimal display rounding. Either bound can be used alone; zero is valid,
+negative bounds are rejected, disabled bounds require initial values, and two
+active bounds must be ordered. An enabled percentage bound excludes items with
+nonpositive order quantities or negative received quantities. The repository
+applies these bounds before pagination, and detail reads check them again for
+scope drift.
+Set `filter_unreceived_pct_from` and `filter_unreceived_pct_to` to apply
+inclusive bounds to the existing `open_pct_of_order_qty`, calculated from
+positive remaining AFPO order quantity before two-decimal display rounding.
+Either bound can be used alone; values must be from 0 through 100, disabled
+values require initial values, and two active bounds must be ordered. Enabled
+bounds exclude nonpositive order quantities and negative received quantities;
+completed and over-received items have zero open percentage. The repository
+applies these bounds before pagination, and detail reads check them again for
+scope drift.
+Set the optional `sales_order` to filter AFPO-KDAUF assignments before
+pagination. Set
 `filter_sales_order` to `abap_true` to match exactly, including blank; the flag
 accepts only `abap_true` or `abap_false`, and a nonblank sales order filters
 when the flag is false. Returned items expose `sales_order`, and detail reads
@@ -5173,6 +6482,39 @@ later detail read has no item matching the remaining-quantity scope,
 order unit. Enabled bounds must be positive; disabled values must be initial;
 when both are enabled, the lower bound cannot exceed the upper bound. These
 filters apply before pagination and participate in `finish_filter_lost` checks.
+Optional inclusive `filter_order_qty_base_from` / `order_qty_base_from` and
+`filter_order_qty_base_to` / `order_qty_base_to` pairs bound
+`order_quantity_base` in the material base unit. Either bound can be used
+alone; active values must be nonnegative, inactive values must be initial, and
+two active bounds must be ordered. The repository applies them before
+pagination using the AFPO order-to-base ratio, and rows without a valid
+conversion cannot match. The detail-read drift check rechecks the converted
+quantity and its conversion status.
+Optional inclusive `filter_received_qty_base_from` /
+`received_qty_base_from` and `filter_received_qty_base_to` /
+`received_qty_base_to` pairs bound `received_quantity_base` in the material
+base unit. Either bound can be used alone; active values must be nonnegative,
+inactive values must be initial, and two active bounds must be ordered. The
+repository applies them before pagination using the AFPO order-to-base ratio
+and requires a successful quantity conversion. The detail-read drift check
+rechecks the converted received quantity and its conversion status.
+Optional inclusive `filter_over_rcpt_qty_base_from` and
+`filter_over_rcpt_qty_base_to` bounds select `over_receipt_quantity_base` in
+the material base unit. Either bound may be used alone; active values must be
+nonnegative, inactive values must be initial, and two active bounds must be
+ordered. Zero includes valid items without receipt excess. The repository
+compares the positive excess and AFPO order-to-base ratio before pagination and
+requires valid receipt progress and successful quantity conversion. Detail
+reads recheck the converted excess and both statuses.
+Optional inclusive `filter_unrecv_qty_base_from` /
+`unrecv_qty_base_from` and `filter_unrecv_qty_base_to` /
+`unrecv_qty_base_to` pairs bound `open_quantity_base` in the material base
+unit. Either bound can be used alone; active values must be positive because
+only positive remaining quantities qualify, inactive values must be initial,
+and two active bounds must be ordered. The repository compares the AFPO
+remaining quantity and order-to-base ratio before pagination and requires a
+successful conversion. The detail-read drift check rechecks the converted open
+quantity and its conversion status.
 Results sort by finish
 date and production-order number, return at most `maximum_results` (1 through
 500), and set `is_truncated` when another matching order exists. Set the
@@ -5181,15 +6523,28 @@ or user status. Results still include all active statuses for each matching
 order. Since detail/status reads happen later, `status_filter_lost` flags
 a returned order when the requested status is no longer active;
 `status_filter_lost_count` summarizes those orders. Changed orders remain
-in the result for reconciliation. After the detail read, `finish_filter_lost`
-marks an order if no returned item still matches its selected material, plant,
-item number, category, order type and description, order quantity, order creator and changer, creation and change-date ranges,
-required phase, deletion, receipt-expected state, delivery-completion state,
-finish/start-date, and remaining-quantity conditions;
-`finish_filter_lost_count` summarizes those rows.
-The drift check also covers sales-order assignment and item, planned-order
-reference and start date, planning plant, production version, storage location,
-batch, account-assignment category, MRP area, and WBS assignment.
+in the result for reconciliation. `active_status_codes` can select several
+currently active SAP system or user statuses; at least one listed code must be
+active. Use either this list or `active_status_code`, not both, and do not
+include blank codes. The detail/status recheck flags `status_filter_lost` when
+none of the selected codes remains active. After the detail read,
+`finish_filter_lost`
+marks an order if no returned item still matches its selected material,
+production plant, planning and delivery plants, item number, category, order
+type and description, order unit, sales-order assignment/item/schedule line,
+planned-order reference and start date, production version, special-stock
+indicator, stock type, goods recipient, unloading point, storage location,
+batch, account-assignment category, MRP area, WBS assignment, order-quantity
+and base-unit quantity bounds, received-quantity and over-receipt quantity
+bounds, received-base-unit and over-receipt-base-unit quantity bounds,
+received-percentage bounds,
+unreceived-quantity and unreceived-base-unit quantity bounds,
+unreceived-percentage bounds, and
+receipt-progress state, order creator and
+changer, creation and change-date ranges, required phase, deletion,
+receipt-expected state, delivery-completion state, basic finish/start dates, and
+scheduled start/finish dates and time ranges. `finish_filter_lost_count`
+summarizes those rows.
 This is separate from status drift. When truncated, the result's `next_finish_date` and
 `next_production_order` form a cursor; pass both back as `after_finish_date`
 and `after_order` to continue through orders that share a finish date. Partial
@@ -5206,29 +6561,104 @@ confirmations for orders containing one material at one plant, over an
 inclusive posting-date range. An optional `production_order` restricts results
 to one production or process order within the material and plant scope. An
 optional `order_category` accepts `10` for production orders or `40` for process
-orders, and each confirmation row reports its category. `operation_counter` can
-filter one AFVC internal operation counter and requires `production_order`.
-Set
-`operation_number` to restrict results to one routing operation;
-noninitial `operation_sequence` can restrict results to one routing sequence
-alone or alongside an operation number. Set `filter_operation_sequence` to
-`abap_true` to match the exact sequence including its initial value; otherwise
+orders, and each confirmation row reports its category. An optional nonblank
+`order_type` filters the AUFK order type exactly. Set
+`filter_order_type` to `abap_true` to match the exact value including blank;
+otherwise it must be `abap_false`, and a nonblank type filters by default.
+Each confirmation row reports `AUFK-AUART`, and the service checks the
+selected type before returning the page. Set `exclude_deleted` to
+`abap_true` to omit confirmations unless both AUFK-LOEKZ and the matching
+AFPO-XLOEK are blank; the flag accepts only `abap_true` or `abap_false`
+and defaults to false. Rows expose `order_deletion_indicator` from
+AUFK-LOEKZ, which the service validates against the selected scope.
+`operation_counter` can filter one AFVC internal operation counter and
+requires `production_order`.
+Optional `operation_counter_from` and `operation_counter_to` bounds filter
+AFVC-APLZL inclusively before pagination; either bound can be omitted, paired
+bounds must ascend, and active bounds require `production_order`. The exact
+counter selector intersects with the range, and the service checks returned
+rows against both bounds. Set `operation_number` to restrict results to one
+routing operation. Optional
+`operation_number_from` and `operation_number_to` bounds filter AFVC-VORNR
+inclusively before pagination; either bound can be omitted, and paired bounds
+must ascend. The exact operation selector intersects with the range, and the
+service checks returned rows against both bounds. Noninitial
+`operation_sequence` can restrict results to one routing sequence alone or
+alongside an operation number. Optional `operation_sequence_from` and
+`operation_sequence_to` bounds filter AFVC-PLNFL inclusively before pagination;
+either bound can be omitted, paired bounds must ascend, and the exact sequence
+selector intersects with the range. The service checks returned rows against
+both bounds. Set `filter_operation_sequence` to `abap_true` to match the exact
+sequence including its initial value; otherwise
 it must be `abap_false`, and a noninitial value still filters. Invalid flag
 values fail before the read, and returned rows are checked against the selected
-sequence. A nonblank `operation_suboperation` filters one suboperation and
-requires `operation_number`. By default, an initial suboperation value includes
-the base step and all suboperations. Set `filter_operation_suboperation` to
+sequence. An optional nonblank `resource_object_id` filters `AFVC-ARBID`, and
+confirmation rows return the same field. An optional nonblank `work_center`
+filters CRHD-ARBPL through the AFVC-ARBID / CRHD-OBJID link. Confirmation
+rows and operation summaries expose the matching work-center code, and the
+service checks the returned scope. Base-unit operation summaries preserve the
+code as well. An optional nonblank `work_center_plant` filters `CRHD-WERKS`,
+and matching confirmations and operation summaries report the assigned plant.
+Set `filter_work_center_plant` to `abap_true` with a blank
+`work_center_plant` to select operations without a resolved work-center plant.
+This selector intersects with `work_center`, applies before pagination, and is
+validated against returned rows. Its flag accepts only `abap_true` or
+`abap_false`; base-unit operation summaries preserve the plant too.
+`work_center_summaries` is also returned on each page, grouped by plant and
+code. Blank assignments form a group; `confirmation_count` covers only
+returned confirmations, sums to `returned_count`, and excludes the lookahead
+row and later pages. Each center's `quantity_summaries` separates totals by
+confirmation unit (`AFRU-MEINH`), with per-unit `confirmation_count` and gross
+`yield_quantity_total`, `rework_quantity_total`, and `scrap_quantity_total`.
+`yield_non_reversed_total`, `rework_non_reversed_total`, and
+`scrap_non_reversed_total` omit rows flagged as reversed, and per-unit counts
+sum to the center count. Work-center groups also expose `first_posting_date`,
+`last_posting_date`, final, partial, and reversed counts and percentages. Final
+and partial counts partition `confirmation_count`; reversed count is
+independent, and percentages use `confirmation_count` as their denominator.
+The base-unit window result also returns
+`base_work_center_summaries`, grouped by plant, code, and base unit. Each row
+includes `confirmation_count`, `yield_quantity_base_total`,
+`rework_quantity_base_total`, `scrap_quantity_base_total`,
+`yield_base_non_reversed_total`, `rework_base_non_reversed_total`, and
+`scrap_base_non_reversed_total`. They also include `first_posting_date`,
+`last_posting_date`, `final_confirmation_count`,
+`partial_confirmation_count`, `reversed_confirmation_count`,
+`final_confirmation_pct`, `partial_confirmation_pct`, and
+`reversed_confirmation_pct`. Set
+`filter_resource_object_id` to
+`abap_true` to match the exact initial ID, including operations without an
+assigned resource. Otherwise the flag must be `abap_false`, and a nonblank ID
+filters by default. The service checks the flag and returned resource scope.
+`AFVC-ARBID` is an SAP-internal object ID. For work-center assignments,
+`CRHD-OBJID` identifies the same object and `CRHD-ARBPL` contains the
+work-center identifier. Set `filter_work_center` to `abap_true` with a blank
+`work_center` to select operations without a resolved work-center code. The
+flag accepts only `abap_true` or `abap_false`; otherwise a nonblank code filters
+by default. The repository applies this selector before pagination, and the
+service checks the returned scope. A nonblank `operation_suboperation` filters
+one suboperation and requires `operation_number`. By default, an initial
+suboperation value includes the base step and all suboperations. Set
+`filter_operation_suboperation` to
 `abap_true` to match the exact initial value, selecting only the base step; this
 flag also requires `operation_number`. Otherwise the flag must be `abap_false`,
-and a nonblank suboperation continues to filter. Invalid flag values fail
-before the read, and returned rows are checked against the selected
-suboperation.
+and a nonblank suboperation continues to filter. Optional `operation_suboperation_from` and
+`operation_suboperation_to` bounds filter AFVC-UVORN inclusively before
+pagination; either bound can be omitted, paired bounds must ascend, and active
+bounds require `operation_number`. The exact suboperation selector intersects
+with the range, and returned rows are checked against both bounds. Invalid
+flags and ranges fail before the read.
 An optional nonblank `control_key` filters by the AFVC routing control key and
 can be combined with or used without the operation filters. Set
 `filter_control_key` to `abap_true` to match the exact key including blank;
 otherwise it must be `abap_false`, and a nonblank key continues to filter.
 Invalid flag values fail before the read and returned rows are checked against
-the selected key. An optional
+the selected key. Pass `operation_description` to match exact AFVC-LTXA1
+operation text. Nonblank text filters by default; set
+`filter_operation_description` to `abap_true` to select the exact blank text.
+Otherwise the flag must be `abap_false`. Invalid flags fail before the read,
+the description filter applies before pagination, and returned rows are checked
+against the selected description. An optional
 nonblank `quantity_unit` restricts rows to one AFRU confirmation unit; when
 initial, it omits the filter by default. Set `filter_quantity_unit` to
 `abap_true` to match the exact unit including blank; otherwise it must be
@@ -5248,7 +6678,28 @@ entered, separately from its posting date. The optional
 `last_change_date_from` and `last_change_date_to` pair filters AFRU-LAEDA
 inclusively before pagination; provide both valid dates in ascending order or
 omit both. Returned rows expose `last_change_date`, checked against that range,
-and `changed_by` from AFRU-AENAM. A nonblank `changed_by` filters by default;
+and `changed_by` from AFRU-AENAM. Optional `execution_start_date_from` and
+`execution_start_date_to` bounds filter AFRU-ISDD inclusively before paging.
+Either bound may be omitted, each active bound must be a valid date, and paired
+bounds must ascend. Active bounds omit confirmations without an actual start
+date, and returned rows are checked against the selected range. Optional
+`filter_execution_start_time` requires both valid `execution_start_time_from`
+and `execution_start_time_to` bounds and filters AFRU-ISDZ inclusively across
+matching dates. A nonblank start date is required; `000000` is a valid
+midnight bound. Bounds must ascend. When disabled, the flag must be
+`abap_false` and both bounds must be initial. Optional
+`execution_finish_date_from` and
+`execution_finish_date_to` bounds filter AFRU-IEDD inclusively before paging.
+Either bound may be omitted, each active bound must be a valid date, and paired
+bounds must ascend. Active bounds omit confirmations without an actual finish
+date. Rows also expose AFRU-ISDD, AFRU-ISDZ, AFRU-IEDD, and AFRU-IEDZ as
+`execution_start_date`, `execution_start_time`, `execution_finish_date`, and
+`execution_finish_time`. `filter_execution_finish_time` requires both valid
+`execution_finish_time_from` and `execution_finish_time_to` bounds and filters
+AFRU-IEDZ inclusively across matching dates. A nonblank finish date is
+required; `000000` is a valid midnight bound. Bounds must ascend. When
+disabled, the flag must be `abap_false` and both bounds must be initial.
+A nonblank `changed_by` filters by default;
 `filter_changed_by` enables exact matching including blank. Otherwise the flag
 must be `abap_false`, and returned rows are checked against the selected user.
 `filter_entry_time` enables an inclusive AFRU-ERZET time-of-day range; both
@@ -5259,9 +6710,24 @@ midnight. Rows expose `entry_time`, checked against the selected range.
 `positive_yield_only`, `positive_rework_only`, and `positive_scrap_only` select
 rows whose corresponding AFRU quantity is greater than zero; when multiple
 flags are true, every selected quantity must be positive. An optional
+`filter_yield_quantity_from` / `filter_yield_quantity_to`,
+`filter_rework_quantity_from` / `filter_rework_quantity_to`, and
+`filter_scrap_quantity_from` / `filter_scrap_quantity_to` select inclusive raw
+ranges over `AFRU-LMNGA`, `AFRU-RMNGA`, and `AFRU-XMNGA` before pagination.
+These raw quantity bounds require a single confirmation unit scope: provide a
+nonblank `quantity_unit` or set `filter_quantity_unit` to `abap_true` to select
+an exact unit, including blank. This keeps raw values from different units out
+of one numeric range. Either bound can be active alone, including a zero
+endpoint;
+inactive values must be initial, and two active bounds must be ascending. The
+service validates the range on returned rows. An optional
 `confirmation_number` restricts results to one AFRU confirmation;
 `confirmation_counter` narrows that selection to one counter and requires a
-confirmation number.
+confirmation number. Optional `confirmation_counter_from` and
+`confirmation_counter_to` bounds filter AFRU-RMZHL inclusively before
+pagination; either bound can be omitted, paired bounds must ascend, and active
+bounds require `confirmation_number`. The exact counter selector intersects
+with the range, and returned rows are checked against both bounds.
 By default, an initial `operation_suboperation` includes the operation's base
 step and all its suboperations. Set `filter_operation_suboperation` to
 `abap_true` to match the exact initial value, selecting only the base step; this
@@ -5296,15 +6762,39 @@ Each page is a separate point-in-time
 read, so concurrent postings can change later pages. Each response also contains
 `operation_summaries`, grouped by AFVC operation counter, operation number,
 sequence, suboperation, and confirmation unit within each production order.
-Summaries echo the order category and include confirmation, final, and reversed
-counts, the operation description and control key,
-`first_posting_date`, `last_posting_date`, plus raw yield, rework, and scrap
-totals and corresponding non-reversed totals in that unit. The latter are
+Summaries echo the order category and AUFK-AUART `order_type`, and include
+`confirmation_count`,
+`final_confirmation_count`, `partial_confirmation_count`, and
+`reversed_confirmation_count`, plus the operation description and control key.
+Each operation summary also reports `resource_object_id`, the assigned AFVC
+resource ID. Base operation summaries retain it when merging source units.
+Partial counts include confirmations whose `is_final` is not `abap_true`; final
+and partial counts partition the returned rows, while reversed counts overlap
+them. Each summary also reports `final_confirmation_pct`,
+`partial_confirmation_pct`, and `reversed_confirmation_pct`, calculated over
+`confirmation_count` and rounded to two decimal places. Final and partial
+percentages may differ from 100.00 by 0.01 due to independent rounding;
+reversed percentage is an overlapping share. Each summary also includes
+`first_posting_date` and
+`last_posting_date`, plus raw yield, rework, and scrap totals and corresponding
+non-reversed totals in that unit. The latter are
 `yield_non_reversed_total`, `rework_non_reversed_total`, and
 `scrap_non_reversed_total`. Raw totals include reversed rows; non-reversed
 totals include only returned rows whose `is_reversed` is not `abap_true`.
-They cover only the returned page; the lookahead row and later pages are
-excluded.
+Each operation summary also reports its execution-start and execution-finish
+counts and percentages, first-start and last-finish date/time pairs, valid and
+invalid duration counts, and total elapsed seconds. Duration totals include
+reversed confirmations. All summary fields cover only the returned page; the
+lookahead row and later pages are excluded.
+The same page also contains `order_summaries`, grouped by production order and
+confirmation unit. Quantities in different units stay separate. Each summary
+reports order category, date span, `confirmation_count`,
+`final_confirmation_count`, `partial_confirmation_count`, and
+`reversed_confirmation_count`, plus yield, rework, and scrap totals with and without
+reversed rows. These summaries derive from the returned operation summaries
+and reconcile within each order/unit. They also report execution coverage and
+span fields, valid and invalid duration counts, and total elapsed seconds for
+all returned rows in the group. They exclude the lookahead row and later pages.
 `SEARCH_CONF_WINDOW_BASE_UNIT` returns the same paged search result plus one
 base-quantity row per returned confirmation. Each row keeps the original
 confirmation and reports yield, rework, and scrap converted from its AFRU
@@ -5314,8 +6804,16 @@ that rounds to zero raises `zcx_invalid_stock_request` without returning a
 partial result. Operation summaries remain in their original confirmation
 units, as in the raw search result. `base_operation_summaries` merges those
 operation/unit groups and totals their converted quantities in base units. It
-retains the operation identity, order category, date span, confirmation
-counts, and separate totals that include or exclude reversed confirmations.
+retains the operation identity, order category, date span, and the four
+confirmation counts used by the raw summaries. It also keeps separate totals
+that include or exclude reversed confirmations and provides the same execution
+coverage, span, and duration metrics.
+`base_order_summaries` also groups converted quantities by production order
+and base unit, merging source confirmation units and operations. They expose
+the same four confirmation counts and execution metrics and keep
+reversed-inclusive and non-reversed totals separate. Operation and order
+summaries in both unit modes also include the same three two-decimal percentages over
+`confirmation_count`.
 `RETURN_COMPONENTS` and `RETURN_COMPONENTS_BULK` post partial returns for
 issued component reservations. They require a non-deleted `RESB` component
 with movement type 261 and positive withdrawn quantity, then cap each request
@@ -5448,7 +6946,7 @@ allocator processes earlier required dates first, then gives batch-and-location
 and batch-only demands priority over location-only and unscoped demands.
 Within each required-date and scope rank, higher integer `priority` values
 allocate first and input order breaks ties. Direct `ALLOCATE_COMPONENT_STOCK`
-callers can set `priority`, `require_full_quantity`,
+callers can set `priority`, `require_full_quantity`, `minimum_coverage_pct`,
 `allow_location_fallback`, `allow_batch_fallback`, `minimum_shelf_life_days`, and
 `require_known_expiry` per demand. Production component previews expose these
 controls through reservation-keyed allocation policies. `ALLOCATE_COMPONENT_STOCK`
@@ -5493,7 +6991,8 @@ reservations use the same ordering when they consume batch stock. The
 `PREVIEW_COMPONENTS_ATP`, `PREVIEW_COMPONENTS_ATP_BULK`,
 `PREVIEW_SCOPED_COMPONENTS`, and `PREVIEW_SCOPED_COMPONENTS_BULK` accept
 `it_allocation_policies`, keyed by reservation number and item, to set per-demand
-`priority`, `require_full_quantity`, `allow_location_fallback`,
+`priority`, `require_full_quantity`, `minimum_coverage_pct`,
+`allow_location_fallback`,
 `allow_batch_fallback`,
 `minimum_shelf_life_days`, and
 `require_known_expiry` for individual open components. Set
@@ -5537,6 +7036,17 @@ remain at their defaults. A supplied policy routes its material/plant group
 through the scoped local ledger; ATP fields remain SAP diagnostics and do not
 use these local allocation rules. Each component result echoes its matching
 input in `allocation_policy`; the field is initial when no row was supplied.
+Each allocation policy may also set `minimum_coverage_pct` from 0 through 100.
+The scoped allocator compares the floor with eligible base-unit stock after
+required-date, location, batch, expiry, fallback, projected-receipt, and
+safety-stock rules. A component below the floor receives zero allocation and
+leaves stock for later components. ATP still checks the requested demand
+separately. The threshold is echoed in both the `allocation_policy` and the
+component's `component_local_estimate`. Per-component local estimates also
+report `allocation_outcome` (`F`, `P`, or `U`) and `allocation_coverage_pct`
+from base-unit quantities, rounded to two decimals and zero for zero demand.
+The grouped `local_estimate` preserves the outcome and coverage from the
+date-based plant summary.
 Each component result also reports `effective_storage_location`,
 `effective_required_date`, `effective_open_quantity`, and `effective_batch`,
 showing the values used after overrides even when allocation is zero and there
@@ -6128,7 +7638,10 @@ including blank for an unassigned location; a location without the flag is
 rejected. Set `filter_procurement_indicator` to `abap_true` to match
 `procurement_indicator` exactly, including blank; supplying a value without the
 flag is rejected. SAP commonly uses this indicator to distinguish procurement
-types. Set `positive_quantity_only` to `abap_true` to omit zero and negative
+types. Set `filter_special_proc_type` to `abap_true` to match
+`special_procurement_type` (`PLAF-SOBES`) exactly, including blank. A value
+without the flag is rejected. The value is returned in each order header and
+the filter runs before pagination. Set `positive_quantity_only` to `abap_true` to omit zero and negative
 planned-order quantities. Set
 `filter_quantity_from` and `filter_quantity_to` independently to `abap_true` to
 select inclusive lower and upper bounds on `PLAF-GSMNG` using `quantity_from`
@@ -6144,6 +7657,14 @@ returned rows outside selected bounds. A nonblank
 flag accepts only `abap_true` or `abap_false`, and a nonblank unit filters even
 when the flag is false. The unit selection runs before pagination, and returned
 rows are checked for unit scope drift. Set
+`filter_base_quantity_from` and `filter_base_quantity_to` to apply inclusive
+bounds to `quantity_in_base_unit` in the material base unit. Either bound can
+be used alone; zero and negative values are allowed, inactive values must be
+initial, and two active bounds must be ordered. Base-unit bounds compose with
+order-unit bounds and `positive_quantity_only`, run before pagination, and
+exclude rows without a valid conversion when the order unit differs from the
+material base unit. The service checks returned quantities against the bounds.
+Set
 `filter_mrp_controller` to `abap_true` to match `mrp_controller` exactly,
 including blank; a controller value without the flag is rejected. Set
 `filter_production_supervisor` to `abap_true` to match
@@ -6182,7 +7703,9 @@ count and unique nonblank order numbers, then checks selected material,
 production plant, planning plant, creation-date range, planned-order user,
 sales order and item,
 planning scenario, order type, storage location,
-procurement, positive quantity, MRP controller, production supervisor,
+procurement and special procurement type, positive quantity, order- and
+base-unit quantity bounds, MRP controller,
+production supervisor,
 production version, MRP area, account-assignment category, sales-order schedule
 line, special-stock and fixed indicators. It also verifies the start-date and finish-date ranges,
 cursor boundary, and sort order before mapping results. Each result includes a UTC `snapshot_timestamp`
@@ -6488,7 +8011,15 @@ Results retain the input quantity and unit and report allocated quantities in
 the base unit, including availability and shortfall. It reserves the full
 available amount by default; set
 `iv_require_full_alloc = abap_true` to reject short allocations. The BAPI runs
-with an ATP check and supports simulation and transaction rollback. SAP defines
+with an ATP check and supports simulation and transaction rollback. The single
+cost-center preview and reservation methods accept a scalar
+`minimum_coverage_pct` from 0 through 100 as `iv_minimum_coverage_pct`; it gates
+eligible base-unit coverage and is echoed in the result. The optional input
+defaults to zero, preserving partial allocation. When the floor leaves no
+allocation, the reservation method creates no document. Results also report
+`allocation_outcome` (`F` fully covered, `P` partially covered, `U` zero
+allocation) and `allocation_coverage_pct`, rounded to two decimals from base
+quantities. SAP defines
 movement type 201 as goods issue to cost center and stores the movement type
 and account assignment on the reservation header ([movement type](https://help.sap.com/docs/SAP_ERP/a70c5fce76eb44adb0c86a9d3059e4dd/1663bd534f22b44ce10000000a174cb4.html?locale=en-US&state=PRODUCTION&version=6.17.latest), [reservation structure](https://help.sap.com/docs/SAP_ERP/c8f06b9bc95747ca832ad21e94f577fb/ade0ba538c95b54ce10000000a174cb4.html)).
 
@@ -6610,8 +8141,13 @@ higher values first; result rows keep caller order and echo each priority.
 Each row may set `require_full_quantity = abap_true` to leave stock available
 when that request cannot be fully covered; the global
 `iv_require_full_quantity` applies the rule to every row. Results echo the
-effective setting. It returns per-request base and input-unit quantities, allocations, and shortfalls without
-calling the reservation API. This bulk preview is plant-level and does not
+effective setting. Each row may also set `minimum_coverage_pct` from 0
+through 100. The allocator compares provisional coverage in unrounded base
+units before consuming shared stock; a request below its floor gets zero and
+leaves stock for later cost-center requests. Zero preserves partial
+allocation, and the allocation result echoes the floor. It returns per-request
+base and input-unit quantities, allocations, and shortfalls without calling
+the reservation API. This bulk preview is plant-level and does not
 select batches or storage locations. Set `iv_check_atp = abap_true` and provide
 `iv_atp_check_rule` to attach SAP ATP diagnostics. By default, checks use
 today's date; pass `iv_atp_check_date` to check against a different date. The
@@ -6627,6 +8163,12 @@ that rule to all rows.
 Results stay in caller order, echo priority and effective full-quantity rules
 for each request, and report base-unit and input-unit quantities. Its opt-in supply sources and safety-stock protection match the dated stock
 allocator; this is still a plant-level preview and does not create reservations.
+Each dated demand may set `minimum_coverage_pct` from 0 through 100. The
+allocator compares the floor against eligible base-unit availability at that
+request's required date, including enabled projected receipts, before consuming
+shared stock. A demand below its floor receives zero so later requests can use
+the balance. The date-first UOM and ATP paths preserve the floor and return it
+in the allocation summary.
 Set `iv_check_atp = abap_true` and provide `iv_atp_check_rule` to add SAP ATP
 diagnostics. The service checks cumulative demand once per material, plant,
 base unit, and required date, then returns the cumulative quantity and confirmed
@@ -6649,6 +8191,11 @@ base unit.
 A demand may set `require_full_quantity = abap_true` to leave stock available
 if its full request cannot be covered; `iv_require_full_quantity` applies this
 to every demand. Each result echoes the effective setting. Set
+`minimum_coverage_pct` on an individual row to require 0–100 percent coverage
+in base units after the location scope, fallback, and safety-stock rules are
+applied. A row below its floor gets zero and leaves location stock for later
+demands. Priority and ATP paths preserve the floor; the allocation summary
+echoes it.
 `iv_check_atp = abap_true` and provide `iv_atp_check_rule` to attach SAP ATP
 diagnostics. Checks use today's date unless `iv_atp_check_date` is set. The
 service checks the combined locally allocated quantity once per material,
@@ -6669,6 +8216,11 @@ specific location once each demand reaches the receipt date. The method keeps
 the same location ranks, scopes, allowlist, per-demand and global full-quantity
 options, and optional grouped ATP diagnostics as the undated location preview.
 Each result echoes the effective full-quantity setting.
+Each dated row may also set `minimum_coverage_pct` from 0 through 100. The
+allocator checks eligible base-unit stock at the required date, including
+caller-provided projected receipts, after location scopes and safety-stock
+protection. A row below its floor consumes no location balance; UOM and ATP
+results preserve the threshold.
 `issue_cc_locations_by_date` accepts these dated rows directly,
 checks that every split echoes its preview date and priority, and then validates
 the storage allocations before posting. It preserves row-level
@@ -6686,6 +8238,11 @@ order and echoes each required date. Set `require_full_quantity = abap_true` on 
 request to leave stock available when that batch cannot fully cover it; the
 global `iv_require_full_quantity` applies the rule to every request. Result
 rows echo the effective setting.
+Each exact-batch row may set `minimum_coverage_pct` from 0 through 100. The
+allocator checks eligible base-unit stock after batch, expiry, shelf-life,
+location, projected-receipt, and safety-stock rules. A row below its floor
+receives zero before any batch balance is consumed. The allocation summary
+and its batch splits echo the floor; the date-first wrapper preserves it.
 An optional `required_date` filters the selected batch through that date; a
 positive `minimum_shelf_life_days` extends the required life and excludes
 unknown expirations. Expiration on the threshold date is eligible; an unknown
@@ -6750,6 +8307,11 @@ leaves its eligible stock for later rows; the existing shared
 `iv_require_full_quantity` applies to every row. Preview summaries echo the
 effective rule, including the shared setting, and invalid values fail before
 stock reads or unit conversion.
+Each FEFO row may also set `minimum_coverage_pct` from 0 through 100. The
+floor is checked against eligible base-unit stock after expiry, shelf-life,
+location, projected-receipt, and safety-stock rules; rejected rows consume no
+batch balance. Summary rows and batch splits echo the floor through date-first
+and ATP preview paths.
 `preview_cost_center_fefo_date` adds a required date and integer priority to
 each demand. Earlier required dates consume shared stock first; higher
 priorities run first on the same date, and input order breaks ties. The preview
@@ -6785,6 +8347,13 @@ gets zero allocation and leaves the remaining stock for later requests. This
 applies to plant, dated, location, exact-batch, and FEFO previews; ATP-enabled
 dated previews keep their SAP diagnostics separate from this local allocation
 rule.
+Atomic and bulk reservation demand rows also accept `minimum_coverage_pct`
+from 0 through 100. The preallocation checks it against eligible base-unit
+stock after location, exact-batch, FEFO, expiry, fallback, and safety-stock
+rules; a rejected demand receives no allocation. The date-first FEFO atomic
+and bulk wrappers preserve each row's floor. Atomic reservations still commit
+or roll back the group together, while bulk results report each demand
+independently.
 `reserve_cost_centers_atomic` preallocates the full demand group before writing.
 Use shared location balances, caller-selected batches on every demand, or set
 `iv_use_fefo_batches = abap_true` to choose eligible batches by expiration. In

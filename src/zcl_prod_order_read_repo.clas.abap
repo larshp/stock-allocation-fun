@@ -239,6 +239,14 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
 
   METHOD zif_prod_order_read_repo~read_orders_by_finish_window.
     DATA lv_fetch_limit TYPE i.
+    DATA lv_material TYPE afpo-matnr.
+    DATA lv_plant TYPE afpo-werks.
+    DATA lv_finish_date_from TYPE afko-gltrp.
+    DATA lv_finish_date_to TYPE afko-gltrp.
+    DATA lv_after_finish_date TYPE afko-gltrp.
+    DATA lv_after_order TYPE afko-aufnr.
+    DATA lv_active_status_code TYPE jest-stat.
+    DATA lr_active_status_codes TYPE RANGE OF jest-stat.
     DATA lv_active_indicator TYPE jest-inact.
     DATA lv_order_category TYPE aufk-autyp.
     DATA lv_blank_order_category TYPE aufk-autyp.
@@ -347,14 +355,55 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     DATA lv_scheduled_finish_time_from TYPE afko-gluzs.
     DATA lv_scheduled_finish_time_to TYPE afko-gluzs.
     DATA lv_unreceived_quantity_only TYPE abap_bool.
+    DATA lv_filter_rcpt_status TYPE abap_bool.
+    DATA lv_receipt_progress_status TYPE c LENGTH 1.
+    DATA lv_blank_rcpt_status TYPE c LENGTH 1.
+    DATA lv_filter_received_qty_from TYPE abap_bool.
+    DATA lv_received_qty_from TYPE afpo-wemng.
+    DATA lv_filter_received_qty_to TYPE abap_bool.
+    DATA lv_received_qty_to TYPE afpo-wemng.
+    DATA lv_filter_over_rcpt_qty_from TYPE abap_bool.
+    DATA lv_over_rcpt_qty_from TYPE afpo-wemng.
+    DATA lv_filter_over_rcpt_qty_to TYPE abap_bool.
+    DATA lv_over_rcpt_qty_to TYPE afpo-wemng.
+    DATA lv_filter_over_rcpt_pct_from TYPE abap_bool.
+    DATA lv_over_rcpt_pct_from TYPE p LENGTH 8 DECIMALS 2.
+    DATA lv_filter_over_rcpt_pct_to TYPE abap_bool.
+    DATA lv_over_rcpt_pct_to TYPE p LENGTH 8 DECIMALS 2.
+    DATA lv_filter_received_pct_from TYPE abap_bool.
+    DATA lv_received_pct_from TYPE p LENGTH 8 DECIMALS 2.
+    DATA lv_filter_received_pct_to TYPE abap_bool.
+    DATA lv_received_pct_to TYPE p LENGTH 8 DECIMALS 2.
     DATA lv_filter_order_qty_from TYPE abap_bool.
     DATA lv_order_qty_from TYPE afpo-psmng.
     DATA lv_filter_order_qty_to TYPE abap_bool.
     DATA lv_order_qty_to TYPE afpo-psmng.
+    DATA lv_filter_order_qty_base_from TYPE abap_bool.
+    DATA lv_order_qty_base_from TYPE decfloat34.
+    DATA lv_filter_order_qty_base_to TYPE abap_bool.
+    DATA lv_order_qty_base_to TYPE decfloat34.
+    DATA lv_filter_rcv_qty_base_from TYPE abap_bool.
+    DATA lv_received_qty_base_from TYPE decfloat34.
+    DATA lv_filter_rcv_qty_base_to TYPE abap_bool.
+    DATA lv_received_qty_base_to TYPE decfloat34.
+    DATA lv_filter_over_rcpt_base_from TYPE abap_bool.
+    DATA lv_over_rcpt_base_from TYPE decfloat34.
+    DATA lv_filter_over_rcpt_base_to TYPE abap_bool.
+    DATA lv_over_rcpt_base_to TYPE decfloat34.
+    DATA lv_filter_unrcv_base_from TYPE abap_bool.
+    DATA lv_unrcv_base_from TYPE decfloat34.
+    DATA lv_filter_unrcv_base_to TYPE abap_bool.
+    DATA lv_unrcv_base_to TYPE decfloat34.
+    DATA lv_blank_base_unit TYPE afpo-meins.
     DATA lv_filter_unreceived_qty_from TYPE abap_bool.
     DATA lv_unreceived_qty_from TYPE afpo-psmng.
     DATA lv_filter_unreceived_qty_to TYPE abap_bool.
     DATA lv_unreceived_qty_to TYPE afpo-psmng.
+    DATA lv_filter_unreceived_pct_from TYPE abap_bool.
+    DATA lv_unreceived_pct_from TYPE p LENGTH 8 DECIMALS 2.
+    DATA lv_zero_unreceived_pct TYPE p LENGTH 8 DECIMALS 2.
+    DATA lv_filter_unreceived_pct_to TYPE abap_bool.
+    DATA lv_unreceived_pct_to TYPE p LENGTH 8 DECIMALS 2.
     DATA lv_false_indicator TYPE abap_bool.
     DATA lv_true_indicator TYPE abap_bool.
 
@@ -364,6 +413,21 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     ENDIF.
 
     lv_fetch_limit = is_selection-maximum_results + 1.
+    lv_material = is_selection-material.
+    lv_plant = is_selection-plant.
+    lv_finish_date_from = is_selection-finish_date_from.
+    lv_finish_date_to = is_selection-finish_date_to.
+    lv_after_finish_date = is_selection-after_finish_date.
+    lv_after_order = is_selection-after_order.
+    lv_active_status_code = is_selection-active_status_code.
+    LOOP AT is_selection-active_status_codes
+                INTO DATA(lv_selected_active_status_code).
+      APPEND VALUE #(
+        sign   = 'I'
+        option = 'EQ'
+        low    = lv_selected_active_status_code )
+        TO lr_active_status_codes.
+    ENDLOOP.
     lv_order_category = is_selection-order_category.
     lv_filter_sales_order = is_selection-filter_sales_order.
     lv_sales_order = is_selection-sales_order.
@@ -429,6 +493,7 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     lv_true_indicator = abap_true.
     CLEAR lv_blank_production_item.
     CLEAR lv_blank_order_unit.
+    CLEAR lv_blank_base_unit.
     lv_basic_start_date_from = is_selection-basic_start_date_from.
     lv_basic_start_date_to = is_selection-basic_start_date_to.
     lv_filter_basic_start_date = is_selection-filter_basic_start_date.
@@ -463,10 +528,60 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       is_selection-scheduled_finish_time_to.
     lv_unreceived_quantity_only =
       is_selection-unreceived_quantity_only.
+    lv_filter_rcpt_status =
+      is_selection-filter_receipt_progress_status.
+    lv_receipt_progress_status = is_selection-receipt_progress_status.
+    CLEAR lv_blank_rcpt_status.
+    lv_filter_received_qty_from =
+      is_selection-filter_received_qty_from.
+    lv_received_qty_from = is_selection-received_qty_from.
+    lv_filter_received_qty_to = is_selection-filter_received_qty_to.
+    lv_received_qty_to = is_selection-received_qty_to.
+    lv_filter_over_rcpt_qty_from =
+      is_selection-filter_over_receipt_qty_from.
+    lv_over_rcpt_qty_from = is_selection-over_receipt_qty_from.
+    lv_filter_over_rcpt_qty_to =
+      is_selection-filter_over_receipt_qty_to.
+    lv_over_rcpt_qty_to = is_selection-over_receipt_qty_to.
+    lv_filter_over_rcpt_pct_from =
+      is_selection-filter_over_receipt_pct_from.
+    lv_over_rcpt_pct_from = is_selection-over_receipt_pct_from.
+    lv_filter_over_rcpt_pct_to =
+      is_selection-filter_over_receipt_pct_to.
+    lv_over_rcpt_pct_to = is_selection-over_receipt_pct_to.
+    lv_filter_received_pct_from =
+      is_selection-filter_received_pct_from.
+    lv_received_pct_from = is_selection-received_pct_from.
+    lv_filter_received_pct_to = is_selection-filter_received_pct_to.
+    lv_received_pct_to = is_selection-received_pct_to.
     lv_filter_order_qty_from = is_selection-filter_order_qty_from.
     lv_order_qty_from = is_selection-order_qty_from.
     lv_filter_order_qty_to = is_selection-filter_order_qty_to.
     lv_order_qty_to = is_selection-order_qty_to.
+    lv_filter_order_qty_base_from =
+      is_selection-filter_order_qty_base_from.
+    lv_order_qty_base_from = is_selection-order_qty_base_from.
+    lv_filter_order_qty_base_to =
+      is_selection-filter_order_qty_base_to.
+    lv_order_qty_base_to = is_selection-order_qty_base_to.
+    lv_filter_rcv_qty_base_from =
+      is_selection-filter_received_qty_base_from.
+    lv_received_qty_base_from = is_selection-received_qty_base_from.
+    lv_filter_rcv_qty_base_to =
+      is_selection-filter_received_qty_base_to.
+    lv_received_qty_base_to = is_selection-received_qty_base_to.
+    lv_filter_over_rcpt_base_from =
+      is_selection-filter_over_rcpt_qty_base_from.
+    lv_over_rcpt_base_from = is_selection-over_rcpt_qty_base_from.
+    lv_filter_over_rcpt_base_to =
+      is_selection-filter_over_rcpt_qty_base_to.
+    lv_over_rcpt_base_to = is_selection-over_rcpt_qty_base_to.
+    lv_filter_unrcv_base_from =
+      is_selection-filter_unrecv_qty_base_from.
+    lv_unrcv_base_from = is_selection-unrecv_qty_base_from.
+    lv_filter_unrcv_base_to =
+      is_selection-filter_unrecv_qty_base_to.
+    lv_unrcv_base_to = is_selection-unrecv_qty_base_to.
     lv_filter_unreceived_qty_from =
       is_selection-filter_unreceived_qty_from.
     lv_unreceived_qty_from =
@@ -475,7 +590,14 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       is_selection-filter_unreceived_qty_to.
     lv_unreceived_qty_to =
       is_selection-unreceived_qty_to.
-    IF is_selection-active_status_code IS INITIAL.
+    lv_filter_unreceived_pct_from =
+      is_selection-filter_unreceived_pct_from.
+    lv_unreceived_pct_from = is_selection-unreceived_pct_from.
+    lv_filter_unreceived_pct_to =
+      is_selection-filter_unreceived_pct_to.
+    lv_unreceived_pct_to = is_selection-unreceived_pct_to.
+    IF is_selection-active_status_code IS INITIAL
+        AND is_selection-active_status_codes IS INITIAL.
       IF is_selection-after_finish_date IS INITIAL.
         SELECT DISTINCT afpo_row~aufnr AS production_order,
                afko_row~gltrp AS basic_finish_date,
@@ -491,8 +613,62 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             ON aufk_row~aufnr = afpo_row~aufnr
           LEFT OUTER JOIN prps AS prps_row
             ON prps_row~pspnr = afpo_row~projn
-          WHERE afpo_row~matnr = @is_selection-material
-            AND afpo_row~werks = @is_selection-plant
+          WHERE afpo_row~matnr = @lv_material
+            AND afpo_row~werks = @lv_plant
+            AND ( @lv_filter_received_qty_from = @lv_false_indicator
+              OR afpo_row~wemng >= @lv_received_qty_from )
+            AND ( @lv_filter_received_qty_to = @lv_false_indicator
+              OR afpo_row~wemng <= @lv_received_qty_to )
+            AND ( @lv_filter_over_rcpt_qty_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng - afpo_row~psmng >=
+                      @lv_over_rcpt_qty_from )
+                  OR ( afpo_row~wemng <= afpo_row~psmng
+                    AND @lv_over_rcpt_qty_from = 0 ) ) ) )
+            AND ( @lv_filter_over_rcpt_qty_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng - afpo_row~psmng <=
+                    @lv_over_rcpt_qty_to ) ) )
+            AND ( @lv_filter_over_rcpt_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_over_rcpt_pct_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * 100 - afpo_row~psmng * 100 >=
+                      @lv_over_rcpt_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_over_rcpt_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng * 100 - afpo_row~psmng * 100 <=
+                    @lv_over_rcpt_pct_to * afpo_row~psmng ) ) )
+            AND ( @lv_filter_received_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 >=
+                  @lv_received_pct_from * afpo_row~psmng ) )
+            AND ( @lv_filter_received_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 <=
+                  @lv_received_pct_to * afpo_row~psmng ) )
+            AND ( @lv_filter_rcpt_status = @lv_false_indicator
+              OR ( @lv_receipt_progress_status = 'N'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng = 0 )
+              OR ( @lv_receipt_progress_status = 'P'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng > 0
+                AND afpo_row~wemng < afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'C'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng = afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'O'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng > afpo_row~psmng )
+              OR ( @lv_receipt_progress_status =
+                  @lv_blank_rcpt_status
+                AND ( afpo_row~psmng <= 0 OR afpo_row~wemng < 0 ) ) )
             AND ( ( @lv_filter_planning_plant = @lv_false_indicator
                 AND @lv_planning_plant = @lv_blank_planning_plant )
               OR afpo_row~pwerk = @lv_planning_plant )
@@ -556,6 +732,74 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR afpo_row~psmng >= @lv_order_qty_from )
             AND ( @lv_filter_order_qty_to = @lv_false_indicator
               OR afpo_row~psmng <= @lv_order_qty_to )
+            AND ( @lv_filter_order_qty_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez >=
+                  @lv_order_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_order_qty_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez <=
+                  @lv_order_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_from =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez >=
+                  @lv_received_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_to =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez <=
+                  @lv_received_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_over_rcpt_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( @lv_over_rcpt_base_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez >=
+                      @lv_over_rcpt_base_from * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_over_rcpt_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez <=
+                      @lv_over_rcpt_base_to * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_unrcv_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez >=
+                  @lv_unrcv_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_unrcv_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez <=
+                  @lv_unrcv_base_to * afpo_row~umren ) )
             AND ( @lv_filter_unreceived_qty_from =
                 @lv_false_indicator
               OR ( afpo_row~psmng > afpo_row~wemng
@@ -566,8 +810,24 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR ( afpo_row~psmng > afpo_row~wemng
                 AND afpo_row~psmng - afpo_row~wemng <=
                   @lv_unreceived_qty_to ) )
-            AND afko_row~gltrp BETWEEN @is_selection-finish_date_from
-              AND @is_selection-finish_date_to
+            AND ( @lv_filter_unreceived_pct_from =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_zero_unreceived_pct >= @lv_unreceived_pct_from
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      >= @lv_unreceived_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_unreceived_pct_to =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~psmng <= afpo_row~wemng
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      <= @lv_unreceived_pct_to * afpo_row~psmng ) ) ) )
+            AND afko_row~gltrp BETWEEN @lv_finish_date_from
+              AND @lv_finish_date_to
             AND ( ( @lv_filter_sched_start_date = @lv_false_indicator
                 AND @lv_sched_start_date = @lv_blank_scheduled_start_date )
               OR afko_row~gstrs = @lv_sched_start_date )
@@ -654,8 +914,62 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             ON aufk_row~aufnr = afpo_row~aufnr
           LEFT OUTER JOIN prps AS prps_row
             ON prps_row~pspnr = afpo_row~projn
-          WHERE afpo_row~matnr = @is_selection-material
-            AND afpo_row~werks = @is_selection-plant
+          WHERE afpo_row~matnr = @lv_material
+            AND afpo_row~werks = @lv_plant
+            AND ( @lv_filter_received_qty_from = @lv_false_indicator
+              OR afpo_row~wemng >= @lv_received_qty_from )
+            AND ( @lv_filter_received_qty_to = @lv_false_indicator
+              OR afpo_row~wemng <= @lv_received_qty_to )
+            AND ( @lv_filter_over_rcpt_qty_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng - afpo_row~psmng >=
+                      @lv_over_rcpt_qty_from )
+                  OR ( afpo_row~wemng <= afpo_row~psmng
+                    AND @lv_over_rcpt_qty_from = 0 ) ) ) )
+            AND ( @lv_filter_over_rcpt_qty_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng - afpo_row~psmng <=
+                    @lv_over_rcpt_qty_to ) ) )
+            AND ( @lv_filter_over_rcpt_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_over_rcpt_pct_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * 100 - afpo_row~psmng * 100 >=
+                      @lv_over_rcpt_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_over_rcpt_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng * 100 - afpo_row~psmng * 100 <=
+                    @lv_over_rcpt_pct_to * afpo_row~psmng ) ) )
+            AND ( @lv_filter_received_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 >=
+                  @lv_received_pct_from * afpo_row~psmng ) )
+            AND ( @lv_filter_received_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 <=
+                  @lv_received_pct_to * afpo_row~psmng ) )
+            AND ( @lv_filter_rcpt_status = @lv_false_indicator
+              OR ( @lv_receipt_progress_status = 'N'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng = 0 )
+              OR ( @lv_receipt_progress_status = 'P'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng > 0
+                AND afpo_row~wemng < afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'C'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng = afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'O'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng > afpo_row~psmng )
+              OR ( @lv_receipt_progress_status =
+                  @lv_blank_rcpt_status
+                AND ( afpo_row~psmng <= 0 OR afpo_row~wemng < 0 ) ) )
             AND ( ( @lv_filter_planning_plant = @lv_false_indicator
                 AND @lv_planning_plant = @lv_blank_planning_plant )
               OR afpo_row~pwerk = @lv_planning_plant )
@@ -719,6 +1033,74 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR afpo_row~psmng >= @lv_order_qty_from )
             AND ( @lv_filter_order_qty_to = @lv_false_indicator
               OR afpo_row~psmng <= @lv_order_qty_to )
+            AND ( @lv_filter_order_qty_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez >=
+                  @lv_order_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_order_qty_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez <=
+                  @lv_order_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_from =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez >=
+                  @lv_received_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_to =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez <=
+                  @lv_received_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_over_rcpt_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( @lv_over_rcpt_base_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez >=
+                      @lv_over_rcpt_base_from * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_over_rcpt_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez <=
+                      @lv_over_rcpt_base_to * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_unrcv_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez >=
+                  @lv_unrcv_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_unrcv_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez <=
+                  @lv_unrcv_base_to * afpo_row~umren ) )
             AND ( @lv_filter_unreceived_qty_from =
                 @lv_false_indicator
               OR ( afpo_row~psmng > afpo_row~wemng
@@ -729,8 +1111,24 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR ( afpo_row~psmng > afpo_row~wemng
                 AND afpo_row~psmng - afpo_row~wemng <=
                   @lv_unreceived_qty_to ) )
-            AND afko_row~gltrp BETWEEN @is_selection-finish_date_from
-              AND @is_selection-finish_date_to
+            AND ( @lv_filter_unreceived_pct_from =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_zero_unreceived_pct >= @lv_unreceived_pct_from
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      >= @lv_unreceived_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_unreceived_pct_to =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~psmng <= afpo_row~wemng
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      <= @lv_unreceived_pct_to * afpo_row~psmng ) ) ) )
+            AND afko_row~gltrp BETWEEN @lv_finish_date_from
+              AND @lv_finish_date_to
             AND ( ( @lv_filter_sched_start_date = @lv_false_indicator
                 AND @lv_sched_start_date = @lv_blank_scheduled_start_date )
               OR afko_row~gstrs = @lv_sched_start_date )
@@ -799,9 +1197,9 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               @lv_blank_basic_start_date
               OR afko_row~gstrp BETWEEN @lv_basic_start_date_from
                 AND @lv_basic_start_date_to )
-            AND ( afko_row~gltrp > @is_selection-after_finish_date
-              OR ( afko_row~gltrp = @is_selection-after_finish_date
-                AND afpo_row~aufnr > @is_selection-after_order ) )
+            AND ( afko_row~gltrp > @lv_after_finish_date
+              OR ( afko_row~gltrp = @lv_after_finish_date
+                AND afpo_row~aufnr > @lv_after_order ) )
           ORDER BY basic_finish_date, production_order
           INTO TABLE @rt_order_keys
           UP TO @lv_fetch_limit ROWS.
@@ -824,8 +1222,62 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             ON prps_row~pspnr = afpo_row~projn
           INNER JOIN jest AS jest_row
             ON jest_row~objnr = aufk_row~objnr
-          WHERE afpo_row~matnr = @is_selection-material
-            AND afpo_row~werks = @is_selection-plant
+          WHERE afpo_row~matnr = @lv_material
+            AND afpo_row~werks = @lv_plant
+            AND ( @lv_filter_received_qty_from = @lv_false_indicator
+              OR afpo_row~wemng >= @lv_received_qty_from )
+            AND ( @lv_filter_received_qty_to = @lv_false_indicator
+              OR afpo_row~wemng <= @lv_received_qty_to )
+            AND ( @lv_filter_over_rcpt_qty_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng - afpo_row~psmng >=
+                      @lv_over_rcpt_qty_from )
+                  OR ( afpo_row~wemng <= afpo_row~psmng
+                    AND @lv_over_rcpt_qty_from = 0 ) ) ) )
+            AND ( @lv_filter_over_rcpt_qty_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng - afpo_row~psmng <=
+                    @lv_over_rcpt_qty_to ) ) )
+            AND ( @lv_filter_over_rcpt_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_over_rcpt_pct_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * 100 - afpo_row~psmng * 100 >=
+                      @lv_over_rcpt_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_over_rcpt_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng * 100 - afpo_row~psmng * 100 <=
+                    @lv_over_rcpt_pct_to * afpo_row~psmng ) ) )
+            AND ( @lv_filter_received_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 >=
+                  @lv_received_pct_from * afpo_row~psmng ) )
+            AND ( @lv_filter_received_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 <=
+                  @lv_received_pct_to * afpo_row~psmng ) )
+            AND ( @lv_filter_rcpt_status = @lv_false_indicator
+              OR ( @lv_receipt_progress_status = 'N'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng = 0 )
+              OR ( @lv_receipt_progress_status = 'P'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng > 0
+                AND afpo_row~wemng < afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'C'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng = afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'O'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng > afpo_row~psmng )
+              OR ( @lv_receipt_progress_status =
+                  @lv_blank_rcpt_status
+                AND ( afpo_row~psmng <= 0 OR afpo_row~wemng < 0 ) ) )
             AND ( ( @lv_filter_planning_plant = @lv_false_indicator
                 AND @lv_planning_plant = @lv_blank_planning_plant )
               OR afpo_row~pwerk = @lv_planning_plant )
@@ -889,6 +1341,74 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR afpo_row~psmng >= @lv_order_qty_from )
             AND ( @lv_filter_order_qty_to = @lv_false_indicator
               OR afpo_row~psmng <= @lv_order_qty_to )
+            AND ( @lv_filter_order_qty_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez >=
+                  @lv_order_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_order_qty_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez <=
+                  @lv_order_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_from =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez >=
+                  @lv_received_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_to =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez <=
+                  @lv_received_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_over_rcpt_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( @lv_over_rcpt_base_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez >=
+                      @lv_over_rcpt_base_from * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_over_rcpt_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez <=
+                      @lv_over_rcpt_base_to * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_unrcv_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez >=
+                  @lv_unrcv_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_unrcv_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez <=
+                  @lv_unrcv_base_to * afpo_row~umren ) )
             AND ( @lv_filter_unreceived_qty_from =
                 @lv_false_indicator
               OR ( afpo_row~psmng > afpo_row~wemng
@@ -899,8 +1419,24 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR ( afpo_row~psmng > afpo_row~wemng
                 AND afpo_row~psmng - afpo_row~wemng <=
                   @lv_unreceived_qty_to ) )
-            AND afko_row~gltrp BETWEEN @is_selection-finish_date_from
-              AND @is_selection-finish_date_to
+            AND ( @lv_filter_unreceived_pct_from =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_zero_unreceived_pct >= @lv_unreceived_pct_from
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      >= @lv_unreceived_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_unreceived_pct_to =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~psmng <= afpo_row~wemng
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      <= @lv_unreceived_pct_to * afpo_row~psmng ) ) ) )
+            AND afko_row~gltrp BETWEEN @lv_finish_date_from
+              AND @lv_finish_date_to
             AND ( ( @lv_filter_sched_start_date = @lv_false_indicator
                 AND @lv_sched_start_date = @lv_blank_scheduled_start_date )
               OR afko_row~gstrs = @lv_sched_start_date )
@@ -969,7 +1505,8 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               @lv_blank_basic_start_date
               OR afko_row~gstrp BETWEEN @lv_basic_start_date_from
                 AND @lv_basic_start_date_to )
-            AND jest_row~stat = @is_selection-active_status_code
+            AND ( jest_row~stat = @lv_active_status_code
+              OR jest_row~stat IN @lr_active_status_codes )
             AND jest_row~inact = @lv_active_indicator
           ORDER BY basic_finish_date, production_order
           INTO TABLE @rt_order_keys
@@ -991,8 +1528,62 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             ON prps_row~pspnr = afpo_row~projn
           INNER JOIN jest AS jest_row
             ON jest_row~objnr = aufk_row~objnr
-          WHERE afpo_row~matnr = @is_selection-material
-            AND afpo_row~werks = @is_selection-plant
+          WHERE afpo_row~matnr = @lv_material
+            AND afpo_row~werks = @lv_plant
+            AND ( @lv_filter_received_qty_from = @lv_false_indicator
+              OR afpo_row~wemng >= @lv_received_qty_from )
+            AND ( @lv_filter_received_qty_to = @lv_false_indicator
+              OR afpo_row~wemng <= @lv_received_qty_to )
+            AND ( @lv_filter_over_rcpt_qty_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng - afpo_row~psmng >=
+                      @lv_over_rcpt_qty_from )
+                  OR ( afpo_row~wemng <= afpo_row~psmng
+                    AND @lv_over_rcpt_qty_from = 0 ) ) ) )
+            AND ( @lv_filter_over_rcpt_qty_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng - afpo_row~psmng <=
+                    @lv_over_rcpt_qty_to ) ) )
+            AND ( @lv_filter_over_rcpt_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_over_rcpt_pct_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * 100 - afpo_row~psmng * 100 >=
+                      @lv_over_rcpt_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_over_rcpt_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR afpo_row~wemng * 100 - afpo_row~psmng * 100 <=
+                    @lv_over_rcpt_pct_to * afpo_row~psmng ) ) )
+            AND ( @lv_filter_received_pct_from = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 >=
+                  @lv_received_pct_from * afpo_row~psmng ) )
+            AND ( @lv_filter_received_pct_to = @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND afpo_row~wemng * 100 <=
+                  @lv_received_pct_to * afpo_row~psmng ) )
+            AND ( @lv_filter_rcpt_status = @lv_false_indicator
+              OR ( @lv_receipt_progress_status = 'N'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng = 0 )
+              OR ( @lv_receipt_progress_status = 'P'
+                AND afpo_row~psmng > 0 AND afpo_row~wemng > 0
+                AND afpo_row~wemng < afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'C'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng = afpo_row~psmng )
+              OR ( @lv_receipt_progress_status = 'O'
+                AND afpo_row~psmng > 0
+                AND afpo_row~wemng > afpo_row~psmng )
+              OR ( @lv_receipt_progress_status =
+                  @lv_blank_rcpt_status
+                AND ( afpo_row~psmng <= 0 OR afpo_row~wemng < 0 ) ) )
             AND ( ( @lv_filter_planning_plant = @lv_false_indicator
                 AND @lv_planning_plant = @lv_blank_planning_plant )
               OR afpo_row~pwerk = @lv_planning_plant )
@@ -1056,6 +1647,74 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR afpo_row~psmng >= @lv_order_qty_from )
             AND ( @lv_filter_order_qty_to = @lv_false_indicator
               OR afpo_row~psmng <= @lv_order_qty_to )
+            AND ( @lv_filter_order_qty_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez >=
+                  @lv_order_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_order_qty_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez <=
+                  @lv_order_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_from =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez >=
+                  @lv_received_qty_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_rcv_qty_base_to =
+                @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~wemng * afpo_row~umrez <=
+                  @lv_received_qty_base_to * afpo_row~umren ) )
+            AND ( @lv_filter_over_rcpt_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( @lv_over_rcpt_base_from = 0
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez >=
+                      @lv_over_rcpt_base_from * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_over_rcpt_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND ( afpo_row~wemng <= afpo_row~psmng
+                  OR ( afpo_row~wemng > afpo_row~psmng
+                    AND afpo_row~wemng * afpo_row~umrez -
+                      afpo_row~psmng * afpo_row~umrez <=
+                      @lv_over_rcpt_base_to * afpo_row~umren ) ) ) )
+            AND ( @lv_filter_unrcv_base_from = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez >=
+                  @lv_unrcv_base_from * afpo_row~umren ) )
+            AND ( @lv_filter_unrcv_base_to = @lv_false_indicator
+              OR ( afpo_row~amein <> @lv_blank_order_unit
+                AND afpo_row~meins <> @lv_blank_base_unit
+                AND afpo_row~psmng > afpo_row~wemng
+                AND afpo_row~psmng >= 0 AND afpo_row~wemng >= 0
+                AND afpo_row~umrez > 0 AND afpo_row~umren > 0
+                AND afpo_row~psmng * afpo_row~umrez -
+                  afpo_row~wemng * afpo_row~umrez <=
+                  @lv_unrcv_base_to * afpo_row~umren ) )
             AND ( @lv_filter_unreceived_qty_from =
                 @lv_false_indicator
               OR ( afpo_row~psmng > afpo_row~wemng
@@ -1066,8 +1725,24 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               OR ( afpo_row~psmng > afpo_row~wemng
                 AND afpo_row~psmng - afpo_row~wemng <=
                   @lv_unreceived_qty_to ) )
-            AND afko_row~gltrp BETWEEN @is_selection-finish_date_from
-              AND @is_selection-finish_date_to
+            AND ( @lv_filter_unreceived_pct_from =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( @lv_zero_unreceived_pct >= @lv_unreceived_pct_from
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      >= @lv_unreceived_pct_from * afpo_row~psmng ) ) ) )
+            AND ( @lv_filter_unreceived_pct_to =
+                @lv_false_indicator
+              OR ( afpo_row~psmng > 0
+                AND afpo_row~wemng >= 0
+                AND ( afpo_row~psmng <= afpo_row~wemng
+                  OR ( afpo_row~psmng > afpo_row~wemng
+                    AND afpo_row~psmng * 100 - afpo_row~wemng * 100
+                      <= @lv_unreceived_pct_to * afpo_row~psmng ) ) ) )
+            AND afko_row~gltrp BETWEEN @lv_finish_date_from
+              AND @lv_finish_date_to
             AND ( ( @lv_filter_sched_start_date = @lv_false_indicator
                 AND @lv_sched_start_date = @lv_blank_scheduled_start_date )
               OR afko_row~gstrs = @lv_sched_start_date )
@@ -1136,11 +1811,12 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               @lv_blank_basic_start_date
               OR afko_row~gstrp BETWEEN @lv_basic_start_date_from
                 AND @lv_basic_start_date_to )
-            AND jest_row~stat = @is_selection-active_status_code
+            AND ( jest_row~stat = @lv_active_status_code
+              OR jest_row~stat IN @lr_active_status_codes )
             AND jest_row~inact = @lv_active_indicator
-            AND ( afko_row~gltrp > @is_selection-after_finish_date
-              OR ( afko_row~gltrp = @is_selection-after_finish_date
-                AND afpo_row~aufnr > @is_selection-after_order ) )
+            AND ( afko_row~gltrp > @lv_after_finish_date
+              OR ( afko_row~gltrp = @lv_after_finish_date
+                AND afpo_row~aufnr > @lv_after_order ) )
           ORDER BY basic_finish_date, production_order
           INTO TABLE @rt_order_keys
           UP TO @lv_fetch_limit ROWS.
@@ -1283,6 +1959,10 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
         ernam TYPE afru-ernam,
         ersda TYPE afru-ersda,
         erzet TYPE afru-erzet,
+        isdd  TYPE afru-isdd,
+        isdz  TYPE afru-isdz,
+        iedd  TYPE afru-iedd,
+        iedz  TYPE afru-iedz,
         aenam TYPE afru-aenam,
         laeda TYPE afru-laeda,
         budat TYPE afru-budat,
@@ -1296,29 +1976,293 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       ty_confirmation_rows TYPE STANDARD TABLE OF ty_confirmation_data
         WITH EMPTY KEY,
       BEGIN OF ty_operation_confirmation_key,
-        aufpl TYPE afvc-aufpl,
-        aplzl TYPE afvc-aplzl,
-        vornr TYPE afvc-vornr,
-        plnfl TYPE afvc-plnfl,
-        uvorn TYPE afvc-uvorn,
-        ltxa1 TYPE afvc-ltxa1,
-        steus TYPE afvc-steus,
+        aufpl             TYPE afvc-aufpl,
+        aplzl             TYPE afvc-aplzl,
+        vornr             TYPE afvc-vornr,
+        plnfl             TYPE afvc-plnfl,
+        uvorn             TYPE afvc-uvorn,
+        ltxa1             TYPE afvc-ltxa1,
+        steus             TYPE afvc-steus,
+        arbid             TYPE afvc-arbid,
+        work_center       TYPE crhd-arbpl,
+        work_center_plant TYPE crhd-werks,
       END OF ty_operation_confirmation_key,
       ty_operation_confirmation_keys TYPE HASHED TABLE OF
         ty_operation_confirmation_key WITH UNIQUE KEY aufpl aplzl,
       BEGIN OF ty_confirmation_order_key,
         aufnr TYPE aufk-aufnr,
         autyp TYPE aufk-autyp,
+        auart TYPE aufk-auart,
       END OF ty_confirmation_order_key,
       ty_confirmation_order_keys TYPE HASHED TABLE OF
         ty_confirmation_order_key WITH UNIQUE KEY aufnr.
     DATA lt_afru TYPE ty_confirmation_rows.
+    DATA lt_matching_afru TYPE ty_confirmation_rows.
     DATA lt_afvc TYPE ty_operation_confirmation_keys.
     DATA lt_aufk TYPE ty_confirmation_order_keys.
+    DATA lr_confirmation_orders TYPE RANGE OF afru-aufnr.
+    DATA lv_fetch_limit TYPE i.
+    DATA lv_blank_order_category TYPE aufk-autyp.
+    DATA lv_blank_order_type TYPE aufk-auart.
+    DATA lv_blank_operation_counter TYPE afvc-aplzl.
+    DATA lv_blank_operation_number TYPE afvc-vornr.
+    DATA lv_blank_control_key TYPE afvc-steus.
+    DATA lv_blank_operation_description TYPE afvc-ltxa1.
+    DATA lv_blank_resource_object_id TYPE afvc-arbid.
+    DATA lv_blank_work_center TYPE crhd-arbpl.
+    DATA lv_blank_work_center_plant TYPE crhd-werks.
+    DATA lv_work_center_object_type TYPE crhd-objty VALUE 'A'.
+    DATA lv_blank_operation_sequence TYPE afvc-plnfl.
+    DATA lv_blank_suboperation_number TYPE afvc-uvorn.
+    DATA lv_blank_confirmation_number TYPE afru-rueck.
+    DATA lv_blank_confirmation_counter TYPE afru-rmzhl.
+    DATA lv_blank_posting_date TYPE afru-budat.
+    DATA lv_blank_entry_date TYPE afru-ersda.
+    DATA lv_blank_exec_start_date TYPE afru-isdd.
+    DATA lv_blank_exec_finish_date TYPE afru-iedd.
+    DATA lv_blank_quantity_unit TYPE afru-meinh.
+    DATA lv_blank_entered_by TYPE afru-ernam.
+    DATA lv_blank_changed_by TYPE afru-aenam.
+    DATA lv_blank_last_change_date TYPE afru-laeda.
+    DATA lv_zero_yield_quantity TYPE afru-lmnga.
+    DATA lv_zero_rework_quantity TYPE afru-rmnga.
+    DATA lv_zero_scrap_quantity TYPE afru-xmnga.
+    DATA lv_false_indicator TYPE abap_bool VALUE abap_false.
+    DATA lv_reversed_indicator TYPE afru-stokz VALUE 'X'.
+    DATA lv_final_indicator TYPE afru-aueru VALUE 'X'.
     DATA ls_confirmation TYPE
       zif_prod_order_read_repo=>ty_order_confirmation.
 
     IF it_production_orders IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF is_page_selection IS SUPPLIED.
+      IF is_page_selection-maximum_results < 1
+          OR is_page_selection-maximum_results > 500.
+        RETURN.
+      ENDIF.
+      lv_fetch_limit = is_page_selection-maximum_results + 1.
+      LOOP AT it_production_orders INTO DATA(lv_requested_conf_order).
+        APPEND VALUE #(
+          sign   = 'I'
+          option = 'EQ'
+          low    = lv_requested_conf_order )
+          TO lr_confirmation_orders.
+      ENDLOOP.
+
+      SELECT afru_row~aufnr AS production_order,
+             aufk_row~autyp AS order_category,
+             aufk_row~auart AS order_type,
+             afvc_row~aplzl AS operation_counter,
+             afvc_row~vornr AS operation_number,
+             afvc_row~plnfl AS operation_sequence,
+             afvc_row~uvorn AS operation_suboperation,
+             afvc_row~ltxa1 AS operation_description,
+             afvc_row~steus AS control_key,
+             afvc_row~arbid AS resource_object_id,
+             crhd_row~arbpl AS work_center,
+             crhd_row~werks AS work_center_plant,
+             afru_row~rueck AS confirmation,
+             afru_row~rmzhl AS confirmation_counter,
+             afru_row~ernam AS entered_by,
+             afru_row~ersda AS entry_date,
+             afru_row~erzet AS entry_time,
+             afru_row~isdd AS execution_start_date,
+             afru_row~isdz AS execution_start_time,
+             afru_row~iedd AS execution_finish_date,
+             afru_row~iedz AS execution_finish_time,
+             afru_row~aenam AS changed_by,
+             afru_row~laeda AS last_change_date,
+             afru_row~budat AS posting_date,
+             afru_row~lmnga AS yield_quantity,
+             afru_row~rmnga AS rework_quantity,
+             afru_row~xmnga AS scrap_quantity,
+             afru_row~meinh AS quantity_unit,
+             afru_row~aueru AS is_final,
+             afru_row~stokz AS is_reversed
+        FROM afru AS afru_row
+        INNER JOIN aufk AS aufk_row
+          ON aufk_row~aufnr = afru_row~aufnr
+        INNER JOIN afvc AS afvc_row
+          ON afvc_row~aufpl = afru_row~aufpl
+          AND afvc_row~aplzl = afru_row~aplzl
+        LEFT OUTER JOIN crhd AS crhd_row
+          ON crhd_row~objty = @lv_work_center_object_type
+          AND crhd_row~objid = afvc_row~arbid
+        WHERE afru_row~aufnr IN @lr_confirmation_orders
+          AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
+          AND ( @iv_order_category = @lv_blank_order_category
+            OR aufk_row~autyp = @iv_order_category )
+          AND ( @iv_order_type = @lv_blank_order_type
+            OR aufk_row~auart = @iv_order_type )
+          AND ( @iv_operation_counter = @lv_blank_operation_counter
+            OR afvc_row~aplzl = @iv_operation_counter )
+          AND ( @iv_operation_counter_from =
+                @lv_blank_operation_counter
+            OR afvc_row~aplzl >= @iv_operation_counter_from )
+          AND ( @iv_operation_counter_to =
+                @lv_blank_operation_counter
+            OR afvc_row~aplzl <= @iv_operation_counter_to )
+          AND ( @iv_operation_number = @lv_blank_operation_number
+            OR afvc_row~vornr = @iv_operation_number )
+          AND ( @iv_operation_number_from = @lv_blank_operation_number
+            OR afvc_row~vornr >= @iv_operation_number_from )
+          AND ( @iv_operation_number_to = @lv_blank_operation_number
+            OR afvc_row~vornr <= @iv_operation_number_to )
+          AND ( ( @iv_filter_control_key = @lv_false_indicator
+              AND @iv_control_key = @lv_blank_control_key )
+            OR afvc_row~steus = @iv_control_key )
+          AND ( ( @iv_filter_op_description =
+                @lv_false_indicator
+              AND @iv_operation_description =
+                @lv_blank_operation_description )
+            OR afvc_row~ltxa1 = @iv_operation_description )
+          AND ( ( @iv_filter_resource_object_id = @lv_false_indicator
+              AND @iv_resource_object_id =
+                @lv_blank_resource_object_id )
+            OR afvc_row~arbid = @iv_resource_object_id )
+          AND ( ( @iv_filter_work_center = @lv_false_indicator
+              AND @iv_work_center = @lv_blank_work_center )
+            OR crhd_row~arbpl = @iv_work_center
+            OR ( @iv_filter_work_center <> @lv_false_indicator
+              AND @iv_work_center = @lv_blank_work_center
+              AND ( crhd_row~arbpl = @lv_blank_work_center
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @iv_filter_work_center_plant = @lv_false_indicator
+              AND @iv_work_center_plant = @lv_blank_work_center_plant )
+            OR crhd_row~werks = @iv_work_center_plant
+            OR ( @iv_filter_work_center_plant <> @lv_false_indicator
+              AND @iv_work_center_plant = @lv_blank_work_center_plant
+              AND ( crhd_row~werks = @lv_blank_work_center_plant
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @iv_filter_operation_sequence = @lv_false_indicator
+              AND @iv_operation_sequence = @lv_blank_operation_sequence )
+            OR afvc_row~plnfl = @iv_operation_sequence )
+          AND ( @iv_operation_sequence_from =
+                @lv_blank_operation_sequence
+            OR afvc_row~plnfl >= @iv_operation_sequence_from )
+          AND ( @iv_operation_sequence_to =
+                @lv_blank_operation_sequence
+            OR afvc_row~plnfl <= @iv_operation_sequence_to )
+          AND ( ( @iv_filter_suboperation_number = @lv_false_indicator
+              AND @iv_suboperation_number = @lv_blank_suboperation_number )
+            OR afvc_row~uvorn = @iv_suboperation_number )
+          AND ( @iv_suboperation_number_from =
+                @lv_blank_suboperation_number
+            OR afvc_row~uvorn >= @iv_suboperation_number_from )
+          AND ( @iv_suboperation_number_to =
+                @lv_blank_suboperation_number
+            OR afvc_row~uvorn <= @iv_suboperation_number_to )
+          AND ( @iv_confirmation_number = @lv_blank_confirmation_number
+            OR afru_row~rueck = @iv_confirmation_number )
+          AND ( @iv_confirmation_counter =
+              @lv_blank_confirmation_counter
+            OR afru_row~rmzhl = @iv_confirmation_counter )
+          AND ( ( @iv_posting_date_from = @lv_blank_posting_date
+                AND @iv_posting_date_to = @lv_blank_posting_date )
+            OR afru_row~budat <> @lv_blank_posting_date )
+          AND ( @iv_posting_date_from = @lv_blank_posting_date
+            OR afru_row~budat >= @iv_posting_date_from )
+          AND ( @iv_posting_date_to = @lv_blank_posting_date
+            OR afru_row~budat <= @iv_posting_date_to )
+          AND ( ( @iv_entry_date_from = @lv_blank_entry_date
+                AND @iv_entry_date_to = @lv_blank_entry_date )
+            OR afru_row~ersda <> @lv_blank_entry_date )
+          AND ( @iv_entry_date_from = @lv_blank_entry_date
+            OR afru_row~ersda >= @iv_entry_date_from )
+          AND ( @iv_entry_date_to = @lv_blank_entry_date
+            OR afru_row~ersda <= @iv_entry_date_to )
+          AND ( @iv_execution_start_date_from =
+                @lv_blank_exec_start_date
+            OR ( afru_row~isdd <> @lv_blank_exec_start_date
+              AND afru_row~isdd >= @iv_execution_start_date_from ) )
+          AND ( @iv_execution_start_date_to =
+                @lv_blank_exec_start_date
+            OR ( afru_row~isdd <> @lv_blank_exec_start_date
+              AND afru_row~isdd <= @iv_execution_start_date_to ) )
+          AND ( @iv_execution_finish_date_from =
+                @lv_blank_exec_finish_date
+            OR ( afru_row~iedd <> @lv_blank_exec_finish_date
+              AND afru_row~iedd >= @iv_execution_finish_date_from ) )
+          AND ( @iv_execution_finish_date_to =
+                @lv_blank_exec_finish_date
+            OR ( afru_row~iedd <> @lv_blank_exec_finish_date
+              AND afru_row~iedd <= @iv_execution_finish_date_to ) )
+          AND ( @iv_filter_execution_start_time = @lv_false_indicator
+            OR ( afru_row~isdd <> @lv_blank_exec_start_date
+              AND afru_row~isdz BETWEEN @iv_execution_start_time_from
+                AND @iv_execution_start_time_to ) )
+          AND ( @iv_filter_exec_finish_time = @lv_false_indicator
+            OR ( afru_row~iedd <> @lv_blank_exec_finish_date
+              AND afru_row~iedz BETWEEN @iv_execution_finish_time_from
+                AND @iv_execution_finish_time_to ) )
+          AND ( ( @iv_filter_entered_by = @lv_false_indicator
+              AND @iv_entered_by = @lv_blank_entered_by )
+            OR afru_row~ernam = @iv_entered_by )
+          AND ( ( @iv_filter_changed_by = @lv_false_indicator
+              AND @iv_changed_by = @lv_blank_changed_by )
+            OR afru_row~aenam = @iv_changed_by )
+          AND ( @iv_last_change_date_from =
+              @lv_blank_last_change_date
+            OR ( afru_row~laeda <> @lv_blank_last_change_date
+              AND afru_row~laeda >= @iv_last_change_date_from ) )
+          AND ( @iv_last_change_date_to =
+              @lv_blank_last_change_date
+            OR ( afru_row~laeda <> @lv_blank_last_change_date
+              AND afru_row~laeda <= @iv_last_change_date_to ) )
+          AND ( ( @iv_filter_quantity_unit = @lv_false_indicator
+              AND @iv_quantity_unit = @lv_blank_quantity_unit )
+            OR afru_row~meinh = @iv_quantity_unit )
+          AND ( @iv_positive_yield_only = @lv_false_indicator
+            OR afru_row~lmnga > @lv_zero_yield_quantity )
+          AND ( @iv_positive_rework_only = @lv_false_indicator
+            OR afru_row~rmnga > @lv_zero_rework_quantity )
+          AND ( @iv_positive_scrap_only = @lv_false_indicator
+            OR afru_row~xmnga > @lv_zero_scrap_quantity )
+          AND ( @iv_filter_yield_quantity_from = @lv_false_indicator
+            OR afru_row~lmnga >= @iv_yield_quantity_from )
+          AND ( @iv_filter_yield_quantity_to = @lv_false_indicator
+            OR afru_row~lmnga <= @iv_yield_quantity_to )
+          AND ( @iv_filter_rework_quantity_from = @lv_false_indicator
+            OR afru_row~rmnga >= @iv_rework_quantity_from )
+          AND ( @iv_filter_rework_quantity_to = @lv_false_indicator
+            OR afru_row~rmnga <= @iv_rework_quantity_to )
+          AND ( @iv_filter_scrap_quantity_from = @lv_false_indicator
+            OR afru_row~xmnga >= @iv_scrap_quantity_from )
+          AND ( @iv_filter_scrap_quantity_to = @lv_false_indicator
+            OR afru_row~xmnga <= @iv_scrap_quantity_to )
+          AND ( @iv_filter_entry_time = @lv_false_indicator
+            OR afru_row~erzet BETWEEN @iv_entry_time_from
+              AND @iv_entry_time_to )
+          AND ( @iv_exclude_reversed = @lv_false_indicator
+            OR afru_row~stokz <> @lv_reversed_indicator )
+          AND ( @iv_reversed_only = @lv_false_indicator
+            OR afru_row~stokz = @lv_reversed_indicator )
+          AND ( @iv_final_only = @lv_false_indicator
+            OR afru_row~aueru = @lv_final_indicator )
+          AND ( @iv_partial_only = @lv_false_indicator
+            OR afru_row~aueru <> @lv_final_indicator )
+          AND ( @is_page_selection-has_cursor = @lv_false_indicator
+            OR afru_row~aufnr >
+              @is_page_selection-after_production_order
+            OR ( afru_row~aufnr =
+                  @is_page_selection-after_production_order
+              AND afru_row~budat < @is_page_selection-after_posting_date )
+            OR ( afru_row~aufnr =
+                  @is_page_selection-after_production_order
+              AND afru_row~budat = @is_page_selection-after_posting_date
+              AND afru_row~rueck < @is_page_selection-after_confirmation )
+            OR ( afru_row~aufnr =
+                  @is_page_selection-after_production_order
+              AND afru_row~budat = @is_page_selection-after_posting_date
+              AND afru_row~rueck = @is_page_selection-after_confirmation
+              AND afru_row~rmzhl <
+                @is_page_selection-after_confirmation_counter ) )
+        ORDER BY production_order, posting_date DESCENDING,
+          confirmation DESCENDING, confirmation_counter DESCENDING
+        INTO CORRESPONDING FIELDS OF TABLE @rt_confirmations
+        UP TO @lv_fetch_limit ROWS.
       RETURN.
     ENDIF.
 
@@ -1330,6 +2274,10 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
            ernam,
            ersda,
            erzet,
+           isdd,
+           isdz,
+           iedd,
+           iedz,
            aenam,
            laeda,
            budat,
@@ -1342,6 +2290,94 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       FROM afru
       FOR ALL ENTRIES IN @it_production_orders
       WHERE aufnr = @it_production_orders-table_line
+        AND ( @iv_confirmation_number = @lv_blank_confirmation_number
+          OR rueck = @iv_confirmation_number )
+        AND ( @iv_confirmation_counter = @lv_blank_confirmation_counter
+          OR rmzhl = @iv_confirmation_counter )
+        AND ( ( @iv_posting_date_from = @lv_blank_posting_date
+              AND @iv_posting_date_to = @lv_blank_posting_date )
+          OR budat <> @lv_blank_posting_date )
+        AND ( @iv_posting_date_from = @lv_blank_posting_date
+          OR budat >= @iv_posting_date_from )
+        AND ( @iv_posting_date_to = @lv_blank_posting_date
+          OR budat <= @iv_posting_date_to )
+        AND ( ( @iv_entry_date_from = @lv_blank_entry_date
+              AND @iv_entry_date_to = @lv_blank_entry_date )
+          OR ersda <> @lv_blank_entry_date )
+        AND ( @iv_entry_date_from = @lv_blank_entry_date
+          OR ersda >= @iv_entry_date_from )
+        AND ( @iv_entry_date_to = @lv_blank_entry_date
+          OR ersda <= @iv_entry_date_to )
+        AND ( @iv_execution_start_date_from =
+              @lv_blank_exec_start_date
+          OR ( isdd <> @lv_blank_exec_start_date
+            AND isdd >= @iv_execution_start_date_from ) )
+        AND ( @iv_execution_start_date_to =
+              @lv_blank_exec_start_date
+          OR ( isdd <> @lv_blank_exec_start_date
+            AND isdd <= @iv_execution_start_date_to ) )
+        AND ( @iv_execution_finish_date_from =
+              @lv_blank_exec_finish_date
+          OR ( iedd <> @lv_blank_exec_finish_date
+            AND iedd >= @iv_execution_finish_date_from ) )
+        AND ( @iv_execution_finish_date_to =
+              @lv_blank_exec_finish_date
+          OR ( iedd <> @lv_blank_exec_finish_date
+            AND iedd <= @iv_execution_finish_date_to ) )
+        AND ( @iv_filter_execution_start_time = @lv_false_indicator
+          OR ( isdd <> @lv_blank_exec_start_date
+            AND isdz BETWEEN @iv_execution_start_time_from
+              AND @iv_execution_start_time_to ) )
+        AND ( @iv_filter_exec_finish_time = @lv_false_indicator
+          OR ( iedd <> @lv_blank_exec_finish_date
+            AND iedz BETWEEN @iv_execution_finish_time_from
+              AND @iv_execution_finish_time_to ) )
+        AND ( ( @iv_filter_entered_by = @lv_false_indicator
+            AND @iv_entered_by = @lv_blank_entered_by )
+          OR ernam = @iv_entered_by )
+        AND ( ( @iv_filter_changed_by = @lv_false_indicator
+            AND @iv_changed_by = @lv_blank_changed_by )
+          OR aenam = @iv_changed_by )
+        AND ( @iv_last_change_date_from =
+            @lv_blank_last_change_date
+          OR ( laeda <> @lv_blank_last_change_date
+            AND laeda >= @iv_last_change_date_from ) )
+        AND ( @iv_last_change_date_to =
+            @lv_blank_last_change_date
+          OR ( laeda <> @lv_blank_last_change_date
+            AND laeda <= @iv_last_change_date_to ) )
+        AND ( ( @iv_filter_quantity_unit = @lv_false_indicator
+            AND @iv_quantity_unit = @lv_blank_quantity_unit )
+          OR meinh = @iv_quantity_unit )
+        AND ( @iv_positive_yield_only = @lv_false_indicator
+          OR lmnga > @lv_zero_yield_quantity )
+        AND ( @iv_positive_rework_only = @lv_false_indicator
+          OR rmnga > @lv_zero_rework_quantity )
+        AND ( @iv_positive_scrap_only = @lv_false_indicator
+          OR xmnga > @lv_zero_scrap_quantity )
+        AND ( @iv_filter_yield_quantity_from = @lv_false_indicator
+          OR lmnga >= @iv_yield_quantity_from )
+        AND ( @iv_filter_yield_quantity_to = @lv_false_indicator
+          OR lmnga <= @iv_yield_quantity_to )
+        AND ( @iv_filter_rework_quantity_from = @lv_false_indicator
+          OR rmnga >= @iv_rework_quantity_from )
+        AND ( @iv_filter_rework_quantity_to = @lv_false_indicator
+          OR rmnga <= @iv_rework_quantity_to )
+        AND ( @iv_filter_scrap_quantity_from = @lv_false_indicator
+          OR xmnga >= @iv_scrap_quantity_from )
+        AND ( @iv_filter_scrap_quantity_to = @lv_false_indicator
+          OR xmnga <= @iv_scrap_quantity_to )
+        AND ( @iv_filter_entry_time = @lv_false_indicator
+          OR erzet BETWEEN @iv_entry_time_from
+            AND @iv_entry_time_to )
+        AND ( @iv_exclude_reversed = @lv_false_indicator
+          OR stokz <> @lv_reversed_indicator )
+        AND ( @iv_reversed_only = @lv_false_indicator
+          OR stokz = @lv_reversed_indicator )
+        AND ( @iv_final_only = @lv_false_indicator
+          OR aueru = @lv_final_indicator )
+        AND ( @iv_partial_only = @lv_false_indicator
+          OR aueru <> @lv_final_indicator )
       INTO CORRESPONDING FIELDS OF TABLE @lt_afru.
 
     IF lt_afru IS INITIAL.
@@ -1349,12 +2385,30 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     ENDIF.
 
     SELECT aufnr,
-           autyp
+           autyp,
+           auart
       FROM aufk
       FOR ALL ENTRIES IN @lt_afru
       WHERE aufnr = @lt_afru-aufnr
+        AND ( @iv_order_category = @lv_blank_order_category
+          OR autyp = @iv_order_category )
+        AND ( @iv_order_type = @lv_blank_order_type
+          OR auart = @iv_order_type )
         AND ( autyp = '10' OR autyp = '40' )
       INTO CORRESPONDING FIELDS OF TABLE @lt_aufk.
+
+    LOOP AT lt_afru INTO DATA(ls_candidate_afru).
+      READ TABLE lt_aufk
+        WITH TABLE KEY aufnr = ls_candidate_afru-aufnr
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        APPEND ls_candidate_afru TO lt_matching_afru.
+      ENDIF.
+    ENDLOOP.
+    lt_afru = lt_matching_afru.
+    IF lt_afru IS INITIAL.
+      RETURN.
+    ENDIF.
 
     SELECT aufpl,
            aplzl,
@@ -1362,12 +2416,79 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
            plnfl,
            uvorn,
            ltxa1,
-           steus
+           steus,
+           arbid
       FROM afvc
       FOR ALL ENTRIES IN @lt_afru
       WHERE aufpl = @lt_afru-aufpl
         AND aplzl = @lt_afru-aplzl
+        AND ( @iv_operation_counter = @lv_blank_operation_counter
+          OR aplzl = @iv_operation_counter )
+        AND ( @iv_operation_counter_from =
+              @lv_blank_operation_counter
+          OR aplzl >= @iv_operation_counter_from )
+        AND ( @iv_operation_counter_to =
+              @lv_blank_operation_counter
+          OR aplzl <= @iv_operation_counter_to )
+        AND ( @iv_operation_number = @lv_blank_operation_number
+          OR vornr = @iv_operation_number )
+        AND ( @iv_operation_number_from = @lv_blank_operation_number
+          OR vornr >= @iv_operation_number_from )
+        AND ( @iv_operation_number_to = @lv_blank_operation_number
+          OR vornr <= @iv_operation_number_to )
+        AND ( ( @iv_filter_control_key = @lv_false_indicator
+            AND @iv_control_key = @lv_blank_control_key )
+          OR steus = @iv_control_key )
+        AND ( ( @iv_filter_op_description =
+              @lv_false_indicator
+            AND @iv_operation_description =
+              @lv_blank_operation_description )
+          OR ltxa1 = @iv_operation_description )
+        AND ( ( @iv_filter_resource_object_id = @lv_false_indicator
+            AND @iv_resource_object_id = @lv_blank_resource_object_id )
+          OR arbid = @iv_resource_object_id )
+        AND ( ( @iv_filter_operation_sequence = @lv_false_indicator
+            AND @iv_operation_sequence = @lv_blank_operation_sequence )
+          OR plnfl = @iv_operation_sequence )
+        AND ( @iv_operation_sequence_from =
+              @lv_blank_operation_sequence
+          OR plnfl >= @iv_operation_sequence_from )
+        AND ( @iv_operation_sequence_to =
+              @lv_blank_operation_sequence
+          OR plnfl <= @iv_operation_sequence_to )
+        AND ( ( @iv_filter_suboperation_number = @lv_false_indicator
+            AND @iv_suboperation_number = @lv_blank_suboperation_number )
+          OR uvorn = @iv_suboperation_number )
+        AND ( @iv_suboperation_number_from =
+              @lv_blank_suboperation_number
+          OR uvorn >= @iv_suboperation_number_from )
+        AND ( @iv_suboperation_number_to =
+              @lv_blank_suboperation_number
+          OR uvorn <= @iv_suboperation_number_to )
       INTO CORRESPONDING FIELDS OF TABLE @lt_afvc.
+
+    IF lt_afvc IS NOT INITIAL.
+      SELECT objid,
+             arbpl,
+             werks
+        FROM crhd
+        FOR ALL ENTRIES IN @lt_afvc
+        WHERE objty = @lv_work_center_object_type
+          AND objid = @lt_afvc-arbid
+        INTO TABLE @DATA(lt_confirmation_work_centers).
+
+      LOOP AT lt_afvc ASSIGNING FIELD-SYMBOL(<ls_confirmation_operation>).
+        READ TABLE lt_confirmation_work_centers
+          INTO DATA(ls_confirmation_work_center)
+          WITH KEY objid = <ls_confirmation_operation>-arbid.
+        IF sy-subrc = 0.
+          <ls_confirmation_operation>-work_center =
+            ls_confirmation_work_center-arbpl.
+          <ls_confirmation_operation>-work_center_plant =
+            ls_confirmation_work_center-werks.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
 
     LOOP AT lt_afru INTO DATA(ls_afru).
       READ TABLE lt_aufk INTO DATA(ls_aufk)
@@ -1380,21 +2501,47 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       IF sy-subrc <> 0.
         CONTINUE.
       ENDIF.
+      IF iv_work_center <> lv_blank_work_center
+          AND ls_afvc-work_center <> iv_work_center.
+        CONTINUE.
+      ENDIF.
+      IF iv_filter_work_center <> lv_false_indicator
+          AND iv_work_center = lv_blank_work_center
+          AND ls_afvc-work_center <> lv_blank_work_center.
+        CONTINUE.
+      ENDIF.
+      IF iv_work_center_plant <> lv_blank_work_center_plant
+          AND ls_afvc-work_center_plant <> iv_work_center_plant.
+        CONTINUE.
+      ENDIF.
+      IF iv_filter_work_center_plant <> lv_false_indicator
+          AND iv_work_center_plant = lv_blank_work_center_plant
+          AND ls_afvc-work_center_plant <> lv_blank_work_center_plant.
+        CONTINUE.
+      ENDIF.
 
       CLEAR ls_confirmation.
       ls_confirmation-production_order = ls_afru-aufnr.
       ls_confirmation-order_category = ls_aufk-autyp.
+      ls_confirmation-order_type = ls_aufk-auart.
       ls_confirmation-operation_counter = ls_afvc-aplzl.
       ls_confirmation-operation_number = ls_afvc-vornr.
       ls_confirmation-operation_sequence = ls_afvc-plnfl.
       ls_confirmation-operation_suboperation = ls_afvc-uvorn.
       ls_confirmation-operation_description = ls_afvc-ltxa1.
       ls_confirmation-control_key = ls_afvc-steus.
+      ls_confirmation-resource_object_id = ls_afvc-arbid.
+      ls_confirmation-work_center = ls_afvc-work_center.
+      ls_confirmation-work_center_plant = ls_afvc-work_center_plant.
       ls_confirmation-confirmation = ls_afru-rueck.
       ls_confirmation-confirmation_counter = ls_afru-rmzhl.
       ls_confirmation-entered_by = ls_afru-ernam.
       ls_confirmation-entry_date = ls_afru-ersda.
       ls_confirmation-entry_time = ls_afru-erzet.
+      ls_confirmation-execution_start_date = ls_afru-isdd.
+      ls_confirmation-execution_start_time = ls_afru-isdz.
+      ls_confirmation-execution_finish_date = ls_afru-iedd.
+      ls_confirmation-execution_finish_time = ls_afru-iedz.
       ls_confirmation-changed_by = ls_afru-aenam.
       ls_confirmation-last_change_date = ls_afru-laeda.
       ls_confirmation-posting_date = ls_afru-budat.
@@ -1419,11 +2566,40 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     DATA lv_blank_production_order TYPE afru-aufnr.
     DATA lv_order_category TYPE aufk-autyp.
     DATA lv_blank_order_category TYPE aufk-autyp.
+    DATA lv_order_type TYPE aufk-auart.
+    DATA lv_filter_order_type TYPE abap_bool.
+    DATA lv_exclude_deleted TYPE abap_bool.
+    DATA lv_blank_order_type TYPE aufk-auart.
+    DATA lv_blank_deletion_indicator TYPE aufk-loekz.
+    DATA lv_work_center_object_type TYPE crhd-objty VALUE 'A'.
     DATA lv_operation_counter TYPE afvc-aplzl.
     DATA lv_blank_operation_counter TYPE afvc-aplzl.
+    DATA lv_operation_counter_from TYPE afvc-aplzl.
+    DATA lv_operation_counter_to TYPE afvc-aplzl.
+    DATA lv_operation_number_from TYPE afvc-vornr.
+    DATA lv_operation_number_to TYPE afvc-vornr.
+    DATA lv_blank_operation_number TYPE afvc-vornr.
+    DATA lv_operation_sequence_from TYPE afvc-plnfl.
+    DATA lv_operation_sequence_to TYPE afvc-plnfl.
+    DATA lv_blank_operation_sequence TYPE afvc-plnfl.
+    DATA lv_operation_subop_from TYPE afvc-uvorn.
+    DATA lv_operation_subop_to TYPE afvc-uvorn.
+    DATA lv_blank_operation_subop TYPE afvc-uvorn.
     DATA lv_filter_control_key TYPE abap_bool.
     DATA lv_control_key TYPE afvc-steus.
     DATA lv_blank_control_key TYPE afvc-steus.
+    DATA lv_filter_op_description TYPE abap_bool.
+    DATA lv_operation_description TYPE afvc-ltxa1.
+    DATA lv_blank_operation_description TYPE afvc-ltxa1.
+    DATA lv_filter_resource_id TYPE abap_bool.
+    DATA lv_resource_object_id TYPE afvc-arbid.
+    DATA lv_blank_resource_object_id TYPE afvc-arbid.
+    DATA lv_filter_work_center TYPE abap_bool.
+    DATA lv_work_center TYPE crhd-arbpl.
+    DATA lv_blank_work_center TYPE crhd-arbpl.
+    DATA lv_filter_work_center_plant TYPE abap_bool.
+    DATA lv_work_center_plant TYPE crhd-werks.
+    DATA lv_blank_work_center_plant TYPE crhd-werks.
     DATA lv_filter_quantity_unit TYPE abap_bool.
     DATA lv_quantity_unit TYPE afru-meinh.
     DATA lv_filter_entered_by TYPE abap_bool.
@@ -1437,11 +2613,25 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     DATA lv_blank_confirmation_number TYPE afru-rueck.
     DATA lv_confirmation_counter TYPE afru-rmzhl.
     DATA lv_blank_confirmation_counter TYPE afru-rmzhl.
+    DATA lv_confirmation_counter_from TYPE afru-rmzhl.
+    DATA lv_confirmation_counter_to TYPE afru-rmzhl.
     DATA lv_filter_operation_sequence TYPE abap_bool.
     DATA lv_filter_operation_subop TYPE abap_bool.
     DATA lv_positive_yield_only TYPE abap_bool.
     DATA lv_positive_rework_only TYPE abap_bool.
     DATA lv_positive_scrap_only TYPE abap_bool.
+    DATA lv_filter_yield_from TYPE abap_bool.
+    DATA lv_yield_quantity_from TYPE afru-lmnga.
+    DATA lv_filter_yield_to TYPE abap_bool.
+    DATA lv_yield_quantity_to TYPE afru-lmnga.
+    DATA lv_filter_rework_from TYPE abap_bool.
+    DATA lv_rework_quantity_from TYPE afru-rmnga.
+    DATA lv_filter_rework_to TYPE abap_bool.
+    DATA lv_rework_quantity_to TYPE afru-rmnga.
+    DATA lv_filter_scrap_from TYPE abap_bool.
+    DATA lv_scrap_quantity_from TYPE afru-xmnga.
+    DATA lv_filter_scrap_to TYPE abap_bool.
+    DATA lv_scrap_quantity_to TYPE afru-xmnga.
     DATA lv_false_indicator TYPE abap_bool.
     DATA lv_zero_yield_quantity TYPE afru-lmnga.
     DATA lv_zero_rework_quantity TYPE afru-rmnga.
@@ -1457,6 +2647,18 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     DATA lv_last_change_date_from TYPE afru-laeda.
     DATA lv_last_change_date_to TYPE afru-laeda.
     DATA lv_blank_last_change_date TYPE afru-laeda.
+    DATA lv_execution_start_date_from TYPE afru-isdd.
+    DATA lv_execution_start_date_to TYPE afru-isdd.
+    DATA lv_blank_execution_start_date TYPE afru-isdd.
+    DATA lv_filter_execution_start_time TYPE abap_bool.
+    DATA lv_execution_start_time_from TYPE afru-isdz.
+    DATA lv_execution_start_time_to TYPE afru-isdz.
+    DATA lv_execution_finish_date_from TYPE afru-iedd.
+    DATA lv_execution_finish_date_to TYPE afru-iedd.
+    DATA lv_blank_execution_finish_date TYPE afru-iedd.
+    DATA lv_filter_exec_finish_tm TYPE abap_bool.
+    DATA lv_execution_finish_time_from TYPE afru-iedz.
+    DATA lv_execution_finish_time_to TYPE afru-iedz.
     DATA lv_after_posting_date TYPE afru-budat.
     DATA lv_after_production_order TYPE afru-aufnr.
     DATA lv_after_confirmation TYPE afru-rueck.
@@ -1477,9 +2679,30 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     lv_plant = is_selection-plant.
     lv_production_order = is_selection-production_order.
     lv_order_category = is_selection-order_category.
+    lv_order_type = is_selection-order_type.
+    lv_filter_order_type = is_selection-filter_order_type.
+    lv_exclude_deleted = is_selection-exclude_deleted.
     lv_operation_counter = is_selection-operation_counter.
+    lv_operation_counter_from = is_selection-operation_counter_from.
+    lv_operation_counter_to = is_selection-operation_counter_to.
+    lv_operation_number_from = is_selection-operation_number_from.
+    lv_operation_number_to = is_selection-operation_number_to.
+    lv_operation_sequence_from = is_selection-operation_sequence_from.
+    lv_operation_sequence_to = is_selection-operation_sequence_to.
+    lv_operation_subop_from = is_selection-operation_suboperation_from.
+    lv_operation_subop_to = is_selection-operation_suboperation_to.
     lv_filter_control_key = is_selection-filter_control_key.
     lv_control_key = is_selection-control_key.
+    lv_filter_op_description =
+      is_selection-filter_operation_description.
+    lv_operation_description = is_selection-operation_description.
+    lv_filter_resource_id = is_selection-filter_resource_object_id.
+    lv_resource_object_id = is_selection-resource_object_id.
+    lv_filter_work_center = is_selection-filter_work_center.
+    lv_work_center = is_selection-work_center.
+    lv_filter_work_center_plant =
+      is_selection-filter_work_center_plant.
+    lv_work_center_plant = is_selection-work_center_plant.
     lv_filter_quantity_unit = is_selection-filter_quantity_unit.
     lv_quantity_unit = is_selection-quantity_unit.
     lv_filter_entry_time = is_selection-filter_entry_time.
@@ -1495,15 +2718,49 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       is_selection-filter_operation_suboperation.
     lv_confirmation_number = is_selection-confirmation_number.
     lv_confirmation_counter = is_selection-confirmation_counter.
+    lv_confirmation_counter_from = is_selection-confirmation_counter_from.
+    lv_confirmation_counter_to = is_selection-confirmation_counter_to.
     lv_positive_yield_only = is_selection-positive_yield_only.
     lv_positive_rework_only = is_selection-positive_rework_only.
     lv_positive_scrap_only = is_selection-positive_scrap_only.
+    lv_filter_yield_from = is_selection-filter_yield_quantity_from.
+    lv_yield_quantity_from = is_selection-yield_quantity_from.
+    lv_filter_yield_to = is_selection-filter_yield_quantity_to.
+    lv_yield_quantity_to = is_selection-yield_quantity_to.
+    lv_filter_rework_from = is_selection-filter_rework_quantity_from.
+    lv_rework_quantity_from = is_selection-rework_quantity_from.
+    lv_filter_rework_to = is_selection-filter_rework_quantity_to.
+    lv_rework_quantity_to = is_selection-rework_quantity_to.
+    lv_filter_scrap_from = is_selection-filter_scrap_quantity_from.
+    lv_scrap_quantity_from = is_selection-scrap_quantity_from.
+    lv_filter_scrap_to = is_selection-filter_scrap_quantity_to.
+    lv_scrap_quantity_to = is_selection-scrap_quantity_to.
     lv_posting_date_from = is_selection-posting_date_from.
     lv_posting_date_to = is_selection-posting_date_to.
     lv_entry_date_from = is_selection-entry_date_from.
     lv_entry_date_to = is_selection-entry_date_to.
     lv_last_change_date_from = is_selection-last_change_date_from.
     lv_last_change_date_to = is_selection-last_change_date_to.
+    lv_execution_start_date_from =
+      is_selection-execution_start_date_from.
+    lv_execution_start_date_to =
+      is_selection-execution_start_date_to.
+    lv_filter_execution_start_time =
+      is_selection-filter_execution_start_time.
+    lv_execution_start_time_from =
+      is_selection-execution_start_time_from.
+    lv_execution_start_time_to =
+      is_selection-execution_start_time_to.
+    lv_execution_finish_date_from =
+      is_selection-execution_finish_date_from.
+    lv_execution_finish_date_to =
+      is_selection-execution_finish_date_to.
+    lv_filter_exec_finish_tm =
+      is_selection-filter_execution_finish_time.
+    lv_execution_finish_time_from =
+      is_selection-execution_finish_time_from.
+    lv_execution_finish_time_to =
+      is_selection-execution_finish_time_to.
     lv_after_posting_date = is_selection-after_posting_date.
     lv_after_production_order = is_selection-after_production_order.
     lv_after_confirmation = is_selection-after_confirmation.
@@ -1600,12 +2857,17 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
              afpo_row~matnr AS scope_material,
              afpo_row~werks AS scope_plant,
              aufk_row~autyp AS order_category,
+             aufk_row~auart AS order_type,
+             aufk_row~loekz AS order_deletion_indicator,
              afvc_row~aplzl AS operation_counter,
              afvc_row~vornr AS operation_number,
              afvc_row~plnfl AS operation_sequence,
              afvc_row~uvorn AS operation_suboperation,
              afvc_row~ltxa1 AS operation_description,
              afvc_row~steus AS control_key,
+             afvc_row~arbid AS resource_object_id,
+             crhd_row~arbpl AS work_center,
+             crhd_row~werks AS work_center_plant,
              afru_row~rueck AS confirmation,
              afru_row~rmzhl AS confirmation_counter,
              afru_row~ernam AS entered_by,
@@ -1613,6 +2875,10 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
              afru_row~erzet AS entry_time,
              afru_row~aenam AS changed_by,
              afru_row~laeda AS last_change_date,
+             afru_row~isdd AS execution_start_date,
+             afru_row~isdz AS execution_start_time,
+             afru_row~iedd AS execution_finish_date,
+             afru_row~iedz AS execution_finish_time,
              afru_row~budat AS posting_date,
              afru_row~lmnga AS yield_quantity,
              afru_row~rmnga AS rework_quantity,
@@ -1624,6 +2890,9 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
         INNER JOIN afvc AS afvc_row
           ON afvc_row~aufpl = afru_row~aufpl
           AND afvc_row~aplzl = afru_row~aplzl
+        LEFT OUTER JOIN crhd AS crhd_row
+          ON crhd_row~objty = @lv_work_center_object_type
+          AND crhd_row~objid = afvc_row~arbid
         INNER JOIN afpo AS afpo_row
           ON afpo_row~aufnr = afru_row~aufnr
         INNER JOIN aufk AS aufk_row
@@ -1633,11 +2902,48 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
           AND ( @lv_production_order = @lv_blank_production_order
             OR afru_row~aufnr = @lv_production_order )
           AND afvc_row~vornr IN @lr_operation_numbers
+          AND ( @lv_operation_number_from = @lv_blank_operation_number
+            OR afvc_row~vornr >= @lv_operation_number_from )
+          AND ( @lv_operation_number_to = @lv_blank_operation_number
+            OR afvc_row~vornr <= @lv_operation_number_to )
           AND afvc_row~plnfl IN @lr_operation_sequences
+          AND ( @lv_operation_sequence_from =
+              @lv_blank_operation_sequence
+            OR afvc_row~plnfl >= @lv_operation_sequence_from )
+          AND ( @lv_operation_sequence_to =
+              @lv_blank_operation_sequence
+            OR afvc_row~plnfl <= @lv_operation_sequence_to )
           AND afvc_row~uvorn IN @lr_suboperation_numbers
+          AND ( @lv_operation_subop_from = @lv_blank_operation_subop
+            OR afvc_row~uvorn >= @lv_operation_subop_from )
+          AND ( @lv_operation_subop_to = @lv_blank_operation_subop
+            OR afvc_row~uvorn <= @lv_operation_subop_to )
           AND ( ( @lv_filter_control_key = @lv_false_indicator
               AND @lv_control_key = @lv_blank_control_key )
             OR afvc_row~steus = @lv_control_key )
+          AND ( ( @lv_filter_op_description =
+              @lv_false_indicator
+              AND @lv_operation_description =
+                @lv_blank_operation_description )
+            OR afvc_row~ltxa1 = @lv_operation_description )
+          AND ( ( @lv_filter_resource_id = @lv_false_indicator
+              AND @lv_resource_object_id =
+                @lv_blank_resource_object_id )
+            OR afvc_row~arbid = @lv_resource_object_id )
+          AND ( ( @lv_filter_work_center = @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center )
+            OR crhd_row~arbpl = @lv_work_center
+            OR ( @lv_filter_work_center <> @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center
+              AND ( crhd_row~arbpl = @lv_blank_work_center
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @lv_filter_work_center_plant = @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant )
+            OR crhd_row~werks = @lv_work_center_plant
+            OR ( @lv_filter_work_center_plant <> @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant
+              AND ( crhd_row~werks = @lv_blank_work_center_plant
+                OR crhd_row~objid IS NULL ) ) )
           AND ( ( @lv_filter_quantity_unit = @lv_false_indicator
               AND @lv_quantity_unit = @lv_blank_quantity_unit )
             OR afru_row~meinh = @lv_quantity_unit )
@@ -1653,6 +2959,12 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
           AND ( @lv_confirmation_counter =
               @lv_blank_confirmation_counter
             OR afru_row~rmzhl = @lv_confirmation_counter )
+          AND ( @lv_confirmation_counter_from =
+              @lv_blank_confirmation_counter
+            OR afru_row~rmzhl >= @lv_confirmation_counter_from )
+          AND ( @lv_confirmation_counter_to =
+              @lv_blank_confirmation_counter
+            OR afru_row~rmzhl <= @lv_confirmation_counter_to )
           AND afru_row~budat BETWEEN @lv_posting_date_from
             AND @lv_posting_date_to
           AND ( @lv_entry_date_from = @lv_blank_entry_date
@@ -1665,17 +2977,63 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               @lv_blank_last_change_date
             OR afru_row~laeda BETWEEN @lv_last_change_date_from
               AND @lv_last_change_date_to )
+          AND ( @lv_execution_start_date_from =
+                @lv_blank_execution_start_date
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdd >= @lv_execution_start_date_from ) )
+          AND ( @lv_execution_start_date_to =
+                @lv_blank_execution_start_date
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdd <= @lv_execution_start_date_to ) )
+          AND ( @lv_filter_execution_start_time = @lv_false_indicator
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdz BETWEEN @lv_execution_start_time_from
+                AND @lv_execution_start_time_to ) )
+          AND ( @lv_execution_finish_date_from =
+                @lv_blank_execution_finish_date
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedd >= @lv_execution_finish_date_from ) )
+          AND ( @lv_execution_finish_date_to =
+                @lv_blank_execution_finish_date
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedd <= @lv_execution_finish_date_to ) )
+          AND ( @lv_filter_exec_finish_tm = @lv_false_indicator
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedz BETWEEN @lv_execution_finish_time_from
+                AND @lv_execution_finish_time_to ) )
           AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
           AND ( @lv_order_category = @lv_blank_order_category
             OR aufk_row~autyp = @lv_order_category )
+          AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
+            OR aufk_row~auart = @lv_order_type )
+          AND ( @lv_exclude_deleted = @lv_false_indicator
+            OR ( aufk_row~loekz = @lv_blank_deletion_indicator
+              AND afpo_row~xloek = @lv_blank_deletion_indicator ) )
           AND ( @lv_operation_counter = @lv_blank_operation_counter
             OR afvc_row~aplzl = @lv_operation_counter )
+          AND ( @lv_operation_counter_from = @lv_blank_operation_counter
+            OR afvc_row~aplzl >= @lv_operation_counter_from )
+          AND ( @lv_operation_counter_to = @lv_blank_operation_counter
+            OR afvc_row~aplzl <= @lv_operation_counter_to )
           AND afru_row~aueru IN @lr_final_indicators
           AND afru_row~stokz IN @lr_reversal_indicators
           AND ( @lv_positive_rework_only = @lv_false_indicator
             OR afru_row~rmnga > @lv_zero_rework_quantity )
           AND ( @lv_positive_yield_only = @lv_false_indicator
             OR afru_row~lmnga > @lv_zero_yield_quantity )
+          AND ( @lv_filter_yield_from = @lv_false_indicator
+            OR afru_row~lmnga >= @lv_yield_quantity_from )
+          AND ( @lv_filter_yield_to = @lv_false_indicator
+            OR afru_row~lmnga <= @lv_yield_quantity_to )
+          AND ( @lv_filter_rework_from = @lv_false_indicator
+            OR afru_row~rmnga >= @lv_rework_quantity_from )
+          AND ( @lv_filter_rework_to = @lv_false_indicator
+            OR afru_row~rmnga <= @lv_rework_quantity_to )
+          AND ( @lv_filter_scrap_from = @lv_false_indicator
+            OR afru_row~xmnga >= @lv_scrap_quantity_from )
+          AND ( @lv_filter_scrap_to = @lv_false_indicator
+            OR afru_row~xmnga <= @lv_scrap_quantity_to )
           AND ( @lv_positive_scrap_only = @lv_false_indicator
             OR afru_row~xmnga > @lv_zero_scrap_quantity )
         ORDER BY posting_date, production_order, confirmation,
@@ -1687,12 +3045,17 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
              afpo_row~matnr AS scope_material,
              afpo_row~werks AS scope_plant,
              aufk_row~autyp AS order_category,
+             aufk_row~auart AS order_type,
+             aufk_row~loekz AS order_deletion_indicator,
              afvc_row~aplzl AS operation_counter,
              afvc_row~vornr AS operation_number,
              afvc_row~plnfl AS operation_sequence,
              afvc_row~uvorn AS operation_suboperation,
              afvc_row~ltxa1 AS operation_description,
              afvc_row~steus AS control_key,
+             afvc_row~arbid AS resource_object_id,
+             crhd_row~arbpl AS work_center,
+             crhd_row~werks AS work_center_plant,
              afru_row~rueck AS confirmation,
              afru_row~rmzhl AS confirmation_counter,
              afru_row~ernam AS entered_by,
@@ -1700,6 +3063,10 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
              afru_row~erzet AS entry_time,
              afru_row~aenam AS changed_by,
              afru_row~laeda AS last_change_date,
+             afru_row~isdd AS execution_start_date,
+             afru_row~isdz AS execution_start_time,
+             afru_row~iedd AS execution_finish_date,
+             afru_row~iedz AS execution_finish_time,
              afru_row~budat AS posting_date,
              afru_row~lmnga AS yield_quantity,
              afru_row~rmnga AS rework_quantity,
@@ -1711,6 +3078,9 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
         INNER JOIN afvc AS afvc_row
           ON afvc_row~aufpl = afru_row~aufpl
           AND afvc_row~aplzl = afru_row~aplzl
+        LEFT OUTER JOIN crhd AS crhd_row
+          ON crhd_row~objty = @lv_work_center_object_type
+          AND crhd_row~objid = afvc_row~arbid
         INNER JOIN afpo AS afpo_row
           ON afpo_row~aufnr = afru_row~aufnr
         INNER JOIN aufk AS aufk_row
@@ -1720,11 +3090,48 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
           AND ( @lv_production_order = @lv_blank_production_order
             OR afru_row~aufnr = @lv_production_order )
           AND afvc_row~vornr IN @lr_operation_numbers
+          AND ( @lv_operation_number_from = @lv_blank_operation_number
+            OR afvc_row~vornr >= @lv_operation_number_from )
+          AND ( @lv_operation_number_to = @lv_blank_operation_number
+            OR afvc_row~vornr <= @lv_operation_number_to )
           AND afvc_row~plnfl IN @lr_operation_sequences
+          AND ( @lv_operation_sequence_from =
+              @lv_blank_operation_sequence
+            OR afvc_row~plnfl >= @lv_operation_sequence_from )
+          AND ( @lv_operation_sequence_to =
+              @lv_blank_operation_sequence
+            OR afvc_row~plnfl <= @lv_operation_sequence_to )
           AND afvc_row~uvorn IN @lr_suboperation_numbers
+          AND ( @lv_operation_subop_from = @lv_blank_operation_subop
+            OR afvc_row~uvorn >= @lv_operation_subop_from )
+          AND ( @lv_operation_subop_to = @lv_blank_operation_subop
+            OR afvc_row~uvorn <= @lv_operation_subop_to )
           AND ( ( @lv_filter_control_key = @lv_false_indicator
               AND @lv_control_key = @lv_blank_control_key )
             OR afvc_row~steus = @lv_control_key )
+          AND ( ( @lv_filter_op_description =
+              @lv_false_indicator
+              AND @lv_operation_description =
+                @lv_blank_operation_description )
+            OR afvc_row~ltxa1 = @lv_operation_description )
+          AND ( ( @lv_filter_resource_id = @lv_false_indicator
+              AND @lv_resource_object_id =
+                @lv_blank_resource_object_id )
+            OR afvc_row~arbid = @lv_resource_object_id )
+          AND ( ( @lv_filter_work_center = @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center )
+            OR crhd_row~arbpl = @lv_work_center
+            OR ( @lv_filter_work_center <> @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center
+              AND ( crhd_row~arbpl = @lv_blank_work_center
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @lv_filter_work_center_plant = @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant )
+            OR crhd_row~werks = @lv_work_center_plant
+            OR ( @lv_filter_work_center_plant <> @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant
+              AND ( crhd_row~werks = @lv_blank_work_center_plant
+                OR crhd_row~objid IS NULL ) ) )
           AND ( ( @lv_filter_quantity_unit = @lv_false_indicator
               AND @lv_quantity_unit = @lv_blank_quantity_unit )
             OR afru_row~meinh = @lv_quantity_unit )
@@ -1740,6 +3147,12 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
           AND ( @lv_confirmation_counter =
               @lv_blank_confirmation_counter
             OR afru_row~rmzhl = @lv_confirmation_counter )
+          AND ( @lv_confirmation_counter_from =
+              @lv_blank_confirmation_counter
+            OR afru_row~rmzhl >= @lv_confirmation_counter_from )
+          AND ( @lv_confirmation_counter_to =
+              @lv_blank_confirmation_counter
+            OR afru_row~rmzhl <= @lv_confirmation_counter_to )
           AND afru_row~budat BETWEEN @lv_posting_date_from
             AND @lv_posting_date_to
           AND ( @lv_entry_date_from = @lv_blank_entry_date
@@ -1752,17 +3165,63 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
               @lv_blank_last_change_date
             OR afru_row~laeda BETWEEN @lv_last_change_date_from
               AND @lv_last_change_date_to )
+          AND ( @lv_execution_start_date_from =
+                @lv_blank_execution_start_date
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdd >= @lv_execution_start_date_from ) )
+          AND ( @lv_execution_start_date_to =
+                @lv_blank_execution_start_date
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdd <= @lv_execution_start_date_to ) )
+          AND ( @lv_filter_execution_start_time = @lv_false_indicator
+            OR ( afru_row~isdd <> @lv_blank_execution_start_date
+              AND afru_row~isdz BETWEEN @lv_execution_start_time_from
+                AND @lv_execution_start_time_to ) )
+          AND ( @lv_execution_finish_date_from =
+                @lv_blank_execution_finish_date
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedd >= @lv_execution_finish_date_from ) )
+          AND ( @lv_execution_finish_date_to =
+                @lv_blank_execution_finish_date
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedd <= @lv_execution_finish_date_to ) )
+          AND ( @lv_filter_exec_finish_tm = @lv_false_indicator
+            OR ( afru_row~iedd <> @lv_blank_execution_finish_date
+              AND afru_row~iedz BETWEEN @lv_execution_finish_time_from
+                AND @lv_execution_finish_time_to ) )
           AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
           AND ( @lv_order_category = @lv_blank_order_category
             OR aufk_row~autyp = @lv_order_category )
+          AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
+            OR aufk_row~auart = @lv_order_type )
+          AND ( @lv_exclude_deleted = @lv_false_indicator
+            OR ( aufk_row~loekz = @lv_blank_deletion_indicator
+              AND afpo_row~xloek = @lv_blank_deletion_indicator ) )
           AND ( @lv_operation_counter = @lv_blank_operation_counter
             OR afvc_row~aplzl = @lv_operation_counter )
+          AND ( @lv_operation_counter_from = @lv_blank_operation_counter
+            OR afvc_row~aplzl >= @lv_operation_counter_from )
+          AND ( @lv_operation_counter_to = @lv_blank_operation_counter
+            OR afvc_row~aplzl <= @lv_operation_counter_to )
           AND afru_row~aueru IN @lr_final_indicators
           AND afru_row~stokz IN @lr_reversal_indicators
           AND ( @lv_positive_rework_only = @lv_false_indicator
             OR afru_row~rmnga > @lv_zero_rework_quantity )
           AND ( @lv_positive_yield_only = @lv_false_indicator
             OR afru_row~lmnga > @lv_zero_yield_quantity )
+          AND ( @lv_filter_yield_from = @lv_false_indicator
+            OR afru_row~lmnga >= @lv_yield_quantity_from )
+          AND ( @lv_filter_yield_to = @lv_false_indicator
+            OR afru_row~lmnga <= @lv_yield_quantity_to )
+          AND ( @lv_filter_rework_from = @lv_false_indicator
+            OR afru_row~rmnga >= @lv_rework_quantity_from )
+          AND ( @lv_filter_rework_to = @lv_false_indicator
+            OR afru_row~rmnga <= @lv_rework_quantity_to )
+          AND ( @lv_filter_scrap_from = @lv_false_indicator
+            OR afru_row~xmnga >= @lv_scrap_quantity_from )
+          AND ( @lv_filter_scrap_to = @lv_false_indicator
+            OR afru_row~xmnga <= @lv_scrap_quantity_to )
           AND ( @lv_positive_scrap_only = @lv_false_indicator
             OR afru_row~xmnga > @lv_zero_scrap_quantity )
           AND ( afru_row~budat > @lv_after_posting_date
@@ -1788,6 +3247,7 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       BEGIN OF ty_operation_order,
         aufnr TYPE aufk-aufnr,
         autyp TYPE aufk-autyp,
+        auart TYPE aufk-auart,
       END OF ty_operation_order,
       ty_operation_orders TYPE HASHED TABLE OF ty_operation_order
         WITH UNIQUE KEY aufnr,
@@ -1798,30 +3258,231 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
       ty_order_routings TYPE SORTED TABLE OF ty_order_routing
         WITH NON-UNIQUE KEY aufpl,
       BEGIN OF ty_operation_data,
-        aufpl TYPE afvc-aufpl,
-        aplzl TYPE afvc-aplzl,
-        plnfl TYPE afvc-plnfl,
-        vornr TYPE afvc-vornr,
-        uvorn TYPE afvc-uvorn,
-        ltxa1 TYPE afvc-ltxa1,
-        steus TYPE afvc-steus,
+        aufpl             TYPE afvc-aufpl,
+        aplzl             TYPE afvc-aplzl,
+        plnfl             TYPE afvc-plnfl,
+        vornr             TYPE afvc-vornr,
+        uvorn             TYPE afvc-uvorn,
+        ltxa1             TYPE afvc-ltxa1,
+        steus             TYPE afvc-steus,
+        arbid             TYPE afvc-arbid,
+        work_center       TYPE crhd-arbpl,
+        work_center_plant TYPE crhd-werks,
       END OF ty_operation_data,
       ty_operation_rows TYPE STANDARD TABLE OF ty_operation_data
-        WITH EMPTY KEY.
+        WITH EMPTY KEY,
+      ty_order_number_ranges TYPE RANGE OF aufk-aufnr.
+    DATA lr_order_numbers TYPE ty_order_number_ranges.
     DATA lt_aufk TYPE ty_operation_orders.
     DATA lt_afko TYPE ty_order_routings.
     DATA lt_afvc TYPE ty_operation_rows.
     DATA ls_operation TYPE zif_prod_order_read_repo=>ty_order_operation.
+    DATA lv_false_indicator TYPE abap_bool VALUE abap_false.
+    DATA lv_blank_resource_object_id TYPE afvc-arbid.
+    DATA lv_resource_object_id TYPE afvc-arbid.
+    DATA lv_filter_work_center TYPE abap_bool.
+    DATA lv_work_center TYPE crhd-arbpl.
+    DATA lv_blank_work_center TYPE crhd-arbpl.
+    DATA lv_filter_work_center_plant TYPE abap_bool.
+    DATA lv_work_center_plant TYPE crhd-werks.
+    DATA lv_blank_work_center_plant TYPE crhd-werks.
+    DATA lv_work_center_object_type TYPE crhd-objty VALUE 'A'.
+    DATA lv_blank_control_key TYPE afvc-steus.
+    DATA lv_control_key TYPE afvc-steus.
+    DATA lv_blank_operation_description TYPE afvc-ltxa1.
+    DATA lv_operation_description TYPE afvc-ltxa1.
+    DATA lv_blank_operation_number TYPE afvc-vornr.
+    DATA lv_operation_number TYPE afvc-vornr.
+    DATA lv_operation_number_from TYPE afvc-vornr.
+    DATA lv_operation_number_to TYPE afvc-vornr.
+    DATA lv_blank_operation_counter TYPE afvc-aplzl.
+    DATA lv_operation_counter TYPE afvc-aplzl.
+    DATA lv_operation_counter_from TYPE afvc-aplzl.
+    DATA lv_operation_counter_to TYPE afvc-aplzl.
+    DATA lv_blank_operation_sequence TYPE afvc-plnfl.
+    DATA lv_operation_sequence TYPE afvc-plnfl.
+    DATA lv_operation_sequence_from TYPE afvc-plnfl.
+    DATA lv_operation_sequence_to TYPE afvc-plnfl.
+    DATA lv_blank_suboperation_number TYPE afvc-uvorn.
+    DATA lv_suboperation_number TYPE afvc-uvorn.
+    DATA lv_suboperation_number_from TYPE afvc-uvorn.
+    DATA lv_suboperation_number_to TYPE afvc-uvorn.
+    DATA lv_blank_order_category TYPE aufk-autyp.
+    DATA lv_order_category TYPE aufk-autyp.
+    DATA lv_blank_order_type TYPE aufk-auart.
+    DATA lv_order_type TYPE aufk-auart.
+    DATA lv_fetch_limit TYPE i.
 
     IF it_production_orders IS INITIAL.
       RETURN.
     ENDIF.
 
+    lv_resource_object_id = iv_resource_object_id.
+    lv_filter_work_center = iv_filter_work_center.
+    lv_work_center = iv_work_center.
+    lv_filter_work_center_plant = iv_filter_work_center_plant.
+    lv_work_center_plant = iv_work_center_plant.
+    lv_control_key = iv_control_key.
+    lv_operation_description = iv_operation_description.
+    lv_operation_number = iv_operation_number.
+    lv_operation_number_from = iv_operation_number_from.
+    lv_operation_number_to = iv_operation_number_to.
+    lv_operation_counter = iv_operation_counter.
+    lv_operation_counter_from = iv_operation_counter_from.
+    lv_operation_counter_to = iv_operation_counter_to.
+    lv_operation_sequence = iv_operation_sequence.
+    lv_operation_sequence_from = iv_operation_sequence_from.
+    lv_operation_sequence_to = iv_operation_sequence_to.
+    lv_suboperation_number = iv_suboperation_number.
+    lv_suboperation_number_from = iv_suboperation_number_from.
+    lv_suboperation_number_to = iv_suboperation_number_to.
+    lv_order_category = iv_order_category.
+    lv_order_type = iv_order_type.
+
+    IF is_page_selection IS SUPPLIED.
+      IF is_page_selection-maximum_results < 1
+          OR is_page_selection-maximum_results > 500.
+        RETURN.
+      ENDIF.
+      lv_fetch_limit = is_page_selection-maximum_results + 1.
+
+      LOOP AT it_production_orders INTO DATA(lv_requested_order).
+        APPEND VALUE #(
+          sign   = 'I'
+          option = 'EQ'
+          low    = lv_requested_order ) TO lr_order_numbers.
+      ENDLOOP.
+
+      SELECT aufk_row~aufnr AS production_order,
+             aufk_row~autyp AS order_category,
+             aufk_row~auart AS order_type,
+             afvc_row~aplzl AS operation_counter,
+             afvc_row~plnfl AS operation_sequence,
+             afvc_row~vornr AS operation_number,
+             afvc_row~uvorn AS suboperation_number,
+             afvc_row~ltxa1 AS operation_description,
+             afvc_row~steus AS control_key,
+             afvc_row~arbid AS resource_object_id,
+             crhd_row~arbpl AS work_center,
+             crhd_row~werks AS work_center_plant
+        FROM aufk AS aufk_row
+        INNER JOIN afko AS afko_row
+          ON afko_row~aufnr = aufk_row~aufnr
+        INNER JOIN afvc AS afvc_row
+          ON afvc_row~aufpl = afko_row~aufpl
+        LEFT OUTER JOIN crhd AS crhd_row
+          ON crhd_row~objty = @lv_work_center_object_type
+          AND crhd_row~objid = afvc_row~arbid
+        WHERE aufk_row~aufnr IN @lr_order_numbers
+          AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
+          AND ( @lv_order_category = @lv_blank_order_category
+            OR aufk_row~autyp = @lv_order_category )
+          AND ( @lv_order_type = @lv_blank_order_type
+            OR aufk_row~auart = @lv_order_type )
+          AND ( ( @iv_filter_resource_object_id = @lv_false_indicator
+              AND @lv_resource_object_id =
+                @lv_blank_resource_object_id )
+            OR afvc_row~arbid = @lv_resource_object_id )
+          AND ( ( @lv_filter_work_center = @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center )
+            OR crhd_row~arbpl = @lv_work_center
+            OR ( @lv_filter_work_center <> @lv_false_indicator
+              AND @lv_work_center = @lv_blank_work_center
+              AND ( crhd_row~arbpl = @lv_blank_work_center
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @lv_filter_work_center_plant = @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant )
+            OR crhd_row~werks = @lv_work_center_plant
+            OR ( @lv_filter_work_center_plant <> @lv_false_indicator
+              AND @lv_work_center_plant = @lv_blank_work_center_plant
+              AND ( crhd_row~werks = @lv_blank_work_center_plant
+                OR crhd_row~objid IS NULL ) ) )
+          AND ( ( @iv_filter_control_key = @lv_false_indicator
+              AND @lv_control_key = @lv_blank_control_key )
+            OR afvc_row~steus = @lv_control_key )
+          AND ( ( @iv_filter_op_description =
+                @lv_false_indicator
+              AND @lv_operation_description =
+                @lv_blank_operation_description )
+            OR afvc_row~ltxa1 = @lv_operation_description )
+          AND ( @lv_operation_number = @lv_blank_operation_number
+            OR afvc_row~vornr = @lv_operation_number )
+          AND ( @lv_operation_number_from = @lv_blank_operation_number
+            OR afvc_row~vornr >= @lv_operation_number_from )
+          AND ( @lv_operation_number_to = @lv_blank_operation_number
+            OR afvc_row~vornr <= @lv_operation_number_to )
+          AND ( @lv_operation_counter = @lv_blank_operation_counter
+            OR afvc_row~aplzl = @lv_operation_counter )
+          AND ( @lv_operation_counter_from = @lv_blank_operation_counter
+            OR afvc_row~aplzl >= @lv_operation_counter_from )
+          AND ( @lv_operation_counter_to = @lv_blank_operation_counter
+            OR afvc_row~aplzl <= @lv_operation_counter_to )
+          AND ( ( @iv_filter_operation_sequence = @lv_false_indicator
+              AND @lv_operation_sequence =
+                @lv_blank_operation_sequence )
+            OR afvc_row~plnfl = @lv_operation_sequence )
+          AND ( @lv_operation_sequence_from = @lv_blank_operation_sequence
+            OR afvc_row~plnfl >= @lv_operation_sequence_from )
+          AND ( @lv_operation_sequence_to = @lv_blank_operation_sequence
+            OR afvc_row~plnfl <= @lv_operation_sequence_to )
+          AND ( ( @iv_filter_suboperation_number = @lv_false_indicator
+              AND @lv_suboperation_number =
+                @lv_blank_suboperation_number )
+            OR afvc_row~uvorn = @lv_suboperation_number )
+          AND ( @lv_suboperation_number_from =
+                @lv_blank_suboperation_number
+            OR afvc_row~uvorn >= @lv_suboperation_number_from )
+          AND ( @lv_suboperation_number_to =
+                @lv_blank_suboperation_number
+            OR afvc_row~uvorn <= @lv_suboperation_number_to )
+          AND ( @is_page_selection-has_cursor = @lv_false_indicator
+            OR aufk_row~aufnr >
+              @is_page_selection-after_production_order
+            OR ( aufk_row~aufnr =
+                @is_page_selection-after_production_order
+              AND afvc_row~plnfl >
+                @is_page_selection-after_operation_sequence )
+            OR ( aufk_row~aufnr =
+                @is_page_selection-after_production_order
+              AND afvc_row~plnfl =
+                @is_page_selection-after_operation_sequence
+              AND afvc_row~vornr >
+                @is_page_selection-after_operation_number )
+            OR ( aufk_row~aufnr =
+                @is_page_selection-after_production_order
+              AND afvc_row~plnfl =
+                @is_page_selection-after_operation_sequence
+              AND afvc_row~vornr =
+                @is_page_selection-after_operation_number
+              AND afvc_row~uvorn >
+                @is_page_selection-after_suboperation_number )
+            OR ( aufk_row~aufnr =
+                @is_page_selection-after_production_order
+              AND afvc_row~plnfl =
+                @is_page_selection-after_operation_sequence
+              AND afvc_row~vornr =
+                @is_page_selection-after_operation_number
+              AND afvc_row~uvorn =
+                @is_page_selection-after_suboperation_number
+              AND afvc_row~aplzl >
+                @is_page_selection-after_operation_counter ) )
+        ORDER BY production_order, operation_sequence, operation_number,
+          suboperation_number, operation_counter
+        INTO CORRESPONDING FIELDS OF TABLE @rt_operations
+        UP TO @lv_fetch_limit ROWS.
+      RETURN.
+    ENDIF.
+
     SELECT aufnr,
-           autyp
+           autyp,
+           auart
       FROM aufk
       FOR ALL ENTRIES IN @it_production_orders
       WHERE aufnr = @it_production_orders-table_line
+        AND ( @lv_order_category = @lv_blank_order_category
+          OR autyp = @lv_order_category )
+        AND ( @lv_order_type = @lv_blank_order_type
+          OR auart = @lv_order_type )
         AND ( autyp = '10' OR autyp = '40' )
       INTO CORRESPONDING FIELDS OF TABLE @lt_aufk.
 
@@ -1846,16 +3507,90 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
            vornr,
            uvorn,
            ltxa1,
-           steus
+           steus,
+           arbid
       FROM afvc
       FOR ALL ENTRIES IN @lt_afko
       WHERE aufpl = @lt_afko-aufpl
+        AND ( ( @iv_filter_resource_object_id = @lv_false_indicator
+            AND @lv_resource_object_id = @lv_blank_resource_object_id )
+          OR arbid = @lv_resource_object_id )
+        AND ( ( @iv_filter_control_key = @lv_false_indicator
+            AND @lv_control_key = @lv_blank_control_key )
+          OR steus = @lv_control_key )
+        AND ( ( @iv_filter_op_description =
+              @lv_false_indicator
+            AND @lv_operation_description =
+              @lv_blank_operation_description )
+          OR ltxa1 = @lv_operation_description )
+        AND ( @lv_operation_number = @lv_blank_operation_number
+          OR vornr = @lv_operation_number )
+        AND ( @lv_operation_number_from = @lv_blank_operation_number
+          OR vornr >= @lv_operation_number_from )
+        AND ( @lv_operation_number_to = @lv_blank_operation_number
+          OR vornr <= @lv_operation_number_to )
+        AND ( @lv_operation_counter = @lv_blank_operation_counter
+          OR aplzl = @lv_operation_counter )
+        AND ( @lv_operation_counter_from = @lv_blank_operation_counter
+          OR aplzl >= @lv_operation_counter_from )
+        AND ( @lv_operation_counter_to = @lv_blank_operation_counter
+          OR aplzl <= @lv_operation_counter_to )
+        AND ( ( @iv_filter_operation_sequence = @lv_false_indicator
+            AND @lv_operation_sequence = @lv_blank_operation_sequence )
+          OR plnfl = @lv_operation_sequence )
+        AND ( @lv_operation_sequence_from = @lv_blank_operation_sequence
+          OR plnfl >= @lv_operation_sequence_from )
+        AND ( @lv_operation_sequence_to = @lv_blank_operation_sequence
+          OR plnfl <= @lv_operation_sequence_to )
+        AND ( ( @iv_filter_suboperation_number = @lv_false_indicator
+            AND @lv_suboperation_number = @lv_blank_suboperation_number )
+          OR uvorn = @lv_suboperation_number )
+        AND ( @lv_suboperation_number_from =
+              @lv_blank_suboperation_number
+          OR uvorn >= @lv_suboperation_number_from )
+        AND ( @lv_suboperation_number_to =
+              @lv_blank_suboperation_number
+          OR uvorn <= @lv_suboperation_number_to )
       INTO CORRESPONDING FIELDS OF TABLE @lt_afvc.
 
+    IF lt_afvc IS NOT INITIAL.
+      SELECT objid,
+             arbpl,
+             werks
+        FROM crhd
+        FOR ALL ENTRIES IN @lt_afvc
+        WHERE objty = @lv_work_center_object_type
+          AND objid = @lt_afvc-arbid
+        INTO TABLE @DATA(lt_operation_work_centers).
+
+      LOOP AT lt_afvc ASSIGNING FIELD-SYMBOL(<ls_operation_data>).
+        READ TABLE lt_operation_work_centers
+          INTO DATA(ls_operation_work_center)
+          WITH KEY objid = <ls_operation_data>-arbid.
+        IF sy-subrc = 0.
+          <ls_operation_data>-work_center = ls_operation_work_center-arbpl.
+          <ls_operation_data>-work_center_plant =
+            ls_operation_work_center-werks.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
     LOOP AT lt_afvc INTO DATA(ls_afvc).
+      IF ( iv_work_center IS NOT INITIAL
+          AND ls_afvc-work_center <> iv_work_center )
+          OR ( iv_filter_work_center <> lv_false_indicator
+            AND iv_work_center IS INITIAL
+            AND ls_afvc-work_center IS NOT INITIAL )
+          OR ( iv_work_center_plant IS NOT INITIAL
+            AND ls_afvc-work_center_plant <> iv_work_center_plant )
+          OR ( iv_filter_work_center_plant <> lv_false_indicator
+            AND iv_work_center_plant IS INITIAL
+            AND ls_afvc-work_center_plant IS NOT INITIAL ).
+        CONTINUE.
+      ENDIF.
       LOOP AT lt_afko INTO DATA(ls_afko)
           WHERE aufpl = ls_afvc-aufpl.
-        READ TABLE lt_aufk TRANSPORTING NO FIELDS
+        READ TABLE lt_aufk INTO DATA(ls_aufk)
           WITH TABLE KEY aufnr = ls_afko-aufnr.
         IF sy-subrc <> 0.
           CONTINUE.
@@ -1863,12 +3598,17 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
 
         CLEAR ls_operation.
         ls_operation-production_order = ls_afko-aufnr.
+        ls_operation-order_category = ls_aufk-autyp.
+        ls_operation-order_type = ls_aufk-auart.
         ls_operation-operation_counter = ls_afvc-aplzl.
         ls_operation-operation_sequence = ls_afvc-plnfl.
         ls_operation-operation_number = ls_afvc-vornr.
         ls_operation-suboperation_number = ls_afvc-uvorn.
         ls_operation-operation_description = ls_afvc-ltxa1.
         ls_operation-control_key = ls_afvc-steus.
+        ls_operation-resource_object_id = ls_afvc-arbid.
+        ls_operation-work_center = ls_afvc-work_center.
+        ls_operation-work_center_plant = ls_afvc-work_center_plant.
         APPEND ls_operation TO rt_operations.
       ENDLOOP.
     ENDLOOP.

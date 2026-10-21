@@ -4,6 +4,10 @@ CLASS zcl_stock_service DEFINITION
   CREATE PUBLIC.
 
   PUBLIC SECTION.
+    CONSTANTS c_exp_category_unrestricted TYPE c LENGTH 1 VALUE 'U'.
+    CONSTANTS c_exp_category_available TYPE c LENGTH 1 VALUE 'A'.
+    CONSTANTS c_exp_category_quality TYPE c LENGTH 1 VALUE 'Q'.
+    CONSTANTS c_exp_category_blocked TYPE c LENGTH 1 VALUE 'B'.
     CONSTANTS c_expiry_status_expired TYPE c LENGTH 1 VALUE 'E'.
     CONSTANTS c_expiry_status_upcoming TYPE c LENGTH 1 VALUE 'U'.
     CONSTANTS c_expiry_status_after_window TYPE c LENGTH 1 VALUE 'A'.
@@ -20,6 +24,8 @@ CLASS zcl_stock_service DEFINITION
     CONSTANTS c_after_window_band_8_30 TYPE c LENGTH 1 VALUE '2'.
     CONSTANTS c_after_window_band_31_90 TYPE c LENGTH 1 VALUE '3'.
     CONSTANTS c_after_window_band_over_90 TYPE c LENGTH 1 VALUE '4'.
+    TYPES ty_minimum_coverage_pct TYPE p LENGTH 5 DECIMALS 2.
+    TYPES ty_allocation_coverage_pct TYPE p LENGTH 5 DECIMALS 2.
     TYPES ty_stock_status_request TYPE
       zif_stock_repository=>ty_stock_status_request.
     TYPES ty_stock_status_requests TYPE
@@ -65,7 +71,27 @@ CLASS zcl_stock_service DEFINITION
         through_date                  TYPE d,
         expiration_date_from          TYPE d,
         expiration_date_to            TYPE d,
+        positive_available_only       TYPE abap_bool,
+        filter_available_from         TYPE abap_bool,
+        available_quantity_from       TYPE mchb-clabs,
+        filter_available_to           TYPE abap_bool,
+        available_quantity_to         TYPE mchb-clabs,
+        filter_available_pct_from     TYPE abap_bool,
+        available_pct_from            TYPE p LENGTH 5 DECIMALS 2,
+        filter_available_pct_to       TYPE abap_bool,
+        available_pct_to              TYPE p LENGTH 5 DECIMALS 2,
+        filter_positive_category      TYPE abap_bool,
+        positive_stock_category       TYPE c LENGTH 1,
+        filter_category_quantity_from TYPE abap_bool,
+        category_quantity_from        TYPE mchb-clabs,
+        filter_category_quantity_to   TYPE abap_bool,
+        category_quantity_to          TYPE mchb-clabs,
+        filter_resv_deduction_from    TYPE abap_bool,
+        resv_deduction_from           TYPE decfloat34,
+        filter_resv_deduction_to      TYPE abap_bool,
+        resv_deduction_to             TYPE decfloat34,
         maximum_batch_rows            TYPE i,
+        omit_dated_batch_rows         TYPE abap_bool,
         maximum_uncovered_rows        TYPE i,
         omit_uncovered_detail_rows    TYPE abap_bool,
         filter_uncovered_cursor       TYPE abap_bool,
@@ -243,134 +269,381 @@ CLASS zcl_stock_service DEFINITION
       ty_batch_expiry_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_expiry_row,
-        status                      TYPE c LENGTH 1,
-        storage_location            TYPE mard-lgort,
-        batch                       TYPE mchb-charg,
-        valuation_type              TYPE mcha-bwtar,
-        expiration_date             TYPE mcha-vfdat,
-        days_to_expiration          TYPE i,
-        expiration_date_source      TYPE c LENGTH 1,
-        unrestricted_quantity       TYPE mchb-clabs,
-        available_quantity          TYPE mchb-clabs,
-        quality_inspection_quantity TYPE mchb-cinsm,
-        blocked_quantity            TYPE mchb-cspem,
+        status                        TYPE c LENGTH 1,
+        storage_location              TYPE mard-lgort,
+        batch                         TYPE mchb-charg,
+        valuation_type                TYPE mcha-bwtar,
+        expiration_date               TYPE mcha-vfdat,
+        days_to_expiration            TYPE i,
+        expiration_date_source        TYPE c LENGTH 1,
+        unrestricted_quantity         TYPE mchb-clabs,
+        available_quantity            TYPE mchb-clabs,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        quality_inspection_quantity   TYPE mchb-cinsm,
+        blocked_quantity              TYPE mchb-cspem,
       END OF ty_batch_expiry_row.
     TYPES ty_batch_expiry_rows TYPE STANDARD TABLE OF
       ty_batch_expiry_row WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_batch_exp_page_status,
+        expiry_status                 TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        first_expiration_date         TYPE mcha-vfdat,
+        last_expiration_date          TYPE mcha-vfdat,
+        expiration_date_span_days     TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
+      END OF ty_batch_exp_page_status.
+    TYPES ty_batch_exp_page_statuses TYPE STANDARD TABLE OF
+      ty_batch_exp_page_status WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_exp_page_status_uom,
+        expiry_status                  TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        reservation_deduction_qty      TYPE mchb-clabs,
+        first_expiration_date          TYPE mcha-vfdat,
+        last_expiration_date           TYPE mcha-vfdat,
+        expiration_date_span_days      TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
+      END OF ty_batch_exp_page_status_uom.
+    TYPES ty_batch_exp_page_status_uoms TYPE STANDARD TABLE OF
+      ty_batch_exp_page_status_uom WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_batch_exp_src_status,
-        source_group              TYPE c LENGTH 1,
-        expiry_status             TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        unrestricted_qty          TYPE mchb-clabs,
-        available_qty             TYPE mchb-clabs,
-        quality_qty               TYPE mchb-cinsm,
-        blocked_qty               TYPE mchb-cspem,
+        source_group                  TYPE c LENGTH 1,
+        expiry_status                 TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        status_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        status_unrestricted_share_pct TYPE p LENGTH 5 DECIMALS 2,
+        status_available_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        status_quality_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        status_blocked_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        first_expiration_date         TYPE mcha-vfdat,
+        last_expiration_date          TYPE mcha-vfdat,
+        expiration_date_span_days     TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
       END OF ty_batch_exp_src_status.
     TYPES ty_batch_exp_src_statuses TYPE STANDARD TABLE OF
       ty_batch_exp_src_status WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_batch_exp_source,
+        source_group                  TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        first_expiration_date         TYPE mcha-vfdat,
+        last_expiration_date          TYPE mcha-vfdat,
+        expiration_date_span_days     TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
+      END OF ty_batch_exp_source.
+    TYPES ty_batch_exp_sources TYPE STANDARD TABLE OF
+      ty_batch_exp_source WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_batch_exp_src_age,
-        source_group              TYPE c LENGTH 1,
-        age_band                  TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        unrestricted_qty          TYPE mchb-clabs,
-        available_qty             TYPE mchb-clabs,
-        quality_qty               TYPE mchb-cinsm,
-        blocked_qty               TYPE mchb-cspem,
+        source_group                  TYPE c LENGTH 1,
+        age_band                      TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        age_band_row_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct   TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        first_expiration_date         TYPE mcha-vfdat,
+        last_expiration_date          TYPE mcha-vfdat,
+        expiration_date_span_days     TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
       END OF ty_batch_exp_src_age.
     TYPES ty_batch_exp_src_ages TYPE STANDARD TABLE OF
       ty_batch_exp_src_age WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_exp_src_window,
-        source_group              TYPE c LENGTH 1,
-        window_band               TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        unrestricted_qty          TYPE mchb-clabs,
-        available_qty             TYPE mchb-clabs,
-        quality_qty               TYPE mchb-cinsm,
-        blocked_qty               TYPE mchb-cspem,
+        source_group                  TYPE c LENGTH 1,
+        through_band                  TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        through_band_row_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct   TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        first_expiration_date         TYPE mcha-vfdat,
+        last_expiration_date          TYPE mcha-vfdat,
+        expiration_date_span_days     TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
       END OF ty_batch_exp_src_window.
     TYPES ty_batch_exp_src_windows TYPE STANDARD TABLE OF
       ty_batch_exp_src_window WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_exp_src_status_uom,
-        source_group              TYPE c LENGTH 1,
-        expiry_status             TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        base_unrestricted_qty     TYPE mchb-clabs,
-        unit_unrestricted_qty     TYPE mard-labst,
-        base_available_qty        TYPE mchb-clabs,
-        unit_available_qty        TYPE mard-labst,
-        base_quality_qty          TYPE mchb-cinsm,
-        unit_quality_qty          TYPE mard-labst,
-        base_blocked_qty          TYPE mchb-cspem,
-        unit_blocked_qty          TYPE mard-labst,
+        source_group                   TYPE c LENGTH 1,
+        expiry_status                  TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        status_row_share_pct           TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct           TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        status_unrestricted_share_pct  TYPE p LENGTH 5 DECIMALS 2,
+        status_available_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        status_quality_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        status_blocked_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct  TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        first_expiration_date          TYPE mcha-vfdat,
+        last_expiration_date           TYPE mcha-vfdat,
+        expiration_date_span_days      TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
       END OF ty_batch_exp_src_status_uom.
     TYPES ty_batch_exp_src_status_uoms TYPE STANDARD TABLE OF
       ty_batch_exp_src_status_uom WITH EMPTY KEY.
     TYPES:
+      BEGIN OF ty_batch_exp_source_uom,
+        source_group                   TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        reservation_deduction_qty      TYPE mchb-clabs,
+        first_expiration_date          TYPE mcha-vfdat,
+        last_expiration_date           TYPE mcha-vfdat,
+        expiration_date_span_days      TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
+      END OF ty_batch_exp_source_uom.
+    TYPES ty_batch_exp_source_uoms TYPE STANDARD TABLE OF
+      ty_batch_exp_source_uom WITH EMPTY KEY.
+    TYPES:
       BEGIN OF ty_batch_exp_src_age_uom,
-        source_group              TYPE c LENGTH 1,
-        age_band                  TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        base_unrestricted_qty     TYPE mchb-clabs,
-        unit_unrestricted_qty     TYPE mard-labst,
-        base_available_qty        TYPE mchb-clabs,
-        unit_available_qty        TYPE mard-labst,
-        base_quality_qty          TYPE mchb-cinsm,
-        unit_quality_qty          TYPE mard-labst,
-        base_blocked_qty          TYPE mchb-cspem,
-        unit_blocked_qty          TYPE mard-labst,
+        source_group                   TYPE c LENGTH 1,
+        age_band                       TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct           TYPE p LENGTH 5 DECIMALS 2,
+        age_band_row_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct  TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        first_expiration_date          TYPE mcha-vfdat,
+        last_expiration_date           TYPE mcha-vfdat,
+        expiration_date_span_days      TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
       END OF ty_batch_exp_src_age_uom.
     TYPES ty_batch_exp_src_age_uoms TYPE STANDARD TABLE OF
       ty_batch_exp_src_age_uom WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_exp_src_window_uom,
-        source_group              TYPE c LENGTH 1,
-        window_band               TYPE c LENGTH 1,
-        row_count                 TYPE i,
-        first_expiration_date     TYPE mcha-vfdat,
-        last_expiration_date      TYPE mcha-vfdat,
-        expiration_date_span_days TYPE i,
-        base_unrestricted_qty     TYPE mchb-clabs,
-        unit_unrestricted_qty     TYPE mard-labst,
-        base_available_qty        TYPE mchb-clabs,
-        unit_available_qty        TYPE mard-labst,
-        base_quality_qty          TYPE mchb-cinsm,
-        unit_quality_qty          TYPE mard-labst,
-        base_blocked_qty          TYPE mchb-cspem,
-        unit_blocked_qty          TYPE mard-labst,
+        source_group                   TYPE c LENGTH 1,
+        through_band                   TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct           TYPE p LENGTH 5 DECIMALS 2,
+        through_band_row_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct  TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        first_expiration_date          TYPE mcha-vfdat,
+        last_expiration_date           TYPE mcha-vfdat,
+        expiration_date_span_days      TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
       END OF ty_batch_exp_src_window_uom.
     TYPES ty_batch_exp_src_window_uoms TYPE STANDARD TABLE OF
       ty_batch_exp_src_window_uom WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_expiry_undated_row,
-        storage_location            TYPE mard-lgort,
-        batch                       TYPE mchb-charg,
-        valuation_type              TYPE mcha-bwtar,
-        unrestricted_quantity       TYPE mchb-clabs,
-        available_quantity          TYPE mchb-clabs,
-        quality_inspection_quantity TYPE mchb-cinsm,
-        blocked_quantity            TYPE mchb-cspem,
+        storage_location              TYPE mard-lgort,
+        batch                         TYPE mchb-charg,
+        valuation_type                TYPE mcha-bwtar,
+        expiration_date_source        TYPE c LENGTH 1,
+        unrestricted_quantity         TYPE mchb-clabs,
+        available_quantity            TYPE mchb-clabs,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        quality_inspection_quantity   TYPE mchb-cinsm,
+        blocked_quantity              TYPE mchb-cspem,
       END OF ty_batch_expiry_undated_row.
     TYPES ty_batch_expiry_undated_rows TYPE STANDARD TABLE OF
       ty_batch_expiry_undated_row WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_exp_undated_source,
+        source_group                  TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
+      END OF ty_exp_undated_source.
+    TYPES ty_exp_undated_sources TYPE STANDARD TABLE OF
+      ty_exp_undated_source WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_exp_undated_source_uom,
+        source_group                   TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
+      END OF ty_exp_undated_source_uom.
+    TYPES ty_exp_undated_source_uoms TYPE STANDARD TABLE OF
+      ty_exp_undated_source_uom WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_expiry_uncovered,
         reservation_number      TYPE resb-rsnum,
@@ -994,7 +1267,27 @@ CLASS zcl_stock_service DEFINITION
         through_date                   TYPE d,
         expiration_date_from           TYPE d,
         expiration_date_to             TYPE d,
+        positive_available_only        TYPE abap_bool,
+        filter_available_from          TYPE abap_bool,
+        available_quantity_from        TYPE mchb-clabs,
+        filter_available_to            TYPE abap_bool,
+        available_quantity_to          TYPE mchb-clabs,
+        filter_available_pct_from      TYPE abap_bool,
+        available_pct_from             TYPE p LENGTH 5 DECIMALS 2,
+        filter_available_pct_to        TYPE abap_bool,
+        available_pct_to               TYPE p LENGTH 5 DECIMALS 2,
+        filter_positive_category       TYPE abap_bool,
+        positive_stock_category        TYPE c LENGTH 1,
+        filter_category_quantity_from  TYPE abap_bool,
+        category_quantity_from         TYPE mchb-clabs,
+        filter_category_quantity_to    TYPE abap_bool,
+        category_quantity_to           TYPE mchb-clabs,
+        filter_resv_deduction_from     TYPE abap_bool,
+        resv_deduction_from            TYPE decfloat34,
+        filter_resv_deduction_to       TYPE abap_bool,
+        resv_deduction_to              TYPE decfloat34,
         maximum_batch_rows             TYPE i,
+        omit_dated_batch_rows          TYPE abap_bool,
         filter_batch_cursor            TYPE abap_bool,
         batch_cursor_status            TYPE c LENGTH 1,
         batch_cursor_expiration_date   TYPE d,
@@ -1231,6 +1524,34 @@ CLASS zcl_stock_service DEFINITION
         next_alloc_cursor_val_type     TYPE mcha-bwtar,
         next_alloc_cursor_exp_date     TYPE mcha-vfdat,
         returned_batch_row_count       TYPE i,
+        page_expired_row_count         TYPE i,
+        page_upcoming_row_count        TYPE i,
+        page_after_window_row_count    TYPE i,
+        page_expiry_statuses           TYPE ty_batch_exp_page_statuses,
+        expiry_statuses                TYPE ty_batch_exp_page_statuses,
+        page_expiry_sources            TYPE ty_batch_exp_sources,
+        expiry_sources                 TYPE ty_batch_exp_sources,
+        page_expiry_src_statuses       TYPE ty_batch_exp_src_statuses,
+        page_expiry_src_age_bands      TYPE ty_batch_exp_src_ages,
+        page_upcoming_src_bands        TYPE ty_batch_exp_src_windows,
+        page_after_window_src_bands    TYPE ty_batch_exp_src_windows,
+        page_earliest_expiration_date  TYPE mcha-vfdat,
+        page_latest_expiration_date    TYPE mcha-vfdat,
+        page_expiration_date_span_days TYPE i,
+        page_unrestricted_qty          TYPE mchb-clabs,
+        page_available_qty             TYPE mchb-clabs,
+        page_avail_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        page_reservation_deduction_qty TYPE mchb-clabs,
+        page_quality_qty               TYPE mchb-cinsm,
+        page_blocked_qty               TYPE mchb-cspem,
+        undated_page_unrestricted_qty  TYPE mchb-clabs,
+        undated_page_available_qty     TYPE mchb-clabs,
+        und_page_avail_pct             TYPE p LENGTH 5 DECIMALS 2,
+        und_page_resv_deduct_qty       TYPE mchb-clabs,
+        undated_page_quality_qty       TYPE mchb-cinsm,
+        undated_page_blocked_qty       TYPE mchb-cspem,
+        undated_expiry_sources         TYPE ty_exp_undated_sources,
+        undated_page_expiry_sources    TYPE ty_exp_undated_sources,
         omit_undated_batch_rows        TYPE abap_bool,
         maximum_undated_batch_rows     TYPE i,
         filter_undated_batch_cursor    TYPE abap_bool,
@@ -1388,12 +1709,27 @@ CLASS zcl_stock_service DEFINITION
         first_undated_storage_location TYPE mard-lgort,
         first_undated_batch            TYPE mchb-charg,
         first_undated_valuation_type   TYPE mcha-bwtar,
+        first_undated_expiry_source    TYPE c LENGTH 1,
         first_undated_unrestr_qty      TYPE mchb-clabs,
         first_undated_available_qty    TYPE mchb-clabs,
         first_undated_quality_qty      TYPE mchb-cinsm,
         first_undated_blocked_qty      TYPE mchb-cspem,
+        dated_unrestricted_quantity    TYPE mchb-clabs,
+        dated_available_quantity       TYPE mchb-clabs,
+        dated_quality_quantity         TYPE mchb-cinsm,
+        dated_blocked_quantity         TYPE mchb-cspem,
+        dated_avail_pct                TYPE p LENGTH 5 DECIMALS 2,
+        dated_resv_deduct_qty          TYPE mchb-clabs,
+        through_unrestricted_quantity  TYPE mchb-clabs,
+        through_available_quantity     TYPE mchb-clabs,
+        through_quality_quantity       TYPE mchb-cinsm,
+        through_blocked_quantity       TYPE mchb-cspem,
+        through_avail_pct              TYPE p LENGTH 5 DECIMALS 2,
+        through_resv_deduct_qty        TYPE mchb-clabs,
         undated_unrestricted_quantity  TYPE mchb-clabs,
         undated_available_quantity     TYPE mchb-clabs,
+        undated_avail_pct              TYPE p LENGTH 5 DECIMALS 2,
+        undated_resv_deduct_qty        TYPE mchb-clabs,
         undated_quality_quantity       TYPE mchb-cinsm,
         undated_blocked_quantity       TYPE mchb-cspem,
         after_window_batch_row_count   TYPE i,
@@ -1529,7 +1865,27 @@ CLASS zcl_stock_service DEFINITION
         through_date                  TYPE d,
         expiration_date_from          TYPE d,
         expiration_date_to            TYPE d,
+        positive_available_only       TYPE abap_bool,
+        filter_available_from         TYPE abap_bool,
+        available_quantity_from       TYPE mchb-clabs,
+        filter_available_to           TYPE abap_bool,
+        available_quantity_to         TYPE mchb-clabs,
+        filter_available_pct_from     TYPE abap_bool,
+        available_pct_from            TYPE p LENGTH 5 DECIMALS 2,
+        filter_available_pct_to       TYPE abap_bool,
+        available_pct_to              TYPE p LENGTH 5 DECIMALS 2,
+        filter_positive_category      TYPE abap_bool,
+        positive_stock_category       TYPE c LENGTH 1,
+        filter_category_quantity_from TYPE abap_bool,
+        category_quantity_from        TYPE mchb-clabs,
+        filter_category_quantity_to   TYPE abap_bool,
+        category_quantity_to          TYPE mchb-clabs,
+        filter_resv_deduction_from    TYPE abap_bool,
+        resv_deduction_from           TYPE decfloat34,
+        filter_resv_deduction_to      TYPE abap_bool,
+        resv_deduction_to             TYPE decfloat34,
         maximum_batch_rows            TYPE i,
+        omit_dated_batch_rows         TYPE abap_bool,
         maximum_uncovered_rows        TYPE i,
         omit_uncovered_detail_rows    TYPE abap_bool,
         filter_uncovered_cursor       TYPE abap_bool,
@@ -1707,25 +2063,29 @@ CLASS zcl_stock_service DEFINITION
       ty_batch_expiry_uom_request WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_expiry_uom_row,
-        base_row                TYPE ty_batch_expiry_row,
-        base_unit               TYPE mara-meins,
-        unit                    TYPE mara-meins,
-        source_unrestricted_qty TYPE mard-labst,
-        source_available_qty    TYPE mard-labst,
-        source_quality_qty      TYPE mard-labst,
-        source_blocked_qty      TYPE mard-labst,
+        base_row                      TYPE ty_batch_expiry_row,
+        base_unit                     TYPE mara-meins,
+        unit                          TYPE mara-meins,
+        source_unrestricted_qty       TYPE mard-labst,
+        source_available_qty          TYPE mard-labst,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        source_resv_deduction_qty     TYPE mard-labst,
+        source_quality_qty            TYPE mard-labst,
+        source_blocked_qty            TYPE mard-labst,
       END OF ty_batch_expiry_uom_row.
     TYPES ty_batch_expiry_uom_rows TYPE STANDARD TABLE OF
       ty_batch_expiry_uom_row WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_expiry_uom_undated_row,
-        base_row                TYPE ty_batch_expiry_undated_row,
-        base_unit               TYPE mara-meins,
-        unit                    TYPE mara-meins,
-        source_unrestricted_qty TYPE mard-labst,
-        source_available_qty    TYPE mard-labst,
-        source_quality_qty      TYPE mard-labst,
-        source_blocked_qty      TYPE mard-labst,
+        base_row                      TYPE ty_batch_expiry_undated_row,
+        base_unit                     TYPE mara-meins,
+        unit                          TYPE mara-meins,
+        source_unrestricted_qty       TYPE mard-labst,
+        source_available_qty          TYPE mard-labst,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        source_resv_deduction_qty     TYPE mard-labst,
+        source_quality_qty            TYPE mard-labst,
+        source_blocked_qty            TYPE mard-labst,
       END OF ty_batch_expiry_uom_undated_row.
     TYPES ty_batch_expiry_uom_undated_rows TYPE STANDARD TABLE OF
       ty_batch_expiry_uom_undated_row WITH EMPTY KEY.
@@ -1758,7 +2118,27 @@ CLASS zcl_stock_service DEFINITION
         through_date                   TYPE d,
         expiration_date_from           TYPE d,
         expiration_date_to             TYPE d,
+        positive_available_only        TYPE abap_bool,
+        filter_available_from          TYPE abap_bool,
+        available_quantity_from        TYPE mchb-clabs,
+        filter_available_to            TYPE abap_bool,
+        available_quantity_to          TYPE mchb-clabs,
+        filter_available_pct_from      TYPE abap_bool,
+        available_pct_from             TYPE p LENGTH 5 DECIMALS 2,
+        filter_available_pct_to        TYPE abap_bool,
+        available_pct_to               TYPE p LENGTH 5 DECIMALS 2,
+        filter_positive_category       TYPE abap_bool,
+        positive_stock_category        TYPE c LENGTH 1,
+        filter_category_quantity_from  TYPE abap_bool,
+        category_quantity_from         TYPE mchb-clabs,
+        filter_category_quantity_to    TYPE abap_bool,
+        category_quantity_to           TYPE mchb-clabs,
+        filter_resv_deduction_from     TYPE abap_bool,
+        resv_deduction_from            TYPE decfloat34,
+        filter_resv_deduction_to       TYPE abap_bool,
+        resv_deduction_to              TYPE decfloat34,
         maximum_batch_rows             TYPE i,
+        omit_dated_batch_rows          TYPE abap_bool,
         filter_batch_cursor            TYPE abap_bool,
         batch_cursor_status            TYPE c LENGTH 1,
         batch_cursor_expiration_date   TYPE d,
@@ -2010,6 +2390,44 @@ CLASS zcl_stock_service DEFINITION
         next_alloc_cursor_val_type     TYPE mcha-bwtar,
         next_alloc_cursor_exp_date     TYPE mcha-vfdat,
         returned_batch_row_count       TYPE i,
+        page_expired_row_count         TYPE i,
+        page_upcoming_row_count        TYPE i,
+        page_after_window_row_count    TYPE i,
+        page_expiry_statuses           TYPE ty_batch_exp_page_status_uoms,
+        expiry_statuses                TYPE ty_batch_exp_page_status_uoms,
+        page_expiry_sources            TYPE ty_batch_exp_source_uoms,
+        expiry_sources                 TYPE ty_batch_exp_source_uoms,
+        page_expiry_src_statuses       TYPE ty_batch_exp_src_status_uoms,
+        page_expiry_src_age_bands      TYPE ty_batch_exp_src_age_uoms,
+        page_upcoming_src_bands        TYPE ty_batch_exp_src_window_uoms,
+        page_after_window_src_bands    TYPE ty_batch_exp_src_window_uoms,
+        page_earliest_expiration_date  TYPE mcha-vfdat,
+        page_latest_expiration_date    TYPE mcha-vfdat,
+        page_expiration_date_span_days TYPE i,
+        base_page_unrestricted_qty     TYPE mchb-clabs,
+        src_page_unrestricted_qty      TYPE mard-labst,
+        base_page_available_qty        TYPE mchb-clabs,
+        src_page_available_qty         TYPE mard-labst,
+        page_avail_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        base_page_resv_deduct_qty      TYPE mchb-clabs,
+        src_page_resv_deduct_qty       TYPE mard-labst,
+        base_page_quality_qty          TYPE mchb-cinsm,
+        src_page_quality_qty           TYPE mard-labst,
+        base_page_blocked_qty          TYPE mchb-cspem,
+        src_page_blocked_qty           TYPE mard-labst,
+        base_und_page_unrestr_qty      TYPE mchb-clabs,
+        src_und_page_unrestr_qty       TYPE mard-labst,
+        base_und_page_avail_qty        TYPE mchb-clabs,
+        src_und_page_avail_qty         TYPE mard-labst,
+        und_page_avail_pct             TYPE p LENGTH 5 DECIMALS 2,
+        base_und_page_resv_deduct_qty  TYPE mchb-clabs,
+        src_und_page_resv_deduct_qty   TYPE mard-labst,
+        base_und_page_quality_qty      TYPE mchb-cinsm,
+        src_und_page_quality_qty       TYPE mard-labst,
+        base_und_page_blocked_qty      TYPE mchb-cspem,
+        src_und_page_blocked_qty       TYPE mard-labst,
+        undated_expiry_sources         TYPE ty_exp_undated_source_uoms,
+        undated_page_expiry_sources    TYPE ty_exp_undated_source_uoms,
         omit_undated_batch_rows        TYPE abap_bool,
         maximum_undated_batch_rows     TYPE i,
         filter_undated_batch_cursor    TYPE abap_bool,
@@ -2225,6 +2643,7 @@ CLASS zcl_stock_service DEFINITION
         first_undated_storage_location TYPE mard-lgort,
         first_undated_batch            TYPE mchb-charg,
         first_undated_valuation_type   TYPE mcha-bwtar,
+        first_undated_expiry_source    TYPE c LENGTH 1,
         base_undated_first_unrestr_qty TYPE mchb-clabs,
         base_undated_first_avail_qty   TYPE mchb-clabs,
         base_undated_first_quality_qty TYPE mchb-cinsm,
@@ -2328,12 +2747,37 @@ CLASS zcl_stock_service DEFINITION
         src_exp_90d_quality_qty        TYPE mard-labst,
         base_exp_90d_blocked_qty       TYPE mchb-cspem,
         src_exp_90d_blocked_qty        TYPE mard-labst,
+        base_dated_unrestricted_qty    TYPE mchb-clabs,
+        src_dated_unrestricted_qty     TYPE mard-labst,
+        base_dated_available_qty       TYPE mchb-clabs,
+        src_dated_available_qty        TYPE mard-labst,
+        base_dated_quality_qty         TYPE mchb-cinsm,
+        src_dated_quality_qty          TYPE mard-labst,
+        base_dated_blocked_qty         TYPE mchb-cspem,
+        src_dated_blocked_qty          TYPE mard-labst,
+        dated_avail_pct                TYPE p LENGTH 5 DECIMALS 2,
+        base_dated_resv_deduct_qty     TYPE mchb-clabs,
+        src_dated_resv_deduct_qty      TYPE mard-labst,
+        base_through_unrestricted_qty  TYPE mchb-clabs,
+        src_through_unrestricted_qty   TYPE mard-labst,
+        base_through_available_qty     TYPE mchb-clabs,
+        src_through_available_qty      TYPE mard-labst,
+        base_through_quality_qty       TYPE mchb-cinsm,
+        src_through_quality_qty        TYPE mard-labst,
+        base_through_blocked_qty       TYPE mchb-cspem,
+        src_through_blocked_qty        TYPE mard-labst,
+        through_avail_pct              TYPE p LENGTH 5 DECIMALS 2,
+        base_through_resv_deduct_qty   TYPE mchb-clabs,
+        src_through_resv_deduct_qty    TYPE mard-labst,
         base_undated_unrestricted_qty  TYPE mchb-clabs,
         base_undated_available_qty     TYPE mchb-clabs,
+        undated_avail_pct              TYPE p LENGTH 5 DECIMALS 2,
+        base_undated_resv_deduct_qty   TYPE mchb-clabs,
         base_undated_quality_qty       TYPE mchb-cinsm,
         base_undated_blocked_qty       TYPE mchb-cspem,
         src_undated_unrestricted_qty   TYPE mard-labst,
         src_undated_available_qty      TYPE mard-labst,
+        src_undated_resv_deduct_qty    TYPE mard-labst,
         src_undated_quality_qty        TYPE mard-labst,
         src_undated_blocked_qty        TYPE mard-labst,
         base_after_unrestricted_qty    TYPE mchb-clabs,
@@ -2473,6 +2917,7 @@ CLASS zcl_stock_service DEFINITION
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
         use_fefo                TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_valtype_demand.
     TYPES ty_valtype_demands TYPE STANDARD TABLE OF ty_valtype_demand
       WITH EMPTY KEY.
@@ -2492,6 +2937,7 @@ CLASS zcl_stock_service DEFINITION
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
         use_fefo                TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_valtype_uom_demand.
     TYPES ty_valtype_uom_demands TYPE STANDARD TABLE OF
       ty_valtype_uom_demand WITH EMPTY KEY.
@@ -2545,6 +2991,7 @@ CLASS zcl_stock_service DEFINITION
         require_known_expiry         TYPE abap_bool,
         allow_undated_batches        TYPE abap_bool,
         include_undated_batches      TYPE abap_bool,
+        minimum_coverage_pct         TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_valtype_allocation.
     TYPES ty_valtype_allocations TYPE STANDARD TABLE OF
       ty_valtype_allocation WITH EMPTY KEY.
@@ -2804,6 +3251,7 @@ CLASS zcl_stock_service DEFINITION
         fallback_to_other_locations TYPE abap_bool,
         requested_quantity          TYPE mard-labst,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_demand,
       ty_demands TYPE STANDARD TABLE OF ty_demand WITH EMPTY KEY,
       BEGIN OF ty_request_location_priority,
@@ -2963,6 +3411,7 @@ CLASS zcl_stock_service DEFINITION
         priority                    TYPE i,
         requested_quantity          TYPE mard-labst,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_location_demand,
       ty_priority_location_demands TYPE STANDARD TABLE OF
         ty_priority_location_demand WITH EMPTY KEY,
@@ -2977,17 +3426,20 @@ CLASS zcl_stock_service DEFINITION
         ty_plant_source_location WITH UNIQUE KEY
           request_id source_plant storage_location,
       BEGIN OF ty_allocation,
-        request_id            TYPE c LENGTH 30,
-        material              TYPE mard-matnr,
-        plant                 TYPE mard-werks,
-        priority              TYPE i,
-        requested_quantity    TYPE mard-labst,
-        available_quantity    TYPE mard-labst,
-        allocated_quantity    TYPE mard-labst,
-        shortfall_quantity    TYPE mard-labst,
-        require_full_quantity TYPE abap_bool,
-        require_known_expiry  TYPE abap_bool,
-        allow_undated_batches TYPE abap_bool,
+        request_id              TYPE c LENGTH 30,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        priority                TYPE i,
+        requested_quantity      TYPE mard-labst,
+        available_quantity      TYPE mard-labst,
+        allocated_quantity      TYPE mard-labst,
+        shortfall_quantity      TYPE mard-labst,
+        require_full_quantity   TYPE abap_bool,
+        require_known_expiry    TYPE abap_bool,
+        allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_allocation.
     TYPES:
       BEGIN OF ty_priority_demand,
@@ -2997,6 +3449,7 @@ CLASS zcl_stock_service DEFINITION
         priority              TYPE i,
         requested_quantity    TYPE mard-labst,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_demand.
     TYPES ty_priority_demands TYPE STANDARD TABLE OF ty_priority_demand
       WITH EMPTY KEY.
@@ -3009,6 +3462,7 @@ CLASS zcl_stock_service DEFINITION
         priority              TYPE i,
         requested_quantity    TYPE mard-labst,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE ty_minimum_coverage_pct,
       END OF ty_dated_demand.
     TYPES ty_dated_demands TYPE STANDARD TABLE OF ty_dated_demand
       WITH EMPTY KEY.
@@ -3022,6 +3476,7 @@ CLASS zcl_stock_service DEFINITION
         required_date           TYPE resb-bdter,
         priority                TYPE i,
         require_full_quantity   TYPE abap_bool,
+        minimum_coverage_pct    TYPE ty_minimum_coverage_pct,
         allow_location_fallback TYPE abap_bool,
         allow_batch_fallback    TYPE abap_bool,
         minimum_shelf_life_days TYPE i,
@@ -3034,15 +3489,18 @@ CLASS zcl_stock_service DEFINITION
       ty_scoped_component_demand WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_dated_allocation,
-        request_id         TYPE c LENGTH 30,
-        material           TYPE mard-matnr,
-        plant              TYPE mard-werks,
-        required_date      TYPE resb-bdter,
-        priority           TYPE i,
-        requested_quantity TYPE mard-labst,
-        available_quantity TYPE mard-labst,
-        allocated_quantity TYPE mard-labst,
-        shortfall_quantity TYPE mard-labst,
+        request_id              TYPE c LENGTH 30,
+        material                TYPE mard-matnr,
+        plant                   TYPE mard-werks,
+        required_date           TYPE resb-bdter,
+        priority                TYPE i,
+        requested_quantity      TYPE mard-labst,
+        available_quantity      TYPE mard-labst,
+        allocated_quantity      TYPE mard-labst,
+        shortfall_quantity      TYPE mard-labst,
+        minimum_coverage_pct    TYPE ty_minimum_coverage_pct,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_dated_allocation.
     TYPES ty_dated_allocations TYPE STANDARD TABLE OF ty_dated_allocation
       WITH EMPTY KEY.
@@ -3103,6 +3561,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity    TYPE mard-labst,
         requested_unit        TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE ty_minimum_coverage_pct,
       END OF ty_date_unit_demand.
     TYPES ty_date_unit_demands TYPE STANDARD TABLE OF ty_date_unit_demand
       WITH EMPTY KEY.
@@ -3153,6 +3612,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_plant_demand.
     TYPES ty_plant_demands TYPE STANDARD TABLE OF ty_plant_demand
       WITH EMPTY KEY.
@@ -3165,6 +3625,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity      TYPE mard-labst,
         require_full_quantity   TYPE abap_bool,
         minimum_shelf_life_days TYPE i,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_plant_demand.
     TYPES ty_priority_plant_demands TYPE STANDARD TABLE OF
       ty_priority_plant_demand WITH EMPTY KEY.
@@ -3179,6 +3640,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_plant_fefo_demand.
     TYPES ty_priority_plant_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_plant_fefo_demand WITH EMPTY KEY.
@@ -3198,6 +3660,7 @@ CLASS zcl_stock_service DEFINITION
         priority              TYPE i,
         requested_quantity    TYPE mard-labst,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_plant_location_demand.
     TYPES ty_dated_plant_location_demands TYPE STANDARD TABLE OF
       ty_dated_plant_location_demand WITH EMPTY KEY.
@@ -3213,22 +3676,26 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_date_plant_demand.
     TYPES ty_date_plant_demands TYPE STANDARD TABLE OF ty_date_plant_demand
       WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_date_plant_demand_allocation,
-        request_id            TYPE c LENGTH 30,
-        material              TYPE mard-matnr,
-        target_plant          TYPE mard-werks,
-        required_date         TYPE resb-bdter,
-        priority              TYPE i,
-        requested_quantity    TYPE mard-labst,
-        available_quantity    TYPE mard-labst,
-        allocated_quantity    TYPE mard-labst,
-        shortfall_quantity    TYPE mard-labst,
-        require_known_expiry  TYPE abap_bool,
-        allow_undated_batches TYPE abap_bool,
+        request_id              TYPE c LENGTH 30,
+        material                TYPE mard-matnr,
+        target_plant            TYPE mard-werks,
+        required_date           TYPE resb-bdter,
+        priority                TYPE i,
+        requested_quantity      TYPE mard-labst,
+        available_quantity      TYPE mard-labst,
+        allocated_quantity      TYPE mard-labst,
+        shortfall_quantity      TYPE mard-labst,
+        require_known_expiry    TYPE abap_bool,
+        allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_date_plant_demand_allocation.
     TYPES ty_date_plant_demand_allocations TYPE STANDARD TABLE OF
       ty_date_plant_demand_allocation WITH EMPTY KEY.
@@ -3263,6 +3730,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_date_plant_demand.
     TYPES ty_unit_date_plant_demands TYPE STANDARD TABLE OF
       ty_unit_date_plant_demand WITH EMPTY KEY.
@@ -3332,15 +3800,18 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_plant_date_atp_result.
     TYPES:
       BEGIN OF ty_plant_demand_allocation,
-        request_id            TYPE c LENGTH 30,
-        material              TYPE mard-matnr,
-        target_plant          TYPE mard-werks,
-        requested_quantity    TYPE mard-labst,
-        available_quantity    TYPE mard-labst,
-        allocated_quantity    TYPE mard-labst,
-        shortfall_quantity    TYPE mard-labst,
-        require_known_expiry  TYPE abap_bool,
-        allow_undated_batches TYPE abap_bool,
+        request_id              TYPE c LENGTH 30,
+        material                TYPE mard-matnr,
+        target_plant            TYPE mard-werks,
+        requested_quantity      TYPE mard-labst,
+        available_quantity      TYPE mard-labst,
+        allocated_quantity      TYPE mard-labst,
+        shortfall_quantity      TYPE mard-labst,
+        require_known_expiry    TYPE abap_bool,
+        allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_plant_demand_allocation.
     TYPES ty_plant_demand_allocations TYPE STANDARD TABLE OF
       ty_plant_demand_allocation WITH EMPTY KEY.
@@ -3430,6 +3901,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity    TYPE mard-labst,
         requested_unit        TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_date_plant_location_demand.
     TYPES ty_unit_date_plant_location_demands TYPE STANDARD TABLE OF
       ty_unit_date_plant_location_demand WITH EMPTY KEY.
@@ -3488,6 +3960,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_plant_demand.
     TYPES:
       BEGIN OF ty_priority_unit_plant_demand,
@@ -3499,6 +3972,7 @@ CLASS zcl_stock_service DEFINITION
         requested_unit          TYPE mara-meins,
         require_full_quantity   TYPE abap_bool,
         minimum_shelf_life_days TYPE i,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_plant_demand.
     TYPES ty_priority_unit_plant_demands TYPE STANDARD TABLE OF
       ty_priority_unit_plant_demand WITH EMPTY KEY.
@@ -3514,6 +3988,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_plant_fefo_demand.
     TYPES ty_priority_unit_plant_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_unit_plant_fefo_demand WITH EMPTY KEY.
@@ -3529,6 +4004,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_plant_batch_demand.
     TYPES ty_plant_batch_demands TYPE STANDARD TABLE OF
       ty_plant_batch_demand WITH EMPTY KEY.
@@ -3545,6 +4021,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_plant_batch_demand.
     TYPES ty_priority_plant_batch_demands TYPE STANDARD TABLE OF
       ty_priority_plant_batch_demand WITH EMPTY KEY.
@@ -3562,6 +4039,9 @@ CLASS zcl_stock_service DEFINITION
         shortfall_quantity      TYPE mard-labst,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_plant_batch_demand_allocation.
     TYPES ty_plant_batch_demand_allocations TYPE STANDARD TABLE OF
       ty_plant_batch_demand_allocation WITH EMPTY KEY.
@@ -3624,6 +4104,7 @@ CLASS zcl_stock_service DEFINITION
         source_item             TYPE c LENGTH 10,
         receipt_source_plant    TYPE eban-reswk,
         source_schedule_line    TYPE eket-etenr,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_plant_fefo_batch_allocation.
     TYPES ty_plant_fefo_batch_allocations TYPE STANDARD TABLE OF
       ty_plant_fefo_batch_allocation WITH EMPTY KEY.
@@ -3673,6 +4154,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_date_plant_batch_demand.
     TYPES ty_date_plant_batch_demands TYPE STANDARD TABLE OF
       ty_date_plant_batch_demand WITH EMPTY KEY.
@@ -3691,6 +4173,9 @@ CLASS zcl_stock_service DEFINITION
         shortfall_quantity      TYPE mard-labst,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE ty_allocation_coverage_pct,
       END OF ty_date_plant_batch_demand_allocation.
     TYPES ty_date_plant_batch_demand_allocations TYPE STANDARD TABLE OF
       ty_date_plant_batch_demand_allocation WITH EMPTY KEY.
@@ -3753,6 +4238,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_date_plant_batch_demand.
     TYPES ty_unit_date_plant_batch_demands TYPE STANDARD TABLE OF
       ty_unit_date_plant_batch_demand WITH EMPTY KEY.
@@ -3875,6 +4361,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_plant_batch_demand.
     TYPES ty_unit_plant_batch_demands TYPE STANDARD TABLE OF
       ty_unit_plant_batch_demand WITH EMPTY KEY.
@@ -3892,6 +4379,7 @@ CLASS zcl_stock_service DEFINITION
         require_full_quantity   TYPE abap_bool,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_plant_batch_demand.
     TYPES ty_priority_unit_plant_batch_demands TYPE STANDARD TABLE OF
       ty_priority_unit_plant_batch_demand WITH EMPTY KEY.
@@ -4139,6 +4627,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity    TYPE mard-labst,
         requested_unit        TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_demand.
     TYPES ty_unit_demands TYPE STANDARD TABLE OF ty_unit_demand WITH EMPTY KEY.
     TYPES:
@@ -4150,6 +4639,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity    TYPE mard-labst,
         requested_unit        TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_demand.
     TYPES ty_priority_unit_demands TYPE STANDARD TABLE OF
       ty_priority_unit_demand WITH EMPTY KEY.
@@ -4383,6 +4873,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity          TYPE mard-labst,
         requested_unit              TYPE mara-meins,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_location_demand.
     TYPES ty_unit_location_demands TYPE STANDARD TABLE OF
       ty_unit_location_demand WITH EMPTY KEY.
@@ -4397,6 +4888,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity          TYPE mard-labst,
         requested_unit              TYPE mara-meins,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_location_demand.
     TYPES ty_priority_unit_location_demands TYPE STANDARD TABLE OF
       ty_priority_unit_location_demand WITH EMPTY KEY.
@@ -4453,6 +4945,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity          TYPE mard-labst,
         base_unit                   TYPE mara-meins,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_location_demand.
     TYPES ty_dated_location_demands TYPE STANDARD TABLE OF
       ty_dated_location_demand WITH EMPTY KEY.
@@ -4522,6 +5015,7 @@ CLASS zcl_stock_service DEFINITION
         requested_quantity          TYPE mard-labst,
         requested_unit              TYPE mara-meins,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_unit_location_demand.
     TYPES ty_dated_unit_location_demands TYPE STANDARD TABLE OF
       ty_dated_unit_location_demand WITH EMPTY KEY.
@@ -4561,6 +5055,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_batch_demand,
       ty_batch_demands TYPE STANDARD TABLE OF ty_batch_demand WITH EMPTY KEY.
     TYPES:
@@ -4578,6 +5073,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_batch_demand.
     TYPES ty_priority_batch_demands TYPE STANDARD TABLE OF
       ty_priority_batch_demand WITH EMPTY KEY.
@@ -4595,6 +5091,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_fefo_demand.
     TYPES ty_fefo_demands TYPE STANDARD TABLE OF ty_fefo_demand
       WITH EMPTY KEY.
@@ -4613,6 +5110,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_fefo_demand.
     TYPES ty_unit_fefo_demands TYPE STANDARD TABLE OF ty_unit_fefo_demand
       WITH EMPTY KEY.
@@ -4631,6 +5129,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_fefo_demand.
     TYPES ty_priority_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_fefo_demand WITH EMPTY KEY.
@@ -4650,6 +5149,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_fefo_demand.
     TYPES ty_priority_unit_fefo_demands TYPE STANDARD TABLE OF
       ty_priority_unit_fefo_demand WITH EMPTY KEY.
@@ -4668,6 +5168,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_unit_batch_demand.
     TYPES ty_unit_batch_demands TYPE STANDARD TABLE OF ty_unit_batch_demand
       WITH EMPTY KEY.
@@ -4687,6 +5188,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_priority_unit_batch_demand.
     TYPES ty_priority_unit_batch_demands TYPE STANDARD TABLE OF
       ty_priority_unit_batch_demand WITH EMPTY KEY.
@@ -4709,6 +5211,7 @@ CLASS zcl_stock_service DEFINITION
         source_item             TYPE c LENGTH 10,
         source_plant            TYPE eban-reswk,
         source_schedule_line    TYPE eket-etenr,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_batch_allocation.
     TYPES ty_batch_allocations TYPE STANDARD TABLE OF ty_batch_allocation
       WITH EMPTY KEY.
@@ -5413,6 +5916,7 @@ CLASS zcl_stock_service DEFINITION
           OPTIONAL
         iv_protect_safety_stock  TYPE abap_bool DEFAULT abap_false
         iv_require_full_quantity TYPE abap_bool DEFAULT abap_false
+        iv_minimum_coverage_pct  TYPE ty_minimum_coverage_pct OPTIONAL
       RETURNING
         VALUE(rs_allocation)     TYPE ty_allocation
       RAISING
@@ -5439,6 +5943,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
         iv_require_full_quantity       TYPE abap_bool DEFAULT abap_false
+        iv_minimum_coverage_pct        TYPE ty_minimum_coverage_pct OPTIONAL
       RETURNING
         VALUE(rs_allocation)           TYPE ty_dated_allocation
       RAISING
@@ -5537,6 +6042,7 @@ CLASS zcl_stock_service DEFINITION
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
         iv_require_full_quantity       TYPE abap_bool DEFAULT abap_false
+        iv_minimum_coverage_pct        TYPE ty_minimum_coverage_pct OPTIONAL
       RETURNING
         VALUE(rs_result)               TYPE ty_dated_atp_allocation
       RAISING
@@ -5582,6 +6088,7 @@ CLASS zcl_stock_service DEFINITION
           OPTIONAL
         iv_protect_safety_stock  TYPE abap_bool DEFAULT abap_false
         iv_require_full_quantity TYPE abap_bool DEFAULT abap_false
+        iv_minimum_coverage_pct  TYPE ty_minimum_coverage_pct OPTIONAL
       RETURNING
         VALUE(rs_result)         TYPE ty_unit_allocation
       RAISING
@@ -6890,6 +7397,12 @@ CLASS zcl_stock_service DEFINITION
           zif_stock_repository=>ty_reservation_keys
       RAISING
         zcx_invalid_stock_request.
+    METHODS calculate_coverage_pct
+      IMPORTING
+        iv_requested_quantity  TYPE mard-labst
+        iv_allocated_quantity  TYPE mard-labst
+      RETURNING
+        VALUE(rv_coverage_pct) TYPE ty_allocation_coverage_pct.
     TYPES:
       BEGIN OF ty_stock_balance,
         material           TYPE mard-matnr,
@@ -6908,6 +7421,7 @@ CLASS zcl_stock_service DEFINITION
         priority              TYPE i,
         requested_quantity    TYPE mard-labst,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE ty_minimum_coverage_pct,
       END OF ty_dated_demand_index.
     TYPES ty_dated_demand_indexes TYPE STANDARD TABLE OF
       ty_dated_demand_index WITH EMPTY KEY.
@@ -6960,6 +7474,7 @@ CLASS zcl_stock_service DEFINITION
         minimum_shelf_life_days TYPE i,
         require_known_expiry    TYPE abap_bool,
         allow_undated_batches   TYPE abap_bool,
+        minimum_coverage_pct    TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_date_plant_demand_idx.
     TYPES ty_date_plant_demand_idxs TYPE STANDARD TABLE OF
       ty_date_plant_demand_idx WITH EMPTY KEY.
@@ -7404,6 +7919,23 @@ CLASS zcl_stock_service DEFINITION
         it_source_locations TYPE ty_plant_source_locations
       RETURNING
         VALUE(rt_locations) TYPE ty_plant_source_location_set
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS map_expiry_uncovered_row
+      IMPORTING
+        is_uncovered_reservation   TYPE
+          zif_stock_repository=>ty_uncovered_reservation
+        iv_as_of_date              TYPE d
+      RETURNING
+        VALUE(rs_expiry_uncovered) TYPE ty_batch_expiry_uncovered.
+
+    METHODS summarize_expiry_row
+      IMPORTING
+        is_expiry_row TYPE ty_batch_expiry_row
+        iv_as_of_date TYPE d
+      CHANGING
+        cs_result     TYPE ty_batch_expiry_result
       RAISING
         zcx_invalid_stock_request.
 
@@ -9379,14 +9911,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_filter_expiry_days TYPE i.
     DATA lv_filter_upcoming_days TYPE i.
     DATA lv_filter_after_window_days TYPE i.
+    DATA lv_filter_available_pct TYPE p LENGTH 5 DECIMALS 2.
+    DATA lv_category_filter_quantity TYPE mchb-clabs.
+    DATA lv_filter_resv_deduction TYPE decfloat34.
     DATA lv_required_date_bucket TYPE c LENGTH 1.
     DATA lv_due_horizon_band TYPE c LENGTH 1.
-    DATA lv_upcoming_window_band TYPE c LENGTH 1.
+    DATA lv_upcoming_through_band TYPE c LENGTH 1.
     DATA lv_after_window_band TYPE c LENGTH 1.
     DATA lv_after_window_days TYPE i.
     DATA lt_batch_page TYPE ty_batch_expiry_rows.
     DATA lt_returned_batch_page TYPE ty_batch_expiry_rows.
     DATA ls_batch_page_row TYPE ty_batch_expiry_row.
+    FIELD-SYMBOLS <ls_page_exp_window> TYPE ty_batch_exp_src_window.
     DATA ls_last_returned_batch TYPE ty_batch_expiry_row.
     DATA lv_batch_row_after_cursor TYPE abap_bool.
     DATA lv_batch_page_has_more TYPE abap_bool.
@@ -9395,9 +9931,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_returned_uncovered_page TYPE ty_batch_expiry_uncovered_rows.
     DATA lt_uncovered_page_keys TYPE
       zif_stock_repository=>ty_reservation_keys.
+    DATA ls_uncovered_reservation TYPE
+      zif_stock_repository=>ty_uncovered_reservation.
     DATA ls_uncovered_page_row TYPE ty_batch_expiry_uncovered.
     DATA ls_last_returned_uncovered TYPE ty_batch_expiry_uncovered.
     DATA lv_uncovered_after_cursor TYPE abap_bool.
+    DATA lv_uncovered_source_index TYPE i.
     DATA lv_uncovered_total_count TYPE i.
     DATA lv_uncov_partial_count TYPE i.
     DATA lv_uncov_unalloc_count TYPE i.
@@ -9450,6 +9989,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_allocation_after_days TYPE i.
     DATA lv_allocation_expiry_age TYPE i.
     DATA lv_expiry_after_required_gap TYPE i.
+    DATA lv_page_expired_age_days TYPE i.
+    DATA lv_page_expiry_age_band TYPE c LENGTH 1.
+    DATA lv_page_upcoming_band TYPE c LENGTH 1.
+    DATA lv_page_after_window_band TYPE c LENGTH 1.
+    DATA lv_page_after_window_days TYPE i.
     DATA lt_undated_page TYPE ty_batch_expiry_undated_rows.
     DATA lt_returned_undated_page TYPE ty_batch_expiry_undated_rows.
     DATA ls_undated_page_row TYPE ty_batch_expiry_undated_row.
@@ -9457,6 +10001,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_undated_row_after_cursor TYPE abap_bool.
     DATA lv_undated_page_has_more TYPE abap_bool.
     DATA lv_returned_undated_count TYPE i.
+    FIELD-SYMBOLS <ls_page_expiry_status> TYPE
+      ty_batch_exp_page_status.
+    FIELD-SYMBOLS <ls_page_expiry_source_status> TYPE
+      ty_batch_exp_src_status.
+    FIELD-SYMBOLS <ls_page_expiry_source_age> TYPE ty_batch_exp_src_age.
+    FIELD-SYMBOLS <ls_undated_page_source> TYPE
+      ty_exp_undated_source.
     FIELD-SYMBOLS <ls_expiry_source_status> TYPE
       ty_batch_exp_src_status.
     FIELD-SYMBOLS <ls_expiry_source_age> TYPE ty_batch_exp_src_age.
@@ -9465,6 +10016,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_after_window_source_band> TYPE
       ty_batch_exp_src_window.
     FIELD-SYMBOLS <ls_exclusion_group> TYPE ty_exclusion_group.
+    FIELD-SYMBOLS <ls_uncovered_src_resv> TYPE
+      zif_stock_repository=>ty_uncovered_reservation.
+    FIELD-SYMBOLS <lt_resv_alloc_summaries> TYPE
+      zif_stock_repository=>ty_reservation_allocation_summaries.
+    FIELD-SYMBOLS <lt_allocation_details> TYPE
+      zif_stock_repository=>ty_batch_allocation_details.
 
     IF it_requests IS INITIAL.
       RETURN.
@@ -9495,6 +10052,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_batch <> abap_false )
           OR ( ls_request-filter_valuation_type <> abap_true
             AND ls_request-filter_valuation_type <> abap_false )
+          OR ( ls_request-positive_available_only <> abap_true
+            AND ls_request-positive_available_only <> abap_false )
+          OR ( ls_request-filter_available_from <> abap_true
+            AND ls_request-filter_available_from <> abap_false )
+          OR ( ls_request-filter_available_to <> abap_true
+            AND ls_request-filter_available_to <> abap_false )
+          OR ( ls_request-filter_available_pct_from <> abap_true
+            AND ls_request-filter_available_pct_from <> abap_false )
+          OR ( ls_request-filter_available_pct_to <> abap_true
+            AND ls_request-filter_available_pct_to <> abap_false )
+          OR ( ls_request-filter_positive_category <> abap_true
+            AND ls_request-filter_positive_category <> abap_false )
+          OR ( ls_request-filter_category_quantity_from <> abap_true
+            AND ls_request-filter_category_quantity_from <> abap_false )
+          OR ( ls_request-filter_category_quantity_to <> abap_true
+            AND ls_request-filter_category_quantity_to <> abap_false )
+          OR ( ls_request-filter_resv_deduction_from <> abap_true
+            AND ls_request-filter_resv_deduction_from <> abap_false )
+          OR ( ls_request-filter_resv_deduction_to <> abap_true
+            AND ls_request-filter_resv_deduction_to <> abap_false )
           OR ( ls_request-filter_expiry_source <> abap_true
             AND ls_request-filter_expiry_source <> abap_false )
           OR ( ls_request-filter_expiry_status <> abap_true
@@ -9570,6 +10147,79 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ELSEIF ls_request-expiry_after_window_band IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      IF ls_request-filter_available_from = abap_false
+          AND ls_request-available_quantity_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_to = abap_false
+          AND ls_request-available_quantity_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_from = abap_true
+          AND ls_request-filter_available_to = abap_true
+          AND ls_request-available_quantity_from >
+            ls_request-available_quantity_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_from = abap_false
+          AND ls_request-available_pct_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_to = abap_false
+          AND ls_request-available_pct_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_from = abap_true
+          AND ls_request-filter_available_pct_to = abap_true
+          AND ls_request-available_pct_from >
+            ls_request-available_pct_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_positive_category = abap_true.
+        CASE ls_request-positive_stock_category.
+          WHEN c_exp_category_unrestricted
+              OR c_exp_category_available
+              OR c_exp_category_quality
+              OR c_exp_category_blocked.
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDCASE.
+      ELSEIF ls_request-positive_stock_category IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_from = abap_false
+          AND ls_request-category_quantity_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_to = abap_false
+          AND ls_request-category_quantity_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ( ls_request-filter_category_quantity_from = abap_true
+          OR ls_request-filter_category_quantity_to = abap_true )
+          AND ls_request-filter_positive_category <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_from = abap_true
+          AND ls_request-filter_category_quantity_to = abap_true
+          AND ls_request-category_quantity_from >
+            ls_request-category_quantity_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_from = abap_false
+          AND ls_request-resv_deduction_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_to = abap_false
+          AND ls_request-resv_deduction_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_from = abap_true
+          AND ls_request-filter_resv_deduction_to = abap_true
+          AND ls_request-resv_deduction_from >
+            ls_request-resv_deduction_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       IF ls_request-filter_expiry_days_from = abap_false
           AND ls_request-expiry_days_from IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -9586,6 +10236,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-omit_undated_batch_rows <> abap_true
           AND ls_request-omit_undated_batch_rows <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-omit_dated_batch_rows <> abap_true
+          AND ls_request-omit_dated_batch_rows <> abap_false.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-maximum_batch_rows < 0
@@ -9611,6 +10265,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_request-batch_cursor_batch IS NOT INITIAL
           OR ls_request-batch_cursor_storage_location IS NOT INITIAL
           OR ls_request-batch_cursor_valuation_type IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-omit_dated_batch_rows = abap_true
+          AND ( ls_request-maximum_batch_rows > 0
+            OR ls_request-filter_batch_cursor = abap_true ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-maximum_undated_batch_rows < 0
@@ -10703,11 +11362,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
 
     LOOP AT it_requests INTO ls_request.
-      READ TABLE lt_batch_statuses INTO DATA(ls_batch_result)
+      READ TABLE lt_batch_statuses
+        ASSIGNING FIELD-SYMBOL(<ls_batch_result>)
         WITH KEY request_id = ls_request-request_id.
-      IF sy-subrc <> 0
-          OR ls_batch_result-material <> ls_request-material
-          OR ls_batch_result-plant <> ls_request-plant.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF <ls_batch_result>-material <> ls_request-material
+          OR <ls_batch_result>-plant <> ls_request-plant.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
 
@@ -10752,7 +11414,47 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_result-expiration_date_from =
         ls_request-expiration_date_from.
       ls_result-expiration_date_to = ls_request-expiration_date_to.
+      ls_result-positive_available_only =
+        ls_request-positive_available_only.
+      ls_result-filter_available_from =
+        ls_request-filter_available_from.
+      ls_result-available_quantity_from =
+        ls_request-available_quantity_from.
+      ls_result-filter_available_to =
+        ls_request-filter_available_to.
+      ls_result-available_quantity_to =
+        ls_request-available_quantity_to.
+      ls_result-filter_available_pct_from =
+        ls_request-filter_available_pct_from.
+      ls_result-available_pct_from =
+        ls_request-available_pct_from.
+      ls_result-filter_available_pct_to =
+        ls_request-filter_available_pct_to.
+      ls_result-available_pct_to =
+        ls_request-available_pct_to.
+      ls_result-filter_positive_category =
+        ls_request-filter_positive_category.
+      ls_result-positive_stock_category =
+        ls_request-positive_stock_category.
+      ls_result-filter_category_quantity_from =
+        ls_request-filter_category_quantity_from.
+      ls_result-category_quantity_from =
+        ls_request-category_quantity_from.
+      ls_result-filter_category_quantity_to =
+        ls_request-filter_category_quantity_to.
+      ls_result-category_quantity_to =
+        ls_request-category_quantity_to.
+      ls_result-filter_resv_deduction_from =
+        ls_request-filter_resv_deduction_from.
+      ls_result-resv_deduction_from =
+        ls_request-resv_deduction_from.
+      ls_result-filter_resv_deduction_to =
+        ls_request-filter_resv_deduction_to.
+      ls_result-resv_deduction_to =
+        ls_request-resv_deduction_to.
       ls_result-maximum_batch_rows = ls_request-maximum_batch_rows.
+      ls_result-omit_dated_batch_rows =
+        ls_request-omit_dated_batch_rows.
       ls_result-maximum_uncovered_rows =
         ls_request-maximum_uncovered_rows.
       ls_result-omit_uncovered_detail_rows =
@@ -11058,6 +11760,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_request-batch_cursor_storage_location.
       ls_result-batch_cursor_valuation_type =
         ls_request-batch_cursor_valuation_type.
+      ls_result-page_expiry_statuses = VALUE #(
+        ( expiry_status = c_expiry_status_expired )
+        ( expiry_status = c_expiry_status_upcoming )
+        ( expiry_status = c_expiry_status_after_window ) ).
+      ls_result-expiry_statuses = ls_result-page_expiry_statuses.
+      ls_result-expiry_sources = VALUE #(
+        ( source_group = zif_stock_repository=>c_expiry_source_plant )
+        ( source_group = zif_stock_repository=>c_expiry_source_global )
+        ( source_group = c_expiry_source_other ) ).
+      ls_result-page_expiry_sources = ls_result-expiry_sources.
       ls_result-expiry_src_statuses = VALUE #(
         ( source_group  = zif_stock_repository=>c_expiry_source_plant
           expiry_status = c_expiry_status_expired )
@@ -11077,6 +11789,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
           expiry_status = c_expiry_status_upcoming )
         ( source_group  = c_expiry_source_other
           expiry_status = c_expiry_status_after_window ) ).
+      ls_result-page_expiry_src_statuses =
+        ls_result-expiry_src_statuses.
+      ls_result-undated_expiry_sources = VALUE #(
+        ( source_group = zif_stock_repository=>c_expiry_source_plant )
+        ( source_group = zif_stock_repository=>c_expiry_source_global )
+        ( source_group = c_expiry_source_other ) ).
+      ls_result-undated_page_expiry_sources = VALUE #(
+        ( source_group = zif_stock_repository=>c_expiry_source_plant )
+        ( source_group = zif_stock_repository=>c_expiry_source_global )
+        ( source_group = c_expiry_source_other ) ).
       ls_result-expiry_src_age_bands = VALUE #(
         ( source_group = zif_stock_repository=>c_expiry_source_plant
           age_band     = c_exp_age_band_1_7 )
@@ -11102,56 +11824,62 @@ CLASS zcl_stock_service IMPLEMENTATION.
           age_band     = c_exp_age_band_31_90 )
         ( source_group = c_expiry_source_other
           age_band     = c_exp_age_band_over_90 ) ).
+      ls_result-page_expiry_src_age_bands =
+        ls_result-expiry_src_age_bands.
       ls_result-upcoming_src_bands = VALUE #(
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_upcoming_band_0_7 )
+          through_band = c_upcoming_band_0_7 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_upcoming_band_8_30 )
+          through_band = c_upcoming_band_8_30 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_upcoming_band_31_90 )
+          through_band = c_upcoming_band_31_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_upcoming_band_over_90 )
+          through_band = c_upcoming_band_over_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_upcoming_band_0_7 )
+          through_band = c_upcoming_band_0_7 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_upcoming_band_8_30 )
+          through_band = c_upcoming_band_8_30 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_upcoming_band_31_90 )
+          through_band = c_upcoming_band_31_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_upcoming_band_over_90 )
+          through_band = c_upcoming_band_over_90 )
         ( source_group = c_expiry_source_other
-          window_band  = c_upcoming_band_0_7 )
+          through_band = c_upcoming_band_0_7 )
         ( source_group = c_expiry_source_other
-          window_band  = c_upcoming_band_8_30 )
+          through_band = c_upcoming_band_8_30 )
         ( source_group = c_expiry_source_other
-          window_band  = c_upcoming_band_31_90 )
+          through_band = c_upcoming_band_31_90 )
         ( source_group = c_expiry_source_other
-          window_band  = c_upcoming_band_over_90 ) ).
+          through_band = c_upcoming_band_over_90 ) ).
+      ls_result-page_upcoming_src_bands =
+        ls_result-upcoming_src_bands.
       ls_result-after_window_src_bands = VALUE #(
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_after_window_band_1_7 )
+          through_band = c_after_window_band_1_7 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_after_window_band_8_30 )
+          through_band = c_after_window_band_8_30 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_after_window_band_31_90 )
+          through_band = c_after_window_band_31_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_plant
-          window_band  = c_after_window_band_over_90 )
+          through_band = c_after_window_band_over_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_after_window_band_1_7 )
+          through_band = c_after_window_band_1_7 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_after_window_band_8_30 )
+          through_band = c_after_window_band_8_30 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_after_window_band_31_90 )
+          through_band = c_after_window_band_31_90 )
         ( source_group = zif_stock_repository=>c_expiry_source_global
-          window_band  = c_after_window_band_over_90 )
+          through_band = c_after_window_band_over_90 )
         ( source_group = c_expiry_source_other
-          window_band  = c_after_window_band_1_7 )
+          through_band = c_after_window_band_1_7 )
         ( source_group = c_expiry_source_other
-          window_band  = c_after_window_band_8_30 )
+          through_band = c_after_window_band_8_30 )
         ( source_group = c_expiry_source_other
-          window_band  = c_after_window_band_31_90 )
+          through_band = c_after_window_band_31_90 )
         ( source_group = c_expiry_source_other
-          window_band  = c_after_window_band_over_90 ) ).
+          through_band = c_after_window_band_over_90 ) ).
+      ls_result-page_after_window_src_bands =
+        ls_result-after_window_src_bands.
       LOOP AT lt_exclusion_groups INTO ls_exclusion_group.
         IF line_exists( ls_exclusion_group-request_ids[
             table_line = ls_request-request_id ] ).
@@ -11160,39 +11888,39 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_result-snapshot_timestamp =
             ls_exclusion_group-snapshot_timestamp.
           ls_result-open_reservation_row_count =
-            ls_batch_result-open_reservation_row_count.
+            <ls_batch_result>-open_reservation_row_count.
           ls_result-excluded_open_resv_row_count =
-            ls_batch_result-excluded_open_resv_row_count.
+            <ls_batch_result>-excluded_open_resv_row_count.
           ls_result-unmatched_open_resv_excl_count =
-            ls_batch_result-unmatched_open_resv_excl_count.
+            <ls_batch_result>-unmatched_open_resv_excl_count.
           ls_result-unmatched_excl_reservations =
-            ls_batch_result-unmatched_excl_reservations.
+            <ls_batch_result>-unmatched_excl_reservations.
           ls_result-open_reservation_quantity =
-            ls_batch_result-open_reservation_quantity.
+            <ls_batch_result>-open_reservation_quantity.
           ls_result-excluded_open_resv_quantity =
-            ls_batch_result-excluded_open_resv_quantity.
+            <ls_batch_result>-excluded_open_resv_quantity.
           ls_result-matched_allocation_quantity =
-            ls_batch_result-matched_allocation_quantity.
+            <ls_batch_result>-matched_allocation_quantity.
           ls_result-fallback_allocation_quantity =
-            ls_batch_result-fallback_allocation_quantity.
+            <ls_batch_result>-fallback_allocation_quantity.
           ls_result-matched_allocation_row_count =
-            ls_batch_result-matched_allocation_row_count.
+            <ls_batch_result>-matched_allocation_row_count.
           ls_result-fallback_allocation_row_count =
-            ls_batch_result-fallback_allocation_row_count.
+            <ls_batch_result>-fallback_allocation_row_count.
           ls_result-fully_allocated_resv_count =
-            ls_batch_result-fully_allocated_resv_count.
+            <ls_batch_result>-fully_allocated_resv_count.
           ls_result-partially_allocated_resv_count =
-            ls_batch_result-partially_allocated_resv_count.
+            <ls_batch_result>-partially_allocated_resv_count.
           ls_result-unallocated_resv_count =
-            ls_batch_result-unallocated_resv_count.
+            <ls_batch_result>-unallocated_resv_count.
           ls_result-fully_alloc_resv_open_qty =
-            ls_batch_result-fully_alloc_resv_open_qty.
+            <ls_batch_result>-fully_alloc_resv_open_qty.
           ls_result-part_alloc_resv_open_qty =
-            ls_batch_result-part_alloc_resv_open_qty.
+            <ls_batch_result>-part_alloc_resv_open_qty.
           ls_result-unalloc_resv_open_qty =
-            ls_batch_result-unalloc_resv_open_qty.
+            <ls_batch_result>-unalloc_resv_open_qty.
           ls_result-uncovered_open_resv_quantity =
-            ls_batch_result-uncovered_open_resv_quantity.
+            <ls_batch_result>-uncovered_open_resv_quantity.
           IF ls_result-open_reservation_quantity > 0.
             ls_result-allocation_coverage_pct =
               ( CONV decfloat34(
@@ -11215,61 +11943,27 @@ CLASS zcl_stock_service IMPLEMENTATION.
               / CONV decfloat34( ls_result-open_reservation_quantity ).
           ENDIF.
           ls_result-uncovered_open_resv_row_count =
-            ls_batch_result-uncovered_open_resv_row_count.
+            <ls_batch_result>-uncovered_open_resv_row_count.
           ls_result-first_uncovered_required_date =
-            ls_batch_result-first_uncovered_required_date.
+            <ls_batch_result>-first_uncovered_required_date.
           ls_result-first_uncovered_resv_number =
-            ls_batch_result-first_uncovered_resv_number.
+            <ls_batch_result>-first_uncovered_resv_number.
           ls_result-first_uncovered_resv_item =
-            ls_batch_result-first_uncovered_resv_item.
+            <ls_batch_result>-first_uncovered_resv_item.
           IF ls_result-first_uncovered_required_date IS NOT INITIAL.
             ls_result-days_until_first_uncovered_req =
               ls_result-first_uncovered_required_date
               - ls_request-as_of_date.
           ENDIF.
-          ls_result-uncovered_open_resv_keys =
-            ls_batch_result-uncovered_open_resv_keys.
-          LOOP AT ls_batch_result-uncovered_open_reservations
-              INTO DATA(ls_uncovered_reservation).
-            DATA(ls_expiry_uncovered) =
-              CORRESPONDING ty_batch_expiry_uncovered(
-                ls_uncovered_reservation ).
-            IF ls_uncovered_reservation-required_date IS NOT INITIAL.
-              ls_expiry_uncovered-days_until_required =
-                ls_uncovered_reservation-required_date
-                - ls_request-as_of_date.
-            ENDIF.
-            IF ls_expiry_uncovered-required_date IS INITIAL.
-              ls_expiry_uncovered-due_horizon_band = 'U'.
-            ELSEIF ls_expiry_uncovered-days_until_required < 0.
-              ls_expiry_uncovered-due_horizon_band = 'O'.
-              ls_expiry_uncovered-overdue_age_days =
-                0 - ls_expiry_uncovered-days_until_required.
-              IF ls_expiry_uncovered-days_until_required >= -7.
-                ls_expiry_uncovered-overdue_age_band = '1'.
-              ELSEIF ls_expiry_uncovered-days_until_required >= -30.
-                ls_expiry_uncovered-overdue_age_band = '2'.
-              ELSEIF ls_expiry_uncovered-days_until_required >= -90.
-                ls_expiry_uncovered-overdue_age_band = '3'.
-              ELSE.
-                ls_expiry_uncovered-overdue_age_band = '4'.
-              ENDIF.
-            ELSEIF ls_expiry_uncovered-days_until_required = 0.
-              ls_expiry_uncovered-due_horizon_band = 'T'.
-            ELSEIF ls_expiry_uncovered-days_until_required <= 7.
-              ls_expiry_uncovered-due_horizon_band = '1'.
-            ELSEIF ls_expiry_uncovered-days_until_required <= 30.
-              ls_expiry_uncovered-due_horizon_band = '2'.
-            ELSEIF ls_expiry_uncovered-days_until_required <= 90.
-              ls_expiry_uncovered-due_horizon_band = '3'.
-            ELSE.
-              ls_expiry_uncovered-due_horizon_band = '4'.
-            ENDIF.
-            IF ls_expiry_uncovered-allocated_quantity IS INITIAL.
-              ls_expiry_uncovered-allocation_outcome = 'U'.
-            ELSE.
-              ls_expiry_uncovered-allocation_outcome = 'P'.
-            ENDIF.
+          IF ls_request-omit_uncovered_detail_rows <> abap_true.
+            ls_result-uncovered_open_resv_keys =
+              <ls_batch_result>-uncovered_open_resv_keys.
+          ENDIF.
+          LOOP AT <ls_batch_result>-uncovered_open_reservations
+              INTO ls_uncovered_reservation.
+            DATA(ls_expiry_uncovered) = map_expiry_uncovered_row(
+              is_uncovered_reservation = ls_uncovered_reservation
+              iv_as_of_date            = ls_request-as_of_date ).
             IF ls_expiry_uncovered-required_date IS INITIAL.
               ADD 1 TO ls_result-undated_uncovered_row_count.
               ls_result-undated_uncovered_resv_qty +=
@@ -11287,11 +11981,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ls_result-future_uncovered_resv_qty +=
                 ls_expiry_uncovered-uncovered_quantity.
             ENDIF.
-            APPEND ls_expiry_uncovered
-              TO ls_result-uncovered_open_reservations.
+            IF ls_request-omit_uncovered_detail_rows <> abap_true.
+              APPEND ls_expiry_uncovered
+                TO ls_result-uncovered_open_reservations.
+            ENDIF.
           ENDLOOP.
-          ls_result-resv_alloc_summaries =
-            ls_batch_result-resv_allocation_summaries.
+          IF ls_request-omit_resv_alloc_summary_rows = abap_true.
+            ASSIGN <ls_batch_result>-resv_allocation_summaries
+              TO <lt_resv_alloc_summaries>.
+          ELSE.
+            ls_result-resv_alloc_summaries =
+              <ls_batch_result>-resv_allocation_summaries.
+            ASSIGN ls_result-resv_alloc_summaries
+              TO <lt_resv_alloc_summaries>.
+          ENDIF.
           ls_result-resv_alloc_open_demand_bands = VALUE #(
             ( allocation_outcome = 'F' required_date_bucket = 'O' )
             ( allocation_outcome = 'F' required_date_bucket = 'T' )
@@ -11313,7 +12016,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ( due_horizon_band = '3' )
             ( due_horizon_band = '4' )
             ( due_horizon_band = 'U' ) ).
-          LOOP AT ls_result-resv_alloc_summaries
+          LOOP AT <lt_resv_alloc_summaries>
               ASSIGNING FIELD-SYMBOL(<ls_resv_alloc_summary>).
             CLEAR <ls_resv_alloc_summary>-days_until_required.
             IF <ls_resv_alloc_summary>-required_date IS INITIAL.
@@ -11398,9 +12101,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
                 <ls_resv_alloc_summary>-open_quantity.
             ENDIF.
           ENDLOOP.
-          ls_result-allocation_details =
-            ls_batch_result-allocation_details.
-          LOOP AT ls_result-allocation_details
+          IF ls_request-omit_allocation_detail_rows = abap_true.
+            ASSIGN <ls_batch_result>-allocation_details
+              TO <lt_allocation_details>.
+          ELSE.
+            ls_result-allocation_details =
+              <ls_batch_result>-allocation_details.
+            ASSIGN ls_result-allocation_details
+              TO <lt_allocation_details>.
+          ENDIF.
+          LOOP AT <lt_allocation_details>
               ASSIGNING FIELD-SYMBOL(<ls_allocation_detail>).
             CLEAR: <ls_allocation_detail>-days_until_required,
               <ls_allocation_detail>-days_to_expiration.
@@ -11461,7 +12171,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      LOOP AT ls_batch_result-batches INTO DATA(ls_batch).
+      LOOP AT <ls_batch_result>-batches INTO DATA(ls_batch).
         IF ls_batch-batch_managed <> abap_true.
           CONTINUE.
         ENDIF.
@@ -11481,6 +12191,105 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_batch-valuation_type <>
               ls_request-valuation_type.
           CONTINUE.
+        ENDIF.
+        IF ls_request-positive_available_only = abap_true
+            AND ls_batch-available_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        IF ls_request-filter_available_from = abap_true
+            AND ls_batch-available_quantity <
+              ls_request-available_quantity_from.
+          CONTINUE.
+        ENDIF.
+        IF ls_request-filter_available_to = abap_true
+            AND ls_batch-available_quantity >
+              ls_request-available_quantity_to.
+          CONTINUE.
+        ENDIF.
+        IF ls_request-filter_available_pct_from = abap_true
+            OR ls_request-filter_available_pct_to = abap_true.
+          CLEAR lv_filter_available_pct.
+          IF ls_batch-unrestricted_quantity > 0.
+            lv_filter_available_pct =
+              CONV decfloat34( ls_batch-available_quantity ) * 100
+              / CONV decfloat34( ls_batch-unrestricted_quantity ).
+          ENDIF.
+          IF ls_request-filter_available_pct_from = abap_true
+              AND lv_filter_available_pct <
+                ls_request-available_pct_from.
+            CONTINUE.
+          ENDIF.
+          IF ls_request-filter_available_pct_to = abap_true
+              AND lv_filter_available_pct >
+                ls_request-available_pct_to.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        IF ls_request-filter_positive_category = abap_true.
+          CASE ls_request-positive_stock_category.
+            WHEN c_exp_category_unrestricted.
+              IF ls_batch-unrestricted_quantity <= 0.
+                CONTINUE.
+              ENDIF.
+            WHEN c_exp_category_available.
+              IF ls_batch-available_quantity <= 0.
+                CONTINUE.
+              ENDIF.
+            WHEN c_exp_category_quality.
+              IF ls_batch-quality_inspection_quantity <= 0.
+                CONTINUE.
+              ENDIF.
+            WHEN c_exp_category_blocked.
+              IF ls_batch-blocked_quantity <= 0.
+                CONTINUE.
+              ENDIF.
+            WHEN OTHERS.
+              RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDCASE.
+        ENDIF.
+        IF ls_request-filter_category_quantity_from = abap_true
+            OR ls_request-filter_category_quantity_to = abap_true.
+          CLEAR lv_category_filter_quantity.
+          CASE ls_request-positive_stock_category.
+            WHEN c_exp_category_unrestricted.
+              lv_category_filter_quantity =
+                ls_batch-unrestricted_quantity.
+            WHEN c_exp_category_available.
+              lv_category_filter_quantity = ls_batch-available_quantity.
+            WHEN c_exp_category_quality.
+              lv_category_filter_quantity =
+                ls_batch-quality_inspection_quantity.
+            WHEN c_exp_category_blocked.
+              lv_category_filter_quantity = ls_batch-blocked_quantity.
+            WHEN OTHERS.
+              RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDCASE.
+          IF ls_request-filter_category_quantity_from = abap_true
+              AND lv_category_filter_quantity <
+                ls_request-category_quantity_from.
+            CONTINUE.
+          ENDIF.
+          IF ls_request-filter_category_quantity_to = abap_true
+              AND lv_category_filter_quantity >
+                ls_request-category_quantity_to.
+            CONTINUE.
+          ENDIF.
+        ENDIF.
+        IF ls_request-filter_resv_deduction_from = abap_true
+            OR ls_request-filter_resv_deduction_to = abap_true.
+          lv_filter_resv_deduction =
+            CONV decfloat34( ls_batch-unrestricted_quantity )
+            - CONV decfloat34( ls_batch-available_quantity ).
+          IF ls_request-filter_resv_deduction_from = abap_true
+              AND lv_filter_resv_deduction <
+                ls_request-resv_deduction_from.
+            CONTINUE.
+          ENDIF.
+          IF ls_request-filter_resv_deduction_to = abap_true
+              AND lv_filter_resv_deduction >
+                ls_request-resv_deduction_to.
+            CONTINUE.
+          ENDIF.
         ENDIF.
         IF ( ls_request-filter_expiry_source = abap_true
             OR ls_request-expiry_source IS NOT INITIAL ).
@@ -11646,6 +12455,46 @@ CLASS zcl_stock_service IMPLEMENTATION.
               OR ls_batch-quality_inspection_quantity > 0
               OR ls_batch-blocked_quantity > 0.
             ADD 1 TO ls_result-undated_batch_row_count.
+            DATA(lv_undated_source_group) =
+              c_expiry_source_other.
+            CASE ls_batch-expiration_date_source.
+              WHEN zif_stock_repository=>c_expiry_source_plant.
+                lv_undated_source_group =
+                  zif_stock_repository=>c_expiry_source_plant.
+              WHEN zif_stock_repository=>c_expiry_source_global.
+                lv_undated_source_group =
+                  zif_stock_repository=>c_expiry_source_global.
+            ENDCASE.
+            READ TABLE ls_result-undated_expiry_sources
+              ASSIGNING FIELD-SYMBOL(<ls_undated_source>)
+              WITH KEY source_group = lv_undated_source_group.
+            IF sy-subrc <> 0.
+              RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+            ENDIF.
+            ADD 1 TO <ls_undated_source>-row_count.
+            IF ls_batch-unrestricted_quantity > 0.
+              <ls_undated_source>-unrestricted_qty =
+                sum_stock_quantities(
+                  iv_left_quantity  =
+                    <ls_undated_source>-unrestricted_qty
+                  iv_right_quantity = ls_batch-unrestricted_quantity ).
+            ENDIF.
+            IF ls_batch-available_quantity > 0.
+              <ls_undated_source>-available_qty = sum_stock_quantities(
+                iv_left_quantity  = <ls_undated_source>-available_qty
+                iv_right_quantity = ls_batch-available_quantity ).
+            ENDIF.
+            IF ls_batch-quality_inspection_quantity > 0.
+              <ls_undated_source>-quality_qty = sum_stock_quantities(
+                iv_left_quantity  = <ls_undated_source>-quality_qty
+                iv_right_quantity =
+                  ls_batch-quality_inspection_quantity ).
+            ENDIF.
+            IF ls_batch-blocked_quantity > 0.
+              <ls_undated_source>-blocked_qty = sum_stock_quantities(
+                iv_left_quantity  = <ls_undated_source>-blocked_qty
+                iv_right_quantity = ls_batch-blocked_quantity ).
+            ENDIF.
             IF ls_result-undated_batch_row_count = 1
                 OR ls_batch-batch < ls_result-first_undated_batch
                 OR ( ls_batch-batch = ls_result-first_undated_batch
@@ -11661,6 +12510,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ls_result-first_undated_batch = ls_batch-batch.
               ls_result-first_undated_valuation_type =
                 ls_batch-valuation_type.
+              ls_result-first_undated_expiry_source =
+                ls_batch-expiration_date_source.
               ls_result-first_undated_unrestr_qty =
                 ls_batch-unrestricted_quantity.
               ls_result-first_undated_available_qty =
@@ -11670,16 +12521,30 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ls_result-first_undated_blocked_qty =
                 ls_batch-blocked_quantity.
             ENDIF.
-            APPEND VALUE #(
-              storage_location            = ls_batch-storage_location
-              batch                       = ls_batch-batch
-              valuation_type              = ls_batch-valuation_type
-              unrestricted_quantity       = ls_batch-unrestricted_quantity
-              available_quantity          = ls_batch-available_quantity
-              quality_inspection_quantity =
-                ls_batch-quality_inspection_quantity
-              blocked_quantity            = ls_batch-blocked_quantity )
-              TO ls_result-undated_batches.
+            IF ls_request-omit_undated_batch_rows <> abap_true.
+              DATA(ls_undated_batch_row) =
+                VALUE ty_batch_expiry_undated_row(
+                  storage_location            = ls_batch-storage_location
+                  batch                       = ls_batch-batch
+                  valuation_type              = ls_batch-valuation_type
+                  expiration_date_source      =
+                    ls_batch-expiration_date_source
+                  unrestricted_quantity       =
+                    ls_batch-unrestricted_quantity
+                  available_quantity          = ls_batch-available_quantity
+                  reservation_deduction_qty   =
+                    CONV decfloat34( ls_batch-unrestricted_quantity )
+                    - CONV decfloat34( ls_batch-available_quantity )
+                  quality_inspection_quantity =
+                    ls_batch-quality_inspection_quantity
+                  blocked_quantity            = ls_batch-blocked_quantity ).
+              IF ls_batch-unrestricted_quantity > 0.
+                ls_undated_batch_row-available_pct_of_unrestricted =
+                  CONV decfloat34( ls_batch-available_quantity ) * 100
+                  / CONV decfloat34( ls_batch-unrestricted_quantity ).
+              ENDIF.
+              APPEND ls_undated_batch_row TO ls_result-undated_batches.
+            ENDIF.
             IF ls_batch-unrestricted_quantity > 0.
               ls_result-undated_unrestricted_quantity =
                 sum_stock_quantities(
@@ -11718,28 +12583,39 @@ CLASS zcl_stock_service IMPLEMENTATION.
             IF ls_request-filter_expiry_status = abap_true
                 AND ls_request-expiry_status =
                   c_expiry_status_after_window.
-              APPEND VALUE ty_batch_expiry_row(
-                status                      = c_expiry_status_after_window
-                storage_location            = ls_batch-storage_location
-                batch                       = ls_batch-batch
-                valuation_type              = ls_batch-valuation_type
-                expiration_date             = ls_batch-expiration_date
-                days_to_expiration          = ls_batch-expiration_date -
-                  ls_request-as_of_date
-                expiration_date_source      =
-                  ls_batch-expiration_date_source
-                unrestricted_quantity       =
-                  ls_batch-unrestricted_quantity
-                available_quantity          = ls_batch-available_quantity
-                quality_inspection_quantity =
-                  ls_batch-quality_inspection_quantity
-                blocked_quantity            = ls_batch-blocked_quantity )
-                TO ls_result-batches.
+              IF ls_request-omit_dated_batch_rows <> abap_true.
+                DATA(ls_after_window_row) = VALUE ty_batch_expiry_row(
+                  status                      =
+                    c_expiry_status_after_window
+                  storage_location            = ls_batch-storage_location
+                  batch                       = ls_batch-batch
+                  valuation_type              = ls_batch-valuation_type
+                  expiration_date             = ls_batch-expiration_date
+                  days_to_expiration          = ls_batch-expiration_date -
+                    ls_request-as_of_date
+                  expiration_date_source      =
+                    ls_batch-expiration_date_source
+                  unrestricted_quantity       =
+                    ls_batch-unrestricted_quantity
+                  available_quantity          = ls_batch-available_quantity
+                  reservation_deduction_qty   =
+                    CONV decfloat34( ls_batch-unrestricted_quantity )
+                    - CONV decfloat34( ls_batch-available_quantity )
+                  quality_inspection_quantity =
+                    ls_batch-quality_inspection_quantity
+                  blocked_quantity            = ls_batch-blocked_quantity ).
+                IF ls_batch-unrestricted_quantity > 0.
+                  ls_after_window_row-available_pct_of_unrestricted =
+                    CONV decfloat34( ls_batch-available_quantity ) * 100
+                    / CONV decfloat34( ls_batch-unrestricted_quantity ).
+                ENDIF.
+                APPEND ls_after_window_row TO ls_result-batches.
+              ENDIF.
             ENDIF.
             ADD 1 TO ls_result-after_window_batch_row_count.
             CASE ls_batch-expiration_date_source.
               WHEN zif_stock_repository=>c_expiry_source_plant.
-                lv_expiry_source_group  = zif_stock_repository=>c_expiry_source_plant.
+                lv_expiry_source_group = zif_stock_repository=>c_expiry_source_plant.
                 ADD 1 TO ls_result-plant_expiry_source_row_count.
                 ADD 1 TO ls_result-after_window_plant_src_count.
                 IF ls_batch-unrestricted_quantity > 0.
@@ -11763,7 +12639,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                     iv_right_quantity = ls_batch-blocked_quantity ).
                 ENDIF.
               WHEN zif_stock_repository=>c_expiry_source_global.
-                lv_expiry_source_group  = zif_stock_repository=>c_expiry_source_global.
+                lv_expiry_source_group = zif_stock_repository=>c_expiry_source_global.
                 ADD 1 TO ls_result-global_expiry_source_row_count.
                 ADD 1 TO ls_result-after_window_global_src_count.
                 IF ls_batch-unrestricted_quantity > 0.
@@ -11787,7 +12663,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                     iv_right_quantity = ls_batch-blocked_quantity ).
                 ENDIF.
               WHEN OTHERS.
-                lv_expiry_source_group  = c_expiry_source_other.
+                lv_expiry_source_group = c_expiry_source_other.
                 ADD 1 TO ls_result-other_expiry_source_row_count.
                 ADD 1 TO ls_result-after_window_other_src_count.
                 IF ls_batch-unrestricted_quantity > 0.
@@ -11876,7 +12752,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             READ TABLE ls_result-after_window_src_bands
               ASSIGNING <ls_after_window_source_band>
               WITH KEY source_group = lv_expiry_source_group
-                window_band = lv_after_window_band.
+                through_band = lv_after_window_band.
             IF sy-subrc <> 0.
               RAISE EXCEPTION TYPE zcx_invalid_stock_request.
             ENDIF.
@@ -12068,7 +12944,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
         CASE ls_batch-expiration_date_source.
           WHEN zif_stock_repository=>c_expiry_source_plant.
-            lv_expiry_source_group  = zif_stock_repository=>c_expiry_source_plant.
+            lv_expiry_source_group = zif_stock_repository=>c_expiry_source_plant.
             ADD 1 TO ls_result-plant_expiry_source_row_count.
             IF lv_expired = abap_true.
               ADD 1 TO ls_result-expired_plant_src_count.
@@ -12096,7 +12972,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                 iv_right_quantity = ls_batch-blocked_quantity ).
             ENDIF.
           WHEN zif_stock_repository=>c_expiry_source_global.
-            lv_expiry_source_group  = zif_stock_repository=>c_expiry_source_global.
+            lv_expiry_source_group = zif_stock_repository=>c_expiry_source_global.
             ADD 1 TO ls_result-global_expiry_source_row_count.
             IF lv_expired = abap_true.
               ADD 1 TO ls_result-expired_global_src_count.
@@ -12124,7 +13000,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                 iv_right_quantity = ls_batch-blocked_quantity ).
             ENDIF.
           WHEN OTHERS.
-            lv_expiry_source_group  = c_expiry_source_other.
+            lv_expiry_source_group = c_expiry_source_other.
             ADD 1 TO ls_result-other_expiry_source_row_count.
             IF lv_expired = abap_true.
               ADD 1 TO ls_result-expired_other_src_count.
@@ -12212,10 +13088,27 @@ CLASS zcl_stock_service IMPLEMENTATION.
           expiration_date_source      = ls_batch-expiration_date_source
           unrestricted_quantity       = ls_batch-unrestricted_quantity
           available_quantity          = ls_batch-available_quantity
+          reservation_deduction_qty   =
+            CONV decfloat34( ls_batch-unrestricted_quantity )
+            - CONV decfloat34( ls_batch-available_quantity )
           quality_inspection_quantity =
             ls_batch-quality_inspection_quantity
           blocked_quantity            = ls_batch-blocked_quantity ).
-        APPEND ls_expiry_row TO ls_result-batches.
+        IF ls_batch-unrestricted_quantity > 0.
+          ls_expiry_row-available_pct_of_unrestricted =
+            CONV decfloat34( ls_batch-available_quantity ) * 100
+            / CONV decfloat34( ls_batch-unrestricted_quantity ).
+        ENDIF.
+        IF ls_request-omit_dated_batch_rows = abap_true.
+          CALL METHOD me->summarize_expiry_row
+            EXPORTING
+              is_expiry_row = ls_expiry_row
+              iv_as_of_date = ls_request-as_of_date
+            CHANGING
+              cs_result = ls_result.
+        ELSE.
+          APPEND ls_expiry_row TO ls_result-batches.
+        ENDIF.
         IF lv_expired = abap_true.
           ADD 1 TO ls_result-expired_batch_row_count.
         ELSE.
@@ -12577,18 +13470,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
               iv_right_quantity = ls_batch-blocked_quantity ).
           ENDIF.
           IF ls_expiry_row-days_to_expiration <= 7.
-            lv_upcoming_window_band = c_upcoming_band_0_7.
+            lv_upcoming_through_band = c_upcoming_band_0_7.
           ELSEIF ls_expiry_row-days_to_expiration <= 30.
-            lv_upcoming_window_band = c_upcoming_band_8_30.
+            lv_upcoming_through_band = c_upcoming_band_8_30.
           ELSEIF ls_expiry_row-days_to_expiration <= 90.
-            lv_upcoming_window_band = c_upcoming_band_31_90.
+            lv_upcoming_through_band = c_upcoming_band_31_90.
           ELSE.
-            lv_upcoming_window_band = c_upcoming_band_over_90.
+            lv_upcoming_through_band = c_upcoming_band_over_90.
           ENDIF.
           READ TABLE ls_result-upcoming_src_bands
             ASSIGNING <ls_expiry_source_window>
             WITH KEY source_group = lv_expiry_source_group
-              window_band = lv_upcoming_window_band.
+              through_band = lv_upcoming_through_band.
           IF sy-subrc <> 0.
             RAISE EXCEPTION TYPE zcx_invalid_stock_request.
           ENDIF.
@@ -12805,87 +13698,2091 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ENDIF.
         ENDLOOP.
       ENDIF.
-      ls_result-total_dated_batch_row_count =
-        lines( ls_result-batches ).
-      CLEAR: lt_batch_page, lt_returned_batch_page,
-        lv_batch_page_has_more, lv_returned_batch_count.
-      LOOP AT ls_result-batches INTO ls_batch_page_row.
-        lv_batch_row_after_cursor = abap_true.
-        IF ls_request-filter_batch_cursor = abap_true.
-          lv_batch_row_after_cursor = abap_false.
-          IF ls_batch_page_row-status > ls_request-batch_cursor_status
-              OR ( ls_batch_page_row-status =
-                     ls_request-batch_cursor_status
-                AND ls_batch_page_row-expiration_date >
-                  ls_request-batch_cursor_expiration_date )
-              OR ( ls_batch_page_row-status =
-                     ls_request-batch_cursor_status
-                AND ls_batch_page_row-expiration_date =
-                  ls_request-batch_cursor_expiration_date
-                AND ls_batch_page_row-batch > ls_request-batch_cursor_batch )
-              OR ( ls_batch_page_row-status =
-                     ls_request-batch_cursor_status
-                AND ls_batch_page_row-expiration_date =
-                  ls_request-batch_cursor_expiration_date
-                AND ls_batch_page_row-batch = ls_request-batch_cursor_batch
-                AND ls_batch_page_row-storage_location >
-                  ls_request-batch_cursor_storage_location )
-              OR ( ls_batch_page_row-status =
-                     ls_request-batch_cursor_status
-                AND ls_batch_page_row-expiration_date =
-                  ls_request-batch_cursor_expiration_date
-                AND ls_batch_page_row-batch = ls_request-batch_cursor_batch
-                AND ls_batch_page_row-storage_location =
-                  ls_request-batch_cursor_storage_location
-                AND ls_batch_page_row-valuation_type >
-                  ls_request-batch_cursor_valuation_type ).
-            lv_batch_row_after_cursor = abap_true.
+      DATA(lv_exp_src_unr_qty) = sum_stock_quantities(
+        iv_left_quantity  = ls_result-expired_unrestricted_quantity
+        iv_right_quantity = ls_result-upcoming_unrestricted_qty ).
+      lv_exp_src_unr_qty = sum_stock_quantities(
+        iv_left_quantity  = lv_exp_src_unr_qty
+        iv_right_quantity = ls_result-after_window_unrestricted_qty ).
+      DATA(lv_expiry_source_available_qty) = sum_stock_quantities(
+        iv_left_quantity  = ls_result-expired_available_quantity
+        iv_right_quantity = ls_result-upcoming_available_qty ).
+      lv_expiry_source_available_qty = sum_stock_quantities(
+        iv_left_quantity  = lv_expiry_source_available_qty
+        iv_right_quantity = ls_result-after_window_available_qty ).
+      DATA(lv_expiry_source_quality_qty) = sum_stock_quantities(
+        iv_left_quantity  = ls_result-expired_quality_quantity
+        iv_right_quantity = ls_result-upcoming_quality_quantity ).
+      lv_expiry_source_quality_qty = sum_stock_quantities(
+        iv_left_quantity  = lv_expiry_source_quality_qty
+        iv_right_quantity = ls_result-after_window_quality_qty ).
+      DATA(lv_expiry_source_blocked_qty) = sum_stock_quantities(
+        iv_left_quantity  = ls_result-expired_blocked_quantity
+        iv_right_quantity = ls_result-upcoming_blocked_quantity ).
+      lv_expiry_source_blocked_qty = sum_stock_quantities(
+        iv_left_quantity  = lv_expiry_source_blocked_qty
+        iv_right_quantity = ls_result-after_window_blocked_qty ).
+      DATA(lv_exp_src_status_rows) =
+          ls_result-expired_batch_row_count
+        + ls_result-upcoming_batch_row_count
+        + ls_result-after_window_batch_row_count.
+      IF lv_exp_src_status_rows > 0.
+        LOOP AT ls_result-expiry_src_statuses
+            ASSIGNING FIELD-SYMBOL(<ls_exp_src_status_share>).
+          <ls_exp_src_status_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_exp_src_status_share>-row_count ) * 100
+            / CONV decfloat34( lv_exp_src_status_rows ).
+          CASE <ls_exp_src_status_share>-expiry_status.
+            WHEN c_expiry_status_expired.
+              IF ls_result-expired_batch_row_count > 0.
+                <ls_exp_src_status_share>-status_row_share_pct =
+                  CONV decfloat34(
+                    <ls_exp_src_status_share>-row_count ) * 100
+                  / CONV decfloat34(
+                    ls_result-expired_batch_row_count ).
+              ENDIF.
+            WHEN c_expiry_status_upcoming.
+              IF ls_result-upcoming_batch_row_count > 0.
+                <ls_exp_src_status_share>-status_row_share_pct =
+                  CONV decfloat34(
+                    <ls_exp_src_status_share>-row_count ) * 100
+                  / CONV decfloat34(
+                    ls_result-upcoming_batch_row_count ).
+              ENDIF.
+            WHEN c_expiry_status_after_window.
+              IF ls_result-after_window_batch_row_count > 0.
+                <ls_exp_src_status_share>-status_row_share_pct =
+                  CONV decfloat34(
+                    <ls_exp_src_status_share>-row_count ) * 100
+                  / CONV decfloat34(
+                    ls_result-after_window_batch_row_count ).
+              ENDIF.
+          ENDCASE.
+          IF <ls_exp_src_status_share>-unrestricted_qty > 0.
+            <ls_exp_src_status_share>-available_pct_of_unrestricted =
+              CONV decfloat34(
+                <ls_exp_src_status_share>-available_qty ) * 100
+              / CONV decfloat34(
+                <ls_exp_src_status_share>-unrestricted_qty ).
           ENDIF.
-        ENDIF.
-        IF lv_batch_row_after_cursor = abap_false.
-          CONTINUE.
-        ENDIF.
-        APPEND ls_batch_page_row TO lt_batch_page.
-        IF ls_request-maximum_batch_rows > 0
-            AND lines( lt_batch_page ) > ls_request-maximum_batch_rows.
-          lv_batch_page_has_more = abap_true.
-          EXIT.
-        ENDIF.
-      ENDLOOP.
-      IF lv_batch_page_has_more = abap_true.
-        LOOP AT lt_batch_page INTO ls_batch_page_row.
-          IF lv_returned_batch_count >= ls_request-maximum_batch_rows.
-            EXIT.
+          <ls_exp_src_status_share>-reservation_deduction_qty =
+            CONV decfloat34(
+              <ls_exp_src_status_share>-unrestricted_qty )
+            - CONV decfloat34(
+              <ls_exp_src_status_share>-available_qty ).
+          IF lv_exp_src_unr_qty > 0.
+            <ls_exp_src_status_share>-unrestricted_qty_share_pct =
+              CONV decfloat34(
+                <ls_exp_src_status_share>-unrestricted_qty ) * 100
+              / CONV decfloat34( lv_exp_src_unr_qty ).
           ENDIF.
-          APPEND ls_batch_page_row TO lt_returned_batch_page.
-          ADD 1 TO lv_returned_batch_count.
+          IF lv_expiry_source_available_qty > 0.
+            <ls_exp_src_status_share>-available_qty_share_pct =
+              CONV decfloat34(
+                <ls_exp_src_status_share>-available_qty ) * 100
+              / CONV decfloat34( lv_expiry_source_available_qty ).
+          ENDIF.
+          IF lv_expiry_source_quality_qty > 0.
+            <ls_exp_src_status_share>-quality_qty_share_pct =
+              CONV decfloat34(
+                <ls_exp_src_status_share>-quality_qty ) * 100
+              / CONV decfloat34( lv_expiry_source_quality_qty ).
+          ENDIF.
+          IF lv_expiry_source_blocked_qty > 0.
+            <ls_exp_src_status_share>-blocked_qty_share_pct =
+              CONV decfloat34(
+                <ls_exp_src_status_share>-blocked_qty ) * 100
+              / CONV decfloat34( lv_expiry_source_blocked_qty ).
+          ENDIF.
         ENDLOOP.
-        ls_result-batches = lt_returned_batch_page.
-        ls_result-is_truncated = abap_true.
-        READ TABLE lt_returned_batch_page INTO ls_last_returned_batch
-          INDEX lv_returned_batch_count.
+      ENDIF.
+      LOOP AT ls_result-expiry_src_statuses
+          INTO DATA(ls_full_expiry_source_status).
+        READ TABLE ls_result-expiry_statuses
+          ASSIGNING FIELD-SYMBOL(<ls_full_expiry_status>)
+          WITH KEY expiry_status =
+            ls_full_expiry_source_status-expiry_status.
         IF sy-subrc <> 0.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
-        ls_result-next_cursor_status = ls_last_returned_batch-status.
-        ls_result-next_cursor_expiration_date =
-          ls_last_returned_batch-expiration_date.
-        ls_result-next_cursor_batch = ls_last_returned_batch-batch.
-        ls_result-next_cursor_storage_location =
-          ls_last_returned_batch-storage_location.
-        ls_result-next_cursor_valuation_type =
-          ls_last_returned_batch-valuation_type.
+        <ls_full_expiry_status>-row_count =
+          <ls_full_expiry_status>-row_count
+          + ls_full_expiry_source_status-row_count.
+        <ls_full_expiry_status>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_full_expiry_status>-unrestricted_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-unrestricted_qty ).
+        <ls_full_expiry_status>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_full_expiry_status>-available_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-available_qty ).
+        <ls_full_expiry_status>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_full_expiry_status>-quality_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-quality_qty ).
+        <ls_full_expiry_status>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_full_expiry_status>-blocked_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-blocked_qty ).
+        IF ls_full_expiry_source_status-first_expiration_date
+              IS NOT INITIAL
+            AND ( <ls_full_expiry_status>-first_expiration_date
+                  IS INITIAL
+              OR ls_full_expiry_source_status-first_expiration_date
+                < <ls_full_expiry_status>-first_expiration_date ).
+          <ls_full_expiry_status>-first_expiration_date =
+            ls_full_expiry_source_status-first_expiration_date.
+        ENDIF.
+        IF ls_full_expiry_source_status-last_expiration_date
+              > <ls_full_expiry_status>-last_expiration_date.
+          <ls_full_expiry_status>-last_expiration_date =
+            ls_full_expiry_source_status-last_expiration_date.
+        ENDIF.
+        READ TABLE ls_result-expiry_sources
+          ASSIGNING FIELD-SYMBOL(<ls_full_expiry_source>)
+          WITH KEY source_group =
+            ls_full_expiry_source_status-source_group.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_full_expiry_source>-row_count =
+          <ls_full_expiry_source>-row_count
+          + ls_full_expiry_source_status-row_count.
+        <ls_full_expiry_source>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_full_expiry_source>-unrestricted_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-unrestricted_qty ).
+        <ls_full_expiry_source>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_full_expiry_source>-available_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-available_qty ).
+        <ls_full_expiry_source>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_full_expiry_source>-quality_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-quality_qty ).
+        <ls_full_expiry_source>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_full_expiry_source>-blocked_qty
+            iv_right_quantity =
+              ls_full_expiry_source_status-blocked_qty ).
+        IF ls_full_expiry_source_status-first_expiration_date
+              IS NOT INITIAL
+            AND ( <ls_full_expiry_source>-first_expiration_date
+                  IS INITIAL
+              OR ls_full_expiry_source_status-first_expiration_date
+                < <ls_full_expiry_source>-first_expiration_date ).
+          <ls_full_expiry_source>-first_expiration_date =
+            ls_full_expiry_source_status-first_expiration_date.
+        ENDIF.
+        IF ls_full_expiry_source_status-last_expiration_date
+              > <ls_full_expiry_source>-last_expiration_date.
+          <ls_full_expiry_source>-last_expiration_date =
+            ls_full_expiry_source_status-last_expiration_date.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-expiry_statuses
+          ASSIGNING <ls_full_expiry_status>.
+        IF <ls_full_expiry_status>-first_expiration_date IS NOT INITIAL
+            AND <ls_full_expiry_status>-last_expiration_date
+              IS NOT INITIAL.
+          <ls_full_expiry_status>-expiration_date_span_days =
+            <ls_full_expiry_status>-last_expiration_date
+            - <ls_full_expiry_status>-first_expiration_date.
+        ENDIF.
+        IF <ls_full_expiry_status>-unrestricted_qty > 0.
+          <ls_full_expiry_status>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_full_expiry_status>-available_qty ) * 100
+            / CONV decfloat34( <ls_full_expiry_status>-unrestricted_qty ).
+        ENDIF.
+        <ls_full_expiry_status>-reservation_deduction_qty =
+          CONV decfloat34( <ls_full_expiry_status>-unrestricted_qty ) -
+          CONV decfloat34( <ls_full_expiry_status>-available_qty ).
+        IF lv_exp_src_status_rows > 0.
+          <ls_full_expiry_status>-row_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_status>-row_count ) * 100
+            / CONV decfloat34( lv_exp_src_status_rows ).
+        ENDIF.
+        IF lv_exp_src_unr_qty > 0.
+          <ls_full_expiry_status>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_status>-unrestricted_qty ) * 100
+            / CONV decfloat34( lv_exp_src_unr_qty ).
+        ENDIF.
+        IF lv_expiry_source_available_qty > 0.
+          <ls_full_expiry_status>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_status>-available_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_available_qty ).
+        ENDIF.
+        IF lv_expiry_source_quality_qty > 0.
+          <ls_full_expiry_status>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_status>-quality_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_quality_qty ).
+        ENDIF.
+        IF lv_expiry_source_blocked_qty > 0.
+          <ls_full_expiry_status>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_status>-blocked_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-expiry_sources
+          ASSIGNING <ls_full_expiry_source>.
+        IF <ls_full_expiry_source>-first_expiration_date
+              IS NOT INITIAL
+            AND <ls_full_expiry_source>-last_expiration_date
+              IS NOT INITIAL.
+          <ls_full_expiry_source>-expiration_date_span_days =
+            <ls_full_expiry_source>-last_expiration_date
+            - <ls_full_expiry_source>-first_expiration_date.
+        ENDIF.
+        IF <ls_full_expiry_source>-unrestricted_qty > 0.
+          <ls_full_expiry_source>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_full_expiry_source>-available_qty ) * 100
+            / CONV decfloat34( <ls_full_expiry_source>-unrestricted_qty ).
+        ENDIF.
+        <ls_full_expiry_source>-reservation_deduction_qty =
+          CONV decfloat34( <ls_full_expiry_source>-unrestricted_qty ) -
+          CONV decfloat34( <ls_full_expiry_source>-available_qty ).
+        IF lv_exp_src_status_rows > 0.
+          <ls_full_expiry_source>-row_share_pct =
+            CONV decfloat34( <ls_full_expiry_source>-row_count ) * 100
+            / CONV decfloat34( lv_exp_src_status_rows ).
+        ENDIF.
+        IF lv_exp_src_unr_qty > 0.
+          <ls_full_expiry_source>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_source>-unrestricted_qty ) * 100
+            / CONV decfloat34( lv_exp_src_unr_qty ).
+        ENDIF.
+        IF lv_expiry_source_available_qty > 0.
+          <ls_full_expiry_source>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_source>-available_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_available_qty ).
+        ENDIF.
+        IF lv_expiry_source_quality_qty > 0.
+          <ls_full_expiry_source>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_source>-quality_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_quality_qty ).
+        ENDIF.
+        IF lv_expiry_source_blocked_qty > 0.
+          <ls_full_expiry_source>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_source>-blocked_qty ) * 100
+            / CONV decfloat34( lv_expiry_source_blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-expiry_src_statuses
+          ASSIGNING FIELD-SYMBOL(<ls_full_src_status_share>).
+        READ TABLE ls_result-expiry_sources
+          INTO DATA(ls_full_src_for_status)
+          WITH KEY source_group =
+            <ls_full_src_status_share>-source_group.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF ls_full_src_for_status-row_count > 0.
+          <ls_full_src_status_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-row_count ) * 100
+            / CONV decfloat34(
+              ls_full_src_for_status-row_count ).
+        ENDIF.
+        READ TABLE ls_result-expiry_statuses
+          INTO DATA(ls_full_status_for_src)
+          WITH KEY expiry_status =
+            <ls_full_src_status_share>-expiry_status.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF ls_full_status_for_src-unrestricted_qty > 0.
+          <ls_full_src_status_share>-status_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_full_status_for_src-unrestricted_qty ).
+        ENDIF.
+        IF ls_full_status_for_src-available_qty > 0.
+          <ls_full_src_status_share>-status_available_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_full_status_for_src-available_qty ).
+        ENDIF.
+        IF ls_full_status_for_src-quality_qty > 0.
+          <ls_full_src_status_share>-status_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_full_status_for_src-quality_qty ).
+        ENDIF.
+        IF ls_full_status_for_src-blocked_qty > 0.
+          <ls_full_src_status_share>-status_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_full_status_for_src-blocked_qty ).
+        ENDIF.
+        IF ls_full_src_for_status-unrestricted_qty > 0.
+          <ls_full_src_status_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_full_src_for_status-unrestricted_qty ).
+        ENDIF.
+        IF ls_full_src_for_status-available_qty > 0.
+          <ls_full_src_status_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_full_src_for_status-available_qty ).
+        ENDIF.
+        IF ls_full_src_for_status-quality_qty > 0.
+          <ls_full_src_status_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_full_src_for_status-quality_qty ).
+        ENDIF.
+        IF ls_full_src_for_status-blocked_qty > 0.
+          <ls_full_src_status_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_src_status_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_full_src_for_status-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-expired_batch_row_count > 0.
+        LOOP AT ls_result-expiry_src_age_bands
+            ASSIGNING FIELD-SYMBOL(<ls_expiry_source_age_share>).
+          <ls_expiry_source_age_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_expiry_source_age_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-expired_batch_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_full_expiry_age_share_rows) =
+        ls_result-expiry_src_age_bands.
+      LOOP AT ls_result-expiry_src_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_expiry_age_row_share>).
+        DATA(lv_full_expiry_age_source_rows) = 0.
+        DATA(lv_full_expiry_age_band_rows) = 0.
+        DATA(lv_full_exp_age_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_exp_age_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_full_expiry_age_share_rows
+            INTO DATA(ls_full_expiry_age_source_row)
+            WHERE source_group = <ls_full_expiry_age_row_share>-source_group.
+          lv_full_expiry_age_source_rows =
+            lv_full_expiry_age_source_rows +
+            ls_full_expiry_age_source_row-row_count.
+          lv_full_exp_age_src_unr =
+            lv_full_exp_age_src_unr +
+            CONV decfloat34(
+              ls_full_expiry_age_source_row-unrestricted_qty ).
+          lv_full_exp_age_src_avl =
+            lv_full_exp_age_src_avl +
+            CONV decfloat34(
+              ls_full_expiry_age_source_row-available_qty ).
+          lv_full_exp_age_src_qual =
+            lv_full_exp_age_src_qual +
+            CONV decfloat34(
+              ls_full_expiry_age_source_row-quality_qty ).
+          lv_full_exp_age_src_blk =
+            lv_full_exp_age_src_blk +
+            CONV decfloat34(
+              ls_full_expiry_age_source_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_full_expiry_age_share_rows
+            INTO DATA(ls_full_expiry_age_band_row)
+            WHERE age_band = <ls_full_expiry_age_row_share>-age_band.
+          lv_full_expiry_age_band_rows =
+            lv_full_expiry_age_band_rows +
+            ls_full_expiry_age_band_row-row_count.
+          lv_full_exp_age_band_unr =
+            lv_full_exp_age_band_unr +
+            CONV decfloat34( ls_full_expiry_age_band_row-unrestricted_qty ).
+          lv_full_exp_age_band_avl =
+            lv_full_exp_age_band_avl +
+            CONV decfloat34( ls_full_expiry_age_band_row-available_qty ).
+          lv_full_exp_age_band_qual =
+            lv_full_exp_age_band_qual +
+            CONV decfloat34( ls_full_expiry_age_band_row-quality_qty ).
+          lv_full_exp_age_band_blk =
+            lv_full_exp_age_band_blk +
+            CONV decfloat34( ls_full_expiry_age_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_full_expiry_age_source_rows > 0.
+          <ls_full_expiry_age_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_expiry_age_source_rows ).
+        ENDIF.
+        IF lv_full_expiry_age_band_rows > 0.
+          <ls_full_expiry_age_row_share>-age_band_row_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_expiry_age_band_rows ).
+        ENDIF.
+        IF lv_full_exp_age_src_unr > 0.
+          <ls_full_expiry_age_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-unrestricted_qty ) * 100
+            / lv_full_exp_age_src_unr.
+        ENDIF.
+        IF lv_full_exp_age_src_avl > 0.
+          <ls_full_expiry_age_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-available_qty ) * 100
+            / lv_full_exp_age_src_avl.
+        ENDIF.
+        IF lv_full_exp_age_src_qual > 0.
+          <ls_full_expiry_age_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-quality_qty ) * 100
+            / lv_full_exp_age_src_qual.
+        ENDIF.
+        IF lv_full_exp_age_src_blk > 0.
+          <ls_full_expiry_age_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-blocked_qty ) * 100
+            / lv_full_exp_age_src_blk.
+        ENDIF.
+        IF lv_full_exp_age_band_unr > 0.
+          <ls_full_expiry_age_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-unrestricted_qty ) * 100
+            / lv_full_exp_age_band_unr.
+        ENDIF.
+        IF lv_full_exp_age_band_avl > 0.
+          <ls_full_expiry_age_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-available_qty ) * 100
+            / lv_full_exp_age_band_avl.
+        ENDIF.
+        IF lv_full_exp_age_band_qual > 0.
+          <ls_full_expiry_age_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-quality_qty ) * 100
+            / lv_full_exp_age_band_qual.
+        ENDIF.
+        IF lv_full_exp_age_band_blk > 0.
+          <ls_full_expiry_age_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_expiry_age_row_share>-blocked_qty ) * 100
+            / lv_full_exp_age_band_blk.
+        ENDIF.
+        IF <ls_full_expiry_age_row_share>-unrestricted_qty > 0.
+          <ls_full_expiry_age_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_full_expiry_age_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_full_expiry_age_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_full_expiry_age_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_full_expiry_age_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_full_expiry_age_row_share>-available_qty ).
+      ENDLOOP.
+      READ TABLE ls_result-expiry_statuses
+        INTO DATA(ls_full_exp_status_qty)
+        WITH KEY expiry_status = c_expiry_status_expired.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-expiry_src_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_exp_src_age_share>).
+        IF ls_full_exp_status_qty-unrestricted_qty > 0.
+          <ls_full_exp_src_age_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_exp_src_age_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_full_exp_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_full_exp_status_qty-available_qty > 0.
+          <ls_full_exp_src_age_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_exp_src_age_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_full_exp_status_qty-available_qty ).
+        ENDIF.
+        IF ls_full_exp_status_qty-quality_qty > 0.
+          <ls_full_exp_src_age_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_exp_src_age_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_full_exp_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_full_exp_status_qty-blocked_qty > 0.
+          <ls_full_exp_src_age_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_exp_src_age_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_full_exp_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-upcoming_batch_row_count > 0.
+        LOOP AT ls_result-upcoming_src_bands
+            ASSIGNING FIELD-SYMBOL(<ls_upc_src_band_share>).
+          <ls_upc_src_band_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_upc_src_band_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-upcoming_batch_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_full_upcoming_shares) =
+        ls_result-upcoming_src_bands.
+      LOOP AT ls_result-upcoming_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_upc_row_share>).
+        DATA(lv_full_upcoming_source_rows) = 0.
+        DATA(lv_full_upcoming_band_rows) = 0.
+        DATA(lv_full_upc_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_upc_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_full_upcoming_shares
+            INTO DATA(ls_full_upcoming_source_row)
+            WHERE source_group = <ls_full_upc_row_share>-source_group.
+          lv_full_upcoming_source_rows = lv_full_upcoming_source_rows +
+            ls_full_upcoming_source_row-row_count.
+          lv_full_upc_src_unr =
+            lv_full_upc_src_unr +
+            CONV decfloat34( ls_full_upcoming_source_row-unrestricted_qty ).
+          lv_full_upc_src_avl =
+            lv_full_upc_src_avl +
+            CONV decfloat34( ls_full_upcoming_source_row-available_qty ).
+          lv_full_upc_src_qual =
+            lv_full_upc_src_qual +
+            CONV decfloat34( ls_full_upcoming_source_row-quality_qty ).
+          lv_full_upc_src_blk =
+            lv_full_upc_src_blk +
+            CONV decfloat34( ls_full_upcoming_source_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_full_upcoming_shares
+            INTO DATA(ls_full_upcoming_band_row)
+            WHERE through_band = <ls_full_upc_row_share>-through_band.
+          lv_full_upcoming_band_rows = lv_full_upcoming_band_rows +
+            ls_full_upcoming_band_row-row_count.
+          lv_full_upc_band_unr =
+            lv_full_upc_band_unr +
+            CONV decfloat34( ls_full_upcoming_band_row-unrestricted_qty ).
+          lv_full_upc_band_avl =
+            lv_full_upc_band_avl +
+            CONV decfloat34( ls_full_upcoming_band_row-available_qty ).
+          lv_full_upc_band_qual =
+            lv_full_upc_band_qual +
+            CONV decfloat34( ls_full_upcoming_band_row-quality_qty ).
+          lv_full_upc_band_blk =
+            lv_full_upc_band_blk +
+            CONV decfloat34( ls_full_upcoming_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_full_upcoming_source_rows > 0.
+          <ls_full_upc_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_upcoming_source_rows ).
+        ENDIF.
+        IF lv_full_upcoming_band_rows > 0.
+          <ls_full_upc_row_share>-through_band_row_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_upcoming_band_rows ).
+        ENDIF.
+        IF lv_full_upc_src_unr > 0.
+          <ls_full_upc_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-unrestricted_qty ) * 100
+            / lv_full_upc_src_unr.
+        ENDIF.
+        IF lv_full_upc_src_avl > 0.
+          <ls_full_upc_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-available_qty ) * 100
+            / lv_full_upc_src_avl.
+        ENDIF.
+        IF lv_full_upc_src_qual > 0.
+          <ls_full_upc_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-quality_qty ) * 100
+            / lv_full_upc_src_qual.
+        ENDIF.
+        IF lv_full_upc_src_blk > 0.
+          <ls_full_upc_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-blocked_qty ) * 100
+            / lv_full_upc_src_blk.
+        ENDIF.
+        IF lv_full_upc_band_unr > 0.
+          <ls_full_upc_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-unrestricted_qty ) * 100
+            / lv_full_upc_band_unr.
+        ENDIF.
+        IF lv_full_upc_band_avl > 0.
+          <ls_full_upc_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-available_qty ) * 100
+            / lv_full_upc_band_avl.
+        ENDIF.
+        IF lv_full_upc_band_qual > 0.
+          <ls_full_upc_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-quality_qty ) * 100
+            / lv_full_upc_band_qual.
+        ENDIF.
+        IF lv_full_upc_band_blk > 0.
+          <ls_full_upc_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_row_share>-blocked_qty ) * 100
+            / lv_full_upc_band_blk.
+        ENDIF.
+        IF <ls_full_upc_row_share>-unrestricted_qty > 0.
+          <ls_full_upc_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_full_upc_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_full_upc_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_full_upc_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_full_upc_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_full_upc_row_share>-available_qty ).
+      ENDLOOP.
+      IF ls_result-after_window_batch_row_count > 0.
+        LOOP AT ls_result-after_window_src_bands
+            ASSIGNING FIELD-SYMBOL(<ls_after_win_src_band_share>).
+          <ls_after_win_src_band_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_after_win_src_band_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-after_window_batch_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_full_after_win_shares) =
+        ls_result-after_window_src_bands.
+      LOOP AT ls_result-after_window_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_after_win_row_share>).
+        DATA(lv_full_after_win_src_rows) = 0.
+        DATA(lv_full_after_window_band_rows) = 0.
+        DATA(lv_full_after_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_full_after_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_full_after_win_shares
+            INTO DATA(ls_full_after_src_row)
+            WHERE source_group =
+                <ls_full_after_win_row_share>-source_group.
+          lv_full_after_win_src_rows =
+            lv_full_after_win_src_rows +
+            ls_full_after_src_row-row_count.
+          lv_full_after_src_unr =
+            lv_full_after_src_unr +
+            CONV decfloat34(
+              ls_full_after_src_row-unrestricted_qty ).
+          lv_full_after_src_avl =
+            lv_full_after_src_avl +
+            CONV decfloat34(
+              ls_full_after_src_row-available_qty ).
+          lv_full_after_src_qual =
+            lv_full_after_src_qual +
+            CONV decfloat34(
+              ls_full_after_src_row-quality_qty ).
+          lv_full_after_src_blk =
+            lv_full_after_src_blk +
+            CONV decfloat34(
+              ls_full_after_src_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_full_after_win_shares
+            INTO DATA(ls_full_after_window_band_row)
+            WHERE through_band =
+                <ls_full_after_win_row_share>-through_band.
+          lv_full_after_window_band_rows =
+            lv_full_after_window_band_rows +
+            ls_full_after_window_band_row-row_count.
+          lv_full_after_band_unr =
+            lv_full_after_band_unr +
+            CONV decfloat34(
+              ls_full_after_window_band_row-unrestricted_qty ).
+          lv_full_after_band_avl =
+            lv_full_after_band_avl +
+            CONV decfloat34(
+              ls_full_after_window_band_row-available_qty ).
+          lv_full_after_band_qual =
+            lv_full_after_band_qual +
+            CONV decfloat34( ls_full_after_window_band_row-quality_qty ).
+          lv_full_after_band_blk =
+            lv_full_after_band_blk +
+            CONV decfloat34( ls_full_after_window_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_full_after_win_src_rows > 0.
+          <ls_full_after_win_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_after_win_src_rows ).
+        ENDIF.
+        IF lv_full_after_window_band_rows > 0.
+          <ls_full_after_win_row_share>-through_band_row_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_full_after_window_band_rows ).
+        ENDIF.
+        IF lv_full_after_src_unr > 0.
+          <ls_full_after_win_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-unrestricted_qty ) * 100
+            / lv_full_after_src_unr.
+        ENDIF.
+        IF lv_full_after_src_avl > 0.
+          <ls_full_after_win_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-available_qty ) * 100
+            / lv_full_after_src_avl.
+        ENDIF.
+        IF lv_full_after_src_qual > 0.
+          <ls_full_after_win_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-quality_qty ) * 100
+            / lv_full_after_src_qual.
+        ENDIF.
+        IF lv_full_after_src_blk > 0.
+          <ls_full_after_win_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-blocked_qty ) * 100
+            / lv_full_after_src_blk.
+        ENDIF.
+        IF lv_full_after_band_unr > 0.
+          <ls_full_after_win_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-unrestricted_qty ) * 100
+            / lv_full_after_band_unr.
+        ENDIF.
+        IF lv_full_after_band_avl > 0.
+          <ls_full_after_win_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-available_qty ) * 100
+            / lv_full_after_band_avl.
+        ENDIF.
+        IF lv_full_after_band_qual > 0.
+          <ls_full_after_win_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-quality_qty ) * 100
+            / lv_full_after_band_qual.
+        ENDIF.
+        IF lv_full_after_band_blk > 0.
+          <ls_full_after_win_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_full_after_win_row_share>-blocked_qty ) * 100
+            / lv_full_after_band_blk.
+        ENDIF.
+        IF <ls_full_after_win_row_share>-unrestricted_qty > 0.
+          <ls_full_after_win_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_full_after_win_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_full_after_win_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_full_after_win_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_full_after_win_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_full_after_win_row_share>-available_qty ).
+      ENDLOOP.
+      READ TABLE ls_result-expiry_statuses
+        INTO DATA(ls_full_upc_status_qty)
+        WITH KEY expiry_status = c_expiry_status_upcoming.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-upcoming_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_upc_src_qty_share>).
+        IF ls_full_upc_status_qty-unrestricted_qty > 0.
+          <ls_full_upc_src_qty_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_src_qty_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_full_upc_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_full_upc_status_qty-available_qty > 0.
+          <ls_full_upc_src_qty_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_src_qty_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_full_upc_status_qty-available_qty ).
+        ENDIF.
+        IF ls_full_upc_status_qty-quality_qty > 0.
+          <ls_full_upc_src_qty_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_src_qty_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_full_upc_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_full_upc_status_qty-blocked_qty > 0.
+          <ls_full_upc_src_qty_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_upc_src_qty_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_full_upc_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      READ TABLE ls_result-expiry_statuses
+        INTO DATA(ls_full_after_status_qty)
+        WITH KEY expiry_status = c_expiry_status_after_window.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-after_window_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_full_after_src_share>).
+        IF ls_full_after_status_qty-unrestricted_qty > 0.
+          <ls_full_after_src_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_after_src_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_full_after_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_full_after_status_qty-available_qty > 0.
+          <ls_full_after_src_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_after_src_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_full_after_status_qty-available_qty ).
+        ENDIF.
+        IF ls_full_after_status_qty-quality_qty > 0.
+          <ls_full_after_src_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_after_src_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_full_after_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_full_after_status_qty-blocked_qty > 0.
+          <ls_full_after_src_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_full_after_src_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_full_after_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_request-omit_dated_batch_rows = abap_true.
+        IF ls_request-filter_expiry_status = abap_true
+            AND ls_request-expiry_status =
+              c_expiry_status_after_window.
+          ls_result-total_dated_batch_row_count =
+            ls_result-after_window_batch_row_count.
+        ELSE.
+          ls_result-total_dated_batch_row_count =
+              ls_result-expired_batch_row_count
+            + ls_result-upcoming_batch_row_count.
+        ENDIF.
       ELSE.
-        ls_result-batches = lt_batch_page.
+        ls_result-total_dated_batch_row_count =
+          lines( ls_result-batches ).
+      ENDIF.
+      CLEAR: lt_batch_page, lt_returned_batch_page,
+        lv_batch_page_has_more, lv_returned_batch_count.
+      IF ls_request-omit_dated_batch_rows <> abap_true.
+        LOOP AT ls_result-batches INTO ls_batch_page_row.
+          lv_batch_row_after_cursor = abap_true.
+          IF ls_request-filter_batch_cursor = abap_true.
+            lv_batch_row_after_cursor = abap_false.
+            IF ls_batch_page_row-status > ls_request-batch_cursor_status
+                OR ( ls_batch_page_row-status =
+                       ls_request-batch_cursor_status
+                  AND ls_batch_page_row-expiration_date >
+                    ls_request-batch_cursor_expiration_date )
+                OR ( ls_batch_page_row-status =
+                       ls_request-batch_cursor_status
+                  AND ls_batch_page_row-expiration_date =
+                    ls_request-batch_cursor_expiration_date
+                  AND ls_batch_page_row-batch > ls_request-batch_cursor_batch )
+                OR ( ls_batch_page_row-status =
+                       ls_request-batch_cursor_status
+                  AND ls_batch_page_row-expiration_date =
+                    ls_request-batch_cursor_expiration_date
+                  AND ls_batch_page_row-batch = ls_request-batch_cursor_batch
+                  AND ls_batch_page_row-storage_location >
+                    ls_request-batch_cursor_storage_location )
+                OR ( ls_batch_page_row-status =
+                       ls_request-batch_cursor_status
+                  AND ls_batch_page_row-expiration_date =
+                    ls_request-batch_cursor_expiration_date
+                  AND ls_batch_page_row-batch = ls_request-batch_cursor_batch
+                  AND ls_batch_page_row-storage_location =
+                    ls_request-batch_cursor_storage_location
+                  AND ls_batch_page_row-valuation_type >
+                    ls_request-batch_cursor_valuation_type ).
+              lv_batch_row_after_cursor = abap_true.
+            ENDIF.
+          ENDIF.
+          IF lv_batch_row_after_cursor = abap_false.
+            CONTINUE.
+          ENDIF.
+          APPEND ls_batch_page_row TO lt_batch_page.
+          IF ls_request-maximum_batch_rows > 0
+              AND lines( lt_batch_page ) > ls_request-maximum_batch_rows.
+            lv_batch_page_has_more = abap_true.
+            EXIT.
+          ENDIF.
+        ENDLOOP.
+        IF lv_batch_page_has_more = abap_true.
+          LOOP AT lt_batch_page INTO ls_batch_page_row.
+            IF lv_returned_batch_count >= ls_request-maximum_batch_rows.
+              EXIT.
+            ENDIF.
+            APPEND ls_batch_page_row TO lt_returned_batch_page.
+            ADD 1 TO lv_returned_batch_count.
+          ENDLOOP.
+          ls_result-batches = lt_returned_batch_page.
+          ls_result-is_truncated = abap_true.
+          READ TABLE lt_returned_batch_page INTO ls_last_returned_batch
+            INDEX lv_returned_batch_count.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          ls_result-next_cursor_status = ls_last_returned_batch-status.
+          ls_result-next_cursor_expiration_date =
+            ls_last_returned_batch-expiration_date.
+          ls_result-next_cursor_batch = ls_last_returned_batch-batch.
+          ls_result-next_cursor_storage_location =
+            ls_last_returned_batch-storage_location.
+          ls_result-next_cursor_valuation_type =
+            ls_last_returned_batch-valuation_type.
+        ELSE.
+          ls_result-batches = lt_batch_page.
+        ENDIF.
       ENDIF.
       ls_result-returned_batch_row_count = lines( ls_result-batches ).
-      ls_result-total_undated_batch_row_count =
-        lines( ls_result-undated_batches ).
+      LOOP AT ls_result-batches INTO ls_batch_page_row.
+        IF ls_result-page_earliest_expiration_date IS INITIAL
+            OR ls_batch_page_row-expiration_date <
+              ls_result-page_earliest_expiration_date.
+          ls_result-page_earliest_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        IF ls_result-page_latest_expiration_date IS INITIAL
+            OR ls_batch_page_row-expiration_date >
+              ls_result-page_latest_expiration_date.
+          ls_result-page_latest_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        CASE ls_batch_page_row-status.
+          WHEN c_expiry_status_expired.
+            ADD 1 TO ls_result-page_expired_row_count.
+          WHEN c_expiry_status_upcoming.
+            ADD 1 TO ls_result-page_upcoming_row_count.
+          WHEN c_expiry_status_after_window.
+            ADD 1 TO ls_result-page_after_window_row_count.
+        ENDCASE.
+        READ TABLE ls_result-page_expiry_statuses
+          ASSIGNING <ls_page_expiry_status>
+          WITH KEY expiry_status = ls_batch_page_row-status.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        ADD 1 TO <ls_page_expiry_status>-row_count.
+        IF <ls_page_expiry_status>-first_expiration_date IS INITIAL
+            OR ls_batch_page_row-expiration_date <
+              <ls_page_expiry_status>-first_expiration_date.
+          <ls_page_expiry_status>-first_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        IF <ls_page_expiry_status>-last_expiration_date IS INITIAL
+            OR ls_batch_page_row-expiration_date >
+              <ls_page_expiry_status>-last_expiration_date.
+          <ls_page_expiry_status>-last_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        <ls_page_expiry_status>-expiration_date_span_days =
+          <ls_page_expiry_status>-last_expiration_date -
+          <ls_page_expiry_status>-first_expiration_date.
+        <ls_page_expiry_status>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_status>-unrestricted_qty
+            iv_right_quantity =
+              ls_batch_page_row-unrestricted_quantity ).
+        <ls_page_expiry_status>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_status>-available_qty
+            iv_right_quantity =
+              ls_batch_page_row-available_quantity ).
+        <ls_page_expiry_status>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_status>-quality_qty
+            iv_right_quantity =
+              ls_batch_page_row-quality_inspection_quantity ).
+        <ls_page_expiry_status>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_status>-blocked_qty
+            iv_right_quantity =
+              ls_batch_page_row-blocked_quantity ).
+        CASE ls_batch_page_row-expiration_date_source.
+          WHEN zif_stock_repository=>c_expiry_source_plant.
+            lv_expiry_source_group =
+              zif_stock_repository=>c_expiry_source_plant.
+          WHEN zif_stock_repository=>c_expiry_source_global.
+            lv_expiry_source_group =
+              zif_stock_repository=>c_expiry_source_global.
+          WHEN OTHERS.
+            lv_expiry_source_group = c_expiry_source_other.
+        ENDCASE.
+        READ TABLE ls_result-page_expiry_src_statuses
+          ASSIGNING <ls_page_expiry_source_status>
+          WITH KEY source_group = lv_expiry_source_group
+            expiry_status = ls_batch_page_row-status.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        ADD 1 TO <ls_page_expiry_source_status>-row_count.
+        IF <ls_page_expiry_source_status>-first_expiration_date
+            IS INITIAL
+            OR ls_batch_page_row-expiration_date <
+              <ls_page_expiry_source_status>-first_expiration_date.
+          <ls_page_expiry_source_status>-first_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        IF <ls_page_expiry_source_status>-last_expiration_date
+            IS INITIAL
+            OR ls_batch_page_row-expiration_date >
+              <ls_page_expiry_source_status>-last_expiration_date.
+          <ls_page_expiry_source_status>-last_expiration_date =
+            ls_batch_page_row-expiration_date.
+        ENDIF.
+        <ls_page_expiry_source_status>-expiration_date_span_days =
+          <ls_page_expiry_source_status>-last_expiration_date -
+          <ls_page_expiry_source_status>-first_expiration_date.
+        <ls_page_expiry_source_status>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_source_status>-unrestricted_qty
+            iv_right_quantity =
+              ls_batch_page_row-unrestricted_quantity ).
+        <ls_page_expiry_source_status>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_source_status>-available_qty
+            iv_right_quantity =
+              ls_batch_page_row-available_quantity ).
+        <ls_page_expiry_source_status>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_source_status>-quality_qty
+            iv_right_quantity =
+              ls_batch_page_row-quality_inspection_quantity ).
+        <ls_page_expiry_source_status>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_expiry_source_status>-blocked_qty
+            iv_right_quantity =
+              ls_batch_page_row-blocked_quantity ).
+        IF ls_batch_page_row-status = c_expiry_status_expired.
+          lv_page_expired_age_days =
+            0 - ls_batch_page_row-days_to_expiration.
+          IF lv_page_expired_age_days <= 7.
+            lv_page_expiry_age_band = c_exp_age_band_1_7.
+          ELSEIF lv_page_expired_age_days <= 30.
+            lv_page_expiry_age_band = c_exp_age_band_8_30.
+          ELSEIF lv_page_expired_age_days <= 90.
+            lv_page_expiry_age_band = c_exp_age_band_31_90.
+          ELSE.
+            lv_page_expiry_age_band = c_exp_age_band_over_90.
+          ENDIF.
+          READ TABLE ls_result-page_expiry_src_age_bands
+            ASSIGNING <ls_page_expiry_source_age>
+            WITH KEY source_group = lv_expiry_source_group
+              age_band = lv_page_expiry_age_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          ADD 1 TO <ls_page_expiry_source_age>-row_count.
+          IF <ls_page_expiry_source_age>-first_expiration_date IS INITIAL
+              OR ls_batch_page_row-expiration_date <
+                <ls_page_expiry_source_age>-first_expiration_date.
+            <ls_page_expiry_source_age>-first_expiration_date =
+              ls_batch_page_row-expiration_date.
+          ENDIF.
+          IF <ls_page_expiry_source_age>-last_expiration_date IS INITIAL
+              OR ls_batch_page_row-expiration_date >
+                <ls_page_expiry_source_age>-last_expiration_date.
+            <ls_page_expiry_source_age>-last_expiration_date =
+              ls_batch_page_row-expiration_date.
+          ENDIF.
+          <ls_page_expiry_source_age>-expiration_date_span_days =
+            <ls_page_expiry_source_age>-last_expiration_date -
+            <ls_page_expiry_source_age>-first_expiration_date.
+          <ls_page_expiry_source_age>-unrestricted_qty =
+            sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_page_expiry_source_age>-unrestricted_qty
+              iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
+          <ls_page_expiry_source_age>-available_qty =
+            sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_page_expiry_source_age>-available_qty
+              iv_right_quantity = ls_batch_page_row-available_quantity ).
+          <ls_page_expiry_source_age>-quality_qty =
+            sum_stock_quantities(
+              iv_left_quantity  = <ls_page_expiry_source_age>-quality_qty
+              iv_right_quantity =
+                ls_batch_page_row-quality_inspection_quantity ).
+          <ls_page_expiry_source_age>-blocked_qty =
+            sum_stock_quantities(
+              iv_left_quantity  = <ls_page_expiry_source_age>-blocked_qty
+              iv_right_quantity = ls_batch_page_row-blocked_quantity ).
+        ENDIF.
+        UNASSIGN <ls_page_exp_window>.
+        IF ls_batch_page_row-status = c_expiry_status_upcoming.
+          IF ls_batch_page_row-days_to_expiration <= 7.
+            lv_page_upcoming_band = c_upcoming_band_0_7.
+          ELSEIF ls_batch_page_row-days_to_expiration <= 30.
+            lv_page_upcoming_band = c_upcoming_band_8_30.
+          ELSEIF ls_batch_page_row-days_to_expiration <= 90.
+            lv_page_upcoming_band = c_upcoming_band_31_90.
+          ELSE.
+            lv_page_upcoming_band = c_upcoming_band_over_90.
+          ENDIF.
+          READ TABLE ls_result-page_upcoming_src_bands
+            ASSIGNING <ls_page_exp_window>
+            WITH KEY source_group = lv_expiry_source_group
+              through_band = lv_page_upcoming_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+        ELSEIF ls_batch_page_row-status = c_expiry_status_after_window.
+          lv_page_after_window_days =
+            ls_batch_page_row-expiration_date - ls_request-through_date.
+          IF lv_page_after_window_days <= 7.
+            lv_page_after_window_band = c_after_window_band_1_7.
+          ELSEIF lv_page_after_window_days <= 30.
+            lv_page_after_window_band = c_after_window_band_8_30.
+          ELSEIF lv_page_after_window_days <= 90.
+            lv_page_after_window_band = c_after_window_band_31_90.
+          ELSE.
+            lv_page_after_window_band = c_after_window_band_over_90.
+          ENDIF.
+          READ TABLE ls_result-page_after_window_src_bands
+            ASSIGNING <ls_page_exp_window>
+            WITH KEY source_group = lv_expiry_source_group
+              through_band = lv_page_after_window_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+        ENDIF.
+        IF <ls_page_exp_window> IS ASSIGNED.
+          ADD 1 TO <ls_page_exp_window>-row_count.
+          IF <ls_page_exp_window>-first_expiration_date IS INITIAL
+              OR ls_batch_page_row-expiration_date <
+                <ls_page_exp_window>-first_expiration_date.
+            <ls_page_exp_window>-first_expiration_date =
+              ls_batch_page_row-expiration_date.
+          ENDIF.
+          IF <ls_page_exp_window>-last_expiration_date IS INITIAL
+              OR ls_batch_page_row-expiration_date >
+                <ls_page_exp_window>-last_expiration_date.
+            <ls_page_exp_window>-last_expiration_date =
+              ls_batch_page_row-expiration_date.
+          ENDIF.
+          <ls_page_exp_window>-expiration_date_span_days =
+            <ls_page_exp_window>-last_expiration_date -
+            <ls_page_exp_window>-first_expiration_date.
+          <ls_page_exp_window>-unrestricted_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_page_exp_window>-unrestricted_qty
+            iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
+          <ls_page_exp_window>-available_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_page_exp_window>-available_qty
+            iv_right_quantity = ls_batch_page_row-available_quantity ).
+          <ls_page_exp_window>-quality_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_page_exp_window>-quality_qty
+            iv_right_quantity =
+              ls_batch_page_row-quality_inspection_quantity ).
+          <ls_page_exp_window>-blocked_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_page_exp_window>-blocked_qty
+            iv_right_quantity = ls_batch_page_row-blocked_quantity ).
+        ENDIF.
+        ls_result-page_unrestricted_qty = sum_stock_quantities(
+          iv_left_quantity  = ls_result-page_unrestricted_qty
+          iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
+        ls_result-page_available_qty = sum_stock_quantities(
+          iv_left_quantity  = ls_result-page_available_qty
+          iv_right_quantity = ls_batch_page_row-available_quantity ).
+        ls_result-page_quality_qty = sum_stock_quantities(
+          iv_left_quantity  = ls_result-page_quality_qty
+          iv_right_quantity =
+            ls_batch_page_row-quality_inspection_quantity ).
+        ls_result-page_blocked_qty = sum_stock_quantities(
+          iv_left_quantity  = ls_result-page_blocked_qty
+          iv_right_quantity = ls_batch_page_row-blocked_quantity ).
+      ENDLOOP.
+      IF ls_result-returned_batch_row_count > 0.
+        LOOP AT ls_result-page_expiry_statuses
+            ASSIGNING FIELD-SYMBOL(<ls_page_status_share>).
+          <ls_page_status_share>-row_share_pct =
+            CONV decfloat34( <ls_page_status_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-returned_batch_row_count ).
+        ENDLOOP.
+        LOOP AT ls_result-page_expiry_src_statuses
+            ASSIGNING FIELD-SYMBOL(<ls_page_source_status_share>).
+          <ls_page_source_status_share>-row_share_pct =
+            CONV decfloat34( <ls_page_source_status_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-returned_batch_row_count ).
+          READ TABLE ls_result-page_expiry_statuses
+            INTO DATA(ls_page_status_src_share)
+            WITH KEY expiry_status =
+              <ls_page_source_status_share>-expiry_status.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          IF ls_page_status_src_share-row_count > 0.
+            <ls_page_source_status_share>-status_row_share_pct =
+              CONV decfloat34(
+                <ls_page_source_status_share>-row_count ) * 100
+              / CONV decfloat34(
+                ls_page_status_src_share-row_count ).
+          ENDIF.
+          IF <ls_page_source_status_share>-unrestricted_qty > 0.
+            <ls_page_source_status_share>-available_pct_of_unrestricted =
+              CONV decfloat34(
+                <ls_page_source_status_share>-available_qty ) * 100
+              / CONV decfloat34(
+                <ls_page_source_status_share>-unrestricted_qty ).
+          ENDIF.
+          <ls_page_source_status_share>-reservation_deduction_qty =
+            CONV decfloat34(
+              <ls_page_source_status_share>-unrestricted_qty )
+            - CONV decfloat34(
+              <ls_page_source_status_share>-available_qty ).
+          IF ls_result-page_unrestricted_qty > 0.
+            <ls_page_source_status_share>-unrestricted_qty_share_pct =
+              CONV decfloat34(
+                <ls_page_source_status_share>-unrestricted_qty ) * 100
+              / CONV decfloat34( ls_result-page_unrestricted_qty ).
+          ENDIF.
+          IF ls_result-page_available_qty > 0.
+            <ls_page_source_status_share>-available_qty_share_pct =
+              CONV decfloat34(
+                <ls_page_source_status_share>-available_qty ) * 100
+              / CONV decfloat34( ls_result-page_available_qty ).
+          ENDIF.
+          IF ls_result-page_quality_qty > 0.
+            <ls_page_source_status_share>-quality_qty_share_pct =
+              CONV decfloat34(
+                <ls_page_source_status_share>-quality_qty ) * 100
+              / CONV decfloat34( ls_result-page_quality_qty ).
+          ENDIF.
+          IF ls_result-page_blocked_qty > 0.
+            <ls_page_source_status_share>-blocked_qty_share_pct =
+              CONV decfloat34(
+                <ls_page_source_status_share>-blocked_qty ) * 100
+              / CONV decfloat34( ls_result-page_blocked_qty ).
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      LOOP AT ls_result-page_expiry_src_statuses
+          INTO DATA(ls_page_expiry_source_status).
+        READ TABLE ls_result-page_expiry_sources
+          ASSIGNING FIELD-SYMBOL(<ls_page_expiry_source>)
+          WITH KEY source_group =
+            ls_page_expiry_source_status-source_group.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        <ls_page_expiry_source>-row_count =
+          <ls_page_expiry_source>-row_count
+          + ls_page_expiry_source_status-row_count.
+        <ls_page_expiry_source>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_expiry_source>-unrestricted_qty
+            iv_right_quantity =
+              ls_page_expiry_source_status-unrestricted_qty ).
+        <ls_page_expiry_source>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_expiry_source>-available_qty
+            iv_right_quantity =
+              ls_page_expiry_source_status-available_qty ).
+        <ls_page_expiry_source>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_expiry_source>-quality_qty
+            iv_right_quantity =
+              ls_page_expiry_source_status-quality_qty ).
+        <ls_page_expiry_source>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_expiry_source>-blocked_qty
+            iv_right_quantity =
+              ls_page_expiry_source_status-blocked_qty ).
+        IF ls_page_expiry_source_status-first_expiration_date
+              IS NOT INITIAL
+            AND ( <ls_page_expiry_source>-first_expiration_date
+                  IS INITIAL
+              OR ls_page_expiry_source_status-first_expiration_date
+                < <ls_page_expiry_source>-first_expiration_date ).
+          <ls_page_expiry_source>-first_expiration_date =
+            ls_page_expiry_source_status-first_expiration_date.
+        ENDIF.
+        IF ls_page_expiry_source_status-last_expiration_date
+              > <ls_page_expiry_source>-last_expiration_date.
+          <ls_page_expiry_source>-last_expiration_date =
+            ls_page_expiry_source_status-last_expiration_date.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-page_expiry_sources
+          ASSIGNING <ls_page_expiry_source>.
+        IF <ls_page_expiry_source>-first_expiration_date IS NOT INITIAL
+            AND <ls_page_expiry_source>-last_expiration_date
+              IS NOT INITIAL.
+          <ls_page_expiry_source>-expiration_date_span_days =
+            <ls_page_expiry_source>-last_expiration_date
+            - <ls_page_expiry_source>-first_expiration_date.
+        ENDIF.
+        IF <ls_page_expiry_source>-unrestricted_qty > 0.
+          <ls_page_expiry_source>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_page_expiry_source>-available_qty ) * 100
+            / CONV decfloat34( <ls_page_expiry_source>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_expiry_source>-reservation_deduction_qty =
+          CONV decfloat34( <ls_page_expiry_source>-unrestricted_qty ) -
+          CONV decfloat34( <ls_page_expiry_source>-available_qty ).
+        IF ls_result-returned_batch_row_count > 0.
+          <ls_page_expiry_source>-row_share_pct =
+            CONV decfloat34( <ls_page_expiry_source>-row_count ) * 100
+            / CONV decfloat34( ls_result-returned_batch_row_count ).
+        ENDIF.
+        IF ls_result-page_unrestricted_qty > 0.
+          <ls_page_expiry_source>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_source>-unrestricted_qty ) * 100
+            / CONV decfloat34( ls_result-page_unrestricted_qty ).
+        ENDIF.
+        IF ls_result-page_available_qty > 0.
+          <ls_page_expiry_source>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_source>-available_qty ) * 100
+            / CONV decfloat34( ls_result-page_available_qty ).
+        ENDIF.
+        IF ls_result-page_quality_qty > 0.
+          <ls_page_expiry_source>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_source>-quality_qty ) * 100
+            / CONV decfloat34( ls_result-page_quality_qty ).
+        ENDIF.
+        IF ls_result-page_blocked_qty > 0.
+          <ls_page_expiry_source>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_source>-blocked_qty ) * 100
+            / CONV decfloat34( ls_result-page_blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-page_expiry_src_statuses
+          ASSIGNING FIELD-SYMBOL(<ls_page_src_status_share>).
+        READ TABLE ls_result-page_expiry_sources
+          INTO DATA(ls_page_src_for_status)
+          WITH KEY source_group =
+            <ls_page_src_status_share>-source_group.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF ls_page_src_for_status-row_count > 0.
+          <ls_page_src_status_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-row_count ) * 100
+            / CONV decfloat34(
+              ls_page_src_for_status-row_count ).
+        ENDIF.
+        READ TABLE ls_result-page_expiry_statuses
+          INTO DATA(ls_page_status_for_src)
+          WITH KEY expiry_status =
+            <ls_page_src_status_share>-expiry_status.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        IF ls_page_status_for_src-unrestricted_qty > 0.
+          <ls_page_src_status_share>-status_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_page_status_for_src-unrestricted_qty ).
+        ENDIF.
+        IF ls_page_status_for_src-available_qty > 0.
+          <ls_page_src_status_share>-status_available_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_page_status_for_src-available_qty ).
+        ENDIF.
+        IF ls_page_status_for_src-quality_qty > 0.
+          <ls_page_src_status_share>-status_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_page_status_for_src-quality_qty ).
+        ENDIF.
+        IF ls_page_status_for_src-blocked_qty > 0.
+          <ls_page_src_status_share>-status_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_page_status_for_src-blocked_qty ).
+        ENDIF.
+        IF ls_page_src_for_status-unrestricted_qty > 0.
+          <ls_page_src_status_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_page_src_for_status-unrestricted_qty ).
+        ENDIF.
+        IF ls_page_src_for_status-available_qty > 0.
+          <ls_page_src_status_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_page_src_for_status-available_qty ).
+        ENDIF.
+        IF ls_page_src_for_status-quality_qty > 0.
+          <ls_page_src_status_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_page_src_for_status-quality_qty ).
+        ENDIF.
+        IF ls_page_src_for_status-blocked_qty > 0.
+          <ls_page_src_status_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_src_status_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_page_src_for_status-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-page_expiry_statuses
+          ASSIGNING FIELD-SYMBOL(<ls_page_status_qty_share>).
+        IF <ls_page_status_qty_share>-unrestricted_qty > 0.
+          <ls_page_status_qty_share>-available_pct_of_unrestricted =
+            CONV decfloat34(
+              <ls_page_status_qty_share>-available_qty ) * 100
+            / CONV decfloat34(
+              <ls_page_status_qty_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_status_qty_share>-reservation_deduction_qty =
+          CONV decfloat34(
+            <ls_page_status_qty_share>-unrestricted_qty ) -
+          CONV decfloat34(
+            <ls_page_status_qty_share>-available_qty ).
+        IF ls_result-page_unrestricted_qty > 0.
+          <ls_page_status_qty_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_status_qty_share>-unrestricted_qty ) * 100
+            / CONV decfloat34( ls_result-page_unrestricted_qty ).
+        ENDIF.
+        IF ls_result-page_available_qty > 0.
+          <ls_page_status_qty_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_status_qty_share>-available_qty ) * 100
+            / CONV decfloat34( ls_result-page_available_qty ).
+        ENDIF.
+        IF ls_result-page_quality_qty > 0.
+          <ls_page_status_qty_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_status_qty_share>-quality_qty ) * 100
+            / CONV decfloat34( ls_result-page_quality_qty ).
+        ENDIF.
+        IF ls_result-page_blocked_qty > 0.
+          <ls_page_status_qty_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_status_qty_share>-blocked_qty ) * 100
+            / CONV decfloat34( ls_result-page_blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-page_expired_row_count > 0.
+        LOOP AT ls_result-page_expiry_src_age_bands
+            ASSIGNING FIELD-SYMBOL(<ls_page_source_age_share>).
+          <ls_page_source_age_share>-row_share_pct =
+            CONV decfloat34( <ls_page_source_age_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-page_expired_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_page_expiry_age_share_rows) =
+        ls_result-page_expiry_src_age_bands.
+      LOOP AT ls_result-page_expiry_src_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_expiry_age_row_share>).
+        DATA(lv_page_expiry_age_source_rows) = 0.
+        DATA(lv_page_expiry_age_band_rows) = 0.
+        DATA(lv_page_exp_age_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_exp_age_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_page_expiry_age_share_rows
+            INTO DATA(ls_page_expiry_age_source_row)
+            WHERE source_group = <ls_page_expiry_age_row_share>-source_group.
+          lv_page_expiry_age_source_rows =
+            lv_page_expiry_age_source_rows +
+            ls_page_expiry_age_source_row-row_count.
+          lv_page_exp_age_src_unr =
+            lv_page_exp_age_src_unr +
+            CONV decfloat34(
+              ls_page_expiry_age_source_row-unrestricted_qty ).
+          lv_page_exp_age_src_avl =
+            lv_page_exp_age_src_avl +
+            CONV decfloat34(
+              ls_page_expiry_age_source_row-available_qty ).
+          lv_page_exp_age_src_qual =
+            lv_page_exp_age_src_qual +
+            CONV decfloat34(
+              ls_page_expiry_age_source_row-quality_qty ).
+          lv_page_exp_age_src_blk =
+            lv_page_exp_age_src_blk +
+            CONV decfloat34(
+              ls_page_expiry_age_source_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_page_expiry_age_share_rows
+            INTO DATA(ls_page_expiry_age_band_row)
+            WHERE age_band = <ls_page_expiry_age_row_share>-age_band.
+          lv_page_expiry_age_band_rows =
+            lv_page_expiry_age_band_rows +
+            ls_page_expiry_age_band_row-row_count.
+          lv_page_exp_age_band_unr =
+            lv_page_exp_age_band_unr +
+            CONV decfloat34( ls_page_expiry_age_band_row-unrestricted_qty ).
+          lv_page_exp_age_band_avl =
+            lv_page_exp_age_band_avl +
+            CONV decfloat34( ls_page_expiry_age_band_row-available_qty ).
+          lv_page_exp_age_band_qual =
+            lv_page_exp_age_band_qual +
+            CONV decfloat34( ls_page_expiry_age_band_row-quality_qty ).
+          lv_page_exp_age_band_blk =
+            lv_page_exp_age_band_blk +
+            CONV decfloat34( ls_page_expiry_age_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_page_expiry_age_source_rows > 0.
+          <ls_page_expiry_age_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_expiry_age_source_rows ).
+        ENDIF.
+        IF lv_page_expiry_age_band_rows > 0.
+          <ls_page_expiry_age_row_share>-age_band_row_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_expiry_age_band_rows ).
+        ENDIF.
+        IF lv_page_exp_age_src_unr > 0.
+          <ls_page_expiry_age_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-unrestricted_qty ) * 100
+            / lv_page_exp_age_src_unr.
+        ENDIF.
+        IF lv_page_exp_age_src_avl > 0.
+          <ls_page_expiry_age_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-available_qty ) * 100
+            / lv_page_exp_age_src_avl.
+        ENDIF.
+        IF lv_page_exp_age_src_qual > 0.
+          <ls_page_expiry_age_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-quality_qty ) * 100
+            / lv_page_exp_age_src_qual.
+        ENDIF.
+        IF lv_page_exp_age_src_blk > 0.
+          <ls_page_expiry_age_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-blocked_qty ) * 100
+            / lv_page_exp_age_src_blk.
+        ENDIF.
+        IF lv_page_exp_age_band_unr > 0.
+          <ls_page_expiry_age_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-unrestricted_qty ) * 100
+            / lv_page_exp_age_band_unr.
+        ENDIF.
+        IF lv_page_exp_age_band_avl > 0.
+          <ls_page_expiry_age_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-available_qty ) * 100
+            / lv_page_exp_age_band_avl.
+        ENDIF.
+        IF lv_page_exp_age_band_qual > 0.
+          <ls_page_expiry_age_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-quality_qty ) * 100
+            / lv_page_exp_age_band_qual.
+        ENDIF.
+        IF lv_page_exp_age_band_blk > 0.
+          <ls_page_expiry_age_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_expiry_age_row_share>-blocked_qty ) * 100
+            / lv_page_exp_age_band_blk.
+        ENDIF.
+        IF <ls_page_expiry_age_row_share>-unrestricted_qty > 0.
+          <ls_page_expiry_age_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_page_expiry_age_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_page_expiry_age_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_expiry_age_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_page_expiry_age_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_page_expiry_age_row_share>-available_qty ).
+      ENDLOOP.
+      READ TABLE ls_result-page_expiry_statuses
+        INTO DATA(ls_page_exp_status_qty)
+        WITH KEY expiry_status = c_expiry_status_expired.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-page_expiry_src_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_exp_src_age_share>).
+        IF ls_page_exp_status_qty-unrestricted_qty > 0.
+          <ls_page_exp_src_age_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_exp_src_age_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_page_exp_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_page_exp_status_qty-available_qty > 0.
+          <ls_page_exp_src_age_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_exp_src_age_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_page_exp_status_qty-available_qty ).
+        ENDIF.
+        IF ls_page_exp_status_qty-quality_qty > 0.
+          <ls_page_exp_src_age_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_exp_src_age_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_page_exp_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_page_exp_status_qty-blocked_qty > 0.
+          <ls_page_exp_src_age_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_exp_src_age_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_page_exp_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-page_upcoming_row_count > 0.
+        LOOP AT ls_result-page_upcoming_src_bands
+            ASSIGNING FIELD-SYMBOL(<ls_page_upcoming_share>).
+          <ls_page_upcoming_share>-row_share_pct =
+            CONV decfloat34( <ls_page_upcoming_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-page_upcoming_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_page_upcoming_shares) =
+        ls_result-page_upcoming_src_bands.
+      LOOP AT ls_result-page_upcoming_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_upc_row_share>).
+        DATA(lv_page_upcoming_source_rows) = 0.
+        DATA(lv_page_upcoming_band_rows) = 0.
+        DATA(lv_page_upc_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_upc_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_page_upcoming_shares
+            INTO DATA(ls_page_upcoming_source_row)
+            WHERE source_group =
+                <ls_page_upc_row_share>-source_group.
+          lv_page_upcoming_source_rows = lv_page_upcoming_source_rows +
+            ls_page_upcoming_source_row-row_count.
+          lv_page_upc_src_unr =
+            lv_page_upc_src_unr +
+            CONV decfloat34( ls_page_upcoming_source_row-unrestricted_qty ).
+          lv_page_upc_src_avl =
+            lv_page_upc_src_avl +
+            CONV decfloat34( ls_page_upcoming_source_row-available_qty ).
+          lv_page_upc_src_qual =
+            lv_page_upc_src_qual +
+            CONV decfloat34( ls_page_upcoming_source_row-quality_qty ).
+          lv_page_upc_src_blk =
+            lv_page_upc_src_blk +
+            CONV decfloat34( ls_page_upcoming_source_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_page_upcoming_shares
+            INTO DATA(ls_page_upcoming_band_row)
+            WHERE through_band =
+                <ls_page_upc_row_share>-through_band.
+          lv_page_upcoming_band_rows = lv_page_upcoming_band_rows +
+            ls_page_upcoming_band_row-row_count.
+          lv_page_upc_band_unr =
+            lv_page_upc_band_unr +
+            CONV decfloat34( ls_page_upcoming_band_row-unrestricted_qty ).
+          lv_page_upc_band_avl =
+            lv_page_upc_band_avl +
+            CONV decfloat34( ls_page_upcoming_band_row-available_qty ).
+          lv_page_upc_band_qual =
+            lv_page_upc_band_qual +
+            CONV decfloat34( ls_page_upcoming_band_row-quality_qty ).
+          lv_page_upc_band_blk =
+            lv_page_upc_band_blk +
+            CONV decfloat34( ls_page_upcoming_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_page_upcoming_source_rows > 0.
+          <ls_page_upc_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_upcoming_source_rows ).
+        ENDIF.
+        IF lv_page_upcoming_band_rows > 0.
+          <ls_page_upc_row_share>-through_band_row_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_upcoming_band_rows ).
+        ENDIF.
+        IF lv_page_upc_src_unr > 0.
+          <ls_page_upc_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-unrestricted_qty ) * 100
+            / lv_page_upc_src_unr.
+        ENDIF.
+        IF lv_page_upc_src_avl > 0.
+          <ls_page_upc_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-available_qty ) * 100
+            / lv_page_upc_src_avl.
+        ENDIF.
+        IF lv_page_upc_src_qual > 0.
+          <ls_page_upc_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-quality_qty ) * 100
+            / lv_page_upc_src_qual.
+        ENDIF.
+        IF lv_page_upc_src_blk > 0.
+          <ls_page_upc_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-blocked_qty ) * 100
+            / lv_page_upc_src_blk.
+        ENDIF.
+        IF lv_page_upc_band_unr > 0.
+          <ls_page_upc_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-unrestricted_qty ) * 100
+            / lv_page_upc_band_unr.
+        ENDIF.
+        IF lv_page_upc_band_avl > 0.
+          <ls_page_upc_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-available_qty ) * 100
+            / lv_page_upc_band_avl.
+        ENDIF.
+        IF lv_page_upc_band_qual > 0.
+          <ls_page_upc_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-quality_qty ) * 100
+            / lv_page_upc_band_qual.
+        ENDIF.
+        IF lv_page_upc_band_blk > 0.
+          <ls_page_upc_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_row_share>-blocked_qty ) * 100
+            / lv_page_upc_band_blk.
+        ENDIF.
+        IF <ls_page_upc_row_share>-unrestricted_qty > 0.
+          <ls_page_upc_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_page_upc_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_page_upc_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_upc_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_page_upc_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_page_upc_row_share>-available_qty ).
+      ENDLOOP.
+      IF ls_result-page_after_window_row_count > 0.
+        LOOP AT ls_result-page_after_window_src_bands
+            ASSIGNING FIELD-SYMBOL(<ls_page_after_window_share>).
+          <ls_page_after_window_share>-row_share_pct =
+            CONV decfloat34( <ls_page_after_window_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-page_after_window_row_count ).
+        ENDLOOP.
+      ENDIF.
+      DATA(lt_page_after_win_shares) =
+        ls_result-page_after_window_src_bands.
+      LOOP AT ls_result-page_after_window_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_after_win_row_share>).
+        DATA(lv_page_after_src_rows) = 0.
+        DATA(lv_page_after_window_band_rows) = 0.
+        DATA(lv_page_after_src_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_src_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_src_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_src_blk) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_band_unr) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_band_avl) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_band_qual) =
+          CONV decfloat34( 0 ).
+        DATA(lv_page_after_band_blk) =
+          CONV decfloat34( 0 ).
+        LOOP AT lt_page_after_win_shares
+            INTO DATA(ls_page_after_src_row)
+            WHERE source_group =
+                <ls_page_after_win_row_share>-source_group.
+          lv_page_after_src_rows =
+            lv_page_after_src_rows +
+            ls_page_after_src_row-row_count.
+          lv_page_after_src_unr =
+            lv_page_after_src_unr +
+            CONV decfloat34(
+              ls_page_after_src_row-unrestricted_qty ).
+          lv_page_after_src_avl =
+            lv_page_after_src_avl +
+            CONV decfloat34(
+              ls_page_after_src_row-available_qty ).
+          lv_page_after_src_qual =
+            lv_page_after_src_qual +
+            CONV decfloat34(
+              ls_page_after_src_row-quality_qty ).
+          lv_page_after_src_blk =
+            lv_page_after_src_blk +
+            CONV decfloat34(
+              ls_page_after_src_row-blocked_qty ).
+        ENDLOOP.
+        LOOP AT lt_page_after_win_shares
+            INTO DATA(ls_page_after_window_band_row)
+            WHERE through_band =
+                <ls_page_after_win_row_share>-through_band.
+          lv_page_after_window_band_rows =
+            lv_page_after_window_band_rows +
+            ls_page_after_window_band_row-row_count.
+          lv_page_after_band_unr =
+            lv_page_after_band_unr +
+            CONV decfloat34(
+              ls_page_after_window_band_row-unrestricted_qty ).
+          lv_page_after_band_avl =
+            lv_page_after_band_avl +
+            CONV decfloat34(
+              ls_page_after_window_band_row-available_qty ).
+          lv_page_after_band_qual =
+            lv_page_after_band_qual +
+            CONV decfloat34( ls_page_after_window_band_row-quality_qty ).
+          lv_page_after_band_blk =
+            lv_page_after_band_blk +
+            CONV decfloat34( ls_page_after_window_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_page_after_src_rows > 0.
+          <ls_page_after_win_row_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_after_src_rows ).
+        ENDIF.
+        IF lv_page_after_window_band_rows > 0.
+          <ls_page_after_win_row_share>-through_band_row_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_after_window_band_rows ).
+        ENDIF.
+        IF lv_page_after_src_unr > 0.
+          <ls_page_after_win_row_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-unrestricted_qty ) * 100
+            / lv_page_after_src_unr.
+        ENDIF.
+        IF lv_page_after_src_avl > 0.
+          <ls_page_after_win_row_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-available_qty ) * 100
+            / lv_page_after_src_avl.
+        ENDIF.
+        IF lv_page_after_src_qual > 0.
+          <ls_page_after_win_row_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-quality_qty ) * 100
+            / lv_page_after_src_qual.
+        ENDIF.
+        IF lv_page_after_src_blk > 0.
+          <ls_page_after_win_row_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-blocked_qty ) * 100
+            / lv_page_after_src_blk.
+        ENDIF.
+        IF lv_page_after_band_unr > 0.
+          <ls_page_after_win_row_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-unrestricted_qty ) * 100
+            / lv_page_after_band_unr.
+        ENDIF.
+        IF lv_page_after_band_avl > 0.
+          <ls_page_after_win_row_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-available_qty ) * 100
+            / lv_page_after_band_avl.
+        ENDIF.
+        IF lv_page_after_band_qual > 0.
+          <ls_page_after_win_row_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-quality_qty ) * 100
+            / lv_page_after_band_qual.
+        ENDIF.
+        IF lv_page_after_band_blk > 0.
+          <ls_page_after_win_row_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_after_win_row_share>-blocked_qty ) * 100
+            / lv_page_after_band_blk.
+        ENDIF.
+        IF <ls_page_after_win_row_share>-unrestricted_qty > 0.
+          <ls_page_after_win_row_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_page_after_win_row_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_page_after_win_row_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_after_win_row_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_page_after_win_row_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_page_after_win_row_share>-available_qty ).
+      ENDLOOP.
+      READ TABLE ls_result-page_expiry_statuses
+        INTO DATA(ls_page_upc_status_qty)
+        WITH KEY expiry_status = c_expiry_status_upcoming.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-page_upcoming_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_upc_src_qty_share>).
+        IF ls_page_upc_status_qty-unrestricted_qty > 0.
+          <ls_page_upc_src_qty_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_src_qty_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_page_upc_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_page_upc_status_qty-available_qty > 0.
+          <ls_page_upc_src_qty_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_src_qty_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_page_upc_status_qty-available_qty ).
+        ENDIF.
+        IF ls_page_upc_status_qty-quality_qty > 0.
+          <ls_page_upc_src_qty_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_src_qty_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_page_upc_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_page_upc_status_qty-blocked_qty > 0.
+          <ls_page_upc_src_qty_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_upc_src_qty_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_page_upc_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      READ TABLE ls_result-page_expiry_statuses
+        INTO DATA(ls_page_after_status_qty)
+        WITH KEY expiry_status = c_expiry_status_after_window.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_result-page_after_window_src_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_after_src_share>).
+        IF ls_page_after_status_qty-unrestricted_qty > 0.
+          <ls_page_after_src_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_after_src_share>-unrestricted_qty ) * 100
+            / CONV decfloat34(
+              ls_page_after_status_qty-unrestricted_qty ).
+        ENDIF.
+        IF ls_page_after_status_qty-available_qty > 0.
+          <ls_page_after_src_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_after_src_share>-available_qty ) * 100
+            / CONV decfloat34(
+              ls_page_after_status_qty-available_qty ).
+        ENDIF.
+        IF ls_page_after_status_qty-quality_qty > 0.
+          <ls_page_after_src_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_after_src_share>-quality_qty ) * 100
+            / CONV decfloat34(
+              ls_page_after_status_qty-quality_qty ).
+        ENDIF.
+        IF ls_page_after_status_qty-blocked_qty > 0.
+          <ls_page_after_src_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_after_src_share>-blocked_qty ) * 100
+            / CONV decfloat34(
+              ls_page_after_status_qty-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-page_earliest_expiration_date IS NOT INITIAL
+          AND ls_result-page_latest_expiration_date IS NOT INITIAL.
+        ls_result-page_expiration_date_span_days =
+          ls_result-page_latest_expiration_date -
+          ls_result-page_earliest_expiration_date.
+      ENDIF.
+      IF ls_request-omit_undated_batch_rows = abap_true.
+        ls_result-total_undated_batch_row_count =
+          ls_result-undated_batch_row_count.
+      ELSE.
+        ls_result-total_undated_batch_row_count =
+          lines( ls_result-undated_batches ).
+      ENDIF.
       CLEAR: lt_undated_page, lt_returned_undated_page,
         lv_undated_page_has_more, lv_returned_undated_count.
-      IF ls_request-omit_undated_batch_rows = abap_true.
-        CLEAR ls_result-undated_batches.
-      ELSE.
+      IF ls_request-omit_undated_batch_rows <> abap_true.
         LOOP AT ls_result-undated_batches INTO ls_undated_page_row.
           lv_undated_row_after_cursor = abap_true.
           IF ls_request-filter_undated_batch_cursor = abap_true.
@@ -12945,8 +15842,169 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_result-returned_undated_row_count =
         lines( ls_result-undated_batches ).
-      SORT ls_result-uncovered_open_reservations BY reservation_number
-        reservation_item.
+      LOOP AT ls_result-undated_batches INTO ls_undated_page_row.
+        ls_result-undated_page_unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              ls_result-undated_page_unrestricted_qty
+            iv_right_quantity =
+              ls_undated_page_row-unrestricted_quantity ).
+        ls_result-undated_page_available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              ls_result-undated_page_available_qty
+            iv_right_quantity =
+              ls_undated_page_row-available_quantity ).
+        ls_result-undated_page_quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              ls_result-undated_page_quality_qty
+            iv_right_quantity =
+              ls_undated_page_row-quality_inspection_quantity ).
+        ls_result-undated_page_blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              ls_result-undated_page_blocked_qty
+            iv_right_quantity =
+              ls_undated_page_row-blocked_quantity ).
+        CASE ls_undated_page_row-expiration_date_source.
+          WHEN zif_stock_repository=>c_expiry_source_plant.
+            lv_expiry_source_group =
+              zif_stock_repository=>c_expiry_source_plant.
+          WHEN zif_stock_repository=>c_expiry_source_global.
+            lv_expiry_source_group =
+              zif_stock_repository=>c_expiry_source_global.
+          WHEN OTHERS.
+            lv_expiry_source_group = c_expiry_source_other.
+        ENDCASE.
+        READ TABLE ls_result-undated_page_expiry_sources
+          ASSIGNING <ls_undated_page_source>
+          WITH KEY source_group = lv_expiry_source_group.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        ADD 1 TO <ls_undated_page_source>-row_count.
+        <ls_undated_page_source>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_undated_page_source>-unrestricted_qty
+            iv_right_quantity =
+              ls_undated_page_row-unrestricted_quantity ).
+        <ls_undated_page_source>-available_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_undated_page_source>-available_qty
+            iv_right_quantity =
+              ls_undated_page_row-available_quantity ).
+        <ls_undated_page_source>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_undated_page_source>-quality_qty
+            iv_right_quantity =
+              ls_undated_page_row-quality_inspection_quantity ).
+        <ls_undated_page_source>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_undated_page_source>-blocked_qty
+            iv_right_quantity =
+              ls_undated_page_row-blocked_quantity ).
+      ENDLOOP.
+      IF ls_result-undated_batch_row_count > 0.
+        LOOP AT ls_result-undated_expiry_sources
+            ASSIGNING FIELD-SYMBOL(<ls_undated_source_share>).
+          <ls_undated_source_share>-row_share_pct =
+            CONV decfloat34( <ls_undated_source_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-undated_batch_row_count ).
+          IF <ls_undated_source_share>-unrestricted_qty > 0.
+            <ls_undated_source_share>-available_pct_of_unrestricted =
+              CONV decfloat34(
+                <ls_undated_source_share>-available_qty ) * 100
+              / CONV decfloat34(
+                <ls_undated_source_share>-unrestricted_qty ).
+          ENDIF.
+          <ls_undated_source_share>-reservation_deduction_qty =
+            CONV decfloat34(
+              <ls_undated_source_share>-unrestricted_qty )
+            - CONV decfloat34(
+              <ls_undated_source_share>-available_qty ).
+          IF ls_result-undated_unrestricted_quantity > 0.
+            <ls_undated_source_share>-unrestricted_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_source_share>-unrestricted_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_unrestricted_quantity ).
+          ENDIF.
+          IF ls_result-undated_available_quantity > 0.
+            <ls_undated_source_share>-available_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_source_share>-available_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_available_quantity ).
+          ENDIF.
+          IF ls_result-undated_quality_quantity > 0.
+            <ls_undated_source_share>-quality_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_source_share>-quality_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_quality_quantity ).
+          ENDIF.
+          IF ls_result-undated_blocked_quantity > 0.
+            <ls_undated_source_share>-blocked_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_source_share>-blocked_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_blocked_quantity ).
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      IF ls_result-returned_undated_row_count > 0.
+        LOOP AT ls_result-undated_page_expiry_sources
+            ASSIGNING FIELD-SYMBOL(<ls_undated_page_share>).
+          <ls_undated_page_share>-row_share_pct =
+            CONV decfloat34( <ls_undated_page_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-returned_undated_row_count ).
+          IF <ls_undated_page_share>-unrestricted_qty > 0.
+            <ls_undated_page_share>-available_pct_of_unrestricted =
+              CONV decfloat34(
+                <ls_undated_page_share>-available_qty ) * 100
+              / CONV decfloat34(
+                <ls_undated_page_share>-unrestricted_qty ).
+          ENDIF.
+          <ls_undated_page_share>-reservation_deduction_qty =
+            CONV decfloat34(
+              <ls_undated_page_share>-unrestricted_qty )
+            - CONV decfloat34(
+              <ls_undated_page_share>-available_qty ).
+          IF ls_result-undated_page_unrestricted_qty > 0.
+            <ls_undated_page_share>-unrestricted_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_page_share>-unrestricted_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_page_unrestricted_qty ).
+          ENDIF.
+          IF ls_result-undated_page_available_qty > 0.
+            <ls_undated_page_share>-available_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_page_share>-available_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_page_available_qty ).
+          ENDIF.
+          IF ls_result-undated_page_quality_qty > 0.
+            <ls_undated_page_share>-quality_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_page_share>-quality_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_page_quality_qty ).
+          ENDIF.
+          IF ls_result-undated_page_blocked_qty > 0.
+            <ls_undated_page_share>-blocked_qty_share_pct =
+              CONV decfloat34(
+                <ls_undated_page_share>-blocked_qty ) * 100
+              / CONV decfloat34(
+                ls_result-undated_page_blocked_qty ).
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
       CLEAR: lv_uncovered_total_count,
         lv_uncov_partial_count, lv_uncov_unalloc_count,
         lv_uncovered_total_quantity, lv_uncovered_open_total_qty,
@@ -12968,8 +16026,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ( overdue_age_band = '2' )
         ( overdue_age_band = '3' )
         ( overdue_age_band = '4' ) ).
-      LOOP AT ls_result-uncovered_open_reservations
-          INTO ls_uncovered_page_row.
+      LOOP AT <ls_batch_result>-uncovered_open_reservations
+          ASSIGNING <ls_uncovered_src_resv>.
+        lv_uncovered_source_index = sy-tabix.
+        IF ls_request-omit_uncovered_detail_rows = abap_true.
+          ls_uncovered_page_row = map_expiry_uncovered_row(
+            is_uncovered_reservation = <ls_uncovered_src_resv>
+            iv_as_of_date            = ls_request-as_of_date ).
+        ELSE.
+          READ TABLE ls_result-uncovered_open_reservations
+            INTO ls_uncovered_page_row INDEX lv_uncovered_source_index.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+        ENDIF.
         IF ls_request-filter_uncovered_reservation = abap_true
             AND ( ls_uncovered_page_row-reservation_number <>
                     ls_request-uncovered_reservation_number
@@ -13379,6 +16449,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDTRY.
       IF ls_request-omit_uncovered_detail_rows <> abap_true.
+      SORT ls_result-uncovered_open_reservations BY reservation_number
+        reservation_item.
       CLEAR: lt_uncovered_page, lt_returned_uncovered_page,
         lt_uncovered_page_keys, lv_uncovered_has_more,
         lv_returned_uncovered_count.
@@ -13570,23 +16642,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_result-uncovered_open_resv_keys = lt_uncovered_page_keys.
       ENDIF.
       ELSE.
-        CLEAR: ls_result-uncovered_open_reservations,
-          ls_result-uncovered_open_resv_keys,
-          ls_result-is_uncovered_truncated,
+        FREE ls_result-uncovered_open_reservations.
+        FREE ls_result-uncovered_open_resv_keys.
+        FREE lt_uncovered_page.
+        FREE lt_returned_uncovered_page.
+        FREE lt_uncovered_page_keys.
+        CLEAR: ls_result-is_uncovered_truncated,
           ls_result-next_uncovered_cursor_number,
           ls_result-next_uncovered_cursor_item.
       ENDIF.
       ls_result-returned_uncovered_row_count =
         lines( ls_result-uncovered_open_reservations ).
-      SORT ls_result-resv_alloc_summaries BY reservation_number
-        reservation_item.
+      IF ls_request-omit_resv_alloc_summary_rows <> abap_true.
+        SORT ls_result-resv_alloc_summaries BY reservation_number
+          reservation_item.
+      ENDIF.
       CLEAR: lv_total_resv_alloc_count,
         lv_total_resv_alloc_quantity,
         lv_resv_matched_qty_sum,
         lv_resv_fallback_qty_sum,
         lv_resv_open_qty_sum,
         lv_resv_short_qty_sum.
-      LOOP AT ls_result-resv_alloc_summaries
+      LOOP AT <lt_resv_alloc_summaries>
           INTO ls_resv_alloc_page_row.
           IF ( ls_request-resv_alloc_required_date_from IS NOT INITIAL
                 OR ls_request-resv_alloc_required_date_to IS NOT INITIAL )
@@ -14089,7 +17166,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDLOOP.
       ENDIF.
       IF ls_request-omit_resv_alloc_summary_rows = abap_true.
-        CLEAR ls_result-resv_alloc_summaries.
+        FREE ls_result-resv_alloc_summaries.
       ELSEIF lv_resv_alloc_has_more = abap_true.
         LOOP AT lt_resv_alloc_page INTO ls_resv_alloc_page_row.
           IF lv_returned_resv_alloc_count >=
@@ -14116,10 +17193,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       ls_result-returned_resv_alloc_row_count =
         lines( ls_result-resv_alloc_summaries ).
-      SORT ls_result-allocation_details STABLE
-        BY reservation_number reservation_item.
+      IF ls_request-omit_allocation_detail_rows = abap_true.
+        SORT <ls_batch_result>-allocation_details STABLE
+          BY reservation_number reservation_item.
+      ELSE.
+        SORT ls_result-allocation_details STABLE
+          BY reservation_number reservation_item.
+      ENDIF.
       CLEAR ls_result-max_expiry_due_gap.
-      LOOP AT ls_result-allocation_details INTO ls_allocation_page_row.
+      LOOP AT <lt_allocation_details> INTO ls_allocation_page_row.
         IF ls_allocation_page_row-days_required_after_expiry <= 0
             OR ls_allocation_page_row-days_required_after_expiry <=
               ls_result-max_expiry_due_gap-days_required_after_expiry.
@@ -14145,7 +17227,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           quantity                   = ls_allocation_page_row-quantity ).
       ENDLOOP.
       CLEAR ls_result-max_required_before_expiry_gap.
-      LOOP AT ls_result-allocation_details INTO ls_allocation_page_row.
+      LOOP AT <lt_allocation_details> INTO ls_allocation_page_row.
         IF ls_allocation_page_row-days_required_after_expiry >= 0.
           CONTINUE.
         ENDIF.
@@ -14468,7 +17550,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ( expiry_status = 'A' allocation_pass = 'F' )
         ( expiry_status = 'D' allocation_pass = 'M' )
         ( expiry_status = 'D' allocation_pass = 'F' ) ).
-      LOOP AT ls_result-allocation_details
+      LOOP AT <lt_allocation_details>
           INTO ls_allocation_page_row.
         IF ls_allocation_page_row-expiration_date IS INITIAL.
           lv_allocation_expiry_status = 'D'.
@@ -14571,7 +17653,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ( expiration_date_source = 'G' allocation_pass = 'F' )
         ( expiration_date_source = '' allocation_pass = 'M' )
         ( expiration_date_source = '' allocation_pass = 'F' ) ).
-      LOOP AT ls_result-allocation_details
+      LOOP AT <lt_allocation_details>
           INTO ls_allocation_page_row.
         READ TABLE ls_result-allocation_expiry_sources
           ASSIGNING FIELD-SYMBOL(<ls_allocation_expiry_source>)
@@ -14728,7 +17810,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ENDLOOP.
         ENDLOOP.
       ENDLOOP.
-      LOOP AT ls_result-allocation_details INTO ls_allocation_page_row.
+      LOOP AT <lt_allocation_details> INTO ls_allocation_page_row.
         IF ( ls_request-filter_allocation_reservation = abap_true
               AND ( ls_allocation_page_row-reservation_number <>
                       ls_request-allocation_reservation_number
@@ -15240,7 +18322,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       CLEAR: lt_allocation_page, lt_returned_allocation_page,
         lv_allocation_has_more, lv_returned_allocation_count.
       IF ls_request-omit_allocation_detail_rows <> abap_true.
-        LOOP AT ls_result-allocation_details
+        LOOP AT <lt_allocation_details>
             INTO ls_allocation_page_row.
         IF ( ls_request-filter_allocation_reservation = abap_true
               AND ( ls_allocation_page_row-reservation_number <>
@@ -15590,7 +18672,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDLOOP.
       ENDIF.
       IF ls_request-omit_allocation_detail_rows = abap_true.
-        CLEAR ls_result-allocation_details.
+        FREE ls_result-allocation_details.
       ELSEIF lv_allocation_has_more = abap_true.
         LOOP AT lt_allocation_page INTO ls_allocation_page_row.
           IF lv_returned_allocation_count >=
@@ -15625,10 +18707,307 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ELSE.
         ls_result-allocation_details = lt_allocation_page.
       ENDIF.
+      LOOP AT ls_result-expiry_statuses
+          INTO DATA(ls_dated_status_total).
+        ls_result-dated_unrestricted_quantity = sum_stock_quantities(
+          iv_left_quantity  = ls_result-dated_unrestricted_quantity
+          iv_right_quantity = ls_dated_status_total-unrestricted_qty ).
+        ls_result-dated_available_quantity = sum_stock_quantities(
+          iv_left_quantity  = ls_result-dated_available_quantity
+          iv_right_quantity = ls_dated_status_total-available_qty ).
+        ls_result-dated_quality_quantity = sum_stock_quantities(
+          iv_left_quantity  = ls_result-dated_quality_quantity
+          iv_right_quantity = ls_dated_status_total-quality_qty ).
+        ls_result-dated_blocked_quantity = sum_stock_quantities(
+          iv_left_quantity  = ls_result-dated_blocked_quantity
+          iv_right_quantity = ls_dated_status_total-blocked_qty ).
+        IF ls_dated_status_total-expiry_status = 'E'
+            OR ls_dated_status_total-expiry_status = 'U'.
+          ls_result-through_unrestricted_quantity = sum_stock_quantities(
+            iv_left_quantity  = ls_result-through_unrestricted_quantity
+            iv_right_quantity = ls_dated_status_total-unrestricted_qty ).
+          ls_result-through_available_quantity = sum_stock_quantities(
+            iv_left_quantity  = ls_result-through_available_quantity
+            iv_right_quantity = ls_dated_status_total-available_qty ).
+          ls_result-through_quality_quantity = sum_stock_quantities(
+            iv_left_quantity  = ls_result-through_quality_quantity
+            iv_right_quantity = ls_dated_status_total-quality_qty ).
+          ls_result-through_blocked_quantity = sum_stock_quantities(
+            iv_left_quantity  = ls_result-through_blocked_quantity
+            iv_right_quantity = ls_dated_status_total-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      IF ls_result-dated_unrestricted_quantity > 0.
+        ls_result-dated_avail_pct =
+          CONV decfloat34( ls_result-dated_available_quantity ) * 100
+          / CONV decfloat34( ls_result-dated_unrestricted_quantity ).
+      ENDIF.
+      ls_result-dated_resv_deduct_qty =
+        CONV decfloat34( ls_result-dated_unrestricted_quantity )
+        - CONV decfloat34( ls_result-dated_available_quantity ).
+      IF ls_result-through_unrestricted_quantity > 0.
+        ls_result-through_avail_pct =
+          CONV decfloat34( ls_result-through_available_quantity ) * 100
+          / CONV decfloat34( ls_result-through_unrestricted_quantity ).
+      ENDIF.
+      ls_result-through_resv_deduct_qty =
+        CONV decfloat34( ls_result-through_unrestricted_quantity )
+        - CONV decfloat34( ls_result-through_available_quantity ).
+      IF ls_result-page_unrestricted_qty > 0.
+        ls_result-page_avail_pct =
+          CONV decfloat34( ls_result-page_available_qty ) * 100
+          / CONV decfloat34( ls_result-page_unrestricted_qty ).
+      ENDIF.
+      ls_result-page_reservation_deduction_qty =
+        CONV decfloat34( ls_result-page_unrestricted_qty )
+        - CONV decfloat34( ls_result-page_available_qty ).
+      IF ls_result-undated_page_unrestricted_qty > 0.
+        ls_result-und_page_avail_pct =
+          CONV decfloat34( ls_result-undated_page_available_qty ) * 100
+          / CONV decfloat34( ls_result-undated_page_unrestricted_qty ).
+      ENDIF.
+      ls_result-und_page_resv_deduct_qty =
+        CONV decfloat34( ls_result-undated_page_unrestricted_qty )
+        - CONV decfloat34( ls_result-undated_page_available_qty ).
+      IF ls_result-undated_unrestricted_quantity > 0.
+        ls_result-undated_avail_pct =
+          CONV decfloat34( ls_result-undated_available_quantity ) * 100
+          / CONV decfloat34( ls_result-undated_unrestricted_quantity ).
+      ENDIF.
+      ls_result-undated_resv_deduct_qty =
+        CONV decfloat34( ls_result-undated_unrestricted_quantity )
+        - CONV decfloat34( ls_result-undated_available_quantity ).
       ls_result-returned_allocation_row_count =
         lines( ls_result-allocation_details ).
       APPEND ls_result TO rt_results.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD map_expiry_uncovered_row.
+    rs_expiry_uncovered = CORRESPONDING #( is_uncovered_reservation ).
+    IF rs_expiry_uncovered-required_date IS NOT INITIAL.
+      rs_expiry_uncovered-days_until_required =
+        rs_expiry_uncovered-required_date - iv_as_of_date.
+    ENDIF.
+    IF rs_expiry_uncovered-required_date IS INITIAL.
+      rs_expiry_uncovered-due_horizon_band = 'U'.
+    ELSEIF rs_expiry_uncovered-days_until_required < 0.
+      rs_expiry_uncovered-due_horizon_band = 'O'.
+      rs_expiry_uncovered-overdue_age_days =
+        0 - rs_expiry_uncovered-days_until_required.
+      IF rs_expiry_uncovered-days_until_required >= -7.
+        rs_expiry_uncovered-overdue_age_band = '1'.
+      ELSEIF rs_expiry_uncovered-days_until_required >= -30.
+        rs_expiry_uncovered-overdue_age_band = '2'.
+      ELSEIF rs_expiry_uncovered-days_until_required >= -90.
+        rs_expiry_uncovered-overdue_age_band = '3'.
+      ELSE.
+        rs_expiry_uncovered-overdue_age_band = '4'.
+      ENDIF.
+    ELSEIF rs_expiry_uncovered-days_until_required = 0.
+      rs_expiry_uncovered-due_horizon_band = 'T'.
+    ELSEIF rs_expiry_uncovered-days_until_required <= 7.
+      rs_expiry_uncovered-due_horizon_band = '1'.
+    ELSEIF rs_expiry_uncovered-days_until_required <= 30.
+      rs_expiry_uncovered-due_horizon_band = '2'.
+    ELSEIF rs_expiry_uncovered-days_until_required <= 90.
+      rs_expiry_uncovered-due_horizon_band = '3'.
+    ELSE.
+      rs_expiry_uncovered-due_horizon_band = '4'.
+    ENDIF.
+    IF rs_expiry_uncovered-allocated_quantity IS INITIAL.
+      rs_expiry_uncovered-allocation_outcome = 'U'.
+    ELSE.
+      rs_expiry_uncovered-allocation_outcome = 'P'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD summarize_expiry_row.
+    DATA lv_new_date TYPE abap_bool.
+    DATA lv_update_first TYPE abap_bool.
+
+    CASE is_expiry_row-status.
+      WHEN c_expiry_status_expired.
+        IF cs_result-first_expired_expiration_date IS INITIAL
+            OR is_expiry_row-expiration_date <
+              cs_result-first_expired_expiration_date.
+          lv_new_date = abap_true.
+          lv_update_first = abap_true.
+        ELSEIF is_expiry_row-expiration_date =
+            cs_result-first_expired_expiration_date.
+          IF is_expiry_row-batch < cs_result-first_expired_batch
+              OR ( is_expiry_row-batch =
+                     cs_result-first_expired_batch
+                AND is_expiry_row-storage_location <
+                  cs_result-first_expired_storage_location )
+              OR ( is_expiry_row-batch =
+                     cs_result-first_expired_batch
+                AND is_expiry_row-storage_location =
+                  cs_result-first_expired_storage_location
+                AND is_expiry_row-valuation_type <
+                  cs_result-first_expired_valuation_type ).
+            lv_update_first = abap_true.
+          ENDIF.
+        ENDIF.
+        IF lv_new_date = abap_true.
+          CLEAR: cs_result-first_expiry_batch_count,
+            cs_result-first_expiry_plant_src_count,
+            cs_result-first_expiry_global_src_count,
+            cs_result-first_expiry_other_src_count,
+            cs_result-first_expiry_unrestricted_qty,
+            cs_result-first_expiry_available_qty,
+            cs_result-first_expiry_quality_qty,
+            cs_result-first_expiry_blocked_qty.
+          cs_result-first_expired_expiration_date =
+            is_expiry_row-expiration_date.
+        ENDIF.
+        IF lv_update_first = abap_true.
+          cs_result-first_expired_storage_location =
+            is_expiry_row-storage_location.
+          cs_result-first_expired_batch = is_expiry_row-batch.
+          cs_result-first_expired_valuation_type =
+            is_expiry_row-valuation_type.
+          cs_result-first_expired_expiration_date =
+            is_expiry_row-expiration_date.
+          cs_result-first_expired_date_source =
+            is_expiry_row-expiration_date_source.
+          cs_result-days_since_first_expired_date =
+            iv_as_of_date - is_expiry_row-expiration_date.
+          cs_result-first_expired_unrestricted_qty =
+            is_expiry_row-unrestricted_quantity.
+          cs_result-first_expired_available_qty =
+            is_expiry_row-available_quantity.
+          cs_result-first_expired_quality_qty =
+            is_expiry_row-quality_inspection_quantity.
+          cs_result-first_expired_blocked_qty =
+            is_expiry_row-blocked_quantity.
+        ENDIF.
+        IF is_expiry_row-expiration_date =
+            cs_result-first_expired_expiration_date.
+          ADD 1 TO cs_result-first_expiry_batch_count.
+          CASE is_expiry_row-expiration_date_source.
+            WHEN zif_stock_repository=>c_expiry_source_plant.
+              ADD 1 TO cs_result-first_expiry_plant_src_count.
+            WHEN zif_stock_repository=>c_expiry_source_global.
+              ADD 1 TO cs_result-first_expiry_global_src_count.
+            WHEN OTHERS.
+              ADD 1 TO cs_result-first_expiry_other_src_count.
+          ENDCASE.
+          IF is_expiry_row-unrestricted_quantity > 0.
+            cs_result-first_expiry_unrestricted_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  cs_result-first_expiry_unrestricted_qty
+                iv_right_quantity =
+                  is_expiry_row-unrestricted_quantity ).
+          ENDIF.
+          IF is_expiry_row-available_quantity > 0.
+            cs_result-first_expiry_available_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-first_expiry_available_qty
+              iv_right_quantity = is_expiry_row-available_quantity ).
+          ENDIF.
+          IF is_expiry_row-quality_inspection_quantity > 0.
+            cs_result-first_expiry_quality_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-first_expiry_quality_qty
+              iv_right_quantity =
+                is_expiry_row-quality_inspection_quantity ).
+          ENDIF.
+          IF is_expiry_row-blocked_quantity > 0.
+            cs_result-first_expiry_blocked_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-first_expiry_blocked_qty
+              iv_right_quantity = is_expiry_row-blocked_quantity ).
+          ENDIF.
+        ENDIF.
+      WHEN c_expiry_status_upcoming.
+        IF cs_result-next_upcoming_expiration_date IS INITIAL
+            OR is_expiry_row-expiration_date <
+              cs_result-next_upcoming_expiration_date.
+          lv_new_date = abap_true.
+          lv_update_first = abap_true.
+        ELSEIF is_expiry_row-expiration_date =
+            cs_result-next_upcoming_expiration_date.
+          IF is_expiry_row-batch < cs_result-next_upcoming_batch
+              OR ( is_expiry_row-batch = cs_result-next_upcoming_batch
+                AND is_expiry_row-storage_location <
+                  cs_result-next_upcoming_storage_location )
+              OR ( is_expiry_row-batch = cs_result-next_upcoming_batch
+                AND is_expiry_row-storage_location =
+                  cs_result-next_upcoming_storage_location
+                AND is_expiry_row-valuation_type <
+                  cs_result-next_upcoming_valuation_type ).
+            lv_update_first = abap_true.
+          ENDIF.
+        ENDIF.
+        IF lv_new_date = abap_true.
+          CLEAR: cs_result-next_expiry_batch_count,
+            cs_result-next_expiry_plant_src_count,
+            cs_result-next_expiry_global_src_count,
+            cs_result-next_expiry_other_src_count,
+            cs_result-next_expiry_unrestricted_qty,
+            cs_result-next_expiry_available_qty,
+            cs_result-next_expiry_quality_qty,
+            cs_result-next_expiry_blocked_qty.
+          cs_result-next_upcoming_expiration_date =
+            is_expiry_row-expiration_date.
+        ENDIF.
+        IF lv_update_first = abap_true.
+          cs_result-next_upcoming_storage_location =
+            is_expiry_row-storage_location.
+          cs_result-next_upcoming_batch = is_expiry_row-batch.
+          cs_result-next_upcoming_valuation_type =
+            is_expiry_row-valuation_type.
+          cs_result-next_upcoming_expiration_date =
+            is_expiry_row-expiration_date.
+          cs_result-next_upcoming_date_source =
+            is_expiry_row-expiration_date_source.
+          cs_result-days_to_next_expiration =
+            is_expiry_row-expiration_date - iv_as_of_date.
+          cs_result-next_upcoming_unrestricted_qty =
+            is_expiry_row-unrestricted_quantity.
+          cs_result-next_upcoming_available_qty =
+            is_expiry_row-available_quantity.
+          cs_result-next_upcoming_quality_qty =
+            is_expiry_row-quality_inspection_quantity.
+          cs_result-next_upcoming_blocked_qty =
+            is_expiry_row-blocked_quantity.
+        ENDIF.
+        IF is_expiry_row-expiration_date =
+            cs_result-next_upcoming_expiration_date.
+          ADD 1 TO cs_result-next_expiry_batch_count.
+          CASE is_expiry_row-expiration_date_source.
+            WHEN zif_stock_repository=>c_expiry_source_plant.
+              ADD 1 TO cs_result-next_expiry_plant_src_count.
+            WHEN zif_stock_repository=>c_expiry_source_global.
+              ADD 1 TO cs_result-next_expiry_global_src_count.
+            WHEN OTHERS.
+              ADD 1 TO cs_result-next_expiry_other_src_count.
+          ENDCASE.
+          IF is_expiry_row-unrestricted_quantity > 0.
+            cs_result-next_expiry_unrestricted_qty =
+              sum_stock_quantities(
+                iv_left_quantity  = cs_result-next_expiry_unrestricted_qty
+                iv_right_quantity = is_expiry_row-unrestricted_quantity ).
+          ENDIF.
+          IF is_expiry_row-available_quantity > 0.
+            cs_result-next_expiry_available_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-next_expiry_available_qty
+              iv_right_quantity = is_expiry_row-available_quantity ).
+          ENDIF.
+          IF is_expiry_row-quality_inspection_quantity > 0.
+            cs_result-next_expiry_quality_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-next_expiry_quality_qty
+              iv_right_quantity =
+                is_expiry_row-quality_inspection_quantity ).
+          ENDIF.
+          IF is_expiry_row-blocked_quantity > 0.
+            cs_result-next_expiry_blocked_qty = sum_stock_quantities(
+              iv_left_quantity  = cs_result-next_expiry_blocked_qty
+              iv_right_quantity = is_expiry_row-blocked_quantity ).
+          ENDIF.
+        ENDIF.
+      WHEN OTHERS.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDCASE.
   ENDMETHOD.
 
   METHOD get_expiry_exposure_uom_bulk.
@@ -15680,6 +19059,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_batch <> abap_false )
           OR ( ls_request-filter_valuation_type <> abap_true
             AND ls_request-filter_valuation_type <> abap_false )
+          OR ( ls_request-positive_available_only <> abap_true
+            AND ls_request-positive_available_only <> abap_false )
+          OR ( ls_request-filter_available_from <> abap_true
+            AND ls_request-filter_available_from <> abap_false )
+          OR ( ls_request-filter_available_to <> abap_true
+            AND ls_request-filter_available_to <> abap_false )
+          OR ( ls_request-filter_available_pct_from <> abap_true
+            AND ls_request-filter_available_pct_from <> abap_false )
+          OR ( ls_request-filter_available_pct_to <> abap_true
+            AND ls_request-filter_available_pct_to <> abap_false )
+          OR ( ls_request-filter_positive_category <> abap_true
+            AND ls_request-filter_positive_category <> abap_false )
+          OR ( ls_request-filter_category_quantity_from <> abap_true
+            AND ls_request-filter_category_quantity_from <> abap_false )
+          OR ( ls_request-filter_category_quantity_to <> abap_true
+            AND ls_request-filter_category_quantity_to <> abap_false )
+          OR ( ls_request-filter_resv_deduction_from <> abap_true
+            AND ls_request-filter_resv_deduction_from <> abap_false )
+          OR ( ls_request-filter_resv_deduction_to <> abap_true
+            AND ls_request-filter_resv_deduction_to <> abap_false )
           OR ( ls_request-filter_expiry_source <> abap_true
             AND ls_request-filter_expiry_source <> abap_false )
           OR ( ls_request-filter_expiry_status <> abap_true
@@ -15755,6 +19154,79 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ELSEIF ls_request-expiry_after_window_band IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      IF ls_request-filter_available_from = abap_false
+          AND ls_request-available_quantity_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_to = abap_false
+          AND ls_request-available_quantity_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_from = abap_true
+          AND ls_request-filter_available_to = abap_true
+          AND ls_request-available_quantity_from >
+            ls_request-available_quantity_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_from = abap_false
+          AND ls_request-available_pct_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_to = abap_false
+          AND ls_request-available_pct_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_available_pct_from = abap_true
+          AND ls_request-filter_available_pct_to = abap_true
+          AND ls_request-available_pct_from >
+            ls_request-available_pct_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_positive_category = abap_true.
+        CASE ls_request-positive_stock_category.
+          WHEN c_exp_category_unrestricted
+              OR c_exp_category_available
+              OR c_exp_category_quality
+              OR c_exp_category_blocked.
+          WHEN OTHERS.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDCASE.
+      ELSEIF ls_request-positive_stock_category IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_from = abap_false
+          AND ls_request-category_quantity_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_to = abap_false
+          AND ls_request-category_quantity_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ( ls_request-filter_category_quantity_from = abap_true
+          OR ls_request-filter_category_quantity_to = abap_true )
+          AND ls_request-filter_positive_category <> abap_true.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_category_quantity_from = abap_true
+          AND ls_request-filter_category_quantity_to = abap_true
+          AND ls_request-category_quantity_from >
+            ls_request-category_quantity_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_from = abap_false
+          AND ls_request-resv_deduction_from IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_to = abap_false
+          AND ls_request-resv_deduction_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_resv_deduction_from = abap_true
+          AND ls_request-filter_resv_deduction_to = abap_true
+          AND ls_request-resv_deduction_from >
+            ls_request-resv_deduction_to.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
       IF ls_request-filter_expiry_days_from = abap_false
           AND ls_request-expiry_days_from IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -15771,6 +19243,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-omit_undated_batch_rows <> abap_true
           AND ls_request-omit_undated_batch_rows <> abap_false.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-omit_dated_batch_rows <> abap_true
+          AND ls_request-omit_dated_batch_rows <> abap_false.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-maximum_batch_rows < 0
@@ -15796,6 +19272,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_request-batch_cursor_batch IS NOT INITIAL
           OR ls_request-batch_cursor_storage_location IS NOT INITIAL
           OR ls_request-batch_cursor_valuation_type IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-omit_dated_batch_rows = abap_true
+          AND ( ls_request-maximum_batch_rows > 0
+            OR ls_request-filter_batch_cursor = abap_true ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-maximum_undated_batch_rows < 0
@@ -16803,6 +20284,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         expiration_date_from          = ls_request-expiration_date_from
         expiration_date_to            = ls_request-expiration_date_to
         maximum_batch_rows            = ls_request-maximum_batch_rows
+        omit_dated_batch_rows         = ls_request-omit_dated_batch_rows
         maximum_uncovered_rows        = ls_request-maximum_uncovered_rows
         omit_uncovered_detail_rows    = ls_request-omit_uncovered_detail_rows
         filter_uncovered_cursor       = ls_request-filter_uncovered_cursor
@@ -17086,6 +20568,44 @@ CLASS zcl_stock_service IMPLEMENTATION.
         expiry_days_from              = ls_request-expiry_days_from
         filter_expiry_days_to         = ls_request-filter_expiry_days_to
         expiry_days_to                = ls_request-expiry_days_to
+        positive_available_only       =
+          ls_request-positive_available_only
+        filter_available_from         =
+          ls_request-filter_available_from
+        available_quantity_from       =
+          ls_request-available_quantity_from
+        filter_available_to           =
+          ls_request-filter_available_to
+        available_quantity_to         =
+          ls_request-available_quantity_to
+        filter_available_pct_from     =
+          ls_request-filter_available_pct_from
+        available_pct_from            =
+          ls_request-available_pct_from
+        filter_available_pct_to       =
+          ls_request-filter_available_pct_to
+        available_pct_to              =
+          ls_request-available_pct_to
+        filter_positive_category      =
+          ls_request-filter_positive_category
+        positive_stock_category       =
+          ls_request-positive_stock_category
+        filter_category_quantity_from =
+          ls_request-filter_category_quantity_from
+        category_quantity_from        =
+          ls_request-category_quantity_from
+        filter_category_quantity_to   =
+          ls_request-filter_category_quantity_to
+        category_quantity_to          =
+          ls_request-category_quantity_to
+        filter_resv_deduction_from    =
+          ls_request-filter_resv_deduction_from
+        resv_deduction_from           =
+          ls_request-resv_deduction_from
+        filter_resv_deduction_to      =
+          ls_request-filter_resv_deduction_to
+        resv_deduction_to             =
+          ls_request-resv_deduction_to
         excluded_reservations         = ls_request-excluded_reservations )
         TO lt_base_requests.
     ENDLOOP.
@@ -17128,6 +20648,44 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_request-expiration_date_from
           OR ls_base_result-expiration_date_to <>
             ls_request-expiration_date_to
+          OR ls_base_result-positive_available_only <>
+            ls_request-positive_available_only
+          OR ls_base_result-filter_available_from <>
+            ls_request-filter_available_from
+          OR ls_base_result-available_quantity_from <>
+            ls_request-available_quantity_from
+          OR ls_base_result-filter_available_to <>
+            ls_request-filter_available_to
+          OR ls_base_result-available_quantity_to <>
+            ls_request-available_quantity_to
+          OR ls_base_result-filter_available_pct_from <>
+            ls_request-filter_available_pct_from
+          OR ls_base_result-available_pct_from <>
+            ls_request-available_pct_from
+          OR ls_base_result-filter_available_pct_to <>
+            ls_request-filter_available_pct_to
+          OR ls_base_result-available_pct_to <>
+            ls_request-available_pct_to
+          OR ls_base_result-filter_positive_category <>
+            ls_request-filter_positive_category
+          OR ls_base_result-positive_stock_category <>
+            ls_request-positive_stock_category
+          OR ls_base_result-filter_category_quantity_from <>
+            ls_request-filter_category_quantity_from
+          OR ls_base_result-category_quantity_from <>
+            ls_request-category_quantity_from
+          OR ls_base_result-filter_category_quantity_to <>
+            ls_request-filter_category_quantity_to
+          OR ls_base_result-category_quantity_to <>
+            ls_request-category_quantity_to
+          OR ls_base_result-filter_resv_deduction_from <>
+            ls_request-filter_resv_deduction_from
+          OR ls_base_result-resv_deduction_from <>
+            ls_request-resv_deduction_from
+          OR ls_base_result-filter_resv_deduction_to <>
+            ls_request-filter_resv_deduction_to
+          OR ls_base_result-resv_deduction_to <>
+            ls_request-resv_deduction_to
           OR ls_base_result-filter_storage_location <>
             ls_request-filter_storage_location
           OR ls_base_result-storage_location <>
@@ -17168,6 +20726,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_request-expiry_days_to
           OR ls_base_result-maximum_batch_rows <>
             ls_request-maximum_batch_rows
+          OR ls_base_result-omit_dated_batch_rows <>
+            ls_request-omit_dated_batch_rows
           OR ls_base_result-maximum_uncovered_rows <>
             ls_request-maximum_uncovered_rows
           OR ls_base_result-omit_uncovered_detail_rows <>
@@ -17526,7 +21086,47 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_result-expiration_date_from =
         ls_request-expiration_date_from.
       ls_result-expiration_date_to = ls_request-expiration_date_to.
+      ls_result-positive_available_only =
+        ls_request-positive_available_only.
+      ls_result-filter_available_from =
+        ls_request-filter_available_from.
+      ls_result-available_quantity_from =
+        ls_request-available_quantity_from.
+      ls_result-filter_available_to =
+        ls_request-filter_available_to.
+      ls_result-available_quantity_to =
+        ls_request-available_quantity_to.
+      ls_result-filter_available_pct_from =
+        ls_request-filter_available_pct_from.
+      ls_result-available_pct_from =
+        ls_request-available_pct_from.
+      ls_result-filter_available_pct_to =
+        ls_request-filter_available_pct_to.
+      ls_result-available_pct_to =
+        ls_request-available_pct_to.
+      ls_result-filter_positive_category =
+        ls_request-filter_positive_category.
+      ls_result-positive_stock_category =
+        ls_request-positive_stock_category.
+      ls_result-filter_category_quantity_from =
+        ls_request-filter_category_quantity_from.
+      ls_result-category_quantity_from =
+        ls_request-category_quantity_from.
+      ls_result-filter_category_quantity_to =
+        ls_request-filter_category_quantity_to.
+      ls_result-category_quantity_to =
+        ls_request-category_quantity_to.
+      ls_result-filter_resv_deduction_from =
+        ls_request-filter_resv_deduction_from.
+      ls_result-resv_deduction_from =
+        ls_request-resv_deduction_from.
+      ls_result-filter_resv_deduction_to =
+        ls_request-filter_resv_deduction_to.
+      ls_result-resv_deduction_to =
+        ls_request-resv_deduction_to.
       ls_result-maximum_batch_rows = ls_request-maximum_batch_rows.
+      ls_result-omit_dated_batch_rows =
+        ls_request-omit_dated_batch_rows.
       ls_result-maximum_uncovered_rows =
         ls_request-maximum_uncovered_rows.
       ls_result-omit_uncovered_detail_rows =
@@ -18327,6 +21927,714 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_result-total_dated_batch_row_count.
       ls_result-returned_batch_row_count =
         ls_base_result-returned_batch_row_count.
+      ls_result-page_expired_row_count =
+        ls_base_result-page_expired_row_count.
+      ls_result-page_upcoming_row_count =
+        ls_base_result-page_upcoming_row_count.
+      ls_result-page_after_window_row_count =
+        ls_base_result-page_after_window_row_count.
+      ls_result-page_earliest_expiration_date =
+        ls_base_result-page_earliest_expiration_date.
+      ls_result-page_latest_expiration_date =
+        ls_base_result-page_latest_expiration_date.
+      ls_result-page_expiration_date_span_days =
+        ls_base_result-page_expiration_date_span_days.
+      ls_result-base_page_unrestricted_qty =
+        ls_base_result-page_unrestricted_qty.
+      ls_result-src_page_unrestricted_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-page_unrestricted_qty
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_page_available_qty =
+        ls_base_result-page_available_qty.
+      ls_result-src_page_available_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-page_available_qty
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-page_avail_pct =
+        ls_base_result-page_avail_pct.
+      ls_result-base_page_resv_deduct_qty =
+        ls_base_result-page_reservation_deduction_qty.
+      ls_result-src_page_resv_deduct_qty =
+        convert_stock_quantity(
+          iv_base_quantity = ls_base_result-page_reservation_deduction_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_page_quality_qty =
+        ls_base_result-page_quality_qty.
+      ls_result-src_page_quality_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-page_quality_qty
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_page_blocked_qty =
+        ls_base_result-page_blocked_qty.
+      ls_result-src_page_blocked_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-page_blocked_qty
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_und_page_unrestr_qty =
+        ls_base_result-undated_page_unrestricted_qty.
+      ls_result-src_und_page_unrestr_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-undated_page_unrestricted_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_und_page_avail_qty =
+        ls_base_result-undated_page_available_qty.
+      ls_result-src_und_page_avail_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-undated_page_available_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-und_page_avail_pct =
+        ls_base_result-und_page_avail_pct.
+      ls_result-base_und_page_resv_deduct_qty =
+        ls_base_result-und_page_resv_deduct_qty.
+      ls_result-src_und_page_resv_deduct_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-und_page_resv_deduct_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_und_page_quality_qty =
+        ls_base_result-undated_page_quality_qty.
+      ls_result-src_und_page_quality_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-undated_page_quality_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-base_und_page_blocked_qty =
+        ls_base_result-undated_page_blocked_qty.
+      ls_result-src_und_page_blocked_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-undated_page_blocked_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      LOOP AT ls_base_result-undated_expiry_sources
+          INTO DATA(ls_base_undated_source).
+        APPEND VALUE ty_exp_undated_source_uom(
+          source_group                   = ls_base_undated_source-source_group
+          row_count                      = ls_base_undated_source-row_count
+          row_share_pct                  = ls_base_undated_source-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_undated_source-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_undated_source-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_undated_source-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_undated_source-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_undated_source-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_undated_source-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_undated_source-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_unrestricted_qty          =
+            ls_base_undated_source-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_source-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             = ls_base_undated_source-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_undated_source-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               = ls_base_undated_source-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_undated_source-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               = ls_base_undated_source-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_undated_source-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-undated_expiry_sources.
+      ENDLOOP.
+      LOOP AT ls_base_result-undated_page_expiry_sources
+          INTO DATA(ls_base_undated_page_source).
+        APPEND VALUE ty_exp_undated_source_uom(
+          source_group                   = ls_base_undated_page_source-source_group
+          row_count                      = ls_base_undated_page_source-row_count
+          row_share_pct                  = ls_base_undated_page_source-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_undated_page_source-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_undated_page_source-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_undated_page_source-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_undated_page_source-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_undated_page_source-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_undated_page_source-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_page_source-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_unrestricted_qty          =
+            ls_base_undated_page_source-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_page_source-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_undated_page_source-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_page_source-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_undated_page_source-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_page_source-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_undated_page_source-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_undated_page_source-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-undated_page_expiry_sources.
+      ENDLOOP.
+      LOOP AT ls_base_result-expiry_sources
+          INTO DATA(ls_base_expiry_source).
+        APPEND VALUE ty_batch_exp_source_uom(
+          source_group                   = ls_base_expiry_source-source_group
+          row_count                      = ls_base_expiry_source-row_count
+          row_share_pct                  = ls_base_expiry_source-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_expiry_source-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_expiry_source-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_expiry_source-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_expiry_source-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_expiry_source-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_expiry_source-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_source-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
+            ls_base_expiry_source-first_expiration_date
+          last_expiration_date           =
+            ls_base_expiry_source-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_expiry_source-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_expiry_source-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_source-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             = ls_base_expiry_source-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_source-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               = ls_base_expiry_source-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_source-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               = ls_base_expiry_source-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_source-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-expiry_sources.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_expiry_sources
+          INTO DATA(ls_base_page_expiry_source).
+        APPEND VALUE ty_batch_exp_source_uom(
+          source_group                   = ls_base_page_expiry_source-source_group
+          row_count                      = ls_base_page_expiry_source-row_count
+          row_share_pct                  = ls_base_page_expiry_source-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_page_expiry_source-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_expiry_source-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_expiry_source-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_expiry_source-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_expiry_source-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_expiry_source-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_source-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
+            ls_base_page_expiry_source-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_expiry_source-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_expiry_source-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_expiry_source-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_expiry_source-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             = ls_base_page_expiry_source-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_expiry_source-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               = ls_base_page_expiry_source-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_expiry_source-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               = ls_base_page_expiry_source-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_expiry_source-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_expiry_sources.
+      ENDLOOP.
+      LOOP AT ls_base_result-expiry_statuses
+          INTO DATA(ls_base_expiry_status).
+        APPEND VALUE ty_batch_exp_page_status_uom(
+          expiry_status                  = ls_base_expiry_status-expiry_status
+          row_count                      = ls_base_expiry_status-row_count
+          row_share_pct                  = ls_base_expiry_status-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_expiry_status-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_expiry_status-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_expiry_status-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_expiry_status-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_expiry_status-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_expiry_status-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_status-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
+            ls_base_expiry_status-first_expiration_date
+          last_expiration_date           =
+            ls_base_expiry_status-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_expiry_status-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_expiry_status-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_status-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_expiry_status-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_status-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_expiry_status-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_status-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_expiry_status-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_expiry_status-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-expiry_statuses.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_expiry_statuses
+          INTO DATA(ls_base_page_expiry_status).
+        APPEND VALUE ty_batch_exp_page_status_uom(
+          expiry_status                  = ls_base_page_expiry_status-expiry_status
+          row_count                      = ls_base_page_expiry_status-row_count
+          row_share_pct                  = ls_base_page_expiry_status-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_page_expiry_status-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_expiry_status-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_expiry_status-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_expiry_status-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_expiry_status-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_expiry_status-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_status-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
+            ls_base_page_expiry_status-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_expiry_status-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_expiry_status-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_expiry_status-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_status-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_expiry_status-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_status-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_page_expiry_status-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_status-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_page_expiry_status-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_expiry_status-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_expiry_statuses.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_expiry_src_statuses
+          INTO DATA(ls_base_page_exp_src_status).
+        APPEND VALUE ty_batch_exp_src_status_uom(
+          source_group                   = ls_base_page_exp_src_status-source_group
+          expiry_status                  = ls_base_page_exp_src_status-expiry_status
+          row_count                      = ls_base_page_exp_src_status-row_count
+          row_share_pct                  =
+            ls_base_page_exp_src_status-row_share_pct
+          status_row_share_pct           =
+            ls_base_page_exp_src_status-status_row_share_pct
+          source_row_share_pct           =
+            ls_base_page_exp_src_status-source_row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_page_exp_src_status-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_exp_src_status-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_exp_src_status-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_exp_src_status-blocked_qty_share_pct
+          status_unrestricted_share_pct  =
+            ls_base_page_exp_src_status-status_unrestricted_share_pct
+          status_available_share_pct     =
+            ls_base_page_exp_src_status-status_available_share_pct
+          status_quality_share_pct       =
+            ls_base_page_exp_src_status-status_quality_share_pct
+          status_blocked_share_pct       =
+            ls_base_page_exp_src_status-status_blocked_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_page_exp_src_status-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_page_exp_src_status-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_page_exp_src_status-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_page_exp_src_status-source_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_exp_src_status-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_exp_src_status-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_exp_src_status-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
+            ls_base_page_exp_src_status-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_exp_src_status-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_exp_src_status-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_exp_src_status-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_exp_src_status-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_exp_src_status-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_exp_src_status-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_page_exp_src_status-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_exp_src_status-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_page_exp_src_status-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_exp_src_status-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_expiry_src_statuses.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_expiry_src_age_bands
+          INTO DATA(ls_base_page_exp_src_age).
+        APPEND VALUE ty_batch_exp_src_age_uom(
+          source_group                   = ls_base_page_exp_src_age-source_group
+          age_band                       = ls_base_page_exp_src_age-age_band
+          row_count                      = ls_base_page_exp_src_age-row_count
+          row_share_pct                  = ls_base_page_exp_src_age-row_share_pct
+          source_row_share_pct           =
+            ls_base_page_exp_src_age-source_row_share_pct
+          age_band_row_share_pct         =
+            ls_base_page_exp_src_age-age_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_page_exp_src_age-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_page_exp_src_age-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_page_exp_src_age-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_page_exp_src_age-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_page_exp_src_age-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_page_exp_src_age-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_page_exp_src_age-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_page_exp_src_age-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_exp_src_age-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_exp_src_age-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_exp_src_age-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_page_exp_src_age-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_exp_src_age-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_exp_src_age-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_exp_src_age-blocked_qty_share_pct
+          first_expiration_date          =
+            ls_base_page_exp_src_age-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_exp_src_age-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_exp_src_age-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_exp_src_age-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_exp_src_age-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_exp_src_age-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_exp_src_age-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_page_exp_src_age-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_exp_src_age-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_page_exp_src_age-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_exp_src_age-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_expiry_src_age_bands.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_upcoming_src_bands
+          INTO DATA(ls_base_page_upcoming_band).
+        APPEND VALUE ty_batch_exp_src_window_uom(
+          source_group                   = ls_base_page_upcoming_band-source_group
+          through_band                   = ls_base_page_upcoming_band-through_band
+          row_count                      = ls_base_page_upcoming_band-row_count
+          row_share_pct                  = ls_base_page_upcoming_band-row_share_pct
+          source_row_share_pct           =
+            ls_base_page_upcoming_band-source_row_share_pct
+          through_band_row_share_pct     =
+            ls_base_page_upcoming_band-through_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_page_upcoming_band-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_page_upcoming_band-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_page_upcoming_band-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_page_upcoming_band-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_page_upcoming_band-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_page_upcoming_band-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_page_upcoming_band-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_page_upcoming_band-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_upcoming_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_upcoming_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_upcoming_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_page_upcoming_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_upcoming_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_upcoming_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_upcoming_band-blocked_qty_share_pct
+          first_expiration_date          =
+            ls_base_page_upcoming_band-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_upcoming_band-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_upcoming_band-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_upcoming_band-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_upcoming_band-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_upcoming_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_upcoming_band-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_page_upcoming_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_upcoming_band-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_page_upcoming_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_upcoming_band-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_upcoming_src_bands.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_after_window_src_bands
+          INTO DATA(ls_base_page_after_window_band).
+        APPEND VALUE ty_batch_exp_src_window_uom(
+          source_group                   = ls_base_page_after_window_band-source_group
+          through_band                   = ls_base_page_after_window_band-through_band
+          row_count                      = ls_base_page_after_window_band-row_count
+          row_share_pct                  = ls_base_page_after_window_band-row_share_pct
+          source_row_share_pct           =
+            ls_base_page_after_window_band-source_row_share_pct
+          through_band_row_share_pct     =
+            ls_base_page_after_window_band-through_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_page_after_window_band-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_page_after_window_band-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_page_after_window_band-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_page_after_window_band-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_page_after_window_band-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_page_after_window_band-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_page_after_window_band-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_page_after_window_band-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_after_window_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_after_window_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_after_window_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_page_after_window_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_after_window_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_after_window_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_after_window_band-blocked_qty_share_pct
+          first_expiration_date          =
+            ls_base_page_after_window_band-first_expiration_date
+          last_expiration_date           =
+            ls_base_page_after_window_band-last_expiration_date
+          expiration_date_span_days      =
+            ls_base_page_after_window_band-expiration_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_after_window_band-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_after_window_band-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_after_window_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_after_window_band-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_page_after_window_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_after_window_band-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_page_after_window_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_after_window_band-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_after_window_src_bands.
+      ENDLOOP.
       ls_result-is_truncated = ls_base_result-is_truncated.
       ls_result-next_cursor_status =
         ls_base_result-next_cursor_status.
@@ -18976,33 +23284,71 @@ CLASS zcl_stock_service IMPLEMENTATION.
       LOOP AT ls_base_result-expiry_src_statuses
           INTO DATA(ls_base_source_status).
         APPEND VALUE ty_batch_exp_src_status_uom(
-          source_group              = ls_base_source_status-source_group
-          expiry_status             = ls_base_source_status-expiry_status
-          row_count                 = ls_base_source_status-row_count
-          first_expiration_date     =
+          source_group                   = ls_base_source_status-source_group
+          expiry_status                  = ls_base_source_status-expiry_status
+          row_count                      = ls_base_source_status-row_count
+          row_share_pct                  = ls_base_source_status-row_share_pct
+          status_row_share_pct           =
+            ls_base_source_status-status_row_share_pct
+          source_row_share_pct           =
+            ls_base_source_status-source_row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_source_status-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_source_status-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_source_status-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_source_status-blocked_qty_share_pct
+          status_unrestricted_share_pct  =
+            ls_base_source_status-status_unrestricted_share_pct
+          status_available_share_pct     =
+            ls_base_source_status-status_available_share_pct
+          status_quality_share_pct       =
+            ls_base_source_status-status_quality_share_pct
+          status_blocked_share_pct       =
+            ls_base_source_status-status_blocked_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_source_status-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_source_status-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_source_status-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_source_status-source_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_source_status-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_source_status-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_source_status-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_expiration_date          =
             ls_base_source_status-first_expiration_date
-          last_expiration_date      =
+          last_expiration_date           =
             ls_base_source_status-last_expiration_date
-          expiration_date_span_days =
+          expiration_date_span_days      =
             ls_base_source_status-expiration_date_span_days
-          base_unrestricted_qty     =
+          base_unrestricted_qty          =
             ls_base_source_status-unrestricted_qty
-          unit_unrestricted_qty     = convert_stock_quantity(
+          unit_unrestricted_qty          = convert_stock_quantity(
             iv_base_quantity = ls_base_source_status-unrestricted_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_available_qty        = ls_base_source_status-available_qty
-          unit_available_qty        = convert_stock_quantity(
+          base_available_qty             = ls_base_source_status-available_qty
+          unit_available_qty             = convert_stock_quantity(
             iv_base_quantity = ls_base_source_status-available_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_quality_qty          = ls_base_source_status-quality_qty
-          unit_quality_qty          = convert_stock_quantity(
+          base_quality_qty               = ls_base_source_status-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_status-quality_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_blocked_qty          = ls_base_source_status-blocked_qty
-          unit_blocked_qty          = convert_stock_quantity(
+          base_blocked_qty               = ls_base_source_status-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_status-blocked_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -19011,30 +23357,67 @@ CLASS zcl_stock_service IMPLEMENTATION.
       LOOP AT ls_base_result-upcoming_src_bands
           INTO DATA(ls_base_source_window).
         APPEND VALUE ty_batch_exp_src_window_uom(
-          source_group              = ls_base_source_window-source_group
-          window_band               = ls_base_source_window-window_band
-          row_count                 = ls_base_source_window-row_count
-          first_expiration_date     = ls_base_source_window-first_expiration_date
-          last_expiration_date      = ls_base_source_window-last_expiration_date
-          expiration_date_span_days =
+          source_group                   = ls_base_source_window-source_group
+          through_band                   = ls_base_source_window-through_band
+          row_count                      = ls_base_source_window-row_count
+          row_share_pct                  = ls_base_source_window-row_share_pct
+          source_row_share_pct           =
+            ls_base_source_window-source_row_share_pct
+          through_band_row_share_pct     =
+            ls_base_source_window-through_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_source_window-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_source_window-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_source_window-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_source_window-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_source_window-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_source_window-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_source_window-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_source_window-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_source_window-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_source_window-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_source_window-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_source_window-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_source_window-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_source_window-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_source_window-blocked_qty_share_pct
+          first_expiration_date          = ls_base_source_window-first_expiration_date
+          last_expiration_date           = ls_base_source_window-last_expiration_date
+          expiration_date_span_days      =
             ls_base_source_window-expiration_date_span_days
-          base_unrestricted_qty     = ls_base_source_window-unrestricted_qty
-          unit_unrestricted_qty     = convert_stock_quantity(
+          base_unrestricted_qty          = ls_base_source_window-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
             iv_base_quantity = ls_base_source_window-unrestricted_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_available_qty        = ls_base_source_window-available_qty
-          unit_available_qty        = convert_stock_quantity(
+          base_available_qty             = ls_base_source_window-available_qty
+          unit_available_qty             = convert_stock_quantity(
             iv_base_quantity = ls_base_source_window-available_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_quality_qty          = ls_base_source_window-quality_qty
-          unit_quality_qty          = convert_stock_quantity(
+          base_quality_qty               = ls_base_source_window-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_window-quality_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_blocked_qty          = ls_base_source_window-blocked_qty
-          unit_blocked_qty          = convert_stock_quantity(
+          base_blocked_qty               = ls_base_source_window-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_window-blocked_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -19043,32 +23426,69 @@ CLASS zcl_stock_service IMPLEMENTATION.
       LOOP AT ls_base_result-after_window_src_bands
           INTO DATA(ls_base_after_window_band).
         APPEND VALUE ty_batch_exp_src_window_uom(
-          source_group              = ls_base_after_window_band-source_group
-          window_band               = ls_base_after_window_band-window_band
-          row_count                 = ls_base_after_window_band-row_count
-          first_expiration_date     = ls_base_after_window_band-first_expiration_date
-          last_expiration_date      = ls_base_after_window_band-last_expiration_date
-          expiration_date_span_days =
+          source_group                   = ls_base_after_window_band-source_group
+          through_band                   = ls_base_after_window_band-through_band
+          row_count                      = ls_base_after_window_band-row_count
+          row_share_pct                  = ls_base_after_window_band-row_share_pct
+          source_row_share_pct           =
+            ls_base_after_window_band-source_row_share_pct
+          through_band_row_share_pct     =
+            ls_base_after_window_band-through_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_after_window_band-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_after_window_band-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_after_window_band-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_after_window_band-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_after_window_band-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_after_window_band-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_after_window_band-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_after_window_band-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_after_window_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_after_window_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_after_window_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_after_window_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_after_window_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_after_window_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_after_window_band-blocked_qty_share_pct
+          first_expiration_date          = ls_base_after_window_band-first_expiration_date
+          last_expiration_date           = ls_base_after_window_band-last_expiration_date
+          expiration_date_span_days      =
             ls_base_after_window_band-expiration_date_span_days
-          base_unrestricted_qty     =
+          base_unrestricted_qty          =
             ls_base_after_window_band-unrestricted_qty
-          unit_unrestricted_qty     = convert_stock_quantity(
+          unit_unrestricted_qty          = convert_stock_quantity(
             iv_base_quantity =
               ls_base_after_window_band-unrestricted_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_available_qty        = ls_base_after_window_band-available_qty
-          unit_available_qty        = convert_stock_quantity(
+          base_available_qty             = ls_base_after_window_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
             iv_base_quantity = ls_base_after_window_band-available_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_quality_qty          = ls_base_after_window_band-quality_qty
-          unit_quality_qty          = convert_stock_quantity(
+          base_quality_qty               = ls_base_after_window_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_after_window_band-quality_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_blocked_qty          = ls_base_after_window_band-blocked_qty
-          unit_blocked_qty          = convert_stock_quantity(
+          base_blocked_qty               = ls_base_after_window_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_after_window_band-blocked_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -19077,30 +23497,67 @@ CLASS zcl_stock_service IMPLEMENTATION.
       LOOP AT ls_base_result-expiry_src_age_bands
           INTO DATA(ls_base_source_age).
         APPEND VALUE ty_batch_exp_src_age_uom(
-          source_group              = ls_base_source_age-source_group
-          age_band                  = ls_base_source_age-age_band
-          row_count                 = ls_base_source_age-row_count
-          first_expiration_date     = ls_base_source_age-first_expiration_date
-          last_expiration_date      = ls_base_source_age-last_expiration_date
-          expiration_date_span_days =
+          source_group                   = ls_base_source_age-source_group
+          age_band                       = ls_base_source_age-age_band
+          row_count                      = ls_base_source_age-row_count
+          row_share_pct                  = ls_base_source_age-row_share_pct
+          source_row_share_pct           =
+            ls_base_source_age-source_row_share_pct
+          age_band_row_share_pct         =
+            ls_base_source_age-age_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_source_age-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_source_age-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_source_age-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_source_age-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_source_age-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_source_age-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_source_age-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_source_age-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_source_age-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_source_age-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_source_age-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_source_age-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_source_age-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_source_age-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_source_age-blocked_qty_share_pct
+          first_expiration_date          = ls_base_source_age-first_expiration_date
+          last_expiration_date           = ls_base_source_age-last_expiration_date
+          expiration_date_span_days      =
             ls_base_source_age-expiration_date_span_days
-          base_unrestricted_qty     = ls_base_source_age-unrestricted_qty
-          unit_unrestricted_qty     = convert_stock_quantity(
+          base_unrestricted_qty          = ls_base_source_age-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
             iv_base_quantity = ls_base_source_age-unrestricted_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_available_qty        = ls_base_source_age-available_qty
-          unit_available_qty        = convert_stock_quantity(
+          base_available_qty             = ls_base_source_age-available_qty
+          unit_available_qty             = convert_stock_quantity(
             iv_base_quantity = ls_base_source_age-available_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_quality_qty          = ls_base_source_age-quality_qty
-          unit_quality_qty          = convert_stock_quantity(
+          base_quality_qty               = ls_base_source_age-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_age-quality_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          base_blocked_qty          = ls_base_source_age-blocked_qty
-          unit_blocked_qty          = convert_stock_quantity(
+          base_blocked_qty               = ls_base_source_age-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
             iv_base_quantity = ls_base_source_age-blocked_qty
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -19135,6 +23592,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_result-first_undated_batch = ls_base_result-first_undated_batch.
       ls_result-first_undated_valuation_type =
         ls_base_result-first_undated_valuation_type.
+      ls_result-first_undated_expiry_source =
+        ls_base_result-first_undated_expiry_source.
       ls_result-base_undated_first_unrestr_qty =
         ls_base_result-first_undated_unrestr_qty.
       ls_result-base_undated_first_avail_qty =
@@ -19166,10 +23625,38 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_result-after_next_quality_qty.
       ls_result-base_after_next_blocked_qty =
         ls_base_result-after_next_blocked_qty.
+      ls_result-base_dated_unrestricted_qty =
+        ls_base_result-dated_unrestricted_quantity.
+      ls_result-base_dated_available_qty =
+        ls_base_result-dated_available_quantity.
+      ls_result-base_dated_quality_qty =
+        ls_base_result-dated_quality_quantity.
+      ls_result-base_dated_blocked_qty =
+        ls_base_result-dated_blocked_quantity.
+      ls_result-dated_avail_pct =
+        ls_base_result-dated_avail_pct.
+      ls_result-base_dated_resv_deduct_qty =
+        ls_base_result-dated_resv_deduct_qty.
+      ls_result-base_through_unrestricted_qty =
+        ls_base_result-through_unrestricted_quantity.
+      ls_result-base_through_available_qty =
+        ls_base_result-through_available_quantity.
+      ls_result-base_through_quality_qty =
+        ls_base_result-through_quality_quantity.
+      ls_result-base_through_blocked_qty =
+        ls_base_result-through_blocked_quantity.
+      ls_result-through_avail_pct =
+        ls_base_result-through_avail_pct.
+      ls_result-base_through_resv_deduct_qty =
+        ls_base_result-through_resv_deduct_qty.
       ls_result-base_undated_unrestricted_qty =
         ls_base_result-undated_unrestricted_quantity.
       ls_result-base_undated_available_qty =
         ls_base_result-undated_available_quantity.
+      ls_result-undated_avail_pct =
+        ls_base_result-undated_avail_pct.
+      ls_result-base_undated_resv_deduct_qty =
+        ls_base_result-undated_resv_deduct_qty.
       ls_result-base_undated_quality_qty =
         ls_base_result-undated_quality_quantity.
       ls_result-base_undated_blocked_qty =
@@ -19564,6 +24051,49 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_base_quantity = ls_base_result-first_expiry_blocked_qty
         iv_numerator     = ls_ratio_cache-ratio-numerator
         iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_dated_unrestricted_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-dated_unrestricted_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_dated_available_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-dated_available_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_dated_quality_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-dated_quality_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_dated_blocked_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-dated_blocked_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_dated_resv_deduct_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-dated_resv_deduct_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_through_unrestricted_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-through_unrestricted_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_through_available_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-through_available_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_through_quality_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-through_quality_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_through_blocked_qty = convert_stock_quantity(
+        iv_base_quantity = ls_base_result-through_blocked_quantity
+        iv_numerator     = ls_ratio_cache-ratio-numerator
+        iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_through_resv_deduct_qty =
+        convert_stock_quantity(
+          iv_base_quantity = ls_base_result-through_resv_deduct_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
       ls_result-src_undated_unrestricted_qty = convert_stock_quantity(
         iv_base_quantity = ls_base_result-undated_unrestricted_quantity
         iv_numerator     = ls_ratio_cache-ratio-numerator
@@ -19572,6 +24102,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_base_quantity = ls_base_result-undated_available_quantity
         iv_numerator     = ls_ratio_cache-ratio-numerator
         iv_denominator   = ls_ratio_cache-ratio-denominator ).
+      ls_result-src_undated_resv_deduct_qty =
+        convert_stock_quantity(
+          iv_base_quantity =
+            ls_base_result-undated_resv_deduct_qty
+          iv_numerator     = ls_ratio_cache-ratio-numerator
+          iv_denominator   = ls_ratio_cache-ratio-denominator ).
       ls_result-src_undated_quality_qty = convert_stock_quantity(
         iv_base_quantity = ls_base_result-undated_quality_quantity
         iv_numerator     = ls_ratio_cache-ratio-numerator
@@ -19807,22 +24343,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_denominator   = ls_ratio_cache-ratio-denominator ).
       LOOP AT ls_base_result-batches INTO DATA(ls_base_row).
         APPEND VALUE #(
-          base_row                = ls_base_row
-          base_unit               = ls_ratio_cache-ratio-base_unit
-          unit                    = ls_request-unit
-          source_unrestricted_qty = convert_stock_quantity(
+          base_row                      = ls_base_row
+          base_unit                     = ls_ratio_cache-ratio-base_unit
+          unit                          = ls_request-unit
+          source_unrestricted_qty       = convert_stock_quantity(
             iv_base_quantity = ls_base_row-unrestricted_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_available_qty    = convert_stock_quantity(
+          source_available_qty          = convert_stock_quantity(
             iv_base_quantity = ls_base_row-available_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_quality_qty      = convert_stock_quantity(
+          available_pct_of_unrestricted =
+            ls_base_row-available_pct_of_unrestricted
+          source_resv_deduction_qty     = convert_stock_quantity(
+            iv_base_quantity = ls_base_row-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          source_quality_qty            = convert_stock_quantity(
             iv_base_quantity = ls_base_row-quality_inspection_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_blocked_qty      = convert_stock_quantity(
+          source_blocked_qty            = convert_stock_quantity(
             iv_base_quantity = ls_base_row-blocked_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -19830,23 +24372,30 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
       LOOP AT ls_base_result-undated_batches INTO DATA(ls_undated_base_row).
         APPEND VALUE #(
-          base_row                = ls_undated_base_row
-          base_unit               = ls_ratio_cache-ratio-base_unit
-          unit                    = ls_request-unit
-          source_unrestricted_qty = convert_stock_quantity(
+          base_row                      = ls_undated_base_row
+          base_unit                     = ls_ratio_cache-ratio-base_unit
+          unit                          = ls_request-unit
+          source_unrestricted_qty       = convert_stock_quantity(
             iv_base_quantity = ls_undated_base_row-unrestricted_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_available_qty    = convert_stock_quantity(
+          source_available_qty          = convert_stock_quantity(
             iv_base_quantity = ls_undated_base_row-available_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_quality_qty      = convert_stock_quantity(
+          available_pct_of_unrestricted =
+            ls_undated_base_row-available_pct_of_unrestricted
+          source_resv_deduction_qty     = convert_stock_quantity(
+            iv_base_quantity =
+              ls_undated_base_row-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          source_quality_qty            = convert_stock_quantity(
             iv_base_quantity =
               ls_undated_base_row-quality_inspection_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator )
-          source_blocked_qty      = convert_stock_quantity(
+          source_blocked_qty            = convert_stock_quantity(
             iv_base_quantity = ls_undated_base_row-blocked_quantity
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
@@ -20174,6 +24723,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-valuation_type IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -20251,7 +24802,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         WITH TABLE KEY table_line = ls_demand-request_id.
       IF sy-subrc = 0 AND ls_demand-storage_location IS NOT INITIAL
           AND NOT line_exists( lt_request_location_set[
-            request_id = ls_demand-request_id
+            request_id       = ls_demand-request_id
             storage_location = ls_demand-storage_location ] ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -20341,8 +24892,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDIF.
       ENDIF.
       IF NOT line_exists( it_demands[
-          material = ls_projected_receipt-material
-          plant = ls_projected_receipt-plant
+          material       = ls_projected_receipt-material
+          plant          = ls_projected_receipt-plant
           valuation_type = ls_projected_receipt-valuation_type ] ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -20712,7 +25263,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         READ TABLE lt_scoped_request_ids TRANSPORTING NO FIELDS
           WITH TABLE KEY table_line = ls_demand-request_id.
         IF sy-subrc = 0 AND NOT line_exists( lt_request_location_set[
-            request_id = ls_demand-request_id
+            request_id       = ls_demand-request_id
             storage_location = ls_balance-storage_location ] ).
           CONTINUE.
         ENDIF.
@@ -20721,7 +25272,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         IF sy-subrc = 0 AND NOT line_exists(
             lt_request_batch_candidate_set[
               request_id = ls_demand-request_id
-              batch = ls_balance-batch ] ).
+              batch      = ls_balance-batch ] ).
           CONTINUE.
         ENDIF.
         lv_proj_src_allowed = abap_true.
@@ -20857,7 +25408,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
         minimum_shelf_life_days      = ls_demand-minimum_shelf_life_days
         require_known_expiry         = ls_demand-require_known_expiry
         allow_undated_batches        = ls_demand-allow_undated_batches
-        include_undated_batches      = lv_include_undated_for_demand ).
+        include_undated_batches      = lv_include_undated_for_demand
+        minimum_coverage_pct         = ls_demand-minimum_coverage_pct ).
+      IF CONV decfloat34( lv_available_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_demand-requested_quantity )
+            * CONV decfloat34( ls_demand-minimum_coverage_pct ).
+        ls_allocation-shortfall_quantity = ls_demand-requested_quantity.
+        APPEND ls_allocation TO rs_result-allocations.
+        CONTINUE.
+      ENDIF.
       IF lv_effective_full_quantity = abap_true
           AND ls_demand-requested_quantity > lv_available_quantity.
         ls_allocation-shortfall_quantity = ls_demand-requested_quantity.
@@ -20944,7 +25504,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           READ TABLE lt_scoped_request_ids TRANSPORTING NO FIELDS
             WITH TABLE KEY table_line = ls_demand-request_id.
           IF sy-subrc = 0 AND NOT line_exists( lt_request_location_set[
-              request_id = ls_demand-request_id
+              request_id       = ls_demand-request_id
               storage_location =
                 ls_request_priority-storage_location ] ).
             CONTINUE.
@@ -20967,7 +25527,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             READ TABLE lt_scoped_request_ids TRANSPORTING NO FIELDS
               WITH TABLE KEY table_line = ls_demand-request_id.
             IF sy-subrc = 0 AND NOT line_exists( lt_request_location_set[
-                request_id = ls_demand-request_id
+                request_id       = ls_demand-request_id
                 storage_location = lv_priority_location ] ).
               CONTINUE.
             ENDIF.
@@ -20989,7 +25549,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           READ TABLE lt_scoped_request_ids TRANSPORTING NO FIELDS
             WITH TABLE KEY table_line = ls_demand-request_id.
           IF sy-subrc = 0 AND NOT line_exists( lt_request_location_set[
-              request_id = ls_demand-request_id
+              request_id       = ls_demand-request_id
               storage_location =
                 ls_ordered_balance-storage_location ] ).
             CONTINUE.
@@ -21019,7 +25579,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           IF sy-subrc = 0 AND NOT line_exists(
               lt_request_batch_candidate_set[
                 request_id = ls_demand-request_id
-                batch = <ls_balance>-batch ] ).
+                batch      = <ls_balance>-batch ] ).
             CONTINUE.
           ENDIF.
           IF <ls_balance>-is_projected_receipt = abap_true.
@@ -21208,6 +25768,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-valuation_type IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -21394,7 +25956,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         WITH TABLE KEY table_line = ls_demand-request_id.
       IF sy-subrc = 0 AND ls_demand-storage_location IS NOT INITIAL
           AND NOT line_exists( lt_request_location_set[
-            request_id = ls_demand-request_id
+            request_id       = ls_demand-request_id
             storage_location = ls_demand-storage_location ] ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
@@ -21430,6 +25992,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         storage_location        = ls_demand-storage_location
         priority                = ls_demand-priority
         requested_quantity      = lv_base_quantity
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct
         require_full_quantity   = ls_demand-require_full_quantity
         as_of_date              = ls_demand-as_of_date
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
@@ -22741,10 +27304,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
         AND iv_require_full_quantity <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
+    IF iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
     DATA(lt_demands) = VALUE ty_demands(
-      ( material           = iv_material
-        plant              = iv_plant
-        requested_quantity = iv_requested_quantity ) ).
+      ( material             = iv_material
+        plant                = iv_plant
+        requested_quantity   = iv_requested_quantity
+        minimum_coverage_pct = iv_minimum_coverage_pct ) ).
     DATA(lt_allocations) = allocate_demands(
       it_demands               = lt_demands
       it_excluded_reservations = it_excluded_reservations
@@ -22782,7 +27350,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         OR ( iv_protect_safety_stock <> abap_true
           AND iv_protect_safety_stock <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
-          AND iv_require_full_quantity <> abap_false ).
+          AND iv_require_full_quantity <> abap_false )
+        OR iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     validate_date( iv_date = iv_required_date ).
@@ -22804,6 +27374,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     rs_allocation-plant = iv_plant.
     rs_allocation-required_date = iv_required_date.
     rs_allocation-requested_quantity = iv_requested_quantity.
+    rs_allocation-minimum_coverage_pct = iv_minimum_coverage_pct.
     rs_allocation-available_quantity =
       mo_stock_repository->get_available_stock_by_date(
         iv_material                    = iv_material
@@ -22855,6 +27426,22 @@ CLASS zcl_stock_service IMPLEMENTATION.
       rs_allocation-shortfall_quantity = iv_requested_quantity
         - rs_allocation-allocated_quantity.
     ENDIF.
+    IF CONV decfloat34( rs_allocation-allocated_quantity )
+        * CONV decfloat34( 100 )
+        < CONV decfloat34( iv_requested_quantity )
+          * CONV decfloat34( iv_minimum_coverage_pct ).
+      CLEAR rs_allocation-allocated_quantity.
+      rs_allocation-shortfall_quantity = iv_requested_quantity.
+    ENDIF.
+    rs_allocation-allocation_outcome = COND #(
+      WHEN rs_allocation-allocated_quantity = iv_requested_quantity
+        THEN zif_stock_repository=>c_allocation_outcome_full
+      WHEN rs_allocation-allocated_quantity > 0
+        THEN zif_stock_repository=>c_allocation_outcome_partial
+      ELSE zif_stock_repository=>c_allocation_outcome_none ).
+    rs_allocation-allocation_coverage_pct = calculate_coverage_pct(
+      iv_requested_quantity = rs_allocation-requested_quantity
+      iv_allocated_quantity = rs_allocation-allocated_quantity ).
   ENDMETHOD.
 
   METHOD allocate_demands_by_date.
@@ -22937,7 +27524,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_dated_input-required_date IS INITIAL
           OR ls_dated_input-requested_quantity < 0
           OR ( ls_dated_input-require_full_quantity <> abap_true
-            AND ls_dated_input-require_full_quantity <> abap_false ).
+            AND ls_dated_input-require_full_quantity <> abap_false )
+          OR ls_dated_input-minimum_coverage_pct < 0
+          OR ls_dated_input-minimum_coverage_pct > 100.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       validate_date( iv_date = ls_dated_input-required_date ).
@@ -22958,7 +27547,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         required_date         = ls_dated_input-required_date
         priority              = ls_dated_input-priority
         requested_quantity    = ls_dated_input-requested_quantity
-        require_full_quantity = ls_dated_input-require_full_quantity )
+        require_full_quantity = ls_dated_input-require_full_quantity
+        minimum_coverage_pct  = ls_dated_input-minimum_coverage_pct )
         TO lt_demand_indexes.
 
       READ TABLE lt_stock_cache TRANSPORTING NO FIELDS
@@ -23188,19 +27778,37 @@ CLASS zcl_stock_service IMPLEMENTATION.
         WHEN ls_dated_demand-requested_quantity < lv_remaining_quantity
         THEN ls_dated_demand-requested_quantity
         ELSE lv_remaining_quantity ).
+      IF CONV decfloat34( lv_allocated_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_dated_demand-requested_quantity )
+            * CONV decfloat34( ls_dated_demand-minimum_coverage_pct ).
+        CLEAR lv_allocated_quantity.
+      ENDIF.
       APPEND VALUE #(
         source_index = ls_dated_demand-source_index
         allocation   = VALUE #(
-          request_id         = ls_dated_demand-request_id
-          material           = ls_dated_demand-material
-          plant              = ls_dated_demand-plant
-          required_date      = ls_dated_demand-required_date
-          priority           = ls_dated_demand-priority
-          requested_quantity = ls_dated_demand-requested_quantity
-          available_quantity = lv_remaining_quantity
-          allocated_quantity = lv_allocated_quantity
-          shortfall_quantity = ls_dated_demand-requested_quantity
-            - lv_allocated_quantity ) ) TO lt_indexed_allocations.
+          request_id              = ls_dated_demand-request_id
+          material                = ls_dated_demand-material
+          plant                   = ls_dated_demand-plant
+          required_date           = ls_dated_demand-required_date
+          priority                = ls_dated_demand-priority
+          requested_quantity      = ls_dated_demand-requested_quantity
+          available_quantity      = lv_remaining_quantity
+          allocated_quantity      = lv_allocated_quantity
+          shortfall_quantity      = ls_dated_demand-requested_quantity
+            - lv_allocated_quantity
+          minimum_coverage_pct    = ls_dated_demand-minimum_coverage_pct
+          allocation_outcome      = COND #(
+            WHEN lv_allocated_quantity =
+                ls_dated_demand-requested_quantity
+              THEN zif_stock_repository=>c_allocation_outcome_full
+            WHEN lv_allocated_quantity > 0
+              THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none )
+          allocation_coverage_pct = calculate_coverage_pct(
+            iv_requested_quantity = ls_dated_demand-requested_quantity
+            iv_allocated_quantity = lv_allocated_quantity ) ) )
+        TO lt_indexed_allocations.
       <ls_allocated_balance>-allocated_quantity = sum_stock_quantities(
         iv_left_quantity  = <ls_allocated_balance>-allocated_quantity
         iv_right_quantity = lv_allocated_quantity ).
@@ -23253,7 +27861,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_input-requested_unit IS INITIAL
           OR ls_input-requested_quantity < 0
           OR ( ls_input-require_full_quantity <> abap_true
-            AND ls_input-require_full_quantity <> abap_false ).
+            AND ls_input-require_full_quantity <> abap_false )
+          OR ls_input-minimum_coverage_pct < 0
+          OR ls_input-minimum_coverage_pct > 100.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       validate_date( iv_date = ls_input-required_date ).
@@ -23310,7 +27920,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         required_date         = ls_input-required_date
         priority              = ls_input-priority
         requested_quantity    = lv_base_quantity
-        require_full_quantity = ls_input-require_full_quantity )
+        require_full_quantity = ls_input-require_full_quantity
+        minimum_coverage_pct  = ls_input-minimum_coverage_pct )
         TO lt_base_demands.
     ENDLOOP.
 
@@ -23516,7 +28127,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         OR ( iv_protect_safety_stock <> abap_true
           AND iv_protect_safety_stock <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
-          AND iv_require_full_quantity <> abap_false ).
+          AND iv_require_full_quantity <> abap_false )
+        OR iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
     validate_date( iv_date = iv_required_date ).
@@ -23551,7 +28164,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         iv_include_fixed_planned
       iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
       iv_protect_safety_stock        = iv_protect_safety_stock
-      iv_require_full_quantity       = iv_require_full_quantity ).
+      iv_require_full_quantity       = iv_require_full_quantity
+      iv_minimum_coverage_pct        = iv_minimum_coverage_pct ).
 
     rs_result-atp_result = check_atp_request(
       is_request = VALUE #(
@@ -23604,7 +28218,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         OR ( iv_protect_safety_stock <> abap_true
           AND iv_protect_safety_stock <> abap_false )
         OR ( iv_require_full_quantity <> abap_true
-          AND iv_require_full_quantity <> abap_false ).
+          AND iv_require_full_quantity <> abap_false )
+        OR iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
     ENDIF.
 
@@ -23639,7 +28255,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       iv_requested_quantity    = ls_conversion-base_quantity
       it_excluded_reservations = it_excluded_reservations
       iv_protect_safety_stock  = iv_protect_safety_stock
-      iv_require_full_quantity = iv_require_full_quantity ).
+      iv_require_full_quantity = iv_require_full_quantity
+      iv_minimum_coverage_pct  = iv_minimum_coverage_pct ).
     rs_result-source_quantity = iv_requested_quantity.
     rs_result-source_unit = iv_requested_unit.
     rs_result-base_quantity = ls_conversion-base_quantity.
@@ -23677,6 +28294,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -23716,7 +28335,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material              = ls_demand-material
         plant                 = ls_demand-plant
         requested_quantity    = lv_base_quantity
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       APPEND VALUE #(
         allocation      = VALUE #(
@@ -23750,6 +28370,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
       WITH UNIQUE KEY reservation_number reservation_item.
     DATA ls_stock_balance TYPE ty_stock_balance.
     DATA ls_allocation TYPE ty_allocation.
+    DATA lv_candidate_quantity TYPE mard-labst.
     FIELD-SYMBOLS <ls_stock_balance> TYPE ty_stock_balance.
 
     IF ( iv_require_full_quantity <> abap_true
@@ -23771,6 +28392,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
     LOOP AT it_demands INTO DATA(ls_demand).
       IF ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -23804,6 +28427,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-plant = ls_demand-plant.
       ls_allocation-requested_quantity = ls_demand-requested_quantity.
       ls_allocation-available_quantity = <ls_stock_balance>-remaining_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
 
       IF ( iv_require_full_quantity = abap_true
             OR ls_demand-require_full_quantity = abap_true )
@@ -23813,18 +28438,37 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ELSE.
         IF ls_demand-requested_quantity <
             <ls_stock_balance>-remaining_quantity.
-          ls_allocation-allocated_quantity = ls_demand-requested_quantity.
+          lv_candidate_quantity = ls_demand-requested_quantity.
         ELSE.
-          ls_allocation-allocated_quantity =
+          lv_candidate_quantity =
             <ls_stock_balance>-remaining_quantity.
         ENDIF.
-
-        ls_allocation-shortfall_quantity = ls_demand-requested_quantity
-          - ls_allocation-allocated_quantity.
-        <ls_stock_balance>-remaining_quantity =
-          <ls_stock_balance>-remaining_quantity
-          - ls_allocation-allocated_quantity.
+        IF CONV decfloat34( lv_candidate_quantity )
+            * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_demand-requested_quantity )
+              * CONV decfloat34( ls_demand-minimum_coverage_pct ).
+          ls_allocation-shortfall_quantity =
+            ls_demand-requested_quantity.
+        ELSE.
+          ls_allocation-allocated_quantity = lv_candidate_quantity.
+          ls_allocation-shortfall_quantity = ls_demand-requested_quantity
+            - ls_allocation-allocated_quantity.
+          <ls_stock_balance>-remaining_quantity =
+            <ls_stock_balance>-remaining_quantity
+            - ls_allocation-allocated_quantity.
+        ENDIF.
       ENDIF.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_demand-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rt_allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -23857,6 +28501,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_input_demand-material IS INITIAL
           OR ls_input_demand-plant IS INITIAL
           OR ls_input_demand-requested_quantity < 0
+          OR ls_input_demand-minimum_coverage_pct < 0
+          OR ls_input_demand-minimum_coverage_pct > 100
           OR ( ls_input_demand-require_full_quantity <> abap_true
             AND ls_input_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -23882,7 +28528,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         requested_quantity    =
           ls_indexed_demand-demand-requested_quantity
         require_full_quantity =
-          ls_indexed_demand-demand-require_full_quantity )
+          ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct  =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -23939,6 +28587,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_input_demand-plant IS INITIAL
           OR ls_input_demand-requested_unit IS INITIAL
           OR ls_input_demand-requested_quantity < 0
+          OR ls_input_demand-minimum_coverage_pct < 0
+          OR ls_input_demand-minimum_coverage_pct > 100
           OR ( ls_input_demand-require_full_quantity <> abap_true
             AND ls_input_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -23965,7 +28615,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-requested_quantity
         requested_unit        = ls_indexed_demand-demand-requested_unit
         require_full_quantity =
-          ls_indexed_demand-demand-require_full_quantity )
+          ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct  =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -24138,6 +28790,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-material IS INITIAL
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days <> 0
@@ -24533,7 +29187,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF ls_demand-requested_quantity > 0
           AND ( ( iv_require_full_quantity = abap_false
                 AND ls_demand-require_full_quantity = abap_false )
-            OR ls_demand-requested_quantity <= lv_available_quantity ).
+            OR ls_demand-requested_quantity <= lv_available_quantity )
+          AND CONV decfloat34( lv_available_quantity )
+              * CONV decfloat34( 100 )
+            >= CONV decfloat34( ls_demand-requested_quantity )
+              * CONV decfloat34( ls_demand-minimum_coverage_pct ).
         LOOP AT it_sources INTO ls_source
           WHERE request_id = ls_demand-request_id.
           IF lv_remaining_quantity <= 0.
@@ -24763,6 +29421,19 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity = ls_demand-requested_quantity
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -24794,6 +29465,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         target_plant            = ls_priority_demand-target_plant
         requested_quantity      = ls_priority_demand-requested_quantity
         require_full_quantity   = ls_priority_demand-require_full_quantity
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct
         minimum_shelf_life_days =
           ls_priority_demand-minimum_shelf_life_days )
         TO lt_base_demands.
@@ -24857,6 +29530,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
     LOOP AT it_demands INTO DATA(ls_demand).
       lv_input_index = sy-tabix.
       IF ls_demand-request_id IS INITIAL
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -24893,7 +29568,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         target_plant          = ls_work-demand-target_plant
         requested_quantity    = ls_work-demand-requested_quantity
         require_full_quantity =
-          ls_work-demand-require_full_quantity )
+          ls_work-demand-require_full_quantity
+        minimum_coverage_pct  =
+          ls_work-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -24921,15 +29598,20 @@ CLASS zcl_stock_service IMPLEMENTATION.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       APPEND VALUE #(
-        request_id         = ls_local_allocation-request_id
-        material           = ls_local_allocation-material
-        target_plant       = ls_local_allocation-target_plant
-        required_date      = ls_demand-required_date
-        priority           = ls_demand-priority
-        requested_quantity = ls_local_allocation-requested_quantity
-        available_quantity = ls_local_allocation-available_quantity
-        allocated_quantity = ls_local_allocation-allocated_quantity
-        shortfall_quantity = ls_local_allocation-shortfall_quantity )
+        request_id              = ls_local_allocation-request_id
+        material                = ls_local_allocation-material
+        target_plant            = ls_local_allocation-target_plant
+        required_date           = ls_demand-required_date
+        priority                = ls_demand-priority
+        requested_quantity      = ls_local_allocation-requested_quantity
+        available_quantity      = ls_local_allocation-available_quantity
+        allocated_quantity      = ls_local_allocation-allocated_quantity
+        shortfall_quantity      = ls_local_allocation-shortfall_quantity
+        minimum_coverage_pct    =
+          ls_local_allocation-minimum_coverage_pct
+        allocation_outcome      = ls_local_allocation-allocation_outcome
+        allocation_coverage_pct =
+          ls_local_allocation-allocation_coverage_pct )
         TO rs_result-allocations.
     ENDLOOP.
 
@@ -25023,6 +29705,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -25144,7 +29828,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         required_date         = ls_demand-required_date
         priority              = ls_demand-priority
         requested_quantity    = lv_base_quantity
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
 
       CLEAR ls_context.
@@ -25322,6 +30007,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days <> 0
@@ -25349,7 +30036,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         required_date         = ls_demand-required_date
         priority              = ls_demand-priority
         requested_quantity    = ls_demand-requested_quantity
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_demand_indexes.
     ENDLOOP.
 
@@ -25637,7 +30325,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF ls_demand_index-requested_quantity > 0
           AND ( ( iv_require_full_quantity = abap_false
               AND ls_demand_index-require_full_quantity = abap_false )
-            OR ls_demand_index-requested_quantity <= lv_available_quantity ).
+            OR ls_demand_index-requested_quantity <= lv_available_quantity )
+          AND CONV decfloat34( lv_available_quantity )
+              * CONV decfloat34( 100 )
+            >= CONV decfloat34( ls_demand_index-requested_quantity )
+              * CONV decfloat34( ls_demand_index-minimum_coverage_pct ).
         LOOP AT lt_demand_source_balances INTO DATA(ls_source_balance).
           IF lv_remaining_quantity <= 0.
             EXIT.
@@ -25679,16 +30371,31 @@ CLASS zcl_stock_service IMPLEMENTATION.
       APPEND VALUE #(
         source_index = ls_demand_index-source_index
         allocation   = VALUE #(
-          request_id         = ls_demand_index-request_id
-          material           = ls_demand_index-material
-          target_plant       = ls_demand_index-target_plant
-          required_date      = ls_demand_index-required_date
-          priority           = ls_demand_index-priority
-          requested_quantity = ls_demand_index-requested_quantity
-          available_quantity = lv_available_quantity
-          allocated_quantity = ls_demand_index-requested_quantity
+          request_id              = ls_demand_index-request_id
+          material                = ls_demand_index-material
+          target_plant            = ls_demand_index-target_plant
+          required_date           = ls_demand_index-required_date
+          priority                = ls_demand_index-priority
+          requested_quantity      = ls_demand_index-requested_quantity
+          available_quantity      = lv_available_quantity
+          minimum_coverage_pct    =
+            ls_demand_index-minimum_coverage_pct
+          allocated_quantity      = ls_demand_index-requested_quantity
             - lv_remaining_quantity
-          shortfall_quantity = lv_remaining_quantity ) )
+          shortfall_quantity      = lv_remaining_quantity
+          allocation_outcome      = COND #(
+            WHEN ls_demand_index-requested_quantity
+                - lv_remaining_quantity =
+                ls_demand_index-requested_quantity
+              THEN zif_stock_repository=>c_allocation_outcome_full
+            WHEN ls_demand_index-requested_quantity
+                - lv_remaining_quantity > 0
+              THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none )
+          allocation_coverage_pct = calculate_coverage_pct(
+            iv_requested_quantity = ls_demand_index-requested_quantity
+            iv_allocated_quantity = ls_demand_index-requested_quantity
+              - lv_remaining_quantity ) ) )
         TO lt_indexed_allocations.
     ENDLOOP.
 
@@ -25745,6 +30452,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days <> 0
@@ -25806,7 +30515,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         required_date         = ls_demand-required_date
         priority              = ls_demand-priority
         requested_quantity    = lv_base_quantity
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
 
       CLEAR ls_context.
@@ -26176,6 +30886,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD calculate_coverage_pct.
+    CLEAR rv_coverage_pct.
+    IF iv_requested_quantity > 0.
+      rv_coverage_pct = CONV ty_allocation_coverage_pct(
+        CONV decfloat34( iv_allocated_quantity )
+        * CONV decfloat34( 100 )
+        / CONV decfloat34( iv_requested_quantity ) ).
+    ENDIF.
+  ENDMETHOD.
+
   METHOD allocate_plants_by_expiry.
     DATA lt_request_ids TYPE ty_plant_request_ids.
     DATA lt_loc_prio_req_ids TYPE
@@ -26243,6 +30963,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-material IS INITIAL
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -26407,6 +31129,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_demand-require_known_expiry.
       ls_allocation-allow_undated_batches =
         ls_demand-allow_undated_batches.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
       lv_effective_min_days = iv_min_days.
       IF ls_demand-minimum_shelf_life_days > lv_effective_min_days.
         lv_effective_min_days = ls_demand-minimum_shelf_life_days.
@@ -26729,6 +31453,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
         source_plant source_schedule_line.
 
       IF ls_demand-requested_quantity > 0
+          AND ( ls_demand-minimum_coverage_pct = 0
+            OR CONV decfloat34( lv_available_quantity )
+                * CONV decfloat34( 100 )
+              >= CONV decfloat34( ls_demand-requested_quantity )
+                * CONV decfloat34( ls_demand-minimum_coverage_pct ) )
           AND ( ( iv_require_full_quantity = abap_false
                 AND ls_demand-require_full_quantity = abap_false )
             OR ls_demand-requested_quantity <= lv_available_quantity ).
@@ -26843,6 +31572,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
               <ls_fefo_balance>-source_plant.
             ls_batch_allocation-source_schedule_line =
               <ls_fefo_balance>-source_schedule_line.
+            ls_batch_allocation-minimum_coverage_pct =
+              ls_demand-minimum_coverage_pct.
             ls_batch_allocation-available_quantity =
               <ls_fefo_balance>-remaining_quantity.
             ls_batch_allocation-allocated_quantity =
@@ -26870,6 +31601,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity = ls_demand-requested_quantity
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -26972,6 +31714,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -27006,7 +31750,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_full_quantity   = ls_demand-require_full_quantity
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_demand_indexes.
     ENDLOOP.
 
@@ -27542,8 +32287,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
         source_plant source_schedule_line.
 
       lv_remaining_quantity = ls_demand_index-requested_quantity.
-      LOOP AT it_sources INTO ls_source
-        WHERE request_id = ls_demand_index-request_id.
+      IF ls_demand_index-requested_quantity > 0
+          AND ( ls_demand_index-minimum_coverage_pct = 0
+            OR CONV decfloat34( lv_available_quantity )
+                * CONV decfloat34( 100 )
+              >= CONV decfloat34( ls_demand_index-requested_quantity )
+                * CONV decfloat34(
+                  ls_demand_index-minimum_coverage_pct ) ).
+        LOOP AT it_sources INTO ls_source
+          WHERE request_id = ls_demand_index-request_id.
         IF ( iv_require_full_quantity = abap_true
               OR ls_demand_index-require_full_quantity = abap_true )
             AND ls_demand_index-requested_quantity > lv_available_quantity.
@@ -27643,6 +32395,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             <ls_fefo_balance>-source_plant.
           ls_batch_allocation-source_schedule_line =
             <ls_fefo_balance>-source_schedule_line.
+          ls_batch_allocation-minimum_coverage_pct =
+            ls_demand_index-minimum_coverage_pct.
           ls_batch_allocation-available_quantity =
             <ls_fefo_balance>-remaining_quantity.
           ls_batch_allocation-allocated_quantity = lv_allocated_quantity.
@@ -27677,7 +32431,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         IF lv_remaining_quantity <= 0.
           EXIT.
         ENDIF.
-      ENDLOOP.
+        ENDLOOP.
+      ENDIF.
 
       CLEAR ls_allocation.
       ls_allocation-request_id = ls_demand_index-request_id.
@@ -27689,12 +32444,25 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_demand_index-require_known_expiry.
       ls_allocation-allow_undated_batches =
         ls_demand_index-allow_undated_batches.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand_index-minimum_coverage_pct.
       ls_allocation-requested_quantity =
         ls_demand_index-requested_quantity.
       ls_allocation-available_quantity = lv_available_quantity.
       ls_allocation-allocated_quantity =
         ls_demand_index-requested_quantity - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND VALUE #(
         source_index = ls_demand_index-source_index
         allocation   = ls_allocation ) TO lt_indexed_allocations.
@@ -27753,6 +32521,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -27860,7 +32630,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_full_quantity   = ls_demand-require_full_quantity
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
 
       CLEAR ls_context.
@@ -28224,6 +32995,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-batch IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -28403,6 +33176,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_demand-require_known_expiry.
       ls_allocation-allow_undated_batches =
         ls_demand-allow_undated_batches.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
       lv_include_undated_for_demand = iv_include_undated_batches.
       IF ls_demand-allow_undated_batches = abap_true.
         lv_include_undated_for_demand = abap_true.
@@ -28687,6 +33462,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       IF ls_demand-requested_quantity > 0
+          AND ( ls_demand-minimum_coverage_pct = 0
+            OR CONV decfloat34( lv_available_quantity )
+                * CONV decfloat34( 100 )
+              >= CONV decfloat34( ls_demand-requested_quantity )
+                * CONV decfloat34( ls_demand-minimum_coverage_pct ) )
           AND ( ( iv_require_full_quantity = abap_false
               AND ls_demand-require_full_quantity = abap_false )
             OR ls_demand-requested_quantity <= lv_available_quantity ).
@@ -28986,6 +33766,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-allocated_quantity = ls_demand-requested_quantity
         - lv_remaining_quantity.
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -29044,6 +33835,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-batch IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-require_known_expiry <> abap_true
             AND ls_demand-require_known_expiry <> abap_false )
@@ -29081,7 +33874,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           requested_quantity      = ls_demand-requested_quantity
           require_full_quantity   = ls_demand-require_full_quantity
           require_known_expiry    = ls_demand-require_known_expiry
-          allow_undated_batches   = ls_demand-allow_undated_batches ) )
+          allow_undated_batches   = ls_demand-allow_undated_batches
+          minimum_coverage_pct    = ls_demand-minimum_coverage_pct ) )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -29129,6 +33923,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_allocation-require_known_expiry.
       ls_date_demand_allocation-allow_undated_batches =
         ls_base_allocation-allow_undated_batches.
+      ls_date_demand_allocation-minimum_coverage_pct =
+        ls_base_allocation-minimum_coverage_pct.
       ls_date_demand_allocation-requested_quantity =
         ls_base_allocation-requested_quantity.
       ls_date_demand_allocation-available_quantity =
@@ -29137,6 +33933,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_allocation-allocated_quantity.
       ls_date_demand_allocation-shortfall_quantity =
         ls_base_allocation-shortfall_quantity.
+      ls_date_demand_allocation-allocation_outcome =
+        ls_base_allocation-allocation_outcome.
+      ls_date_demand_allocation-allocation_coverage_pct =
+        ls_base_allocation-allocation_coverage_pct.
       APPEND ls_date_demand_allocation TO rs_result-allocations.
     ENDLOOP.
 
@@ -29309,6 +34109,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-batch IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
@@ -29364,7 +34166,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         requested_quantity      = lv_base_quantity
         require_full_quantity   = ls_demand-require_full_quantity
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
 
       CLEAR ls_context.
@@ -29682,6 +34485,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-batch IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
@@ -29732,7 +34537,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         requested_quantity      = lv_base_quantity
         require_full_quantity   = ls_demand-require_full_quantity
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       CLEAR ls_context.
       ls_context-request_id = ls_demand-request_id.
@@ -29893,6 +34699,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days <> 0
@@ -29929,7 +34737,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         material              = ls_demand-material
         target_plant          = ls_demand-target_plant
         requested_quantity    = lv_base_quantity
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       CLEAR ls_context.
       ls_context-request_id = ls_demand-request_id.
@@ -30067,6 +34876,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_input_demand-target_plant IS INITIAL
           OR ls_input_demand-requested_unit IS INITIAL
           OR ls_input_demand-requested_quantity < 0
+          OR ls_input_demand-minimum_coverage_pct < 0
+          OR ls_input_demand-minimum_coverage_pct > 100
           OR ( ls_input_demand-require_full_quantity <> abap_true
             AND ls_input_demand-require_full_quantity <> abap_false )
           OR ls_input_demand-minimum_shelf_life_days <> 0.
@@ -30127,6 +34938,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         target_plant            = ls_priority_demand-target_plant
         requested_quantity      = lv_base_quantity
         require_full_quantity   = ls_priority_demand-require_full_quantity
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct
         minimum_shelf_life_days =
           ls_priority_demand-minimum_shelf_life_days )
         TO lt_base_demands.
@@ -30525,7 +35338,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_full_quantity   = ls_priority_demand-require_full_quantity
         require_known_expiry    = ls_priority_demand-require_known_expiry
         allow_undated_batches   =
-          ls_priority_demand-allow_undated_batches )
+          ls_priority_demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct )
         TO lt_base_demands.
     ENDLOOP.
 
@@ -30613,7 +35428,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_full_quantity   = ls_priority_demand-require_full_quantity
         require_known_expiry    = ls_priority_demand-require_known_expiry
         allow_undated_batches   =
-          ls_priority_demand-allow_undated_batches )
+          ls_priority_demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -30949,6 +35766,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-target_plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -31000,7 +35819,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_full_quantity   = ls_demand-require_full_quantity
         minimum_shelf_life_days = ls_demand-minimum_shelf_life_days
         require_known_expiry    = ls_demand-require_known_expiry
-        allow_undated_batches   = ls_demand-allow_undated_batches )
+        allow_undated_batches   = ls_demand-allow_undated_batches
+        minimum_coverage_pct    = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       CLEAR ls_context.
       ls_context-request_id = ls_demand-request_id.
@@ -31136,7 +35956,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_known_expiry    =
           ls_priority_demand-require_known_expiry
         allow_undated_batches   =
-          ls_priority_demand-allow_undated_batches )
+          ls_priority_demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct )
         TO lt_base_demands.
     ENDLOOP.
 
@@ -31222,7 +36044,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         require_known_expiry    =
           ls_priority_demand-require_known_expiry
         allow_undated_batches   =
-          ls_priority_demand-allow_undated_batches )
+          ls_priority_demand-allow_undated_batches
+        minimum_coverage_pct    =
+          ls_priority_demand-minimum_coverage_pct )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -31415,6 +36239,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF ls_safety_demand-material IS INITIAL
           OR ls_safety_demand-plant IS INITIAL
           OR ls_safety_demand-requested_quantity < 0
+          OR ls_safety_demand-minimum_coverage_pct < 0
+          OR ls_safety_demand-minimum_coverage_pct > 100
           OR ( ls_safety_demand-fallback_to_other_locations <> abap_true
             AND ls_safety_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_safety_demand-require_full_quantity <> abap_true
@@ -31605,6 +36431,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
     LOOP AT it_demands INTO DATA(ls_demand).
       IF ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -31728,6 +36556,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-material = ls_demand-material.
       ls_allocation-plant = ls_demand-plant.
       ls_allocation-requested_quantity = ls_demand-requested_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
 
       LOOP AT lt_location_balances ASSIGNING <ls_location_balance>
         WHERE material = ls_demand-material
@@ -31756,6 +36586,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       DATA(lv_remaining_quantity) = ls_demand-requested_quantity.
+      IF CONV decfloat34( ls_allocation-available_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_demand-requested_quantity )
+            * CONV decfloat34( ls_demand-minimum_coverage_pct ).
+        CLEAR lt_location_sequence.
+      ENDIF.
       LOOP AT lt_location_sequence INTO lv_storage_location.
         IF ( iv_require_full_quantity = abap_true
               OR ls_demand-require_full_quantity = abap_true )
@@ -31803,6 +36639,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -31887,7 +36734,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         requested_quantity          =
           ls_indexed_demand-demand-requested_quantity
         require_full_quantity       =
-          ls_indexed_demand-demand-require_full_quantity )
+          ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct        =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_base_demands.
       LOOP AT lt_request_location_priorities
           INTO DATA(ls_request_location_priority)
@@ -32364,6 +37213,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -32411,7 +37262,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         storage_location            = ls_demand-storage_location
         fallback_to_other_locations = ls_demand-fallback_to_other_locations
         requested_quantity          = lv_base_quantity
-        require_full_quantity       = ls_demand-require_full_quantity )
+        require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       INSERT VALUE #(
         internal_request_id = lv_internal_request_id
@@ -32586,7 +37438,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-requested_quantity
         requested_unit              = ls_indexed_demand-demand-requested_unit
         require_full_quantity       =
-          ls_indexed_demand-demand-require_full_quantity )
+          ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct        =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_unit_demands.
       LOOP AT lt_request_location_priorities
           INTO DATA(ls_request_location_priority)
@@ -32727,6 +37581,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-material IS INITIAL
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -32975,7 +37831,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
         requested_quantity          =
           ls_indexed_demand-demand-requested_quantity
         require_full_quantity       =
-          ls_indexed_demand-demand-require_full_quantity )
+          ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct        =
+          ls_indexed_demand-demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -33170,10 +38028,11 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDIF.
 
         DATA(ls_allocation) = VALUE ty_allocation(
-          request_id         = ls_base_demand-request_id
-          material           = ls_base_demand-material
-          plant              = ls_base_demand-plant
-          requested_quantity = ls_base_demand-requested_quantity ).
+          request_id           = ls_base_demand-request_id
+          material             = ls_base_demand-material
+          plant                = ls_base_demand-plant
+          requested_quantity   = ls_base_demand-requested_quantity
+          minimum_coverage_pct = ls_base_demand-minimum_coverage_pct ).
         LOOP AT lt_location_balances INTO ls_location_balance
             WHERE material = ls_base_demand-material
               AND plant = ls_base_demand-plant.
@@ -33202,6 +38061,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDLOOP.
 
         DATA(lv_remaining_quantity) = ls_base_demand-requested_quantity.
+        IF CONV decfloat34( ls_allocation-available_quantity )
+            * CONV decfloat34( 100 )
+            < CONV decfloat34( ls_base_demand-requested_quantity )
+              * CONV decfloat34( ls_base_demand-minimum_coverage_pct ).
+          CLEAR lt_location_sequence.
+        ENDIF.
         LOOP AT lt_location_sequence INTO lv_storage_location.
           IF ( iv_require_full_quantity = abap_true
                 OR ls_base_demand-require_full_quantity = abap_true )
@@ -33259,6 +38124,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ENDLOOP.
         ENDLOOP.
         ls_allocation-shortfall_quantity = lv_remaining_quantity.
+        ls_allocation-allocation_outcome = COND #(
+          WHEN ls_allocation-allocated_quantity =
+              ls_allocation-requested_quantity
+            THEN zif_stock_repository=>c_allocation_outcome_full
+          WHEN ls_allocation-allocated_quantity > 0
+            THEN zif_stock_repository=>c_allocation_outcome_partial
+          ELSE zif_stock_repository=>c_allocation_outcome_none ).
+        ls_allocation-allocation_coverage_pct =
+          calculate_coverage_pct(
+            iv_requested_quantity = ls_allocation-requested_quantity
+            iv_allocated_quantity = ls_allocation-allocated_quantity ).
         APPEND ls_allocation TO ls_local_result-allocations.
       ENDLOOP.
     ENDIF.
@@ -33366,6 +38242,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -33458,7 +38336,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_demand-fallback_to_other_locations
         requested_quantity          = lv_base_quantity
         base_unit                   = ls_unit_ratio-base_unit
-        require_full_quantity       = ls_demand-require_full_quantity )
+        require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_base_demands.
       INSERT VALUE #(
         internal_request_id = ls_demand-request_id
@@ -34040,6 +38919,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
     LOOP AT it_demands INTO DATA(ls_validation_demand).
       IF ls_validation_demand-batch IS INITIAL
           OR ls_validation_demand-requested_quantity < 0
+          OR ls_validation_demand-minimum_coverage_pct < 0
+          OR ls_validation_demand-minimum_coverage_pct > 100
           OR ( ls_validation_demand-require_full_quantity <> abap_true
             AND ls_validation_demand-require_full_quantity <> abap_false )
           OR ls_validation_demand-minimum_shelf_life_days < 0
@@ -34410,6 +39291,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-material = ls_demand-material.
       ls_allocation-plant = ls_demand-plant.
       ls_allocation-requested_quantity = ls_demand-requested_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
       ls_allocation-require_known_expiry =
         ls_demand-require_known_expiry.
       ls_allocation-allow_undated_batches =
@@ -34600,6 +39483,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDLOOP.
       ENDLOOP.
 
+      IF CONV decfloat34( ls_allocation-available_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_demand-requested_quantity )
+            * CONV decfloat34( ls_demand-minimum_coverage_pct ).
+        CLEAR lt_location_sequence.
+      ENDIF.
       DATA(lv_remaining_quantity) = ls_demand-requested_quantity.
       LOOP AT lt_location_sequence INTO lv_storage_location.
         IF ( iv_require_full_quantity = abap_true
@@ -34640,6 +39529,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_demand-require_known_expiry.
           ls_batch_allocation-allow_undated_batches =
             ls_demand-allow_undated_batches.
+          ls_batch_allocation-minimum_coverage_pct =
+            ls_demand-minimum_coverage_pct.
           IF lv_remaining_quantity <
               <ls_batch_balance>-remaining_quantity.
             ls_batch_allocation-allocated_quantity = lv_remaining_quantity.
@@ -34717,6 +39608,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_demand-require_known_expiry.
           ls_batch_allocation-allow_undated_batches =
             ls_demand-allow_undated_batches.
+          ls_batch_allocation-minimum_coverage_pct =
+            ls_demand-minimum_coverage_pct.
           IF lv_remaining_quantity <
               <ls_projected_batch_balance>-remaining_quantity.
             ls_batch_allocation-allocated_quantity = lv_remaining_quantity.
@@ -34741,6 +39634,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -34926,6 +39830,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lv_group_result_quantity TYPE mard-labst.
     DATA lv_scope_has_residual TYPE abap_bool.
     DATA lv_scope_matches_batch TYPE abap_bool.
+    DATA lv_meets_coverage_floor TYPE abap_bool.
     DATA lv_receipt_index TYPE i.
     DATA lv_reservation_index TYPE i.
     DATA lv_event_date TYPE d.
@@ -35084,6 +39989,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_scope_input-requested_quantity < 0
           OR ( ls_scope_input-require_full_quantity <> abap_true
             AND ls_scope_input-require_full_quantity <> abap_false )
+          OR ls_scope_input-minimum_coverage_pct < 0
+          OR ls_scope_input-minimum_coverage_pct > 100
           OR ( ls_scope_input-allow_location_fallback <> abap_true
             AND ls_scope_input-allow_location_fallback <> abap_false )
           OR ( ls_scope_input-allow_batch_fallback <> abap_true
@@ -36224,9 +41131,15 @@ CLASS zcl_stock_service IMPLEMENTATION.
         source_schedule_line ASCENDING.
       lv_demand_remaining = ls_scope_demand-requested_quantity.
       CLEAR lv_allocated_quantity.
-      IF ls_scope_demand-require_full_quantity <> abap_true
+      lv_meets_coverage_floor = xsdbool(
+        CONV decfloat34( lv_available_quantity )
+          * CONV decfloat34( 100 )
+          >= CONV decfloat34( ls_scope_demand-requested_quantity )
+            * CONV decfloat34( ls_scope_demand-minimum_coverage_pct ) ).
+      IF ( ls_scope_demand-require_full_quantity <> abap_true
           OR lv_available_quantity >=
-            ls_scope_demand-requested_quantity.
+            ls_scope_demand-requested_quantity )
+          AND lv_meets_coverage_floor = abap_true.
         IF ls_scope_demand-batch IS INITIAL.
           CLEAR lt_ranked_scope_locations.
           LOOP AT lt_location_balances INTO DATA(ls_scope_location_candidate)
@@ -36451,16 +41364,27 @@ CLASS zcl_stock_service IMPLEMENTATION.
 
       APPEND VALUE #(
         allocation               = VALUE #(
-          request_id         = ls_scope_demand-request_id
-          material           = ls_scope_demand-material
-          plant              = ls_scope_demand-plant
-          required_date      = ls_scope_demand-required_date
-          priority           = ls_scope_demand-priority
-          requested_quantity = ls_scope_demand-requested_quantity
-          available_quantity = lv_available_result_quantity
-          allocated_quantity = lv_allocated_quantity
-          shortfall_quantity = ls_scope_demand-requested_quantity
-            - lv_allocated_quantity )
+          request_id              = ls_scope_demand-request_id
+          material                = ls_scope_demand-material
+          plant                   = ls_scope_demand-plant
+          required_date           = ls_scope_demand-required_date
+          priority                = ls_scope_demand-priority
+          requested_quantity      = ls_scope_demand-requested_quantity
+          available_quantity      = lv_available_result_quantity
+          allocated_quantity      = lv_allocated_quantity
+          shortfall_quantity      = ls_scope_demand-requested_quantity
+            - lv_allocated_quantity
+          minimum_coverage_pct    = ls_scope_demand-minimum_coverage_pct
+          allocation_outcome      = COND #(
+            WHEN lv_allocated_quantity =
+                ls_scope_demand-requested_quantity
+              THEN zif_stock_repository=>c_allocation_outcome_full
+            WHEN lv_allocated_quantity > 0
+              THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none )
+          allocation_coverage_pct = calculate_coverage_pct(
+            iv_requested_quantity = ls_scope_demand-requested_quantity
+            iv_allocated_quantity = lv_allocated_quantity ) )
         group_available_quantity = lv_group_result_quantity
         batch_allocations        = lt_component_batch_splits
         location_allocations     = lt_component_location_splits )
@@ -36956,6 +41880,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-batch IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false )
           OR ls_demand-minimum_shelf_life_days < 0
@@ -37017,6 +41943,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         fallback_to_other_locations = ls_demand-fallback_to_other_locations
         requested_quantity          = lv_base_quantity
         require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct
         as_of_date                  = ls_demand-as_of_date
         minimum_shelf_life_days     =
           ls_demand-minimum_shelf_life_days
@@ -37216,6 +42143,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-requested_quantity
         require_full_quantity       =
           ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct        =
+          ls_indexed_demand-demand-minimum_coverage_pct
         as_of_date                  = ls_indexed_demand-demand-as_of_date
         minimum_shelf_life_days     =
           ls_indexed_demand-demand-minimum_shelf_life_days
@@ -37393,6 +42322,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_indexed_demand-demand-requested_unit
         require_full_quantity       =
           ls_indexed_demand-demand-require_full_quantity
+        minimum_coverage_pct        =
+          ls_indexed_demand-demand-minimum_coverage_pct
         as_of_date                  = ls_indexed_demand-demand-as_of_date
         minimum_shelf_life_days     =
           ls_indexed_demand-demand-minimum_shelf_life_days
@@ -37672,6 +42603,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF ls_demand-material IS INITIAL
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -37963,6 +42896,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-material = ls_demand-material.
       ls_allocation-plant = ls_demand-plant.
       ls_allocation-requested_quantity = ls_demand-requested_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
       lv_effective_min_days = iv_min_days.
       IF ls_demand-minimum_shelf_life_days > lv_effective_min_days.
         lv_effective_min_days = ls_demand-minimum_shelf_life_days.
@@ -38116,6 +43051,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ENDLOOP.
       ENDDO.
 
+      IF CONV decfloat34( ls_allocation-available_quantity )
+          * CONV decfloat34( 100 )
+          < CONV decfloat34( ls_demand-requested_quantity )
+            * CONV decfloat34( ls_demand-minimum_coverage_pct ).
+        CLEAR lv_location_pass_count.
+      ENDIF.
       DATA(lv_remaining_quantity) = ls_demand-requested_quantity.
       DO lv_location_pass_count TIMES.
         IF ( iv_require_full_quantity = abap_true
@@ -38203,6 +43144,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_demand-require_known_expiry.
           ls_batch_allocation-allow_undated_batches =
             ls_demand-allow_undated_batches.
+          ls_batch_allocation-minimum_coverage_pct =
+            ls_demand-minimum_coverage_pct.
           IF lv_remaining_quantity <
               <ls_fefo_balance>-remaining_quantity.
             ls_batch_allocation-allocated_quantity = lv_remaining_quantity.
@@ -38230,6 +43173,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDDO.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -38305,6 +43259,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       IF ls_demand-material IS INITIAL
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
@@ -38625,6 +43581,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ls_allocation-material = ls_demand-material.
       ls_allocation-plant = ls_demand-plant.
       ls_allocation-requested_quantity = ls_demand-requested_quantity.
+      ls_allocation-minimum_coverage_pct =
+        ls_demand-minimum_coverage_pct.
       lv_effective_as_of_date = iv_as_of_date.
       IF ls_demand-fefo_as_of_date > lv_effective_as_of_date.
         lv_effective_as_of_date = ls_demand-fefo_as_of_date.
@@ -38682,9 +43640,13 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDLOOP.
 
       lv_remaining_quantity = ls_demand-requested_quantity.
-      IF ( iv_require_full_quantity <> abap_true
-          AND ls_demand-require_full_quantity <> abap_true )
-          OR lv_remaining_quantity <= ls_allocation-available_quantity.
+      IF ( ( iv_require_full_quantity <> abap_true
+            AND ls_demand-require_full_quantity <> abap_true )
+          OR lv_remaining_quantity <= ls_allocation-available_quantity )
+          AND CONV decfloat34( ls_allocation-available_quantity )
+              * CONV decfloat34( 100 )
+            >= CONV decfloat34( ls_demand-requested_quantity )
+              * CONV decfloat34( ls_demand-minimum_coverage_pct ).
         lv_location_pass_count = 1.
         IF ls_demand-storage_location IS NOT INITIAL
             AND ls_demand-fallback_to_other_locations = abap_true.
@@ -38767,6 +43729,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ls_demand-require_known_expiry.
             ls_batch_allocation-allow_undated_batches =
               ls_demand-allow_undated_batches.
+            ls_batch_allocation-minimum_coverage_pct =
+              ls_demand-minimum_coverage_pct.
             IF lv_remaining_quantity <
                 <ls_fefo_balance>-remaining_quantity.
               ls_batch_allocation-allocated_quantity =
@@ -38796,6 +43760,17 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
 
       ls_allocation-shortfall_quantity = lv_remaining_quantity.
+      ls_allocation-allocation_outcome = COND #(
+        WHEN ls_allocation-allocated_quantity =
+            ls_allocation-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_allocation-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_allocation-allocation_coverage_pct =
+        calculate_coverage_pct(
+          iv_requested_quantity = ls_allocation-requested_quantity
+          iv_allocated_quantity = ls_allocation-allocated_quantity ).
       APPEND ls_allocation TO rs_result-allocations.
     ENDLOOP.
   ENDMETHOD.
@@ -38909,6 +43884,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
           OR ls_demand-minimum_shelf_life_days < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -38966,6 +43943,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         storage_location            = ls_demand-storage_location
         fallback_to_other_locations = ls_demand-fallback_to_other_locations
         requested_quantity          = lv_base_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct
         require_full_quantity       = ls_demand-require_full_quantity
         fefo_as_of_date             = ls_demand-fefo_as_of_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
@@ -39111,6 +44089,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_priority_demand-fallback_to_other_locations
         requested_quantity          = ls_priority_demand-requested_quantity
+        minimum_coverage_pct        =
+          ls_priority_demand-minimum_coverage_pct
         require_full_quantity       =
           ls_priority_demand-require_full_quantity
         fefo_as_of_date             = ls_priority_demand-fefo_as_of_date
@@ -39216,6 +44196,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_priority_demand-fallback_to_other_locations
         requested_quantity          = ls_priority_demand-requested_quantity
         requested_unit              = ls_priority_demand-requested_unit
+        minimum_coverage_pct        =
+          ls_priority_demand-minimum_coverage_pct
         require_full_quantity       =
           ls_priority_demand-require_full_quantity
         fefo_as_of_date             = ls_priority_demand-fefo_as_of_date
@@ -39452,6 +44434,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           OR ls_demand-plant IS INITIAL
           OR ls_demand-requested_unit IS INITIAL
           OR ls_demand-requested_quantity < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -39511,6 +44495,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         storage_location            = ls_demand-storage_location
         fallback_to_other_locations = ls_demand-fallback_to_other_locations
         requested_quantity          = lv_base_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct
         require_full_quantity       = ls_demand-require_full_quantity
         fefo_as_of_date             = ls_demand-fefo_as_of_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
@@ -39661,6 +44646,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_priority_demand-fallback_to_other_locations
         requested_quantity          = ls_priority_demand-requested_quantity
+        minimum_coverage_pct        =
+          ls_priority_demand-minimum_coverage_pct
         require_full_quantity       =
           ls_priority_demand-require_full_quantity
         fefo_as_of_date             = ls_priority_demand-fefo_as_of_date
@@ -39772,6 +44759,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_priority_demand-fallback_to_other_locations
         requested_quantity          = ls_priority_demand-requested_quantity
         requested_unit              = ls_priority_demand-requested_unit
+        minimum_coverage_pct        =
+          ls_priority_demand-minimum_coverage_pct
         require_full_quantity       =
           ls_priority_demand-require_full_quantity
         fefo_as_of_date             = ls_priority_demand-fefo_as_of_date

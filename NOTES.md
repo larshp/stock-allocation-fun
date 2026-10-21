@@ -1,6 +1,375 @@
 # Development notes
 
+## 2026-10-21
+
+- Fixed the planned-order finish-window query after its special-procurement
+  regression returned no rows under the transpiler. The transpiled SQL mishandled
+  `@is_selection-material`; a typed local material value now feeds both query
+  branches, and PLAN validation checks that assignment and predicate. Full
+  `npm test` passes under the installed Linux Node runtime.
+- Sales-order allocation requirements now accept a per-item minimum coverage
+  floor. Ordinary, location, batch, FEFO, and dated allocation paths pass the
+  threshold to the shared allocator and echo it with F/P/U outcome and
+  base-unit coverage; schedule-line rows inherit an item-wide requirement
+  unless a more specific row is supplied.
+- Sales-order aggregate and FEFO issue writers and quality FEFO writers now
+  revalidate echoed coverage floors before movement creation. The shared
+  high-precision check accepts zero allocations for the existing partial
+  allocation policy and rejects positive quantities below their floor.
+- Project-WBS issue writers and batch/location transfer writers now perform
+  the same final coverage-floor check after their fresh allocation rechecks
+  and before building the movement request.
+- Aggregate sales-order issue previews now return `allocation_outcome` (`F`
+  fully covered, `P` partially covered, `U` uncovered). Unit-aware results
+  derive the outcome from base quantities so display-unit rounding cannot
+  change it; full-quantity mode reports underfilled requests as uncovered.
+- Aggregate issue requests now support a per-request `minimum_coverage_pct`
+  from 0 through 100. If provisional base-unit coverage misses the threshold,
+  the preview leaves shared stock untouched for later demands; zero preserves
+  partial allocation behavior. FEFO previews apply the same gate before
+  consuming batch balances, return F/P/U outcomes, and echo the threshold on
+  summaries and batch splits.
+- Shared material/plant allocation now applies `minimum_coverage_pct` to
+  single requests, base and UOM demand rows, priority methods, and ATP
+  wrappers. Thresholds are validated and echoed in allocation results; a
+  demand below its base-unit coverage floor leaves stock for later requests.
+- Local date-first material/plant single requests and base/UOM demand rows now
+  accept the same coverage floor. It is applied against availability at each
+  required date before consuming the shared balance, echoed on dated
+  summaries, and preserved through date-first ATP wrappers.
+- Production component allocation policies now accept `minimum_coverage_pct`
+  per reservation. The scoped allocator checks eligible base-unit stock after
+  date, location, batch, expiry, fallback, receipt, and safety-stock rules and
+  leaves stock untouched for a component below its floor; summaries echo it.
+- Production component local estimates now report F/P/U outcomes and the
+  two-decimal base-unit `allocation_coverage_pct`; grouped estimates preserve
+  their date-based plant summary values, and zero-demand percentages are zero.
+- Plant-level cost-center demand previews now accept per-row
+  `minimum_coverage_pct` floors. The floor is checked in base units before
+  shared stock is consumed, passed through unit, priority, and ATP paths, and
+  echoed on allocation results; PLAN validation, lint, and transpilation are
+  the static gates for this change.
+- Date-first cost-center demand previews now accept the same per-row coverage
+  floor. It is evaluated against availability on each required date and
+  projected receipts, then retained by UOM and ATP results.
+- Cost-center location previews now also accept per-demand coverage floors,
+  applied after location eligibility and before location balances are used.
+  Priority allocation and ATP wrappers retain the floor and the allocation
+  summary echoes it.
+- Date-first cost-center location previews now pass the same floor to the
+  dated location allocator, where it is checked against eligible stock and
+  caller-provided receipts at each required date.
+- Exact-batch and FEFO cost-center previews now pass per-row floors into the
+  batch allocator. Thresholds are checked after expiry, shelf-life, location,
+  receipt, and safety-stock eligibility; date-first FEFO and ATP adapters keep
+  the floor on their allocation results.
+- Atomic and bulk cost-center reservation demand rows now accept per-demand
+  minimum coverage floors. The floor passes through location, exact-batch, and
+  FEFO previews, including date-first ordering wrappers, and is checked before
+  reservation writes.
+- STO creation now revalidates carried minimum coverage floors against
+  requested and allocated base quantities before building order requests.
+  Zero allocations remain valid floor rejections; positive allocations below
+  their threshold fail before any purchase-order write.
+- Cost-center goods-issue adapters now revalidate echoed coverage floors before
+  posting single, location, date-first location, exact-batch, or FEFO splits.
+  Zero allocations remain valid floor rejections; positive below-floor issues
+  fail before movement creation.
+- Single cost-center preview and reservation methods now accept a scalar
+  minimum coverage floor. It is validated before UOM conversion, passed into
+  FEFO, exact-batch, or location allocation, and prevents reservation creation
+  when eligible stock falls below the requested threshold. Results also expose
+  F/P/U outcome and base-unit coverage rounded to two decimals.
+- WBS project-stock FEFO and location previews now gate eligible base-unit
+  stock by per-demand minimum coverage before changing the shared WBS balance.
+  Priority, date-first, and ATP paths preserve the floor; summaries expose
+  F/P/U outcome and coverage, and FEFO splits echo the floor.
+- WBS transfer FEFO and location previews now carry per-demand coverage floors
+  through base, priority, date-first, and ATP adapters. The floor applies to
+  eligible source-WBS stock before the transfer consumes any shared balance.
+- WBS FEFO and location reservation methods now preserve floors through the
+  first preview and fresh recheck, including priority and date-first methods.
+- Priority and date-first WBS location and FEFO issue wrappers, and WBS
+  transfer posting wrappers, now carry the floor through fresh stock rechecks.
+  PLAN validation passes; abaplint reports zero issues and transpilation passes.
+- Undated `ALLOCATE_BY_STORAGE_LOCATION` base and UOM demand rows now support
+  the same coverage floor. It is applied after location scope and safety
+  stock; a rejected row consumes no location balance, and priority and ATP
+  adapters carry the field.
+- `ALLOCATE_LOCATION_BY_DATE` now applies the floor to availability on each
+  demand's required date, including eligible projected receipts. Rejected rows
+  preserve shared stock; UOM and ATP forms pass through the threshold.
+- Exact-batch, FEFO, and quality FEFO allocations now validate and apply the
+  per-demand coverage floor against eligible base-unit stock before consuming
+  batch balances. UOM and priority adapters carry the threshold through, ATP
+  wrappers retain it, and summaries plus FEFO splits echo it.
+- Valuation-type allocations now accept the coverage floor on base and UOM
+  demand rows. It is checked against eligible availability after valuation,
+  location, batch, receipt, expiry, source, and safety-stock scopes; rejected
+  rows consume no balance, and UOM and ATP paths preserve the threshold.
+- Cross-plant ordinary and date-based allocation now applies the floor to
+  combined source-plant availability after location, receipt, cutoff, and
+  safety-stock rules. Rejected rows consume no source balance; priority, UOM,
+  and ATP adapters carry and echo the threshold.
+- Cross-plant exact-batch and FEFO allocation, including date-first forms, now
+  checks each floor against combined eligible source-plant stock before
+  consuming batch balances. UOM, priority, and ATP paths carry the threshold;
+  summaries and FEFO batch splits echo it.
+- Cross-plant ordinary, dated, exact-batch, and FEFO allocation summaries now
+  report `allocation_outcome` as F/P/U from base-unit allocation quantities.
+  UOM, priority, and ATP adapters preserve the summary outcome.
+- Cross-plant ordinary, dated, exact-batch, and FEFO summaries now report
+  `allocation_coverage_pct`, rounded to two decimals from allocated/requested
+  base quantities and zero for zero-quantity demands. UOM, priority, and ATP
+  adapters preserve the percentage.
+- Shared material/plant, storage-location, dated-location, exact-batch, and
+  FEFO summaries now report the same two-decimal `allocation_coverage_pct` from
+  base quantities; UOM, priority, and ATP adapters preserve it.
+- Local date-first single-request and demand-list summaries now report F/P/U
+  and two-decimal `allocation_coverage_pct` from base quantities; UOM and ATP
+  adapters preserve both summary values.
+- Shared material/plant, location, batch, and FEFO summaries now report
+  `allocation_outcome` as `F` (full), `P` (partial), or `U` (none), based on
+  base-unit quantities. Unit, priority, and ATP results retain the same
+  outcome on each local allocation.
+- Production-order finish-window selection accepts `active_status_codes` for
+  OR-matching multiple active SAP status codes. The selector is exclusive with
+  `active_status_code`, rejects blank list entries, and rechecks that at least
+  one requested status remains active after the detail/status reads.
+- Production-order finish-window selection now supports inclusive lower and
+  upper bounds on `over_receipt_qty_order_unit`. Bounds apply in the AFPO order
+  unit before pagination; zero includes valid items without an over-receipt,
+  and invalid receipt-progress quantities cannot match. Detail reads recheck
+  the derived quantity and its validity.
+- Production-order bulk and finish-window items now report
+  `over_receipt_pct_of_order_qty`, the excess received quantity as a percentage
+  of order quantity. It is zero for valid items without excess, can exceed
+  100.00, and remains initial for invalid receipt-progress quantities.
+- Production-order bulk and finish-window items now report
+  `over_receipt_quantity_base`, converting the positive receipt excess into the
+  material base unit when receipt progress and the quantity conversion are
+  valid. It is zero for valid items without excess and initial otherwise.
+- Finish-window selection now accepts inclusive lower and upper bounds on the
+  raw over-receipt-to-order percentage. Bounds are nonnegative and unbounded
+  above; filtering uses the unrounded ratio before pagination and rechecks it
+  after detail reads.
+- Finish-window selection now accepts inclusive base-unit over-receipt bounds.
+  The key query compares positive AFPO receipt excess through its order-to-base
+  ratio before pagination; the service checks receipt-progress validity and
+  conversion success again after detail reads.
+
 ## 2026-10-20
+
+- Production confirmation detail rows now expose `exec_duration_status`:
+  valid (`V`), invalid complete pair (`I`), or missing execution date (`M`).
+  They also expose `exec_duration_seconds` for valid intervals, with initial
+  values for invalid or missing intervals. Zero-duration intervals remain
+  valid. Both fields are carried into base-unit detail rows. Coverage includes
+  positive, invalid, missing, and zero intervals. The full unit suite and PLAN
+  validation pass; abaplint remains at the existing 627-finding baseline.
+- Work-center confirmation summaries now expose `exec_covered_seconds`, the
+  union of valid intervals after merging overlaps. Center totals combine units;
+  nested unit rows and base-work-center rows report their own unions. Invalid
+  and missing intervals are excluded, reversed intervals remain included, and
+  zero-duration rows add no covered time. Coverage is page-scoped and is not
+  shift-calendar utilization. The full unit suite and PLAN validation pass;
+  abaplint remains at the existing 627-finding baseline.
+- Operation and order confirmation summaries now expose `exec_covered_seconds`
+  at their own group scope. Raw summaries keep quantity units separate, while
+  base operation and order summaries merge source-unit intervals within each
+  converted base-unit group. The regression checks raw and base unions across
+  overlapping, gapped, zero-length, and cross-day intervals. The full unit
+  suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Confirmation summaries now report `exec_overlap_excess_seconds`, the valid
+  duration sum beyond the covered-time union. Triple overlaps count excess once
+  for each interval beyond the first; a regression checks the raw-unit and
+  converted base-unit groups against a three-way overlap. The full unit suite
+  and PLAN validation pass; abaplint remains at the existing 627-finding
+  baseline.
+- Confirmation summaries now report `exec_peak_concurrency`, the maximum
+  number of simultaneous valid positive-duration intervals in each group.
+  Touching interval boundaries do not count as concurrent; zero-duration
+  intervals are excluded. The full unit suite and PLAN validation pass;
+  abaplint remains at the existing 627-finding baseline.
+- Confirmation summaries now report `exec_idle_gap_seconds` within the
+  envelope of positive-duration intervals. It excludes time before the first
+  interval, after the last one, and zero-duration-only endpoints. The full
+  unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Confirmation summaries now report `exec_overlap_wall_seconds`, elapsed
+  wall time with at least two valid positive-duration intervals active. Triple
+  overlaps count once per instant, distinct from excess-duration accounting.
+  The full unit suite and PLAN validation pass; abaplint remains at the
+  existing 627-finding baseline.
+- Confirmation summaries now report `exec_overlap_episode_count` for separate
+  continuous overlap stretches. A positive-duration gap starts another episode,
+  while stretches meeting at an endpoint remain one. The full unit suite and
+  PLAN validation pass.
+- Confirmation summaries now report `exec_peak_concurrency_secs`, summing the
+  elapsed time at the group's maximum concurrent interval count. Time at an
+  earlier, lower peak is discarded if a higher peak occurs later. The full
+  unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Confirmation summaries now report `exec_longest_overlap_secs` for the
+  longest uninterrupted overlap episode; separate episodes are compared and
+  only the longest contributes. The full unit suite and PLAN validation pass;
+  abaplint remains at the existing 627-finding baseline.
+- Confirmation summaries now report `exec_overlap_avg_secs` as the arithmetic
+  mean duration of overlap episodes, retaining fractional seconds when needed.
+  The full unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- ABAP lint autofixes aligned parameter and type expressions in 11 files; the
+  remaining nine parser-space findings were corrected manually. The formatting
+  diff is whitespace-only and `npm test` now passes with zero abaplint issues.
+- Confirmation summaries now report `exec_single_episode_count` for
+  distinct stretches with exactly one valid interval active. Touching intervals
+  stay in the same stretch; overlaps and gaps split episodes. `npm test` passes.
+- Confirmation summaries now report `exec_longest_single_secs`, the length of
+  the longest continuous stretch with exactly one valid interval active. The
+  interval sweep accumulates each stretch and resets it at overlaps or gaps.
+  `npm test` passes.
+- Confirmation summaries now report `exec_single_active_avg_secs`, the mean
+  single-active episode duration. The calculation preserves fractional seconds
+  and is zero when there are no single-active episodes. `npm test` passes.
+- Confirmation summaries now report `exec_high_concurrency_secs`, the wall time
+  with three or more valid positive-duration intervals active. Each instant is
+  counted once, independent of overlap depth. `npm test` passes.
+- Confirmation summaries now report `exec_3plus_episode_count`, the
+  count of continuous three-or-more-way concurrency stretches. Touching intervals
+  that preserve concurrency three do not split an episode. `npm test` passes.
+- Confirmation summaries now report `exec_single_active_pct` as the share of
+  the positive-interval span with exactly one interval active. It complements
+  coverage and overlap percentages; the full `npm test` gate passes.
+- Confirmation summaries now report `exec_single_active_seconds` for time when
+  exactly one positive-duration confirmation is active. Single-active and
+  overlapping time partition the covered union. The full `npm test` gate passes.
+- Confirmation summaries now report `exec_overlap_wall_pct` as the share of
+  the positive-interval span spent with multiple intervals active; overlap time
+  counts once and the result is rounded to two decimal places. The full unit
+  suite and PLAN validation pass; abaplint remains at the existing 627-finding
+  baseline.
+- Confirmation summaries now report `exec_interval_coverage_pct` as the
+  covered union divided by the elapsed first-to-last interval span, rounded to
+  two decimal places; it stays zero when no positive interval exists. The full
+  unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Confirmation summaries now report `exec_idle_gap_avg_secs` as the average
+  duration of internal gaps, preserving fractional seconds and returning zero
+  when there are no gaps. The full unit suite and PLAN validation pass; abaplint
+  remains at the existing 627-finding baseline.
+- Confirmation summaries now report `exec_idle_gap_episode_count` for the
+  number of internal gaps between merged positive-duration execution intervals.
+  The full unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Confirmation summaries now report `exec_longest_idle_gap_secs` for the
+  longest uncovered period between positive-duration execution intervals. The
+  full unit suite and PLAN validation pass; abaplint remains at the existing
+  627-finding baseline.
+- Production confirmation summaries now count zero-duration valid intervals
+  and report their percentage of all confirmations. The intervals remain part
+  of valid duration totals and extrema. A focused regression covers a valid
+  same-instant start/finish pair across raw and base operation, order, and
+  work-center summaries. The full unit suite and PLAN validation pass; lint
+  remains at the 627-issue repository baseline.
+- Production confirmation summaries now report the shortest and longest valid
+  execution interval in seconds. Invalid and missing intervals are excluded;
+  both values are zero when a group has no valid duration. Regression coverage
+  checks mixed durations, single valid intervals, and empty-valid groups. The
+  full unit suite and PLAN validation pass; abaplint remains at the 627-issue
+  repository baseline.
+- Production confirmation summaries now partition duration outcomes into valid,
+  invalid, and missing-date intervals. `invalid_exec_duration_pct` and
+  missing interval count/share accompany existing valid coverage, so the three
+  counts reconcile to confirmations and their percentages show data quality.
+  Regressions cover complete valid, complete invalid, and missing-date cases.
+- Production confirmation summaries now report `valid_exec_duration_pct`,
+  the valid-interval count as a share of the summary confirmation count,
+  rounded to two decimals. Tests cover zero, 50%, 66.67%, and 100% coverage
+  across raw, base, work-center, operation, and order groupings.
+- Production confirmation summaries now include `exec_duration_seconds_avg`,
+  calculated from total valid duration seconds and valid interval count, with
+  zero for groups without valid intervals. Regression coverage includes a
+  fractional average across two valid intervals while excluding a negative
+  interval from the denominator.
+- Production confirmation operation and order summaries now expose the same
+  execution coverage, earliest-start and latest-finish spans, valid duration
+  totals, and invalid interval counts as the work-center summaries. Raw
+  summaries group by operation/order and confirmation unit; base summaries
+  merge converted source units. Regression coverage checks valid cross-midnight,
+  invalid negative, and missing-date intervals across all four groupings.
+- Number-based production-confirmation reads now return CRHD work-center code and plant, with exact nonblank filters and explicit blank-match flags. The paged SQL path filters these fields before the lookahead limit; the unpaged path resolves CRHD after AFVC and filters before mapping. Repository and service regressions cover assigned and unresolved centers, plants, paging, and invalid flags.
+- `READ_OPERATIONS_BULK` now returns and filters CRHD work-center code and plant before confirmations exist. The paged query joins CRHD before its lookahead limit; the unpaged path resolves assignments after AFVC. Regressions cover exact and blank selectors, result fields, paging, and invalid flags.
+- Batch expiry results now include full-scope dated quality and blocked totals
+  alongside unrestricted and available quantities. UOM output carries both
+  base and converted values, including when dated detail rows are omitted.
+  Regression coverage checks four-category totals in regular and summary-only
+  reads; the PLAN validator now guards the aggregation and mappings.
+- Batch expiry results now also expose full through-date aggregates for
+  expired and upcoming stock, separately from after-window stock. The four
+  category quantities, availability ratio, and signed deduction stay stable
+  across paging and are available in base and requested UOM.
+- Production-order item reads now return open and over-receipt quantities in
+  order units plus received and open progress percentages against the AFPO
+  order quantity and a not-started, partial, complete, or over-received status.
+  They remain available if base-unit conversion fails; receipt progress can
+  exceed 100 percent. Regression coverage checks partial, complete, over-, and
+  invalid quantity cases, and the PLAN validator requires those checks and
+  mappings. Bulk summaries count returned items in each receipt-progress state,
+  including retained detail rows in finish-window results.
+- Removed a duplicate `PRIVATE SECTION` from the stock-service class definition.
+  A source-level check confirms visibility sections are unique and in order in
+  all 68 class sources. The local Node bridge prevented rerunning the plan
+  validator and transpiler after this correction.
+
+- Production-order finish-window regression coverage now models a selected order
+  whose later detail row no longer matches the requested material, alongside a
+  still-matching order. It verifies the changed item is retained for
+  reconciliation, only the drifted order is flagged, and
+  `finish_filter_lost_count` is accurate. The PLAN validator now requires these
+  assertions.
+- Batch expiry resolved-date bounds now have direct regressions for inclusive
+  endpoints, lower-only and upper-only ranges, undated-row exclusion, page
+  totals, UOM forwarding, and reversed-range rejection before repository reads.
+  The PLAN validator now requires this coverage.
+- Batch expiry valuation selection now has regressions for implicit nonblank,
+  explicit blank, summary totals, cursor continuation, UOM echo, and invalid
+  selector rejection before repository reads. The PLAN validator also checks
+  that valuation scope precedes dated/undated summaries and paging.
+- Cumulative upcoming 7-, 30-, and 90-day horizons now have direct count and
+  four-category quantity assertions in base and converted UOM results. The
+  PLAN validator requires all horizon/category pairs.
+- After-window exposure now asserts the earliest row, both calendar-day
+  distances, and all four base and converted UOM quantities.
+- First-expired and next-upcoming expiry date distances are now asserted in
+  base and UOM results.
+
+- Batch expiry reports can suppress dated detail rows with `omit_dated_batch_rows` while
+  preserving full-scope totals and matrices; page summaries become zero and undated paging stays
+  independent. Dated and undated summary-only paths derive first/next expiry cohorts, the
+  earliest undated identity, and full-scope summaries during the stock scan without materializing
+  detail rows. Uncovered,
+  allocation, and reservation-allocation omission paths release their detail buffers after
+  full-scope summaries are captured. Dated status/source-status
+  summaries also carry row-share percentages;
+  full overdue-age, upcoming, and after-window source matrices also report percentages within
+  their status totals. Dated page shares use returned rows; the full source/status matrix uses
+  all matching dated rows, including after-window stock. Page-wide category totals and
+  page-local expiry-date spans remain available.
+  Undated detail rows and the first-undated summary retain raw expiry-source provenance;
+  page-local and full-scope summaries split positive-stock rows into fixed P/G/O buckets with
+  row-share percentages. Full buckets stay stable across cursor pages
+  and include UOM conversions.
+  Regression coverage includes first and continuation pages, empty and after-window pages,
+  dated and undated summary-only identities, cohort totals, blank and unknown sources, and UOM
+  results. `npm test` remains
+  blocked by the workspace WSL 1 Node shim, so PLAN validation, abaplint, transpilation, and ABAP
+  Unit are unverified. Native `node.exe --version` also fails with a WSL interop
+  `UtilBindVsockAnyPort` error.
+- Batch expiry results expose the timestamp captured after each grouped stock read. Requests
+  sharing the same effective reservation exclusions share that timestamp, and UOM results echo it
+  unchanged. Regression coverage now asserts timestamp presence and shared-read equality; the
+  PLAN validator guards the base assignment, UOM forwarding, and tests.
 
 - Batch expiry exposure now accepts optional inclusive signed `expiry_days_from` and `expiry_days_to` bounds against `expiration_date - as_of_date`. Each bound works alone, zero represents the as-of date, negative values select expired dates, and positive values select future dates; active bounds omit undated rows and reversed ranges are rejected. The filter composes before exposure counts, totals, and paging, while UOM requests forward and echo both bounds. Regressions cover combined and one-sided ranges, exact zero and after-window days, paging, source composition, UOM, and invalid or inactive bounds. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
 
@@ -10783,3 +11152,848 @@
 - The fixed expired source-by-age matrix now reports the earliest and latest expiration date in each of its 12 rows. Empty combinations keep both dates initial; UOM results echo the date spans. Base and UOM fixtures include a source-age band spanning 1 and 7 days plus empty combinations. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
 
 - Upcoming and after-window source-band matrices now include first/last expiration dates in every row, with empty rows initial and UOM rows echoing the spans. Base regressions include multi-date rows in both windows; UOM regressions verify date propagation. PLAN validation passed, abaplint reported 0 issues across 252 files, transpilation passed, and the full ABAP Unit suite exited 0.
+
+- Reservation allocation summary omission now scans and enriches the local bulk
+  result directly, avoiding the response-table copy and sort when payload rows
+  are suppressed. The existing omitted-summary regression checks selector-scoped
+  totals and zero returned rows. Validation was not rerun: the configured Node
+  shim is unavailable in this WSL 1 environment, as recorded in ANOMALIES.md.
+
+- Allocation-trace omission now computes filtered totals and risk summaries
+  against the assigned local bulk row, without copying detail payload into
+  the response. It sorts the local rows in place to preserve stable gap
+  selection. The omitted-detail regression now checks the selected quantity;
+  the summary omission regression checks its filtered quantities. The configured
+  Node-based validation gates remain unavailable in this WSL 1 environment.
+
+- Uncovered-detail omission now skips response row and key materialization. A
+  shared row mapper feeds the selector-scoped totals, due-horizon bands, and
+  overdue-age bands directly from repository reservations in summary-only mode.
+  The existing omission regression now asserts filtered demand, shortage, and
+  due-band totals. Configured Node-based gates could not run in this WSL 1
+  environment; see ANOMALIES.md.
+
+- Planned-order finish-window searches now filter and return the exact special procurement type (`PLAF-SOBES`), including explicit blank matching. Service and Open SQL regressions cover nonblank/blank selection, invalid or inactive selectors, repository scope drift, projected values, and lookahead pagination when earlier rows do not match. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Expiry UOM regressions now verify open, matched, fallback, overdue, due-today, future, undated, excluded, and uncovered reservation quantities in base and requested units. The uncovered fixture spans all four date buckets and checks its earliest overdue identity and day distance. Tests also cover exclusion keys/counts, next-open identity/date, the fixed seven-band horizon and 12-cell outcome/date matrix, row-count reconciliation, and converted band totals. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Expiry UOM tests now assert the earliest expired and upcoming row identities, date sources, and all four base/requested-unit category quantities. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Undated expiry UOM coverage now checks that first-row selection follows batch, location, and valuation order, and verifies its identity and four converted category balances. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Earliest after-window summary regressions now check storage location, valuation type, and plant/global/other source identity in both base and UOM results. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Batch expiry storage-location filtering now has regressions for implicit exact nonblank selection, explicit blank selection across dated and undated stock, UOM echoes, and invalid-flag rejection before repository reads. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Expiry risk UOM regressions now assert all category conversions in the disjoint 8–30, 31–90, and over-90-day buckets, including each bucket’s row count. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Expiry UOM coverage now checks all four category totals for the returned dated page and the returned undated page, including fractional conversion rounding. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Expiry reporting tests now assert all four base-category balances for first-expired and next-upcoming rows, and all base/requested-unit categories for expired, upcoming, after-window, next-date, and undated summaries. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Batch expiry filtering now has regression coverage for exact nonblank batch selection, its intersection with storage location, and explicit blank-batch selection across dated and undated stock. Base and UOM results check selector echoes, selected identities, category totals, conversions, and rejection of an invalid selector flag before repository reads. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- STO source-plant bulk regressions now cover atomic rollback after a second-supplier failure with a third supplier left unattempted, including separate attempted-failure and skipped counts. The atomic commit-failure test also checks `stopped_on_failure` when enabled; the PLAN validator requires both cases. Runtime validation remains unavailable in this WSL 1 environment.
+
+- Cost-center issue and reversal bulk stop-on-failure regressions now prove that a successful earlier reservation stays committed, a later failed group is counted as failed, and the following group is retained as skipped. Invalid stop flags are checked on base, UOM, remaining-quantity, and exact-item entry points before reservation reads. The configured runtime gates remain unavailable in this WSL 1 environment.
+
+- STO plant-pair stop-on-failure coverage now asserts that earlier successful pairs remain committed, the failed pair was attempted but not committed, and every skipped pair never called the BAPI. The PLAN validator requires these transaction-boundary assertions. Runtime validation remains unavailable in this WSL 1 environment.
+
+- Atomic STO plant-pair create-failure coverage now enables `iv_stop_on_failure` and verifies `stopped_on_failure`, failed and skipped counts, unattempted rows, and rollback. The PLAN validator requires this atomic failure path. Runtime validation remains unavailable in this WSL 1 environment.
+
+- Added stop-on-failure coverage through `create_for_atp_plant_pairs`. The regression confirms the wrapper forwards the option to the executor, commits the first pair, and leaves later pairs skipped without BAPI calls. PLAN validation now requires the ATP wrapper case; runtime validation remains unavailable in this WSL 1 environment.
+
+- Extended the PLAN validator to check all 34 public STO pair methods that accept `iv_atomic`: each must expose `iv_stop_on_failure` and either validate it directly or forward it to the next method. Source inspection found no current forwarding gaps. Runtime validation remains unavailable in this WSL 1 environment.
+
+- Added a repository-wide PLAN validator guard for all public methods declaring `iv_stop_on_failure`. Across 152 methods in 12 classes, each currently validates the flag or forwards it to a downstream method. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Added a repository-wide PLAN validator guard for public methods declaring `iv_test_run`. A source scan covered 403 methods in 16 classes, including the public class method, and found each uses or forwards the simulation flag. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Added a repository-wide PLAN validator guard for public methods declaring `iv_atomic`. A source scan covered 58 methods in five classes and found each validates or forwards atomic mode. The configured Node-based gates remain unavailable in this WSL 1 environment.
+
+- Added direct coverage for the base expired-scrap preview across unrestricted, QI, and blocked stock. Tests verify expired and soon-to-expire allocation order, exclude stock expiring on the posting date, check preview metadata and location ranks, validate strict full-quantity shortfall clearing, and reject an unknown category. The PLAN validator requires the direct base-method cases. Runtime gates remain unavailable in this WSL 1 environment.
+
+- Dated expiry pages now include a fixed source-by-expired-age-band matrix for
+  returned rows, with date spans, category quantities, and shares of the page's
+  expired rows. UOM output converts all four categories. Regressions cover all
+  age boundaries, source grouping, empty pages, summary-only output, and unit
+  conversion. PLAN, README, and the PLAN validator now include this contract.
+  The configured Node gates could not run in this WSL 1 environment.
+
+- Upcoming and after-window expiry pages now expose fixed source-by-lead-time
+  matrices based on the returned page, alongside their full-scope summaries.
+  Each matrix reconciles row counts and four stock categories; UOM results
+  convert each category. Regressions cover 0/1, 7, 8, 30, 31, 90, and 91-day
+  boundaries, source mapping, empty pages, date spans, and UOM conversions.
+  PLAN, README, and validator guards now cover the contract. Runtime validation
+  remains unavailable in this WSL 1 environment.
+
+- Dated expiry pages now also report source-by-window-band summaries for
+  upcoming and after-window stock. Upcoming aging follows `as_of_date` through
+  the inclusive `through_date`; after-window aging starts one day after the
+  window. The page matrices reconcile to their status counts and categories and
+  preserve all page keys and quantities through UOM conversion. Tests include
+  empty and summary-only pages plus each inclusive band edge. Runtime gates are
+  still unavailable in this WSL 1 environment.
+
+- Page expiry status summaries now include status-specific first/last expiration
+  dates and elapsed spans, while retaining the independent overall page range.
+  Regressions cover upcoming and after-window date spans, cursor continuation,
+  empty and summary-only results, and UOM metadata. PLAN, README, and validator guards include the new
+  contract. Runtime gates remain unavailable in this WSL 1 environment.
+
+- Page status rows now report each status's percentage of the corresponding
+  page-wide stock-category total. Shares handle zero category totals as zero
+  and are echoed through UOM output. Regression coverage exercises mixed
+  statuses, category-specific zero cases, empty and summary-only pages, and UOM.
+
+- The page source/status matrix now reports each source/status pair's share of
+  each returned-page stock-category total. Tests cover source/status rounding,
+  zero categories, empty and summary-only pages, and UOM echo.
+
+- Full-scope dated source/status rows now report category shares against the
+  complete matching dated totals, including after-window stock, independent of
+  page detail and cursors. UOM rows echo them. Regressions use distinct
+  after-window quantities to prove page-limit and cursor independence, plus
+  summary-only output and page-local source/status shares.
+
+- Undated summary-only base and UOM regressions now preserve raw unknown `expiration_date_source = 'X'` on the first matching batch while grouping its source totals under `O`. The PLAN validator checks both results.
+- Full source/status quantity shares now have base and summary-only UOM regressions for an active expiry-status filter, proving excluded statuses do not affect the denominators.
+- Planned-order create regressions now prove stop-on-failure at a failed final commit and through suggestion-based receipts. They retain earlier commits, mark remaining lot rows skipped with their suggestion and receipt indexes, and report separate outcome counts. Default suggestion creation also continues after a commit failure. The PLAN validator checks these paths.
+
+- Added a suggestion-based planned-order test-run regression spanning two
+  suggestions. A failed receipt marks later rows skipped with original
+  suggestion and receipt indexes, while outcome counts remain separate and no
+  commit or rollback runs. Expanded invalid test-run flag coverage across all
+  four create entry points and added PLAN validator guards. Runtime gates remain
+  unavailable in this WSL 1 environment.
+
+- Added undated expiry-source category shares for both returned-page and
+  full filtered summaries. Each stock category uses its matching scope total,
+  zero denominators produce zero, and UOM results preserve the shares. Updated
+  PLAN and README contracts.
+
+- Added the full-scope `expiry_statuses` summary for expired, upcoming, and
+  after-window dated stock. It reports count and category shares, date spans,
+  and base/UOM quantities, independent of detail paging. Updated PLAN and
+  README contracts.
+
+- Added direct P/G/O dated expiry-source summaries for returned pages and the
+  full filtered scope, including category shares and date ranges. Full values
+  remain independent of detail cursors and page limits, and UOM results preserve
+  shares while converting quantities. Updated PLAN and README.
+
+- Added `status_row_share_pct` to dated page and full source/status matrices. It
+  reports each source's share within its expiry status while preserving the
+  existing overall row and category shares; UOM results echo the new percentage.
+  Updated PLAN and README contracts.
+
+- Added `source_row_share_pct` to the dated page/full source-status matrix so
+  both status-relative and source-relative row percentages are available. The
+  two-source expired regression checks both denominators, full/page summaries,
+  empty, summary-only and filtered results, and UOM percentage echo with converted
+  quantities. PLAN validator guards cover the calculations and mappings;
+  runtime validation remains unavailable in this WSL 1 environment.
+
+- Added mixed-quantity undated-source regressions for all four category shares.
+  They cover full and one-row page denominators, zero-share rows, empty
+  full/page denominators, summary-only UOM output, unknown source grouping
+  under `O`, and UOM percentage echo. The PLAN validator checks all four
+  calculations, both UOM mappings, and the regression cases; runtime gates
+  remain unavailable.
+- Added status-relative category shares to every dated source/status cell.
+  Page percentages use the matching page status totals; full percentages use
+  full status totals. Regressions cover four categories, rounding, zero
+  denominators, empty results, page scope, and UOM echo. PLAN and README
+  contracts plus source guards were updated; runtime validation remains
+  unavailable in this WSL 1 environment.
+- Added source-relative category shares to dated source/status cells, paired
+  with the status-relative shares. Page and full denominators come from the
+  matching source summaries; UOM output echoes all four categories. Regressions
+  cover mixed status/source quantities, page-local values, zero denominators,
+  and UOM results. PLAN validator guards cover calculations, mappings, and
+  fixtures; runtime validation remains unavailable in this WSL 1 environment.
+- Added category quantity shares to the full and page expired source/age
+  matrices. Page denominators use returned expired quantities; full
+  denominators use full expired totals. Coverage includes limited pages, zero
+  denominators, empty results, UOM echo, and PLAN validator guards; runtime
+  validation remains unavailable in this WSL 1 environment.
+- Extended the full and page upcoming/after-window source-band matrices with
+  four stock-category quantity shares. Shares use their matching full or page
+  status totals, remain zero for empty categories, and pass through UOM output.
+  Regressions cover all categories, limited-page denominators, empty results,
+  UOM echo, and PLAN source guards; runtime validation remains unavailable.
+
+- Added source-relative and band-relative row percentages to full and page
+  expiry source/age and source/window matrices. The percentages use matching
+  status-scope denominators, stay zero for empty groups, and pass through UOM
+  results. Regressions cover full, page, and UOM output; a filtered one-row
+  page proves the full 50% shares differ from page-local 100% shares. Empty
+  cases and PLAN, README, and validator guards are included.
+
+- Added source-relative quantity shares to the full and page expiry
+  source/age and source/window matrices. Each of the four categories uses its
+  matching source total; empty categories yield zero and UOM output echoes the
+  percentages. Regressions cover base, limited-page, empty, and UOM scopes;
+  PLAN, README, and validator guards were updated.
+- Added band-relative category quantity shares to full and page expiry age/window matrices. Each `band_*_share_pct` uses the matching age or lead-time band total across sources, with independent denominators for full and returned-page data. Mixed-source fixtures verify 42.86/57.14 age shares and 66.67/33.33 window shares, while limited and summary-only pages, empty bands, and UOM echoes cover page scope and zero denominators. PLAN, README, and validator contracts now include the fields; runtime gates still need an available Node toolchain.
+- Added `available_pct_of_unrestricted` to every full and page expiry source/age and source/window cell. It measures reservation-net available quantity as a percentage of unrestricted quantity per cell, uses zero when unrestricted quantity is zero, and is echoed by all six UOM matrices. Typed full-scope rows and base, limited-page, empty, summary-only, and UOM regressions cover the calculation; PLAN, README, and validator guards were updated. Runtime gates remain unavailable because Windows Node interop fails in this WSL environment.
+- Added `reservation_deduction_qty` to each full/page age and window cell as unrestricted minus reservation-net available quantity. UOM matrices expose the same value in base and requested units, including signed differences. All six aggregation scopes and conversions have explicit mapping; regressions cover mixed-source cells, limited pages, empty and summary-only results, and UOM output. PLAN, README, and validator checks were updated; runtime gates remain blocked by WSL Windows-process interop.
+- Added availability ratios and signed reservation deductions to full and page
+  dated status/source summaries, undated-source summaries, and source/status
+  cells. UOM output echoes the ratio and carries base and converted deductions.
+  Regressions cover full/page/limited/cursor, empty and summary-only scopes,
+  zero denominators, availability above 100%, and converted negative
+  deductions. PLAN guards and README/PLAN contracts were updated; runtime gates
+  remain unavailable in this WSL setup.
+
+- Extended `available_pct_of_unrestricted` and signed
+  `reservation_deduction_qty` to each returned dated, undated, and
+  after-window batch row. UOM detail echoes the percentage and converts the
+  signed deduction. Added coverage for dated/undated details, after-window
+  rows, and a negative conversion; PLAN, README, and validator guards now
+  describe these fields. Runtime verification remains unavailable in this WSL
+  setup.
+
+- Added direct availability ratios and signed reservation deductions to the
+  dated and independent undated expiry page totals. UOM results echo the ratios
+  and expose base/requested-unit deductions; regressions cover positive, empty,
+  and negative pages. PLAN, README, and validator guards describe the new fields.
+
+- Added `undated_avail_pct` and signed
+  `undated_resv_deduct_qty` to full-scope undated totals. UOM results
+  echo the ratio and convert the deduction, including summary-only results.
+  Empty and negative cases are covered alongside positive totals; PLAN, README,
+  and validator guards include the contract.
+
+- Added combined full-scope dated unrestricted and available totals with a
+  guarded availability ratio and signed reservation deduction. UOM maps the
+  base totals and converts the deduction; summary-only, empty, and negative
+  fixtures cover the contract. PLAN, README, and validator guards were updated.
+
+- Added a production-order finish-window receipt-progress selector for not
+  started, partial, complete, over-received, and invalid quantities. The
+  repository applies it before pagination across all active-status and cursor
+  query branches, and the detail read rechecks the matching item's status for
+  scope drift. Added service/repository regressions, PLAN/README documentation,
+  and validator guards. Runtime gates remain unavailable in this WSL setup.
+
+- Extended production-order finish-window selection with inclusive received-
+  quantity bounds in the AFPO order unit. Zero bounds are supported, invalid
+  flags/negative values/reversed ranges fail before repository reads, and both
+  bounds are applied before pagination and rechecked against detail rows.
+  Regressions cover zero, exact values, filtered pagination, detail-filter drift, and input errors;
+  PLAN/README and validator guards were updated. Runtime gates remain
+  unavailable in this WSL setup.
+
+- Audited the production-order finish-window drift contract against the
+  service's detail predicate. Updated the consolidated PLAN, README, and
+  ANOMALIES lists to include receipt-progress state and received-quantity bounds,
+  and extended the validator guard for the full set.
+
+- Added `matches_finish_selection` to each production-order item result.
+  Finish-window reads mark every detail item that still matches the selected
+  item scope while retaining nonmatching items; number-based bulk reads leave
+  the marker initial. Regressions cover a matching and nonmatching item on one
+  returned order and the bulk default. PLAN/README and validator guards were
+  updated.
+
+- Added `finish_window_match_count` to production-order results. Finish-
+  window reads count the detail rows that still match the selected item scope;
+  direct bulk reads leave the count at zero. PLAN and README describe the count.
+  Regressions now assert both the finish-window total and bulk-read default.
+
+- Audited the production-order detail drift predicate against the consolidated
+  contract. PLAN, README, ANOMALIES, and the validator guard now list every
+  selected item attribute, quantity/status scope, and basic/scheduled date-time
+  constraint that can set `finish_filter_lost`.
+
+- Added `finish_match_progress_counts` to finish-window results. It summarizes
+  receipt status only for items still marked as matching; the existing
+  `receipt_progress_counts` continues to cover every returned item. The new
+  counts sum to `finish_window_match_count`, while bulk reads leave the summary
+  initial. Regressions, PLAN/README, and validator guards cover both scopes.
+
+- Added per-order `matching_progress_counts` for the items that still match the
+  finish-window selection. The page-level matching summary now aggregates those
+  per-order counts. Regression coverage checks both matched status totals and the
+  initial direct-bulk default; PLAN, README, and validator guards describe the
+  per-order/page relationship.
+
+- Receipt-progress count summaries now include a two-decimal percentage for
+  each status. Each summary uses its own five status counts as the denominator,
+  including invalid-quantity items; empty summaries keep the percentages
+  initial. Regressions cover bulk, all-item finish-window, matched-item page and
+  per-order shares, and a mixed valid/invalid bulk summary.
+
+- Added `total_item_count` to each nonempty receipt-progress summary. It equals
+  the five status counts combined, matches the finish-window match count on
+  each order, and rolls up across the page. Tests cover bulk, invalid, all-item,
+  matched-page, and per-order totals; empty and direct-bulk matching summaries
+  remain initial.
+
+- Finish-window searches can now bound raw received-to-order progress by an
+  inclusive percentage range before pagination. Invalid raw quantities cannot
+  match an enabled bound; continuation and detail-drift checks use the same
+  unrounded ratio. Repository and service regressions cover range endpoints,
+  over-receipt, zero receipt, pagination, invalid inputs, and scope drift.
+
+- Every production-order result now includes per-order receipt-progress counts
+  and percentages across all returned items. Finish-window results retain the
+  separate matching-only summary, so an order's complete item set remains
+  reconcilable with its selected subset. Regression cases cover direct bulk,
+  invalid quantities, itemless orders, and nonmatching finish-window items.
+
+- Shortened finish-window receipt result and test identifiers to fit ABAP's
+  30-character name limit, and aligned the affected service result types after
+  the first lint/transpiler run exposed overlong identifiers.
+  Targeted abaplint over the order-read source, regression files, and direct
+  dependencies now passes with 0 issues across 12 files. The latest full lint
+  still reports 2,012 issues across 252 files, while full transpilation fails
+  on errors in other files. PLAN validation remains blocked by the WSL 1 Node
+  launcher, so ABAP Unit has not run.
+
+- Production-order items now expose `is_receipt_progress_valid` so an initial
+  status can be distinguished from malformed raw AFPO quantities without
+  recomputing the validity rule. The flag depends only on positive order
+  quantity and nonnegative received quantity; tests cover valid data despite
+  failed UOM conversion, zero and negative order quantities, and negative
+  receipts. PLAN, README, and validator guards document the contract. Current
+  WSL 1 Node startup failures prevent the configured validation gates from
+  running.
+
+- Production-order read results now count successful base-unit conversions
+  alongside conversion failures at both page and per-order level. The counts
+  reconcile to all returned detail rows, including nonmatching rows retained by
+  finish-window reads, and remain separate from receipt-progress validity.
+  Bulk, conversion-failure, and finish-window regressions plus PLAN, README,
+  and validator guards cover the contract. Runtime validation is still blocked
+  because the WSL 1 Node launcher exits before starting Node.
+
+- Finish-window production-order results now also summarize conversion success
+  and failure over only the items that still match the selected scope. These
+  counts reconcile to `finish_window_match_count`, separately from the all-item
+  conversion totals. Regression coverage includes a selected row with a failed
+  conversion and a retained nonmatching row with a successful conversion;
+  direct bulk counts remain initial. PLAN, README, and validator guards cover
+  the contract. Runtime validation remains blocked by the WSL 1 Node launcher.
+
+- Confirmation posting-window results now provide order-level summaries in the
+  original confirmation unit, alongside the operation summaries. The base-unit
+  search also returns order-level totals grouped by production order and base
+  unit, merging operations and source units. Both preserve date spans and
+  reversed-inclusive/non-reversed counts and quantity totals; tests verify page
+  lookahead exclusion and source-unit merging. PLAN, README, and validator
+  guards describe the new summaries. Runtime gates remain unavailable under
+  the WSL 1 Node launcher.
+
+- Confirmation operation, order, and base-unit summaries now expose
+  `partial_confirmation_count`, partitioning each returned page group with
+  `final_confirmation_count`; reversal counts remain overlapping. They also
+  report two-decimal final, partial, and reversed percentages over each group's
+  `confirmation_count`. Added aggregation and raw/base regression assertions
+  plus PLAN, README, and validator coverage. The ABAP Unit run exposed a related
+  existing bug: a valid not-started receipt item reported zero open quantity.
+  Its raw open quantity
+  and percentage now report the full order quantity and 100%. The follow-up
+  run could not start Node because the WSL 1 launcher exited before scripts ran.
+
+- Confirmation posting-window reads now support inclusive lower and upper
+  bounds on yield, rework, and scrap quantities. Each bound has an explicit
+  flag, so zero is selectable; raw quantity ranges require one confirmation
+  unit scope and are applied before paging. The service rejects disabled values,
+  malformed flags, reversed ranges, missing unit scope, and repository rows
+  outside any selected bound. Repository and service regressions cover the three
+  metrics, both endpoints, one-sided ranges, zero, validation, and detail drift.
+  A late matching repository row remains visible with a one-row limit, and the
+  service returns matching-range cursors across truncated pages.
+  PLAN validation passes, and the full transpiled ABAP Unit suite passes.
+  Full abaplint reports 497 issues across 252 files; the confirmation repository,
+  interface, and test files add no findings, while the read service has four
+  existing alignment findings. CRLF-aware `git diff --check` passes.
+
+- Confirmation-window searches now filter and return the AFVC resource object
+  ID, with explicit exact-blank matching for unassigned operations. Direct
+  confirmation and routing-operation reads populate the same field, including
+  operations without confirmations. Routing-operation bulk reads also filter by
+  resource ID and support exact-blank selection. Operation and base-operation
+  summaries preserve the ID, including when source units merge. Regression coverage
+  checks nonblank and blank selection, invalid flags, result-scope drift, and
+  summary mapping. The Windows command bridge fails before launching Node in
+  this shell (`UtilBindVsockAnyPort`), and the WSL Node launcher reports WSL 1;
+  PLAN validation and ABAP Unit could not run here. CRLF-aware diff checks pass.
+
+- `READ_OPERATIONS_BULK` now filters by resource, control key, operation number,
+  routing sequence, and suboperation. Nonblank control keys filter by default;
+  the control-key flag selects an exact blank value. Sequence and suboperation
+  flags support exact initial-value matches, including base-operation-only
+  selection. The repository applies all selectors before returning rows, and
+  the service rejects invalid flags or rows outside the selected scope. PLAN,
+  README, and anomaly notes document the filters. Runtime validation was not
+  run in this turn.
+
+- Routing-operation results now preserve the order category selected from
+  `AUFK-AUTYP`, distinguishing production orders (`10`) from process orders
+  (`40`). `iv_order_category` can restrict a mixed order list to one category;
+  invalid values and returned category drift are rejected. PLAN, README, and
+  anomaly notes describe the field and selector.
+
+- `READ_OPERATIONS_BULK` now returns pages of up to 500 operations, with a
+  keyset cursor over order, sequence, operation, suboperation, and AFVC counter.
+  Results include page-level and per-order operation counts. Partial cursors
+  and cursors outside the requested order list are rejected. PLAN, README, and
+  anomaly notes document the paging contract. The repository now applies the
+  selection and cursor in one ordered AUFK/AFKO/AFVC query and returns at most
+  one lookahead row; the service validates the returned scope and builds the
+  cursor. Unit and PLAN validation were not run in this turn.
+
+- Routing-operation results now preserve the order category selected from
+  `AUFK-AUTYP`, distinguishing production orders (`10`) from process orders
+  (`40`) at the row level. PLAN, README, and anomaly notes describe the field.
+
+- `READ_OPERATIONS_BULK` now filters exact AFVC-LTXA1 operation descriptions.
+  Nonblank text filters by default, and an explicit flag selects blank text;
+  invalid flags or returned description-scope drift are rejected. The filter
+  applies before repository paging. PLAN, README, and anomaly notes document
+  the selector.
+
+- Confirmation-window searches now filter exact AFVC-LTXA1 operation
+  descriptions. Nonblank text filters by default, and an explicit flag selects
+  blank descriptions. The repository applies the filter in both cursor query
+  branches, while the service validates the flag and returned scope. PLAN,
+  README, and anomaly notes document the selector; runtime validation was not
+  run.
+
+- Confirmation-window searches now filter by exact AUFK-AUART order type
+  before pagination, and confirmations expose `order_type` in both window and
+  direct bulk reads. Operation-, order-, and base-unit summaries also carry the
+  type. PLAN, README, and anomaly notes describe the new field and filter.
+  Runtime validation was not run.
+
+- Routing-operation bulk reads now expose AUFK-AUART `order_type` and accept
+  `iv_order_type` to filter before paging. Repository pagination and legacy
+  reads apply the selector, and service validation checks returned type scope.
+  PLAN, README, and anomaly notes document the addition; runtime validation was
+  not run.
+
+- `READ_OPERATIONS_BULK` now filters an exact AFVC-APLZL operation counter with
+  `iv_operation_counter`, before pagination. The service checks returned
+  counter scope, and both paginated and legacy repository paths apply the
+  selector. PLAN, README, and anomaly notes document the filter; runtime
+  validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now accepts `iv_order_type` to restrict results to
+  one exact AUFK-AUART value. The repository filters orders before resolving
+  operations, and service validation rejects returned type drift. PLAN, README,
+  and anomaly notes document the selector; runtime validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` also accepts `iv_operation_counter` to select an
+  exact AFVC-APLZL counter. The repository filters AFVC before mapping
+  confirmations and the service validates returned counter scope. PLAN, README,
+  and anomaly notes document the selector; runtime validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now reports `confirmation_count` per requested
+  order and a result-level `returned_count`; per-order counts sum to that
+  total. PLAN, README, and anomaly notes describe the count contract. Runtime
+  validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now accepts `iv_exclude_reversed`, defaulting to
+  `abap_false`. The repository removes reversed AFRU rows before operation
+  resolution, and service validation checks the flag and returned reversal
+  scope. PLAN, README, and anomaly notes document the option; runtime
+  validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now supports mutually exclusive `iv_final_only`
+  and `iv_partial_only` filters. The repository filters AFRU final status
+  before resolving AFVC operations, and service validation checks returned
+  rows. PLAN, README, and anomaly notes document both filters; runtime
+  validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now filters exact AFVC-VORNR values through
+  `iv_operation_number`, which can be combined with the operation-counter
+  selector. The repository filters before mapping, and the service validates
+  returned operation-number scope. PLAN, README, and anomaly notes document the
+  selector; runtime validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now accepts `iv_confirmation_number` and optional
+  `iv_confirmation_counter` filters. A counter without a confirmation number
+  is invalid; both filters run before AFVC mapping, and service validation
+  checks returned confirmation scope. PLAN, README, and anomaly notes document
+  the selection; runtime validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now filters routing sequence and suboperation, with
+  flags for exact initial-value matching. Suboperation selection requires an
+  operation number. Repository filters, service checks, and the fake repository
+  share those semantics. PLAN, README, and anomaly notes document the fields;
+  runtime validation was not run.
+
+- `READ_CONFIRMATIONS_BULK` now pages number-based confirmation reads in a
+  stable production-order/posting-date/confirmation/counter order. It accepts a
+  1-to-500 page size and a complete four-field continuation cursor; the
+  repository returns one lookahead row, and the service returns next-cursor
+  fields plus page counts. The fake repository mirrors filtering and paging.
+  PLAN and README describe the contract; no tests or runtime validation were
+  run.
+
+- Number-based `READ_CONFIRMATIONS_BULK` reads now accept optional inclusive
+  posting-date bounds. Each bound is validated independently; two active bounds
+  must be valid and ascending. The repository filters AFRU before resolving
+  operations, and service result validation checks the selected date scope.
+  Pagination continues within the same bounds. No tests or runtime validation
+  were run.
+
+- Number-based `READ_CONFIRMATIONS_BULK` now filters by AUFK order category
+  (`10` production or `40` process) before confirmation operation resolution.
+  Invalid values fail before repository access, and service validation checks
+  returned category scope. The fake repository and both read guides mirror the
+  selector; no tests or runtime validation were run.
+
+- `READ_CONFIRMATIONS_BULK` now supports `iv_reversed_only` alongside
+  `iv_exclude_reversed`. The flags accept only boolean values and cannot both
+  be true; repository filtering and service result validation enforce the
+  selected reversal scope. The fake and both read guides are aligned. No tests
+  or runtime validation were run.
+
+- Number-based `READ_CONFIRMATIONS_BULK` now supports inclusive AFRU-ERSDA
+  entry-date bounds, independently of posting date. Active bounds are validated
+  and omit confirmations without an entry date; repository and service result
+  checks preserve the selected scope across cursor pages. The fake and read
+  guides mirror the behavior. No tests or runtime validation were run.
+
+- `READ_CONFIRMATIONS_BULK` now filters by AFVC control key, operation
+  description, and resource object ID. Nonblank values filter by default, and
+  boolean flags enable exact blank matching. Repository page queries, the fake,
+  and service result validation use the same scopes; PLAN and README describe
+  them. No tests or runtime validation were run.
+
+- Number-based confirmation reads now filter control key, operation text, and
+  resource object ID. The operation-text blank-match flag is named
+  `iv_filter_op_description` in both confirmation and operation reads to stay
+  within the ABAP method-parameter limit.
+  The transpiler passed after correcting its reported identifier and helper-call
+  errors. `npm run lint` reported 653 issues across 252 files on its initial
+  run; a rerun was blocked by the WSL Node launcher, so current lint status is
+  unknown.
+
+- Number-based `READ_CONFIRMATIONS_BULK` now accepts exact AFRU entered-by and changed-by filters, including exact blank matching, plus optional inclusive AFRU-LAEDA bounds. Active date bounds exclude rows without last-change dates. Repository SQL applies all filters before operation lookup and pagination; service validation checks flags, dates, users, and returned scope. The fake repository and service regression coverage mirror the behavior. PLAN and README were updated.
+
+- Verification for the confirmation audit filters: `npm run transpile` passed. The launched abaplint run reported 700 issues across 252 files, mostly alignment findings; the repository's existing broad lint backlog remains. `validate:plan` could not launch because the WSL Node shim reports WSL 1 unsupported, and ABAP Unit could not launch because `node` is unavailable in the Linux PATH. Source-level checks and the CRLF-aware diff check passed.
+
+- Number-based `READ_CONFIRMATIONS_BULK` now filters by AFRU confirmation unit. Nonblank units filter by default and `iv_filter_quantity_unit` enables exact blank-unit matching. The repository applies this filter before operation lookup and pagination; service scope validation and the fake repository mirror it. A service regression covers nonblank, blank, and invalid-flag cases; a repository regression queries BOX with a one-row page and checks that the SQL-filtered result is returned. PLAN and README were updated.
+
+- Confirmation-unit filter verification: `npm run transpile` passed. abaplint reported 682 issues across 252 files, down from 700 after aligning the newly added signatures; remaining findings are mostly existing alignment issues. `validate:plan` could not launch under the WSL 1 Node shim, and ABAP Unit could not launch because Linux `node` is unavailable. Source-contract checks and CRLF-aware diff validation were reviewed.
+
+- `READ_CONFIRMATIONS_BULK` now accepts an inclusive `AFRU-ERZET` entry-time window. Enabling the filter requires both valid, ascending bounds, with midnight accepted; disabled filters require initial bounds. SQL and the fake filter before pagination, and the service validates returned times. Service and repository regressions cover inclusive midnight/end bounds and pre-read rejection. PLAN and README were updated.
+
+- Entry-time window verification: `npm run transpile` passed after the implementation and repository fixture updates. abaplint reported 682 issues across 252 files; the new time signatures and regressions add no findings. `validate:plan` still cannot launch under the WSL 1 Node shim, and the ABAP Unit runner cannot start because Linux `node` is unavailable. CRLF-aware diff and static source checks passed.
+
+- `READ_CONFIRMATIONS_BULK` now filters positive yield, rework, and scrap, and accepts independent inclusive quantity bounds for each measure. Quantity ranges require a single unit scope through `iv_quantity_unit` or exact blank-unit selection; positive-only selectors remain unit-independent. Service validation, repository SQL, the fake, and regression coverage use the same rules. PLAN and README were updated.
+
+- Verification for the confirmation quality filters: `npm run transpile` passed; the latest abaplint run reported 606 issues across 252 files, down from 682 before this step's alignment cleanup. PLAN validation failed to launch under the WSL 1 Node shim. ABAP Unit remains unavailable because Linux `node` is not installed. Source contracts, method parameter lengths, ABAP line lengths, newline styles, and the CRLF-aware diff check passed.
+
+- `READ_OPERATIONS_BULK` now supports inclusive `AFVC-VORNR` lower and upper bounds. Either endpoint may be omitted, paired bounds must ascend, and the exact operation selector intersects the range. Repository filtering occurs before pagination; service validation and fake behavior match SQL. Service and repository regressions cover boundaries, intersection, reversed bounds, and both repository query paths. PLAN, README, and anomaly notes were updated.
+
+- `READ_OPERATIONS_BULK` also supports inclusive `AFVC-APLZL` bounds through `iv_operation_counter_from` and `iv_operation_counter_to`. Bounds can be supplied separately, paired bounds must ascend, and `iv_operation_counter` intersects the range. Repository paging and fallback queries, service checks, the fake repository, and regressions cover the shared selection rules.
+
+- Operation-number and operation-counter range verification: `npm run transpile` passed after both AFVC-VORNR and AFVC-APLZL ranges, and `npm run lint` reported 547 issues across 252 files (606 before the selector-range work and alignment cleanup). `npm run validate:plan` could not launch because the WSL 1 Node shim cannot locate Node; ABAP Unit remains unavailable because Linux `node` is not installed. Source length/identifier/newline checks and the CRLF-aware diff check pass.
+
+- `READ_OPERATIONS_BULK` now accepts inclusive routing-sequence bounds through `iv_operation_sequence_from` and `iv_operation_sequence_to`. Either bound may be supplied alone, paired bounds must ascend, and the exact sequence selector intersects with the range. Repository page and fallback SQL, service validation, the fake repository, and regression cases use the same bounds.
+
+- Sequence-range verification: `npm run transpile` passed; `npm run lint` reported 547 issues across 252 files, unchanged from the preceding operation-range pass. `npm run validate:plan` could not start because the WSL 1 Node shim could not locate Node. Source-contract checks, CRLF/LF checks, ABAP line/identifier limits, and `git diff --check` passed. ABAP Unit was not run because Linux `node` is unavailable.
+
+
+`READ_OPERATIONS_BULK` now supports inclusive AFVC-UVORN bounds through
+`iv_suboperation_number_from` and `iv_suboperation_number_to`. Initial values omit
+a bound, paired active bounds must ascend, and an active suboperation range
+requires an exact operation number. The exact suboperation selector intersects
+with the range. Repository queries apply both bounds before paging, while the
+service validates returned suboperation scope. Regressions cover inclusive and
+one-sided bounds, exact intersection, invalid ranges and missing operation
+scope, result drift, and paged/unpaged SQL reads.
+
+
+`READ_CONFIRMATIONS_BULK` now accepts inclusive AFVC-UVORN bounds through
+`iv_suboperation_number_from` and `iv_suboperation_number_to`. Active ranges
+require an exact operation number, paired bounds must ascend, and the exact
+suboperation selector intersects with the range. The repository filters before
+pagination and operation resolution; service result validation and the fake
+repository enforce the same bounds. Regression cases cover one-sided and paired
+bounds, exact intersection, invalid requests, result drift, and paged/unpaged
+SQL reads.
+
+
+`READ_CONFIRMATIONS_BULK` now accepts optional inclusive AFVC-VORNR bounds via
+`iv_operation_number_from` and `iv_operation_number_to`. Each endpoint is
+independent, paired bounds must ascend, and the exact operation-number selector
+intersects with the range. Both repository paths filter before pagination and
+operation resolution; the service and fake validate returned scope. Regression
+coverage includes paired and one-sided bounds, exact intersection, inverted
+ranges, result drift, and paged/unpaged SQL reads.
+
+- `READ_CONFIRMATIONS_BULK` now accepts inclusive AFVC-PLNFL bounds through
+  `iv_operation_sequence_from` and `iv_operation_sequence_to`. Either bound
+  may be omitted, paired active bounds must ascend, and an exact sequence
+  selector intersects with the range. Repository page and fallback paths,
+  service result validation, the fake, and regression cases cover the range.
+  PLAN, README, and source-contract validation were updated.
+
+- `READ_CONFIRMATIONS_BULK` now accepts inclusive AFVC-APLZL bounds through
+  `iv_operation_counter_from` and `iv_operation_counter_to`. Either bound can
+  be omitted, paired active bounds must ascend, and `iv_operation_counter`
+  intersects with the range. Repository page/fallback SQL, service result
+  validation, the fake, and regression coverage apply the same scope. PLAN,
+  README, and source-contract checks were updated.
+
+
+- `SEARCH_CONFIRMATIONS_BY_WINDOW` now accepts inclusive AFVC-VORNR bounds.
+  Either endpoint may be omitted, paired bounds must ascend, and the exact
+  operation selector intersects with the range. SQL filters before
+  pagination, and the service checks returned rows. Regressions cover paired
+  and one-sided bounds, intersection, inverted bounds, result drift, and a
+  later matching operation on a one-row page.
+
+- Confirmation-window reads now accept inclusive AFVC-PLNFL bounds. Either
+  endpoint may be omitted, paired bounds must ascend, and the exact sequence
+  selector intersects with the range. SQL filters before pagination, and the
+  service rejects out-of-range rows. Regressions cover one-sided and paired
+  bounds, intersection, inverted bounds, result drift, and filtered pages.
+
+- Confirmation-window reads now accept inclusive AFVC-UVORN bounds scoped to
+  an operation number. Either endpoint may be omitted, paired bounds must
+  ascend, and the exact suboperation selector intersects with the range. SQL
+  filters before pagination; service validation rejects missing operation
+  scope, inverted ranges, and result drift. Regressions cover both endpoints,
+  intersection, filtered pages, and pre-read validation.
+
+- Confirmation-window reads now accept inclusive AFVC-APLZL bounds scoped to
+  one production or process order. Either endpoint may be omitted, paired
+  bounds must ascend, and the exact counter selector intersects with the
+  range. SQL filters before pagination; service validation checks order and
+  counter scope. Regressions cover both endpoints, intersection, paging, and
+  pre-read rejection.
+
+- Confirmation-window reads now accept inclusive AFRU-RMZHL bounds scoped to
+  one confirmation. Either endpoint may be omitted, paired bounds must
+  ascend, and active bounds require the confirmation number. The exact
+  counter selector intersects with the range. SQL filters before pagination;
+  service validation rejects missing scope, inverted bounds, and result drift.
+  Regression coverage includes both endpoints, intersection, paged matches,
+  and pre-read validation.
+
+
+- Confirmation-window searches now accept an exact nonblank `work_center` selector for CRHD-ARBPL. The repository joins CRHD through AFVC-ARBID / CRHD-OBJID and filters before paging. Confirmation rows and operation summaries return the work-center code, with service scope validation and fake-repository coverage.
+
+- Added `filter_work_center` so confirmation-window callers can select operations with no resolved work-center code. The repository applies the blank-code match before paging, the service validates its boolean flag and returned rows, and repository/service regressions cover it. Added a minimal CRHD SAP-table stub because Open ABAP core does not include that table.
+
+- Confirmation-window results now expose and filter `CRHD-WERKS` as `work_center_plant`. Its optional blank-match flag composes with the work-center code selector and is applied before paging. Confirmation, source-unit summary, base-unit summary, and fake-repository tests cover the field.
+
+- Confirmation-window searches now support explicit blank AUFK-AUART matching
+  through `filter_order_type`. The repository applies the selector before
+  pagination, and service validation checks the returned order type. PLAN and
+  README document the default nonblank and explicit blank behavior.
+
+- Added deleted-order filtering to confirmation-window reads.
+  `exclude_deleted` removes rows without an active matching AFPO item
+  or with a marked AUFK deletion flag; confirmation rows expose the
+  order header deletion indicator. Service and repository tests cover
+  filtering, flag validation, and result-scope drift.
+
+- Typed the CRHD object-type join key in confirmation-window SQL. The
+  SQLite-backed unit environment does not ignore trailing blanks on
+  fixed-width CHAR values, so the typed host value keeps work-center
+  joins consistent with the CRHD DDIC field length.
+
+- The full unit run exposed stale READ_OPERATIONS_BULK range counts. An
+  initial suboperation selector omits that filter, so operation-number
+  ranges include matching suboperations; tests now assert those rows.
+
+- Confirmation-window searches now return AFRU ISDD/ISDZ/IEDD/IEDZ actual execution timestamps. Inclusive ISDD and IEDD date bounds support either endpoint alone, validate Gregorian dates and order, and omit undated confirmations. Paired ISDZ and IEDZ time filters use explicit boolean flags, require valid ascending bounds, accept midnight `000000`, and require the associated execution date. SQL filters before paging; service validation, the fake repository, repository/service regressions, the AFru stub, and the SQLite schema cover the same behavior.
+
+- Verification completed with Linux Node at `/home/lars/.nvm/versions/node/v22.22.2/bin/node`: `npm run unit` and `npm run validate:plan` pass, and `git diff --check` passes. `npm run lint` reports 627 issues across 252 files, primarily alignment findings.
+
+- `READ_CONFIRMATIONS_BULK` now returns actual AFRU execution start/finish timestamps and accepts independently optional execution-date bounds plus paired start/finish time ranges. Both repository query branches filter before pagination, the service validates returned timestamps and scope, and the fake repository mirrors the filters. Regression coverage includes midnight `000000`, paged and unpaged SQL reads, and invalid ranges. Linux Node `npm run unit` and `npm run validate:plan` pass.
+
+- `READ_OPERATIONS_BULK` now returns page-scoped work-center summaries by CRHD plant and code, including blank assignments; counts exclude lookahead rows and reconcile to the page operation count. Number-based confirmation reads and posting-window searches expose the corresponding confirmation summaries. Tests cover repeated work centers, blank groups, and page lookahead exclusion.
+
+- Work-center summary verification: `npm run unit` and `npm run validate:plan` pass. `npm run lint` reports 627 issues across 252 files, matching the existing baseline, and the CRLF-aware diff check passes.
+
+- Confirmation work-center rollups now include yield, rework, and scrap totals split by `AFRU-MEINH`; gross totals preserve reversed rows, and non-reversed totals omit them. The base-unit confirmation-window result adds equivalent totals by work center and material base unit. Counts remain scoped to returned page rows.
+
+- Confirmation work-center summaries also include the first and last dated postings, final/partial/reversed counts, and percentages. Final and partial counts partition each center's confirmations; reversed count is independent.
+
+- Work-center confirmation quantity-unit rows now include their own first and
+  last dated postings, final/partial/reversed counts, and percentages. These
+  metrics are grouped by `AFRU-MEINH`; final and partial counts partition the
+  unit count, while the reversed count is independent.
+
+- Work-center rollups now report the count of actual execution start and finish
+  dates and the earliest start/latest finish date-time pairs. Raw, quantity-unit,
+  and base-unit summaries share the same page scope; dated `000000` values count
+  as midnight. Regression data includes cross-midnight spans and midnight rows.
+
+- The same execution rollups now report start and finish coverage percentages
+  against each group’s confirmation count. Missing actual dates count as zero
+  coverage; an empty group keeps both percentages at zero.
+
+- Work-center summaries now sum elapsed seconds for valid actual execution
+  intervals and report valid and invalid interval counts. Missing start or finish
+  dates are omitted; invalid date/time values and finishes before starts are
+  counted without adding seconds. Totals include reversed rows and do not imply
+  utilization when confirmation intervals overlap.
+
+- Confirmation summaries now report `exec_longest_3plus_secs` and `exec_3plus_avg_secs` across work-center, quantity-unit, raw operation, raw order, and base-unit scopes. The mean retains fractional seconds; touching intervals that keep concurrency at three stay in one episode. The dedicated regression checks two separated episodes, a touching threshold transition, and a 2.5-second mean. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now include `exec_3plus_pct`, the share of the positive-interval span spent at concurrency three or higher. It rounds to two decimals and remains zero for groups without a positive span. Regressions cover triple and two-way intervals, touching boundaries, base-unit and raw scopes, and empty data. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now report `exec_exactly_two_secs` and `exec_exactly_two_pct`. The duration splits overlap wall time with 3+ concurrency time; their percentages split overlap wall percentage within 0.01 percentage point after rounding. Regressions cover mixed unit overlaps, base summaries, touching intervals, separate episodes, and zero-duration data. A first test run caught a two-second exactly-two tail in the dedicated fixture; the expected value was corrected. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now expose `exec_pairwise_overlap_secs`, the sum of overlap time across all confirmation pairs. A segment with three active intervals contributes three times its duration, distinct from once-counted overlap wall seconds and excess-duration seconds. Tests cover triple and pair overlaps, raw and base scopes, touching intervals, and separated episodes. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now expose `exec_peak_concurrency_pct`, the share of the positive-interval span spent at the group's observed maximum concurrency. It uses the same peak-duration resets as `exec_peak_concurrency_secs` and is zero without a positive span. Tests cover group scopes, the peak increasing later, a continuous chain, separate peak episodes, and zero-duration-only data. The full `npm test` suite passes.
+
+- Confirmation summaries now report `exec_avg_concurrency`, summed valid duration divided by the positive-interval span. The value includes internal idle gaps and can exceed one when intervals overlap; groups without a positive span return zero. Tests cover mixed units, raw and base scopes, touching intervals, separated overlaps, and zero-duration-only data. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now include `exec_overlap_pair_count`, counting distinct pairs of valid positive-duration intervals with a positive-length intersection. Endpoint-only contact, zero-length, invalid, and missing intervals do not add pairs. Regressions cover triple overlap, separated pair overlaps, raw and base scopes, touching intervals, and empty data. `npm test` passes with zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now report `exec_overlap_pair_avg_secs`, the mean overlap duration across distinct intersecting confirmation pairs. It divides pairwise overlap seconds by the positive-overlap pair count, retains fractional seconds, and stays zero without a pair. Tests cover triple overlaps, pair-only overlaps, fractional averages, raw and base scopes, and empty data. The full `npm test` suite passes.
+
+- Confirmation summaries now report `exec_longest_pair_overlap_secs`, the longest intersection of one pair of valid positive-duration intervals. This is distinct from the longest group-wide overlap episode. Tests cover raw/base scopes, a longer and a shorter pair, a three-way fixture, touching intervals, and empty execution data. `npm test` passes.
+
+- Peak-concurrency summaries now expose `exec_peak_episode_count`, `exec_longest_peak_secs`, and `exec_peak_episode_avg_secs`. They use only episodes at the final observed peak; discovering a higher peak resets earlier lower-level episodes, while touching handoffs at the peak remain continuous. Tests include a later peak increase, two separated peak episodes, touching intervals, and no positive durations. The full `npm test` suite passes with zero lint issues.
+- Confirmation summaries now expose non-reversed execution metrics beside
+  the gross totals: `exec_nonrev_duration_count`,
+  `exec_nonrev_total_secs`, `exec_nonrev_duration_avg_secs`,
+  `exec_nonrev_covered_secs`, and `exec_nonrev_excess_secs`. Matching
+  reversed-only values are `exec_reversed_duration_count`,
+  `exec_reversed_total_secs`, `exec_rev_duration_avg_secs`,
+  `exec_reversed_covered_secs`, and `exec_reversed_excess_secs`. Both
+  sides also report `exec_nonrev_duration_pct` and
+  `exec_reversed_duration_pct`, their shares of summed valid duration.
+  counts include valid zero-duration rows; averages divide each sum by its
+  count, unions exclude zero durations, and overlap excess is summed duration
+  minus that union. Tests compare work-center, unit, raw, and base scopes with one
+  reversed overlapping interval. `npm test` passes with
+  zero lint issues, successful transpilation, and full ABAP Unit success.
+
+- Confirmation summaries now report `exec_duration_seconds_median` as the
+  median of valid elapsed durations. Zero-duration and reversed intervals
+  participate; even-sized groups average their two middle values, and empty
+  groups return zero. Tests cover work-center, unit, operation, order, and base
+  scopes, plus a zero-only group.
+
+- Confirmation summaries now expose `exec_duration_seconds_p90`, the
+  nearest-rank 90th percentile of valid elapsed durations. Zero-duration and
+  reversed confirmations participate; empty groups return zero. Regression
+  assertions cover work-center, unit, operation, order, and base scopes.
+
+- Confirmation summaries now expose `exec_duration_seconds_p95`, the
+  nearest-rank 95th percentile of valid elapsed durations. Zero-duration and
+  reversed confirmations participate; empty groups return zero. A 20-sample
+  regression distinguishes p90 at 1,080 seconds from p95 at 1,140 seconds.
+
+- Confirmation summaries now report `exec_duration_seconds_mad`, the
+  median absolute deviation of valid elapsed durations. Zero-duration and
+  reversed confirmations participate, and empty groups return zero. Tests
+  cover a 20-value sequence with a 300-second MAD, a work-center overlap
+  group, and zero-only data.
+
+- Reversal-aware confirmation summaries now report separate non-reversed and
+  reversed duration medians. Valid zero-duration rows participate, and an
+  empty subgroup returns zero. Tests compare work-center, unit, operation,
+  order, and base scopes, including a zero-only subgroup.
+
+- Reversal-aware confirmation summaries now report separate non-reversed and
+  reversed p90 durations using nearest-rank calculation. Valid zero-duration
+  rows participate, and empty groups return zero. Tests cover unit, raw, base,
+  20-row tail, and zero-only cases.
+
+- Reversal-aware confirmation summaries now report a separate median absolute
+  deviation for non-reversed and reversed valid durations. Zero-duration rows
+  participate, and empty subgroups return zero. Tests cover work-center, unit,
+  raw operation/order, base, 20-row, and zero-only cases.
+
+- Reversal-aware confirmation summaries now report nearest-rank p95 durations for non-reversed and reversed confirmations. Valid zero-duration rows participate, and empty subgroups return zero. The shared p95 calculation is mapped to all seven summary scopes.
+
+- Reversal-aware confirmation summaries now report separate minimum and maximum valid elapsed durations for non-reversed and reversed confirmations. Valid zero-duration rows participate, and empty subgroups return zero. The bounds flow through all seven summary scopes; regression coverage includes mixed units, base-unit summaries, and a zero-only group.
+
+- Production confirmation duration summaries now include nearest-rank p99 for gross, non-reversed, and reversed duration groups. All use one shared percentile rank calculation; valid zero-duration rows participate, empty groups return zero, and tests cover a 20-row tail plus mixed-unit and base scopes.
+
+- Confirmation summaries now expose gross, non-reversed, and reversed execution-duration IQR. Each is nearest-rank p75 minus p25, includes valid zero-duration rows, and returns zero for an empty group. Regression coverage spans work-center, unit, raw, base-unit, and zero-only groups.
+
+- Confirmation summaries now expose nearest-rank p25 and p75 elapsed durations for gross, non-reversed, and reversed groups, alongside the IQR. Valid zero-duration rows participate; empty groups return zero. Regressions cover tail ranks, mixed units, base scopes, and zero-only groups.
+
+- Confirmation summaries now report counts and percentages of valid execution durations strictly above each gross, non-reversed, or reversed nearest-rank p95. Percentages use valid duration rows as their denominator, ties at p95 are excluded, and empty groups report zero. Regressions cover a 5% gross upper-tail case, split groups, mixed units, base scopes, and zero-only data.
+
+- Confirmation summaries now report the dimensionless ratio of p95 duration to median duration for gross and reversal groups. Ratios return zero when the median is zero; regressions cover a skewed 20-row sample, each reversal subset, and zero-only data.
+
+- Production confirmation summaries now report elapsed seconds above each p95 threshold and that tail sum as a share of all valid duration seconds, for gross and reversal groups. Ties at p95 are excluded, and shares are zero when the group has no positive duration total. Regressions include a 1,200-second tail contributing 9.52% of the group total.
+
+- Production confirmation summaries now report valid p99 exceedance counts and percentages, plus elapsed seconds above each gross, non-reversed, and reversed p99 threshold and their shares of total duration. Strict comparisons exclude ties; a 101-row split-group regression covers positive tails and zero-only summaries cover empty tails.
+
+- Production confirmation summaries now expose p99-to-median duration ratios for gross, non-reversed, and reversed groups. Ratios retain seconds-free units and return zero for empty or zero-median groups. Regressions cover skewed, split, and zero-only samples.
+
+- Production confirmation summaries now expose p90-to-median duration ratios for gross, non-reversed, and reversed groups. Ratios are dimensionless and return zero for empty or zero-median groups; skewed and zero-only samples cover the behavior.
+
+- Production confirmation summaries now include strict p90 exceedance counts, percentages, elapsed tail seconds, and tail shares for gross, non-reversed, and reversed groups. Counts use valid rows; elapsed shares use each group's total valid duration. A skewed 20-row sample and zero-only data cover the behavior.
+
+- Production confirmation summaries now report dimensionless IQR-to-median ratios for gross, non-reversed, and reversed durations. Ratios are zero for empty or zero-median groups; skewed and zero-only regressions cover the result.
+
+- Production confirmation summaries now expose dimensionless MAD-to-median ratios for gross, non-reversed, and reversed duration groups. Zero medians return zero; skewed and zero-duration regressions cover both normal and empty-spread cases.
+
+- Production confirmation summaries now expose average-to-median duration ratios for gross, non-reversed, and reversed groups. Ratios are dimensionless and zero when the median is zero.
+
+- Production confirmation summaries now report positive-only valid duration counts, medians, and p90s for gross, non-reversed, and reversed groups. Zero-duration rows are excluded; empty groups return zero.
+
+- Positive-only execution summaries now report p90-to-median ratios for gross, non-reversed, and reversed groups. Ratios are dimensionless and zero when the group has no positive median.
+
+- Production confirmation summaries now report positive-only p90 greater-than counts and percentages plus elapsed tail seconds and shares for gross, non-reversed, and reversed groups. Counts use positive rows; tail shares use each group’s valid elapsed total.
+
+- Production confirmation summaries now report positive-only p95 and p99 durations for gross, non-reversed, and reversed groups. Nearest-rank percentiles exclude zero-duration rows; empty groups return zero.
+- Production confirmation summaries now report positive-only p25/p75, IQR, and median absolute deviation for gross, non-reversed, and reversed durations, plus IQR-to-median and MAD-to-median ratios. Zero-duration rows are excluded; empty groups and zero medians return zero.
+- Production confirmation summaries now report positive-only average durations and average-to-median ratios for gross, non-reversed, and reversed groups; empty groups return zero.
+- Production confirmation summaries now report positive-only minimum, maximum, and duration range for gross, non-reversed, and reversed groups; zero-duration rows are excluded and empty groups return zero.
+- Production confirmation summaries now report positive-only p95 and p99 exceed counts, percentages, tail seconds, and tail shares for gross, non-reversed, and reversed groups. Rows tied at the nearest-rank threshold are excluded.
+- Production confirmation summaries now expose positive-only p95/median and p99/median ratios for gross, non-reversed, and reversed cohorts; empty positive-duration groups return zero.
+- Production confirmation summaries now report positive-duration counts as percentages of all confirmations, with matching non-reversed and reversed cohort percentages; missing, invalid, and zero-duration rows stay in the denominator.
+- Production confirmation summaries now report positive-duration shares within valid intervals for gross, non-reversed, and reversed cohorts; invalid and missing rows are excluded from these denominators.
+- Production confirmation summaries now report zero-duration shares within valid intervals for gross, non-reversed, and reversed cohorts, complementing positive-valid shares.
+
+- Production confirmation summaries now expose exact zero-duration counts for gross, non-reversed, and reversed valid-interval cohorts. The counts are valid rows minus positive rows and match the zero-valid percentages. Tests cover skewed, all-positive, and zero-only groups.
+
+- Production confirmation summaries now expose invalid and missing execution-duration counts separately for non-reversed and reversed cohorts. These counts combine with each cohort’s valid count to partition its confirmations; a fixture exercises both statuses in both cohorts.
+
+- Production confirmation summaries now report valid, invalid, and missing duration percentages within each reversal cohort. Each uses that cohort’s full confirmation count; the three percentages partition the cohort, with an empty cohort returning zero. Empty cohorts return zero; each rate uses its cohort confirmation count as denominator.
+
+- Production confirmation details now identify why an execution interval is missing or invalid: separate start/finish date and time codes, both-dates-missing, and negative elapsed time. Valid and zero-duration intervals return a blank issue code; `000000` remains a valid midnight time.
+
+- Production confirmation summaries now include a fixed, issue-code-sorted count table for all eight missing/invalid interval reasons. Empty reasons remain present at zero, and the counts reconcile to invalid plus missing durations.
+- Each execution-duration issue row now reports its percentage of the summary's confirmations; empty summaries return zero, and issue percentages reconcile to invalid plus missing duration percentages.
+- The execution-duration issue matrix now splits counts and rates into non-reversed and reversed confirmations, using each cohort's confirmation count as its percentage denominator.
+- Each issue row now reports `issue_share_pct`, the reason's share of all invalid and missing confirmations in that summary.
+- Issue shares now also split non-reversed and reversed exceptions; each rate uses invalid-plus-missing confirmations from its matching cohort.
+- The issue table now reports `status_share_pct`, showing a reason's share within invalid reasons or missing reasons separately.
+- Status-specific reason shares now also split non-reversed and reversed confirmations using their matching invalid or missing counts.
+- Confirmation summaries now identify the most common duration issue code and status, with count and full-summary percentage; lexical code order breaks ties.
+- Confirmation summaries now identify the most common invalid and missing issue reasons separately, with counts and shares within each status.
+- Confirmation summaries now report the most common issue by reversal cohort, including its status and share of the cohort's full confirmations.
+- Batch expiry exposure can filter to positive reservation-net available quantity before dated and undated summaries and detail paging; the selector is validated and echoed by base and UOM results.
+- Batch expiry exposure now accepts inclusive reservation-net available quantity bounds in the material base unit; either bound is optional, and the filters compose before summaries and paging.
+- Batch expiry exposure can now filter by inclusive percentage bounds on available stock as a share of unrestricted stock, using the same rounded ratio reported on each detail row.
+- Batch expiry exposure can now retain rows with positive unrestricted, available, quality-inspection, or blocked balances while preserving every category amount in the returned rows.
+- Batch expiry exposure can now restrict a selected positive stock category to inclusive base-unit quantity bounds; base and UOM requests validate and echo the bounds.
+- Batch expiry exposure can now filter on signed reservation-deduction quantity bounds before the expiry summaries and page rows.
+- Production-order finish-window reads can now filter by inclusive bounds on remaining order quantity percentage, including validation and detail-read drift checks.
+- Planned-order finish-window reads can now filter on converted material base-unit quantity before pagination, alongside existing order-unit bounds.
+- Production-order finish-window reads can now bound converted AFPO order quantity in the material base unit before pagination and recheck conversion scope on details.
+- Production-order finish-window reads can now bound converted AFPO received quantity in the material base unit before pagination and recheck conversion scope on details.
+- Production-order finish-window reads can now bound positive remaining quantity in the material base unit before pagination and recheck conversion scope on details.
+- Production-order finish-window reads can now select orders by any of several active system or user status codes and report when none remain active on the later status read.
+- Production-order finish-window reads can now select over-receipt by converted material base-unit quantity, including valid zero-excess items and detail-read drift checks.
+- Production-order finish-window results now include page and per-order matching summaries for converted order, received, open, and over-receipt quantities in the selected material's base unit, quantity totals and quantity shares by contributing receipt state, weighted quantity/coverage percentages, contributing-item receipt-state counts and rates, over-receipt as a share of received quantity, disjoint exclusion counts and percentages, and each exclusion reason's share of excluded items.
+- `READ_OPERATIONS_BULK` work-center summaries now report each group's percentage of returned page operations, weighted from page counts and excluding lookahead rows.
+- `READ_OPERATIONS_BULK` now summarizes returned page operations by AUFK-AUTYP, retaining blank categories and reporting each category's page count and share.
+- `READ_OPERATIONS_BULK` now summarizes returned page operations by AUFK-AUART, retaining blank order types and reporting each type's page count and share.
+- `READ_OPERATIONS_BULK` work-center summaries now include distinct contributing order counts, counting an order once per center even when it has multiple operations there.
+- `READ_OPERATIONS_BULK` now groups returned page operations by AFVC-STEU control key, retaining blank keys and reporting each key's operation count and share.
+- Operation category, order-type, and control-key summaries now include distinct contributing order counts, so repeated operations from one order do not inflate order totals.
+- Operation summary groups now report `order_pct`, their distinct order count as a share of page `found_count`; work-center and control-key shares can overlap.

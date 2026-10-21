@@ -385,6 +385,8 @@ CLASS ltcl_reservation_issue DEFINITION FINAL
     METHODS rejects_unknown_issue_unit FOR TESTING.
     METHODS rejects_issue_unit_mismatch FOR TESTING.
     METHODS posts_cc_issue FOR TESTING.
+    METHODS stops_cc_issue_bulk_failure FOR TESTING.
+    METHODS rejects_bad_cc_bulk_stop_flags FOR TESTING.
     METHODS previews_cc_remaining_issue FOR TESTING.
     METHODS posts_cc_remaining_issue FOR TESTING.
     METHODS posts_cc_remaining_atomic FOR TESTING.
@@ -396,6 +398,7 @@ CLASS ltcl_reservation_issue DEFINITION FINAL
     METHODS posts_cc_issue_in_unit FOR TESTING.
     METHODS posts_cc_issue_rev FOR TESTING.
     METHODS rejects_wrong_cc_rev FOR TESTING.
+    METHODS stops_cc_reversal_bulk_failure FOR TESTING.
     METHODS posts_cc_rev_bulk_unit FOR TESTING.
     METHODS posts_cc_rev_atomic FOR TESTING.
     METHODS rejects_bad_cc_rev_atomic_flag FOR TESTING.
@@ -481,6 +484,308 @@ CLASS ltcl_reservation_issue IMPLEMENTATION.
       act = mo_reader->get_read_count( ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = mo_goods_api->get_create_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_cc_issue_bulk_failure.
+    mo_cc_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '2.000'
+          open_quantity      = '3.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          reservation_item   = '0001'
+          material           = 'MAT-2'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '6.000'
+          withdrawn_quantity = '2.000'
+          open_quantity      = '4.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000003'
+          reservation_item   = '0001'
+          material           = 'MAT-3'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '3.000'
+          withdrawn_quantity = '1.000'
+          open_quantity      = '2.000' ) ) ).
+    mo_reader->set_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000001'
+              item_number        = '0001'
+              record_type        = '1'
+              movement_allowed   = abap_true
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_quantity  = '5.000'
+              withdrawn_quantity = '2.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) )
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000002'
+              item_number        = '0001'
+              record_type        = '1'
+              movement_allowed   = abap_true
+              material           = 'MAT-2'
+              plant              = '1000'
+              required_quantity  = '6.000'
+              withdrawn_quantity = '2.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) )
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000003'
+              item_number        = '0001'
+              record_type        = '1'
+              movement_allowed   = abap_true
+              material           = 'MAT-3'
+              plant              = '1000'
+              required_quantity  = '3.000'
+              withdrawn_quantity = '1.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) ) ) ).
+    mo_goods_api->set_create_results(
+      it_results = VALUE #(
+        ( material_document = '4900000001'
+          fiscal_year       = '2026'
+          is_successful     = abap_true )
+        ( messages      = VALUE #(
+            ( type = 'E' message = 'Second cost-center issue failed' ) )
+          is_successful = abap_false )
+        ( material_document = '4900000003'
+          fiscal_year       = '2026'
+          is_successful     = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->post_cc_goods_issue_bulk(
+      iv_cost_center     = 'COST-100'
+      is_header          = VALUE #(
+        posting_date  = '20261014'
+        document_date = '20261014' )
+      it_requests        = VALUE #(
+        ( reservation_number = '9000000001'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' )
+        ( reservation_number = '9000000002'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' )
+        ( reservation_number = '9000000003'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000003'
+      act = ls_result-items[ 3 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_goods_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_reader->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_goods_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_cc_bulk_stop_flags.
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        mo_cut->post_cc_goods_issue_bulk(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_requests        = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              base_quantity      = '1.000' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_goods_issue_bulk_unit(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_requests        = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              quantity           = '1.000'
+              unit               = 'NO-SUCH-UNIT' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_issue_rev_bulk(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_requests        = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              base_quantity      = '1.000' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_issue_rev_bulk_unit(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_requests        = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001'
+              quantity           = '1.000'
+              unit               = 'NO-SUCH-UNIT' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_rev_remaining_bulk(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_item_keys       = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_issue_remaining(
+          iv_cost_center         = 'COST-100'
+          is_header              = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_reservation_numbers = VALUE #( ( '9000000001' ) )
+          iv_stop_on_failure     = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        mo_cut->post_cc_remaining_items(
+          iv_cost_center     = 'COST-100'
+          is_header          = VALUE #(
+            posting_date  = '20261014'
+            document_date = '20261014' )
+          it_item_keys       = VALUE #(
+            ( reservation_number = '9000000001'
+              reservation_item   = '0001' ) )
+          iv_stop_on_failure = 'Y' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_cc_reader->get_open_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_cc_reader->get_scope_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = mo_reader->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
       act = mo_goods_api->get_create_count( ) ).
   ENDMETHOD.
 
@@ -3184,6 +3489,162 @@ CLASS ltcl_reservation_issue IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-items[ 1 ]-is_committed ).
+  ENDMETHOD.
+
+  METHOD stops_cc_reversal_bulk_failure.
+    mo_cc_reader->set_reservations(
+      it_reservations = VALUE #(
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000001'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '2.000'
+          open_quantity      = '0.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000002'
+          reservation_item   = '0001'
+          material           = 'MAT-2'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '6.000'
+          withdrawn_quantity = '3.000'
+          open_quantity      = '0.000' )
+        ( cost_center        = 'COST-100'
+          reservation_number = '9000000003'
+          reservation_item   = '0001'
+          material           = 'MAT-3'
+          plant              = '1000'
+          unit               = 'EA'
+          required_quantity  = '3.000'
+          withdrawn_quantity = '4.000'
+          open_quantity      = '0.000' ) ) ).
+    mo_reader->set_results(
+      it_results = VALUE #(
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000001'
+              item_number        = '0001'
+              record_type        = '1'
+              material           = 'MAT-1'
+              plant              = '1000'
+              required_quantity  = '5.000'
+              withdrawn_quantity = '2.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) )
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000002'
+              item_number        = '0001'
+              record_type        = '1'
+              material           = 'MAT-2'
+              plant              = '1000'
+              required_quantity  = '6.000'
+              withdrawn_quantity = '3.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) )
+        ( is_successful = abap_true
+          movement_type = '201'
+          items         = VALUE #(
+            ( reservation_number = '9000000003'
+              item_number        = '0001'
+              record_type        = '1'
+              material           = 'MAT-3'
+              plant              = '1000'
+              required_quantity  = '3.000'
+              withdrawn_quantity = '4.000'
+              base_unit          = 'EA'
+              base_unit_iso      = 'EA' ) ) ) ) ).
+    mo_goods_api->set_create_results(
+      it_results = VALUE #(
+        ( material_document = '4900000001'
+          fiscal_year       = '2026'
+          is_successful     = abap_true )
+        ( messages      = VALUE #(
+            ( type = 'E' message = 'Second cost-center reversal failed' ) )
+          is_successful = abap_false )
+        ( material_document = '4900000003'
+          fiscal_year       = '2026'
+          is_successful     = abap_true ) ) ).
+
+    DATA(ls_result) = mo_cut->post_cc_issue_rev_bulk(
+      iv_cost_center     = 'COST-100'
+      is_header          = VALUE #(
+        posting_date  = '20261014'
+        document_date = '20261014' )
+      it_requests        = VALUE #(
+        ( reservation_number = '9000000001'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' )
+        ( reservation_number = '9000000002'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' )
+        ( reservation_number = '9000000003'
+          reservation_item   = '0001'
+          base_quantity      = '1.000' ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 1 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 2 ]-is_attempted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-items[ 2 ]-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '9000000003'
+      act = ls_result-items[ 3 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-items[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_goods_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = mo_reader->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_goods_api->get_commit_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = mo_cc_reader->get_scope_read_count( ) ).
   ENDMETHOD.
 
   METHOD posts_cc_rev_atomic.

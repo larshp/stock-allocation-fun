@@ -907,6 +907,15 @@ CLASS zcl_stock_xfer_order_svc DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS validate_coverage_floor
+      IMPORTING
+        iv_requested_quantity   TYPE mard-labst
+        iv_allocated_quantity   TYPE mard-labst
+        iv_minimum_coverage_pct TYPE
+          zcl_stock_service=>ty_minimum_coverage_pct
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS validate_plant_pair_totals
       IMPORTING
         is_allocation TYPE zcl_stock_service=>ty_unit_date_plant_result
@@ -3335,6 +3344,29 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
       iv_stop_on_failure = iv_stop_on_failure ).
   ENDMETHOD.
 
+  METHOD validate_coverage_floor.
+    DATA lv_allocated_coverage TYPE decfloat34.
+    DATA lv_required_coverage TYPE decfloat34.
+
+    IF iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100
+        OR iv_requested_quantity < 0
+        OR iv_allocated_quantity < 0
+        OR iv_allocated_quantity > iv_requested_quantity.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF iv_allocated_quantity > 0.
+      lv_allocated_coverage = CONV decfloat34( iv_allocated_quantity )
+        * CONV decfloat34( 100 ).
+      lv_required_coverage = CONV decfloat34( iv_requested_quantity )
+        * CONV decfloat34( iv_minimum_coverage_pct ).
+      IF lv_allocated_coverage < lv_required_coverage.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
   METHOD validate_fefo_pair_totals.
     TYPES:
       BEGIN OF ty_fefo_demand_group,
@@ -3376,6 +3408,13 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     DATA lv_is_eligible TYPE abap_bool.
 
     LOOP AT is_allocation-allocations INTO DATA(ls_demand_allocation).
+      validate_coverage_floor(
+        iv_requested_quantity   =
+          ls_demand_allocation-allocation-requested_quantity
+        iv_allocated_quantity   =
+          ls_demand_allocation-allocation-allocated_quantity
+        iv_minimum_coverage_pct =
+          ls_demand_allocation-allocation-minimum_coverage_pct ).
       IF ls_demand_allocation-allocation-request_id IS INITIAL
           OR ls_demand_allocation-allocation-material IS INITIAL
           OR ls_demand_allocation-allocation-target_plant IS INITIAL
@@ -3655,6 +3694,13 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     FIELD-SYMBOLS <ls_demand_group> TYPE ty_plant_demand_group.
 
     LOOP AT is_allocation-allocations INTO DATA(ls_demand_allocation).
+      validate_coverage_floor(
+        iv_requested_quantity   =
+          ls_demand_allocation-allocation-requested_quantity
+        iv_allocated_quantity   =
+          ls_demand_allocation-allocation-allocated_quantity
+        iv_minimum_coverage_pct =
+          ls_demand_allocation-allocation-minimum_coverage_pct ).
       IF ls_demand_allocation-allocation-request_id IS INITIAL
           OR ls_demand_allocation-allocation-material IS INITIAL
           OR ls_demand_allocation-allocation-target_plant IS INITIAL
@@ -3782,6 +3828,13 @@ CLASS zcl_stock_xfer_order_svc IMPLEMENTATION.
     FIELD-SYMBOLS <ls_source_group> TYPE ty_batch_source_group.
 
     LOOP AT is_allocation-allocations INTO DATA(ls_demand_allocation).
+      validate_coverage_floor(
+        iv_requested_quantity   =
+          ls_demand_allocation-allocation-requested_quantity
+        iv_allocated_quantity   =
+          ls_demand_allocation-allocation-allocated_quantity
+        iv_minimum_coverage_pct =
+          ls_demand_allocation-allocation-minimum_coverage_pct ).
       IF ls_demand_allocation-allocation-request_id IS INITIAL
           OR ls_demand_allocation-allocation-material IS INITIAL
           OR ls_demand_allocation-allocation-target_plant IS INITIAL

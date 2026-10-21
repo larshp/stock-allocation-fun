@@ -40,6 +40,7 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
            paart AS order_type,
            lgort AS storage_location,
            beskz AS procurement_indicator,
+           sobes AS special_procurement_type,
            dispo AS mrp_controller,
            plgrp AS production_supervisor,
            verid AS production_version,
@@ -67,6 +68,7 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
   METHOD zif_planned_order_read_repo~read_orders_by_finish_window.
     DATA lt_orders TYPE zif_planned_order_read_repo=>ty_order_headers.
     DATA lv_fetch_limit TYPE i.
+    DATA lv_material TYPE plaf-matnr.
     DATA lv_filter_sales_order TYPE abap_bool.
     DATA lv_sales_order TYPE plaf-kdauf.
     DATA lv_blank_sales_order TYPE plaf-kdauf.
@@ -96,6 +98,8 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     DATA lv_storage_location TYPE plaf-lgort.
     DATA lv_filter_proc_indicator TYPE abap_bool.
     DATA lv_procurement_indicator TYPE plaf-beskz.
+    DATA lv_filter_special_proc TYPE abap_bool.
+    DATA lv_special_procurement_type TYPE plaf-sobes.
     DATA lv_filter_order_unit TYPE abap_bool.
     DATA lv_order_unit TYPE plaf-meins.
     DATA lv_blank_order_unit TYPE plaf-meins.
@@ -104,6 +108,12 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     DATA lv_quantity_from TYPE plaf-gsmng.
     DATA lv_filter_quantity_to TYPE abap_bool.
     DATA lv_quantity_to TYPE plaf-gsmng.
+    DATA lv_filter_base_quantity_from TYPE abap_bool.
+    DATA lv_base_quantity_from TYPE decfloat34.
+    DATA lv_filter_base_quantity_to TYPE abap_bool.
+    DATA lv_base_quantity_to TYPE decfloat34.
+    DATA lv_zero_base_quantity TYPE decfloat34.
+    DATA lv_blank_base_unit TYPE mara-meins.
     DATA lv_filter_mrp_controller TYPE abap_bool.
     DATA lv_mrp_controller TYPE plaf-dispo.
     DATA lv_filter_prod_supervisor TYPE abap_bool.
@@ -147,6 +157,7 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     ENDIF.
 
     lv_fetch_limit = is_selection-maximum_results + 1.
+    lv_material = is_selection-material.
     lv_filter_sales_order = is_selection-filter_sales_order.
     lv_sales_order = is_selection-sales_order.
     lv_filter_planning_plant = is_selection-filter_planning_plant.
@@ -174,6 +185,8 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     lv_filter_proc_indicator =
       is_selection-filter_procurement_indicator.
     lv_procurement_indicator = is_selection-procurement_indicator.
+    lv_filter_special_proc = is_selection-filter_special_proc_type.
+    lv_special_procurement_type = is_selection-special_procurement_type.
     lv_filter_order_unit = is_selection-filter_order_unit.
     lv_order_unit = is_selection-order_unit.
     lv_positive_quantity_only = is_selection-positive_quantity_only.
@@ -181,6 +194,11 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     lv_quantity_from = is_selection-quantity_from.
     lv_filter_quantity_to = is_selection-filter_quantity_to.
     lv_quantity_to = is_selection-quantity_to.
+    lv_filter_base_quantity_from =
+      is_selection-filter_base_quantity_from.
+    lv_base_quantity_from = is_selection-base_quantity_from.
+    lv_filter_base_quantity_to = is_selection-filter_base_quantity_to.
+    lv_base_quantity_to = is_selection-base_quantity_to.
     lv_filter_mrp_controller = is_selection-filter_mrp_controller.
     lv_mrp_controller = is_selection-mrp_controller.
     lv_filter_prod_supervisor =
@@ -224,7 +242,7 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
     lv_fixed_indicator = is_selection-fixed_indicator.
     IF is_selection-after_finish_date IS INITIAL.
       SELECT plnum AS planned_order,
-             matnr AS material,
+             plaf_row~matnr AS material,
              pwwrk AS plant,
              plwrk AS planning_plant,
              pertr AS creation_date,
@@ -237,10 +255,11 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
              psttr AS start_date,
              pedtr AS finish_date,
              gsmng AS quantity,
-             meins AS order_unit,
+             plaf_row~meins AS order_unit,
              paart AS order_type,
              lgort AS storage_location,
              beskz AS procurement_indicator,
+             sobes AS special_procurement_type,
              dispo AS mrp_controller,
              plgrp AS production_supervisor,
              verid AS production_version,
@@ -252,8 +271,13 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
              kdauf AS sales_order,
              kdpos AS sales_order_item,
              kdein AS sales_order_schedule_line
-        FROM plaf
-        WHERE matnr = @is_selection-material
+        FROM plaf AS plaf_row
+        LEFT OUTER JOIN mara AS mara_row
+          ON mara_row~matnr = plaf_row~matnr
+        LEFT OUTER JOIN marm AS marm_row
+          ON marm_row~matnr = plaf_row~matnr
+          AND marm_row~meinh = plaf_row~meins
+        WHERE plaf_row~matnr = @lv_material
           AND pwwrk = @is_selection-plant
           AND ( ( @lv_filter_planning_plant = @lv_false
               AND @lv_planning_plant = @lv_blank_planning_plant )
@@ -275,15 +299,41 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
             OR lgort = @lv_storage_location )
           AND ( @lv_filter_proc_indicator = @lv_false
             OR beskz = @lv_procurement_indicator )
+          AND ( @lv_filter_special_proc = @lv_false
+            OR sobes = @lv_special_procurement_type )
           AND ( ( @lv_filter_order_unit = @lv_false
               AND @lv_order_unit = @lv_blank_order_unit )
-            OR meins = @lv_order_unit )
+            OR plaf_row~meins = @lv_order_unit )
           AND ( @lv_positive_quantity_only = @lv_false
             OR gsmng > 0 )
           AND ( @lv_filter_quantity_from = @lv_false
             OR gsmng >= @lv_quantity_from )
           AND ( @lv_filter_quantity_to = @lv_false
             OR gsmng <= @lv_quantity_to )
+          AND ( @lv_filter_base_quantity_from = @lv_false
+            OR ( mara_row~meins <> @lv_blank_base_unit
+              AND ( ( plaf_row~meins = mara_row~meins
+                  AND gsmng >= @lv_base_quantity_from )
+                OR ( plaf_row~meins <> mara_row~meins
+                  AND marm_row~umrez > 0 AND marm_row~umren > 0
+                  AND ( ( gsmng <= 0
+                      AND @lv_zero_base_quantity >=
+                        @lv_base_quantity_from )
+                    OR ( gsmng > 0
+                      AND gsmng * marm_row~umrez >=
+                        @lv_base_quantity_from * marm_row~umren ) ) ) ) ) )
+          AND ( @lv_filter_base_quantity_to = @lv_false
+            OR ( mara_row~meins <> @lv_blank_base_unit
+              AND ( ( plaf_row~meins = mara_row~meins
+                  AND gsmng <= @lv_base_quantity_to )
+                OR ( plaf_row~meins <> mara_row~meins
+                  AND marm_row~umrez > 0 AND marm_row~umren > 0
+                  AND ( ( gsmng <= 0
+                      AND @lv_zero_base_quantity <=
+                        @lv_base_quantity_to )
+                    OR ( gsmng > 0
+                      AND gsmng * marm_row~umrez <=
+                        @lv_base_quantity_to * marm_row~umren ) ) ) ) ) )
           AND ( @lv_filter_mrp_controller = @lv_false
             OR dispo = @lv_mrp_controller )
           AND ( @lv_filter_prod_supervisor = @lv_false
@@ -342,7 +392,7 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
         UP TO @lv_fetch_limit ROWS.
     ELSE.
       SELECT plnum AS planned_order,
-             matnr AS material,
+             plaf_row~matnr AS material,
              pwwrk AS plant,
              plwrk AS planning_plant,
              pertr AS creation_date,
@@ -355,10 +405,11 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
              psttr AS start_date,
              pedtr AS finish_date,
              gsmng AS quantity,
-             meins AS order_unit,
+             plaf_row~meins AS order_unit,
              paart AS order_type,
              lgort AS storage_location,
              beskz AS procurement_indicator,
+             sobes AS special_procurement_type,
              dispo AS mrp_controller,
              plgrp AS production_supervisor,
              verid AS production_version,
@@ -370,8 +421,13 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
              kdauf AS sales_order,
              kdpos AS sales_order_item,
              kdein AS sales_order_schedule_line
-        FROM plaf
-        WHERE matnr = @is_selection-material
+        FROM plaf AS plaf_row
+        LEFT OUTER JOIN mara AS mara_row
+          ON mara_row~matnr = plaf_row~matnr
+        LEFT OUTER JOIN marm AS marm_row
+          ON marm_row~matnr = plaf_row~matnr
+          AND marm_row~meinh = plaf_row~meins
+        WHERE plaf_row~matnr = @lv_material
           AND pwwrk = @is_selection-plant
           AND ( ( @lv_filter_planning_plant = @lv_false
               AND @lv_planning_plant = @lv_blank_planning_plant )
@@ -393,15 +449,41 @@ CLASS zcl_plaf_order_read_repo IMPLEMENTATION.
             OR lgort = @lv_storage_location )
           AND ( @lv_filter_proc_indicator = @lv_false
             OR beskz = @lv_procurement_indicator )
+          AND ( @lv_filter_special_proc = @lv_false
+            OR sobes = @lv_special_procurement_type )
           AND ( ( @lv_filter_order_unit = @lv_false
               AND @lv_order_unit = @lv_blank_order_unit )
-            OR meins = @lv_order_unit )
+            OR plaf_row~meins = @lv_order_unit )
           AND ( @lv_positive_quantity_only = @lv_false
             OR gsmng > 0 )
           AND ( @lv_filter_quantity_from = @lv_false
             OR gsmng >= @lv_quantity_from )
           AND ( @lv_filter_quantity_to = @lv_false
             OR gsmng <= @lv_quantity_to )
+          AND ( @lv_filter_base_quantity_from = @lv_false
+            OR ( mara_row~meins <> @lv_blank_base_unit
+              AND ( ( plaf_row~meins = mara_row~meins
+                  AND gsmng >= @lv_base_quantity_from )
+                OR ( plaf_row~meins <> mara_row~meins
+                  AND marm_row~umrez > 0 AND marm_row~umren > 0
+                  AND ( ( gsmng <= 0
+                      AND @lv_zero_base_quantity >=
+                        @lv_base_quantity_from )
+                    OR ( gsmng > 0
+                      AND gsmng * marm_row~umrez >=
+                        @lv_base_quantity_from * marm_row~umren ) ) ) ) ) )
+          AND ( @lv_filter_base_quantity_to = @lv_false
+            OR ( mara_row~meins <> @lv_blank_base_unit
+              AND ( ( plaf_row~meins = mara_row~meins
+                  AND gsmng <= @lv_base_quantity_to )
+                OR ( plaf_row~meins <> mara_row~meins
+                  AND marm_row~umrez > 0 AND marm_row~umren > 0
+                  AND ( ( gsmng <= 0
+                      AND @lv_zero_base_quantity <=
+                        @lv_base_quantity_to )
+                    OR ( gsmng > 0
+                      AND gsmng * marm_row~umrez <=
+                        @lv_base_quantity_to * marm_row~umren ) ) ) ) ) )
           AND ( @lv_filter_mrp_controller = @lv_false
             OR dispo = @lv_mrp_controller )
           AND ( @lv_filter_prod_supervisor = @lv_false

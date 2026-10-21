@@ -469,6 +469,8 @@ CLASS ltcl_goods_movement_service DEFINITION FINAL
     METHODS previews_blocked_scrap FOR TESTING.
     METHODS rejects_short_blocked_preview FOR TESTING.
     METHODS previews_scrap_categories FOR TESTING.
+    METHODS previews_expired_scrap FOR TESTING.
+    METHODS rejects_unknown_preview_cat FOR TESTING.
     METHODS rejects_missing_preview_batch FOR TESTING.
     METHODS previews_scrap_categories_uom FOR TESTING.
     METHODS scraps_expired_fefo FOR TESTING.
@@ -5164,6 +5166,254 @@ CLASS ltcl_goods_movement_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '1.000' )
       act = ls_unrestricted-selection_details[ 1 ]-category_balance ).
+  ENDMETHOD.
+
+  METHOD previews_expired_scrap.
+    DATA(ls_exposure) = VALUE zcl_stock_service=>ty_batch_expiry_result(
+      request_id            = 'SCRAP-BASE-PREVIEW'
+      material              = 'MAT-1'
+      plant                 = '1000'
+      as_of_date            = '20261016'
+      through_date          = '20261031'
+      snapshot_timestamp    = '20261018101010.0000000'
+      excluded_reservations = VALUE #(
+        ( reservation_number = '0000000044'
+          reservation_item   = '0030' ) )
+      batches               = VALUE #(
+        ( status                      = zcl_stock_service=>c_expiry_status_expired
+          storage_location            = '0001'
+          batch                       = 'B-OLD'
+          expiration_date             = '20261015'
+          expiration_date_source      = zif_stock_repository=>c_expiry_source_global
+          unrestricted_quantity       = '5.000'
+          available_quantity          = '2.000'
+          quality_inspection_quantity = '1.000'
+          blocked_quantity            = '2.000' )
+        ( status                      = zcl_stock_service=>c_expiry_status_upcoming
+          storage_location            = '0002'
+          batch                       = 'B-UPCOMING'
+          expiration_date             = '20261019'
+          expiration_date_source      = zif_stock_repository=>c_expiry_source_plant
+          unrestricted_quantity       = '6.000'
+          available_quantity          = '3.000'
+          quality_inspection_quantity = '4.000'
+          blocked_quantity            = '4.000' )
+        ( status                      = zcl_stock_service=>c_expiry_status_upcoming
+          storage_location            = '0003'
+          batch                       = 'B-POSTING-DATE'
+          expiration_date             = '20261020'
+          unrestricted_quantity       = '8.000'
+          available_quantity          = '8.000'
+          quality_inspection_quantity = '7.000'
+          blocked_quantity            = '9.000' ) ) ).
+    DATA(ls_result) = mo_cut->preview_expired_scrap(
+      is_exposure                  = ls_exposure
+      iv_posting_date              = '20261020'
+      iv_requested_quantity        = '4.000'
+      iv_cost_center               = 'CC-100'
+      iv_movement_reason           = '0001'
+      it_storage_location_priority = VALUE #( ( '0002' ) ( '0001' ) )
+      iv_stock_category            = zcl_goods_movement_service=>c_scrap_stock_unrestricted ).
+    DATA(ls_quality_result) = mo_cut->preview_expired_scrap(
+      is_exposure           = ls_exposure
+      iv_posting_date       = '20261020'
+      iv_requested_quantity = '2.000'
+      iv_cost_center        = 'CC-100'
+      iv_stock_category     = zcl_goods_movement_service=>c_scrap_stock_quality ).
+    DATA(ls_blocked_result) = mo_cut->preview_expired_scrap(
+      is_exposure           = ls_exposure
+      iv_posting_date       = '20261020'
+      iv_requested_quantity = '3.000'
+      iv_cost_center        = 'CC-100'
+      iv_stock_category     = zcl_goods_movement_service=>c_scrap_stock_blocked ).
+    DATA(ls_strict_result) = mo_cut->preview_expired_scrap(
+      is_exposure              = ls_exposure
+      iv_posting_date          = '20261020'
+      iv_requested_quantity    = '6.000'
+      iv_cost_center           = 'CC-100'
+      iv_stock_category        = zcl_goods_movement_service=>c_scrap_stock_unrestricted
+      iv_require_full_quantity = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SCRAP-BASE-PREVIEW'
+      act = ls_result-request_id ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = ls_result-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1000'
+      act = ls_result-plant ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261016'
+      act = ls_result-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261031'
+      act = ls_result-through_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = ls_result-posting_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_goods_movement_service=>c_scrap_stock_unrestricted
+      act = ls_result-stock_category ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '551'
+      act = ls_result-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-requested_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_result-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_result-remaining_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_fully_allocated ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261018101010.0000000'
+      act = ls_result-snapshot_timestamp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000044'
+      act = ls_result-excluded_reservations[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0030'
+      act = ls_result-excluded_reservations[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-selections ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_result-selection_details ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-OLD'
+      act = ls_result-selections[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-selections[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UPCOMING'
+      act = ls_result-selections[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_result-selections[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = ls_result-selection_details[ 1 ]-expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_expiry_source_global
+      act = ls_result-selection_details[ 1 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = ls_result-selection_details[ 1 ]-days_expired_at_posting ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-selection_details[ 1 ]-location_priority_rank ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261019'
+      act = ls_result-selection_details[ 2 ]-expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_expiry_source_plant
+      act = ls_result-selection_details[ 2 ]-expiration_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-selection_details[ 2 ]-days_expired_at_posting ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-selection_details[ 2 ]-location_priority_rank ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'CC-100'
+      act = ls_result-selection_details[ 1 ]-cost_center ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = ls_result-selection_details[ 1 ]-movement_reason ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_result-selection_details[ 2 ]-category_balance ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '553'
+      act = ls_quality_result-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_quality_result-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-OLD'
+      act = ls_quality_result-selections[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UPCOMING'
+      act = ls_quality_result-selections[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_quality_result-selections[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_quality_result-selections[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = ls_quality_result-selection_details[ 2 ]-category_balance ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_quality_result-selections ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '555'
+      act = ls_blocked_result-movement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = ls_blocked_result-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-OLD'
+      act = ls_blocked_result-selections[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = ls_blocked_result-selections[ 1 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'B-UPCOMING'
+      act = ls_blocked_result-selections[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = ls_blocked_result-selections[ 2 ]-quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( ls_blocked_result-selections ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_strict_result-selections ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lines( ls_strict_result-selection_details ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_strict_result-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = ls_strict_result-remaining_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_strict_result-is_fully_allocated ).
+  ENDMETHOD.
+
+  METHOD rejects_unknown_preview_cat.
+    DATA lv_rejected TYPE abap_bool.
+    DATA(ls_exposure) = VALUE zcl_stock_service=>ty_batch_expiry_result(
+      material     = 'MAT-1'
+      plant        = '1000'
+      as_of_date   = '20261016'
+      through_date = '20261031' ).
+
+    TRY.
+        mo_cut->preview_expired_scrap(
+          is_exposure           = ls_exposure
+          iv_posting_date       = '20261020'
+          iv_requested_quantity = '1.000'
+          iv_cost_center        = 'CC-100'
+          iv_stock_category     = 'X' ).
+      CATCH zcx_invalid_goods_movement.
+        lv_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_rejected ).
   ENDMETHOD.
 
   METHOD rejects_missing_preview_batch.

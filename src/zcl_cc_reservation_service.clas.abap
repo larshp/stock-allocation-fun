@@ -18,6 +18,9 @@ CLASS zcl_cc_reservation_service DEFINITION
         available_quantity        TYPE mard-labst,
         allocated_quantity        TYPE mard-labst,
         shortfall_quantity        TYPE mard-labst,
+        minimum_coverage_pct      TYPE p LENGTH 5 DECIMALS 2,
+        allocation_outcome        TYPE c LENGTH 1,
+        allocation_coverage_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
         confirmed_base_quantity   TYPE mard-labst,
         unconfirmed_base_quantity TYPE mard-labst,
         is_fully_confirmed        TYPE abap_bool,
@@ -41,6 +44,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         requested_quantity    TYPE mard-labst,
         unit                  TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_preview_demand.
     TYPES ty_preview_demands TYPE STANDARD TABLE OF ty_preview_demand
       WITH EMPTY KEY.
@@ -70,6 +74,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         requested_quantity    TYPE mard-labst,
         unit                  TYPE mara-meins,
         require_full_quantity TYPE abap_bool,
+        minimum_coverage_pct  TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_preview_demand.
     TYPES ty_dated_preview_demands TYPE STANDARD TABLE OF
       ty_dated_preview_demand WITH EMPTY KEY.
@@ -100,6 +105,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         requested_quantity          TYPE mard-labst,
         unit                        TYPE mara-meins,
         require_full_quantity       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_location_preview_demand.
     TYPES ty_location_preview_demands TYPE STANDARD TABLE OF
       ty_location_preview_demand WITH EMPTY KEY.
@@ -133,6 +139,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         requested_quantity          TYPE mard-labst,
         require_full_quantity       TYPE abap_bool,
         unit                        TYPE mara-meins,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_location_preview_demand.
     TYPES ty_dated_location_preview_demands TYPE STANDARD TABLE OF
       ty_dated_location_preview_demand WITH EMPTY KEY.
@@ -171,6 +178,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_batch_preview_demand.
     TYPES ty_batch_preview_demands TYPE STANDARD TABLE OF
       ty_batch_preview_demand WITH EMPTY KEY.
@@ -212,6 +220,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_fefo_preview_demand.
     TYPES ty_fefo_preview_demands TYPE STANDARD TABLE OF
       ty_fefo_preview_demand WITH EMPTY KEY.
@@ -233,6 +242,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE p LENGTH 5 DECIMALS 2,
       END OF ty_dated_fefo_preview_demand.
     TYPES ty_dated_fefo_preview_demands TYPE STANDARD TABLE OF
       ty_dated_fefo_preview_demand WITH EMPTY KEY.
@@ -274,6 +284,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         minimum_shelf_life_days     TYPE i,
         require_known_expiry        TYPE abap_bool,
         allow_undated_batches       TYPE abap_bool,
+        minimum_coverage_pct        TYPE zcl_stock_service=>ty_minimum_coverage_pct,
       END OF ty_atomic_reservation_demand.
     TYPES ty_atomic_reservation_demands TYPE STANDARD TABLE OF
       ty_atomic_reservation_demand WITH EMPTY KEY.
@@ -877,6 +888,8 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_require_known_expiry      TYPE abap_bool DEFAULT abap_false
         iv_allow_undated_batches     TYPE abap_bool DEFAULT abap_false
         iv_batch_min_days            TYPE i DEFAULT 0
+        iv_minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct
+          OPTIONAL
         iv_test_run                  TYPE abap_bool DEFAULT abap_false
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
         iv_require_atp_confirmation  TYPE abap_bool DEFAULT abap_false
@@ -912,6 +925,8 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_require_known_expiry      TYPE abap_bool DEFAULT abap_false
         iv_allow_undated_batches     TYPE abap_bool DEFAULT abap_false
         iv_batch_min_days            TYPE i DEFAULT 0
+        iv_minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct
+          OPTIONAL
         iv_require_full_alloc        TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock      TYPE abap_bool DEFAULT abap_false
         iv_check_atp                 TYPE abap_bool DEFAULT abap_false
@@ -976,6 +991,7 @@ CLASS zcl_cc_reservation_service DEFINITION
         iv_require_known_expiry      TYPE abap_bool
         iv_allow_undated_batches     TYPE abap_bool
         iv_batch_min_days            TYPE i
+        iv_minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct
         iv_require_full_alloc        TYPE abap_bool
         iv_protect_safety_stock      TYPE abap_bool
         it_location_priority         TYPE zcl_stock_service=>ty_storage_locations
@@ -1506,6 +1522,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-unit IS INITIAL
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1521,7 +1539,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         plant                 = ls_demand-plant
         requested_quantity    = ls_demand-requested_quantity
         requested_unit        = ls_demand-unit
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_unit_demands.
       APPEND VALUE #(
         request_id            = ls_demand-request_id
@@ -1530,7 +1549,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         priority              = ls_demand-priority
         requested_quantity    = ls_demand-requested_quantity
         requested_unit        = ls_demand-unit
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_priority_unit_demands.
     ENDLOOP.
 
@@ -1667,6 +1687,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-required_date IS INITIAL
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-unit IS INITIAL
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-require_full_quantity <> abap_true
             AND ls_demand-require_full_quantity <> abap_false ).
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1683,7 +1705,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         priority              = ls_demand-priority
         requested_quantity    = ls_demand-requested_quantity
         requested_unit        = ls_demand-unit
-        require_full_quantity = ls_demand-require_full_quantity )
+        require_full_quantity = ls_demand-require_full_quantity
+        minimum_coverage_pct  = ls_demand-minimum_coverage_pct )
         TO lt_date_unit_demands.
     ENDLOOP.
 
@@ -1814,6 +1837,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-unit IS INITIAL
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -1833,7 +1858,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
         requested_unit              = ls_demand-unit
-        require_full_quantity       = ls_demand-require_full_quantity )
+        require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_unit_demands.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
@@ -1845,7 +1871,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         priority                    = ls_demand-priority
         requested_quantity          = ls_demand-requested_quantity
         requested_unit              = ls_demand-unit
-        require_full_quantity       = ls_demand-require_full_quantity )
+        require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_priority_unit_demands.
     ENDLOOP.
 
@@ -2006,6 +2033,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             iv_date = ls_demand-required_date ) <> abap_true
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-unit IS INITIAL
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
           OR ( ls_demand-require_full_quantity <> abap_true
@@ -2027,7 +2056,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
         requested_unit              = ls_demand-unit
-        require_full_quantity       = ls_demand-require_full_quantity )
+        require_full_quantity       = ls_demand-require_full_quantity
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -2165,6 +2195,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               iv_date = ls_demand-required_date ) <> abap_true )
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-minimum_shelf_life_days < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ( ls_demand-minimum_shelf_life_days > 0
             AND ls_demand-required_date IS INITIAL )
           OR ls_demand-unit IS INITIAL
@@ -2199,7 +2231,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         minimum_shelf_life_days     =
           ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -2403,6 +2436,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           OR ls_demand-cost_center IS INITIAL
           OR ls_demand-requested_quantity <= 0
           OR ls_demand-minimum_shelf_life_days < 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-unit IS INITIAL
           OR ( ls_demand-fallback_to_other_locations <> abap_true
             AND ls_demand-fallback_to_other_locations <> abap_false )
@@ -2439,7 +2474,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fefo_as_of_date             = ls_demand-fefo_as_of_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_unit_demands.
     ENDLOOP.
 
@@ -2574,7 +2610,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fefo_as_of_date             = lv_effective_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_sorted_demands.
     ENDLOOP.
 
@@ -2596,7 +2633,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fefo_as_of_date             = ls_demand-fefo_as_of_date
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_fefo_demands.
     ENDLOOP.
 
@@ -2673,7 +2711,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           minimum_shelf_life_days     =
             ls_demand-minimum_shelf_life_days
           require_known_expiry        = ls_demand-require_known_expiry
-          allow_undated_batches       = ls_demand-allow_undated_batches ) )
+          allow_undated_batches       = ls_demand-allow_undated_batches
+          minimum_coverage_pct        = ls_demand-minimum_coverage_pct ) )
         TO lt_ordered_demands.
     ENDLOOP.
 
@@ -2759,7 +2798,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
           minimum_shelf_life_days     =
             ls_demand-minimum_shelf_life_days
           require_known_expiry        = ls_demand-require_known_expiry
-          allow_undated_batches       = ls_demand-allow_undated_batches ) )
+          allow_undated_batches       = ls_demand-allow_undated_batches
+          minimum_coverage_pct        = ls_demand-minimum_coverage_pct ) )
         TO lt_ordered_demands.
     ENDLOOP.
 
@@ -2936,6 +2976,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               OR zcl_date_validation=>is_valid_gregorian_date(
                 iv_date = ls_demand-fefo_as_of_date ) <> abap_true ) )
           OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-minimum_shelf_life_days > 0
             AND iv_use_fefo_batches <> abap_true
@@ -2985,7 +3027,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         fallback_to_other_locations =
           ls_demand-fallback_to_other_locations
         requested_quantity          = ls_demand-requested_quantity
-        unit                        = ls_demand-unit )
+        unit                        = ls_demand-unit
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_location_demands.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
@@ -3003,7 +3046,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         minimum_shelf_life_days     =
           ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_batch_demands.
       APPEND VALUE #(
         request_id                  = ls_demand-request_id
@@ -3020,7 +3064,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         priority                    = ls_demand-priority
         minimum_shelf_life_days     = ls_demand-minimum_shelf_life_days
         require_known_expiry        = ls_demand-require_known_expiry
-        allow_undated_batches       = ls_demand-allow_undated_batches )
+        allow_undated_batches       = ls_demand-allow_undated_batches
+        minimum_coverage_pct        = ls_demand-minimum_coverage_pct )
         TO lt_fefo_demands.
     ENDLOOP.
 
@@ -3613,6 +3658,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               OR zcl_date_validation=>is_valid_gregorian_date(
                 iv_date = ls_demand-fefo_as_of_date ) <> abap_true ) )
           OR ls_demand-requested_quantity <= 0
+          OR ls_demand-minimum_coverage_pct < 0
+          OR ls_demand-minimum_coverage_pct > 100
           OR ls_demand-minimum_shelf_life_days < 0
           OR ( ls_demand-minimum_shelf_life_days > 0
             AND iv_use_fefo_batches <> abap_true
@@ -4059,6 +4106,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_require_known_expiry      = iv_require_known_expiry
       iv_allow_undated_batches     = iv_allow_undated_batches
       iv_batch_min_days            = iv_batch_min_days
+      iv_minimum_coverage_pct      = iv_minimum_coverage_pct
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
       it_location_priority         = it_location_priority
@@ -4302,6 +4350,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       iv_require_known_expiry      = iv_require_known_expiry
       iv_allow_undated_batches     = iv_allow_undated_batches
       iv_batch_min_days            = iv_batch_min_days
+      iv_minimum_coverage_pct      = iv_minimum_coverage_pct
       iv_require_full_alloc        = iv_require_full_alloc
       iv_protect_safety_stock      = iv_protect_safety_stock
       it_location_priority         = it_location_priority
@@ -4400,6 +4449,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
         OR iv_batch_min_days < 0
         OR ( iv_batch_min_days > 0
           AND iv_batch_supplied <> abap_true )
+        OR iv_minimum_coverage_pct < 0
+        OR iv_minimum_coverage_pct > 100
         OR ( iv_use_fefo_batches = abap_true
           AND iv_fefo_as_of_date IS INITIAL ).
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -4434,6 +4485,7 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       lv_effective_fefo_as_of_date.
     rs_prepared-result-require_known_expiry = iv_require_known_expiry.
     rs_prepared-result-allow_undated_batches = iv_allow_undated_batches.
+    rs_prepared-result-minimum_coverage_pct = iv_minimum_coverage_pct.
     rs_prepared-result-requested_quantity = iv_requested_quantity.
     rs_prepared-result-source_unit = iv_unit.
     rs_prepared-result-base_requested_quantity =
@@ -4458,7 +4510,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               lv_effective_fefo_as_of_date
             minimum_shelf_life_days     = iv_batch_min_days
             require_known_expiry        = iv_require_known_expiry
-            allow_undated_batches       = iv_allow_undated_batches ) )
+            allow_undated_batches       = iv_allow_undated_batches
+            minimum_coverage_pct        = iv_minimum_coverage_pct ) )
         iv_as_of_date                = iv_fefo_as_of_date
         iv_min_days                  = iv_fefo_min_days
         iv_include_undated_batches   = iv_include_undated_batches
@@ -4479,7 +4532,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
             minimum_shelf_life_days     =
               iv_batch_min_days
             require_known_expiry        = iv_require_known_expiry
-            allow_undated_batches       = iv_allow_undated_batches ) )
+            allow_undated_batches       = iv_allow_undated_batches
+            minimum_coverage_pct        = iv_minimum_coverage_pct ) )
         it_storage_location_priority = it_location_priority
         it_allowed_storage_locations = it_allowed_storage_locations
         iv_protect_safety_stock      = iv_protect_safety_stock
@@ -4492,7 +4546,8 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
               plant                       = iv_plant
               storage_location            = iv_storage_location
               fallback_to_other_locations = iv_allow_fallback
-              requested_quantity          = ls_conversion-base_quantity ) )
+              requested_quantity          = ls_conversion-base_quantity
+              minimum_coverage_pct        = iv_minimum_coverage_pct ) )
           it_storage_location_priority = it_location_priority
           it_allowed_storage_locations = it_allowed_storage_locations
           iv_protect_safety_stock      = iv_protect_safety_stock ).
@@ -4505,6 +4560,10 @@ CLASS zcl_cc_reservation_service IMPLEMENTATION.
       ls_allocation-allocated_quantity.
     rs_prepared-result-shortfall_quantity =
       ls_allocation-shortfall_quantity.
+    rs_prepared-result-allocation_outcome =
+      ls_allocation-allocation_outcome.
+    rs_prepared-result-allocation_coverage_pct =
+      ls_allocation-allocation_coverage_pct.
 
     DATA lt_request_items TYPE zif_cc_reservation_api=>ty_items.
     IF iv_use_fefo_batches = abap_true.

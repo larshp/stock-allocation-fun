@@ -8,6 +8,8 @@ CLASS ltcl_plaf_order_read_repo DEFINITION FINAL
     METHODS teardown RAISING cx_static_check.
     METHODS reads_planned_order_metadata FOR TESTING RAISING cx_static_check.
     METHODS skips_empty_order_list FOR TESTING RAISING cx_static_check.
+    METHODS filters_special_proc_type FOR TESTING
+      RAISING cx_static_check.
 ENDCLASS.
 
 CLASS ltcl_plaf_order_read_repo IMPLEMENTATION.
@@ -42,6 +44,7 @@ CLASS ltcl_plaf_order_read_repo IMPLEMENTATION.
       auffx = 'X'
       plscn = '001'
       sobkz = 'E'
+      sobes = '2'
       kdauf = 'SO-1' ) TO lt_plaf.
     APPEND VALUE #(
       plnum = '1002'
@@ -100,6 +103,9 @@ CLASS ltcl_plaf_order_read_repo IMPLEMENTATION.
       exp = CONV plaf-kdauf( 'SO-1' )
       act = lt_orders[ 1 ]-sales_order ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV plaf-sobes( '2' )
+      act = lt_orders[ 1 ]-special_procurement_type ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV plaf-plnum( '1002' )
       act = lt_orders[ 2 ]-planned_order ).
     cl_abap_unit_assert=>assert_initial(
@@ -109,6 +115,87 @@ CLASS ltcl_plaf_order_read_repo IMPLEMENTATION.
       act = lt_orders[ 3 ]-planned_order ).
     cl_abap_unit_assert=>assert_initial(
       act = lt_orders[ 3 ]-base_unit ).
+  ENDMETHOD.
+
+  METHOD filters_special_proc_type.
+    DATA lt_plaf TYPE STANDARD TABLE OF plaf WITH EMPTY KEY.
+
+    APPEND VALUE #(
+      plnum = '2001'
+      matnr = 'MAT-1'
+      pwwrk = '1000'
+      pedtr = '20261110'
+      gsmng = '4.000'
+      meins = 'EA'
+      sobes = '2' ) TO lt_plaf.
+    APPEND VALUE #(
+      plnum = '2002'
+      matnr = 'MAT-1'
+      pwwrk = '1000'
+      pedtr = '20261110'
+      gsmng = '5.000'
+      meins = 'EA'
+      sobes = '3' ) TO lt_plaf.
+    APPEND VALUE #(
+      plnum = '2003'
+      matnr = 'MAT-1'
+      pwwrk = '1000'
+      pedtr = '20261110'
+      gsmng = '6.000'
+      meins = 'EA'
+      sobes = space ) TO lt_plaf.
+    APPEND VALUE #(
+      plnum = '2004'
+      matnr = 'MAT-1'
+      pwwrk = '1000'
+      pedtr = '20261110'
+      gsmng = '7.000'
+      meins = 'EA'
+      sobes = '3' ) TO lt_plaf.
+    mo_environment->insert_test_data( lt_plaf ).
+
+    DATA(lo_cut) = NEW zcl_plaf_order_read_repo( ).
+    DATA(lt_exact_orders) =
+      lo_cut->zif_planned_order_read_repo~read_orders_by_finish_window(
+        is_selection = VALUE #(
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          filter_special_proc_type = abap_true
+          special_procurement_type = '3'
+          finish_date_from         = '20261101'
+          finish_date_to           = '20261130'
+          maximum_results          = 1 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_exact_orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV plaf-plnum( '2002' )
+      act = lt_exact_orders[ 1 ]-planned_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV plaf-sobes( '3' )
+      act = lt_exact_orders[ 1 ]-special_procurement_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV plaf-plnum( '2004' )
+      act = lt_exact_orders[ 2 ]-planned_order ).
+
+    DATA(lt_blank_orders) =
+      lo_cut->zif_planned_order_read_repo~read_orders_by_finish_window(
+        is_selection = VALUE #(
+          material                 = 'MAT-1'
+          plant                    = '1000'
+          filter_special_proc_type = abap_true
+          special_procurement_type = space
+          finish_date_from         = '20261101'
+          finish_date_to           = '20261130'
+          maximum_results          = 10 ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_blank_orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV plaf-plnum( '2003' )
+      act = lt_blank_orders[ 1 ]-planned_order ).
   ENDMETHOD.
 
   METHOD skips_empty_order_list.

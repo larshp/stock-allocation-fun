@@ -204,6 +204,7 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
     DATA lt_seen_orders TYPE HASHED TABLE OF ty_seen_order
       WITH UNIQUE KEY table_line.
     DATA lv_has_previous_order TYPE abap_bool.
+    DATA lv_base_quantity TYPE decfloat34.
     DATA ls_previous_order TYPE
       zif_planned_order_read_repo=>ty_order_header.
 
@@ -212,6 +213,27 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
     ENDIF.
 
     LOOP AT it_order_headers INTO DATA(ls_order_header).
+      IF is_selection-filter_base_quantity_from = abap_true
+          OR is_selection-filter_base_quantity_to = abap_true.
+        IF ls_order_header-base_unit IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ELSEIF ls_order_header-order_unit = ls_order_header-base_unit.
+          lv_base_quantity = CONV decfloat34( ls_order_header-quantity ).
+        ELSEIF ls_order_header-unit_to_base_numerator <= 0
+            OR ls_order_header-unit_to_base_denominator <= 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ELSEIF ls_order_header-quantity <= 0.
+          CLEAR lv_base_quantity.
+        ELSE.
+          lv_base_quantity =
+            CONV decfloat34( ls_order_header-quantity )
+            * CONV decfloat34(
+              ls_order_header-unit_to_base_numerator )
+            / CONV decfloat34(
+              ls_order_header-unit_to_base_denominator ).
+        ENDIF.
+      ENDIF.
+
       IF ls_order_header-planned_order IS INITIAL
           OR ls_order_header-material <> is_selection-material
           OR ls_order_header-plant <> is_selection-plant
@@ -253,6 +275,9 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
           OR ( is_selection-filter_procurement_indicator = abap_true
             AND ls_order_header-procurement_indicator <>
               is_selection-procurement_indicator )
+          OR ( is_selection-filter_special_proc_type = abap_true
+            AND ls_order_header-special_procurement_type <>
+              is_selection-special_procurement_type )
           OR ( ( is_selection-filter_order_unit = abap_true
               OR is_selection-order_unit IS NOT INITIAL )
             AND ls_order_header-order_unit <> is_selection-order_unit )
@@ -262,6 +287,10 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
             AND ls_order_header-quantity < is_selection-quantity_from )
           OR ( is_selection-filter_quantity_to = abap_true
             AND ls_order_header-quantity > is_selection-quantity_to )
+          OR ( is_selection-filter_base_quantity_from = abap_true
+            AND lv_base_quantity < is_selection-base_quantity_from )
+          OR ( is_selection-filter_base_quantity_to = abap_true
+            AND lv_base_quantity > is_selection-base_quantity_to )
           OR ( is_selection-filter_mrp_controller = abap_true
             AND ls_order_header-mrp_controller <>
               is_selection-mrp_controller )
@@ -412,6 +441,10 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
           AND is_selection-filter_procurement_indicator <> abap_false )
         OR ( is_selection-filter_procurement_indicator = abap_false
           AND is_selection-procurement_indicator IS NOT INITIAL )
+        OR ( is_selection-filter_special_proc_type <> abap_true
+          AND is_selection-filter_special_proc_type <> abap_false )
+        OR ( is_selection-filter_special_proc_type = abap_false
+          AND is_selection-special_procurement_type IS NOT INITIAL )
         OR ( is_selection-filter_order_unit <> abap_true
           AND is_selection-filter_order_unit <> abap_false )
         OR ( is_selection-positive_quantity_only <> abap_true
@@ -427,6 +460,18 @@ CLASS zcl_planned_order_read_service IMPLEMENTATION.
         OR ( is_selection-filter_quantity_from = abap_true
           AND is_selection-filter_quantity_to = abap_true
           AND is_selection-quantity_from > is_selection-quantity_to )
+        OR ( is_selection-filter_base_quantity_from <> abap_true
+          AND is_selection-filter_base_quantity_from <> abap_false )
+        OR ( is_selection-filter_base_quantity_from = abap_false
+          AND is_selection-base_quantity_from IS NOT INITIAL )
+        OR ( is_selection-filter_base_quantity_to <> abap_true
+          AND is_selection-filter_base_quantity_to <> abap_false )
+        OR ( is_selection-filter_base_quantity_to = abap_false
+          AND is_selection-base_quantity_to IS NOT INITIAL )
+        OR ( is_selection-filter_base_quantity_from = abap_true
+          AND is_selection-filter_base_quantity_to = abap_true
+          AND is_selection-base_quantity_from >
+            is_selection-base_quantity_to )
         OR ( is_selection-filter_mrp_controller <> abap_true
           AND is_selection-filter_mrp_controller <> abap_false )
         OR ( is_selection-filter_mrp_controller = abap_false

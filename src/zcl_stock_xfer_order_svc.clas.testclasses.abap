@@ -268,6 +268,7 @@ CLASS ltcl_sto_order_service DEFINITION FINAL
     METHODS rejects_short_atp_sources FOR TESTING.
     METHODS creates_uom_atp_plant_pairs FOR TESTING.
     METHODS creates_atp_plant_pairs FOR TESTING.
+    METHODS stops_atp_plant_pair_failures FOR TESTING.
     METHODS rejects_short_atp_pairs FOR TESTING.
     METHODS creates_atp_fefo_pairs FOR TESTING.
     METHODS rejects_short_atp_fefo FOR TESTING.
@@ -2297,29 +2298,66 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       is_result      = VALUE #(
         messages      = VALUE #( ( type = 'E' message = 'Create failed' ) )
         is_successful = abap_false ) ).
+    DATA(ls_allocation) = get_multi_source_allocation( ).
+    ls_allocation-allocations[ 1 ]-allocation-requested_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocation-available_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocation-allocated_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-source_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-base_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-available_source_quantity = '6.000'.
+    ls_allocation-allocations[ 1 ]-allocated_source_quantity = '6.000'.
+    APPEND VALUE #(
+      allocation = VALUE #(
+        request_id = 'REQ-1' material = 'MAT-1'
+        target_plant = '2000' source_plant = '1200'
+        required_date = '20261010' available_quantity = '1.000'
+        allocated_quantity = '1.000' )
+      source_unit = 'EA' base_unit = 'EA'
+      available_source_quantity = '1.000'
+      allocated_source_quantity = '1.000' )
+      TO ls_allocation-plant_allocations.
     DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
       io_api = lo_api ).
 
     DATA(ls_result) = lo_cut->create_from_source_plants(
-      is_allocation       = get_multi_source_allocation( )
+      is_allocation       = ls_allocation
       iv_receiving_plant  = '2000'
       iv_company_code     = '1000'
       iv_purchasing_org   = '1000'
       iv_purchasing_group = '001'
-      iv_atomic           = abap_true ).
+      iv_atomic           = abap_true
+      iv_stop_on_failure  = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
       act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-skipped_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-orders[ 1 ]-result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1200'
+      act = ls_result-orders[ 3 ]-supplying_plant ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_api->get_create_count( ) ).
@@ -2348,11 +2386,15 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       iv_company_code     = '1000'
       iv_purchasing_org   = '1000'
       iv_purchasing_group = '001'
-      iv_atomic           = abap_true ).
+      iv_atomic           = abap_true
+      iv_stop_on_failure  = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_api->get_commit_count( ) ).
@@ -4284,6 +4326,15 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       exp = 2
       act = ls_result-skipped_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
       exp = '1000'
       act = ls_result-orders[ 1 ]-supplying_plant ).
     cl_abap_unit_assert=>assert_equals(
@@ -4296,17 +4347,94 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       exp = abap_false
       act = ls_result-orders[ 2 ]-is_skipped ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 2 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
       exp = '1200'
       act = ls_result-orders[ 3 ]-supplying_plant ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-orders[ 3 ]-is_skipped ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 3 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
       exp = '3000'
       act = ls_result-orders[ 4 ]-receiving_plant ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-orders[ 4 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 4 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_api->get_create_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_api->get_commit_count( ) ).
+  ENDMETHOD.
+
+  METHOD stops_atp_plant_pair_failures.
+    DATA(lo_api) = NEW lcl_sto_api_double( ).
+    lo_api->set_write_result( is_result = VALUE #(
+      purchase_order_number = '4500001234'
+      is_successful         = abap_true ) ).
+    lo_api->set_write_result_for_call(
+      iv_call_number = 2
+      is_result      = VALUE #(
+        is_successful = abap_false
+        messages      = VALUE #( (
+          type    = 'E'
+          message = 'Second ATP plant-pair STO failed' ) ) ) ).
+    lo_api->set_commit_result( is_result = VALUE #(
+      is_successful = abap_true ) ).
+    DATA(lo_cut) = NEW zcl_stock_xfer_order_svc(
+      io_api = lo_api ).
+
+    DATA(ls_result) = lo_cut->create_for_atp_plant_pairs(
+      is_allocation       = get_atp_pair_alloc( )
+      iv_company_code     = '1000'
+      iv_purchasing_org   = '1000'
+      iv_purchasing_group = '001'
+      iv_stop_on_failure  = abap_true ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-successful_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 3 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 4 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 4 ]-result-bapi_was_called ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_api->get_create_count( ) ).
@@ -4334,14 +4462,33 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
       iv_company_code     = '1000'
       iv_purchasing_org   = '1000'
       iv_purchasing_group = '001'
-      iv_atomic           = abap_true ).
+      iv_atomic           = abap_true
+      iv_stop_on_failure  = abap_true ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-is_successful ).
     cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-failed_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = ls_result-skipped_count ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 4
       act = lines( ls_result-orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 1 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = ls_result-orders[ 2 ]-result-bapi_was_called ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = ls_result-orders[ 1 ]-result-is_successful ).
@@ -4354,6 +4501,12 @@ CLASS ltcl_sto_order_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = ls_result-orders[ 4 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 3 ]-result-bapi_was_called ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = ls_result-orders[ 4 ]-result-bapi_was_called ).
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lo_api->get_create_count( ) ).

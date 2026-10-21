@@ -69,6 +69,7 @@ CLASS zcl_prod_comp_service DEFINITION
         reservation_item          TYPE resb-rspos,
         priority                  TYPE i,
         require_full_quantity     TYPE abap_bool,
+        minimum_coverage_pct      TYPE zcl_stock_service=>ty_minimum_coverage_pct,
         allow_location_fallback   TYPE abap_bool,
         allow_batch_fallback      TYPE abap_bool,
         override_storage_location TYPE abap_bool,
@@ -134,10 +135,13 @@ CLASS zcl_prod_comp_service DEFINITION
       ty_component_selection WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_component_local_estimate,
-        requested_quantity TYPE mard-labst,
-        available_quantity TYPE mard-labst,
-        allocated_quantity TYPE mard-labst,
-        shortfall_quantity TYPE mard-labst,
+        requested_quantity      TYPE mard-labst,
+        available_quantity      TYPE mard-labst,
+        allocated_quantity      TYPE mard-labst,
+        shortfall_quantity      TYPE mard-labst,
+        minimum_coverage_pct    TYPE zcl_stock_service=>ty_minimum_coverage_pct,
+        allocation_outcome      TYPE c LENGTH 1,
+        allocation_coverage_pct TYPE zcl_stock_service=>ty_allocation_coverage_pct,
       END OF ty_component_local_estimate.
     TYPES:
       BEGIN OF ty_component_check,
@@ -1477,6 +1481,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           OR ls_policy_input-reservation_item IS INITIAL
           OR ( ls_policy_input-require_full_quantity <> abap_true
             AND ls_policy_input-require_full_quantity <> abap_false )
+          OR ls_policy_input-minimum_coverage_pct < 0
+          OR ls_policy_input-minimum_coverage_pct > 100
           OR ( ls_policy_input-allow_location_fallback <> abap_true
             AND ls_policy_input-allow_location_fallback <> abap_false )
           OR ( ls_policy_input-allow_batch_fallback <> abap_true
@@ -1632,6 +1638,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         priority                = ls_component_allocation_policy-priority
         require_full_quantity   =
           ls_component_allocation_policy-require_full_quantity
+        minimum_coverage_pct    =
+          ls_component_allocation_policy-minimum_coverage_pct
         allow_location_fallback =
           ls_component_allocation_policy-allow_location_fallback
         allow_batch_fallback    =
@@ -2202,6 +2210,20 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           shortfall_quantity =
             <ls_atp_day>-local_estimate-shortfall_quantity ).
       ENDIF.
+      ls_component_group_estimate-allocation_outcome = COND #(
+        WHEN ls_component_group_estimate-allocated_quantity =
+            ls_component_group_estimate-requested_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_component_group_estimate-allocated_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_component_group_estimate-allocation_coverage_pct = COND #(
+        WHEN ls_component_group_estimate-requested_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_component_group_estimate-allocated_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_component_group_estimate-requested_quantity ) )
+        ELSE 0 ).
       CLEAR lv_fallback_used.
       IF ls_component_scoped_demand-allow_location_fallback = abap_true.
         LOOP AT lt_component_batch_splits
@@ -2261,10 +2283,25 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           ELSE abap_false )
         local_estimate                 = ls_component_group_estimate
         component_local_estimate       = VALUE #(
-          requested_quantity = lv_component_base_quantity
-          available_quantity = lv_component_available
-          allocated_quantity = lv_component_allocated
-          shortfall_quantity = lv_component_shortfall )
+          requested_quantity      = lv_component_base_quantity
+          available_quantity      = lv_component_available
+          allocated_quantity      = lv_component_allocated
+          shortfall_quantity      = lv_component_shortfall
+          minimum_coverage_pct    =
+            ls_component_allocation_policy-minimum_coverage_pct
+          allocation_outcome      = COND #(
+            WHEN lv_component_allocated = lv_component_base_quantity
+              THEN zif_stock_repository=>c_allocation_outcome_full
+            WHEN lv_component_allocated > 0
+              THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none )
+          allocation_coverage_pct = COND #(
+            WHEN lv_component_base_quantity > 0
+            THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+              CONV decfloat34( lv_component_allocated )
+              * CONV decfloat34( 100 )
+              / CONV decfloat34( lv_component_base_quantity ) )
+            ELSE 0 ) )
         batch_allocations              = lt_component_batch_splits
         location_allocations           = lt_component_location_splits
         atp_result                     = <ls_atp_day>-atp_result ) TO rt_checks.

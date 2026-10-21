@@ -105,6 +105,8 @@ CLASS ltcl_planned_order_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS simulates_suggestion_test_run FOR TESTING
       RAISING cx_static_check.
+    METHODS stops_suggestion_test_run FOR TESTING
+      RAISING cx_static_check.
     METHODS stops_bulk_test_run FOR TESTING
       RAISING cx_static_check.
     METHODS rejects_bad_test_run_flag FOR TESTING
@@ -133,13 +135,19 @@ CLASS ltcl_planned_order_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS bulk_suggestion_maps_indexes FOR TESTING
       RAISING cx_static_check.
+    METHODS bulk_sugg_commit_continues FOR TESTING
+      RAISING cx_static_check.
     METHODS bulk_create_continues_on_error FOR TESTING
       RAISING cx_static_check.
     METHODS stops_planned_create_failure FOR TESTING
       RAISING cx_static_check.
     METHODS stops_last_create_failure FOR TESTING
       RAISING cx_static_check.
+    METHODS stops_last_create_commit_fail FOR TESTING
+      RAISING cx_static_check.
     METHODS stops_suggestion_bulk FOR TESTING
+      RAISING cx_static_check.
+    METHODS stops_sugg_commit_fail FOR TESTING
       RAISING cx_static_check.
     METHODS bulk_create_commit_failure FOR TESTING
       RAISING cx_static_check.
@@ -288,6 +296,79 @@ CLASS ltcl_planned_order_service IMPLEMENTATION.
       exp = 0 ).
   ENDMETHOD.
 
+  METHOD stops_suggestion_test_run.
+    DATA(lo_api) = NEW lcl_planned_order_api( ).
+    lo_api->fail_on_call = 2.
+    DATA(lo_cut) = NEW zcl_planned_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_suggestions_bulk(
+      it_suggestions     = VALUE #(
+        ( material                    = 'MAT-1'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20261115'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '5.000'
+          suggested_receipt_count     = 1
+          maximum_base_quantity       = '10.000'
+          final_receipt_base_quantity = '5.000' )
+        ( material                    = 'MAT-2'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20261116'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '25.000'
+          suggested_receipt_count     = 3
+          maximum_base_quantity       = '10.000'
+          final_receipt_base_quantity = '5.000' ) )
+      iv_stop_on_failure = abap_true
+      iv_test_run        = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-is_test_run ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->create_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-source_suggestion_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-receipt_index
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 3 ]-source_suggestion_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 3 ]-receipt_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 4 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 4 ]-source_suggestion_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 4 ]-receipt_index
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->commit_calls
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->rollback_calls
+      exp = 0 ).
+  ENDMETHOD.
+
   METHOD stops_bulk_test_run.
     DATA(lo_api) = NEW lcl_planned_order_api( ).
     lo_api->fail_on_call = 2.
@@ -344,6 +425,54 @@ CLASS ltcl_planned_order_service IMPLEMENTATION.
             ( material = 'MAT-1' plant = '1000'
               quantity = '1.000' planned_end_date = '20261115' ) )
           iv_test_run = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->create_orders_bulk(
+          it_requests = VALUE #(
+            ( material = 'MAT-1' plant = '1000'
+              quantity = '1.000' planned_end_date = '20261115' ) )
+          iv_test_run = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->create_from_suggestions(
+          it_suggestions = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'E'
+              suggested_base_quantity     = '2.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '2.000' ) )
+          iv_test_run    = '2' ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->create_from_suggestions_bulk(
+          it_suggestions = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261115'
+              procurement_type            = 'E'
+              suggested_base_quantity     = '2.000'
+              suggested_receipt_count     = 1
+              final_receipt_base_quantity = '2.000' ) )
+          iv_test_run    = '2' ).
       CATCH zcx_invalid_stock_request.
         lv_raised = abap_true.
     ENDTRY.
@@ -704,6 +833,76 @@ CLASS ltcl_planned_order_service IMPLEMENTATION.
       exp = 1 ).
   ENDMETHOD.
 
+  METHOD bulk_sugg_commit_continues.
+    DATA(lo_api) = NEW lcl_planned_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_commit_on_call = 1.
+    DATA(lo_cut) = NEW zcl_planned_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_suggestions_bulk(
+      it_suggestions = VALUE #(
+        ( material                    = 'MAT-1'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20261115'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '5.000'
+          suggested_receipt_count     = 1
+          maximum_base_quantity       = '5.000'
+          final_receipt_base_quantity = '5.000' )
+        ( material                    = 'MAT-2'
+          plant                       = '2000'
+          base_unit                   = 'EA'
+          required_date               = '20261120'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '3.000'
+          suggested_receipt_count     = 1
+          maximum_base_quantity       = '3.000'
+          final_receipt_base_quantity = '3.000' ) ) ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_false( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_result-orders )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->create_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->commit_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->rollback_calls
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 1 ]-commit_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 1 ]-source_suggestion_index
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 1 ]-receipt_index
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 1 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_true(
+      ls_result-orders[ 2 ]-is_committed ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-source_suggestion_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-receipt_index
+      exp = 1 ).
+  ENDMETHOD.
+
   METHOD bulk_create_continues_on_error.
     DATA(lo_api) = NEW lcl_planned_order_api( ).
     lo_api->commit_success = abap_true.
@@ -806,6 +1005,45 @@ CLASS ltcl_planned_order_service IMPLEMENTATION.
       exp = 2 ).
   ENDMETHOD.
 
+  METHOD stops_last_create_commit_fail.
+    DATA(lo_api) = NEW lcl_planned_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_commit_on_call = 2.
+    DATA(lo_cut) = NEW zcl_planned_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->create_orders_bulk(
+      it_requests        = VALUE #(
+        ( material = 'MAT-1' plant = '1000'
+          quantity = '2.000' planned_end_date = '20261115' )
+        ( material = 'MAT-2' plant = '1000'
+          quantity = '3.000' planned_end_date = '20261116' ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 0 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->create_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->commit_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->rollback_calls
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true( ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 2 ]-commit_result-is_successful ).
+  ENDMETHOD.
+
   METHOD stops_suggestion_bulk.
     DATA(lo_api) = NEW lcl_planned_order_api( ).
     lo_api->commit_success = abap_true.
@@ -865,6 +1103,76 @@ CLASS ltcl_planned_order_service IMPLEMENTATION.
       exp = 1 ).
     cl_abap_unit_assert=>assert_true(
       ls_result-orders[ 4 ]-is_skipped ).
+  ENDMETHOD.
+
+  METHOD stops_sugg_commit_fail.
+    DATA(lo_api) = NEW lcl_planned_order_api( ).
+    lo_api->commit_success = abap_true.
+    lo_api->fail_commit_on_call = 2.
+    DATA(lo_cut) = NEW zcl_planned_order_service( lo_api ).
+
+    DATA(ls_result) = lo_cut->create_from_suggestions_bulk(
+      it_suggestions     = VALUE #(
+        ( material                    = 'MAT-1'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20261115'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '25.000'
+          suggested_receipt_count     = 3
+          maximum_base_quantity       = '10.000'
+          final_receipt_base_quantity = '5.000' )
+        ( material                    = 'MAT-2'
+          plant                       = '2000'
+          base_unit                   = 'EA'
+          required_date               = '20261120'
+          procurement_type            = 'E'
+          suggested_base_quantity     = '4.000'
+          suggested_receipt_count     = 1
+          maximum_base_quantity       = '4.000'
+          final_receipt_base_quantity = '4.000' ) )
+      iv_stop_on_failure = abap_true ).
+
+    cl_abap_unit_assert=>assert_false( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_result-stopped_on_failure ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-successful_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-failed_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-skipped_count
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_result-orders )
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->create_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->commit_calls
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_api->rollback_calls
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true( ls_result-orders[ 1 ]-is_committed ).
+    cl_abap_unit_assert=>assert_false(
+      ls_result-orders[ 2 ]-commit_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 3 ]-source_suggestion_index
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 3 ]-receipt_index
+      exp = 3 ).
+    cl_abap_unit_assert=>assert_true( ls_result-orders[ 3 ]-is_skipped ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 4 ]-source_suggestion_index
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 4 ]-receipt_index
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true( ls_result-orders[ 4 ]-is_skipped ).
   ENDMETHOD.
 
   METHOD bulk_create_commit_failure.

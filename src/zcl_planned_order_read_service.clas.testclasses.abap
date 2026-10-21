@@ -76,6 +76,9 @@ CLASS lcl_planned_order_read_repo IMPLEMENTATION.
           OR ( is_selection-filter_procurement_indicator = abap_true
             AND ls_order-procurement_indicator <>
               is_selection-procurement_indicator )
+          OR ( is_selection-filter_special_proc_type = abap_true
+            AND ls_order-special_procurement_type <>
+              is_selection-special_procurement_type )
           OR ( ( is_selection-filter_order_unit = abap_true
               OR is_selection-order_unit IS NOT INITIAL )
             AND ls_order-order_unit <> is_selection-order_unit )
@@ -259,6 +262,12 @@ CLASS ltcl_planned_order_read DEFINITION FINAL
     METHODS rejects_bad_procurement_filter FOR TESTING
       RAISING cx_static_check.
     METHODS rejects_procurement_scope FOR TESTING
+      RAISING cx_static_check.
+    METHODS filters_special_proc_type FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_bad_spec_proc_filter FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_special_proc_scope FOR TESTING
       RAISING cx_static_check.
     METHODS filters_positive_quantity FOR TESTING
       RAISING cx_static_check.
@@ -2248,6 +2257,182 @@ CLASS ltcl_planned_order_read IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = lo_repository->selection_read_calls
       exp = 1 ).
+  ENDMETHOD.
+
+  METHOD filters_special_proc_type.
+    DATA(lo_repository) = NEW lcl_planned_order_read_repo( ).
+    lo_repository->orders = VALUE #(
+      ( planned_order            = '0000000001'
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        special_procurement_type = '2'
+        finish_date              = '20261110'
+        quantity                 = '4.000'
+        order_unit               = 'EA'
+        base_unit                = 'EA' )
+      ( planned_order            = '0000000002'
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        special_procurement_type = '3'
+        finish_date              = '20261110'
+        quantity                 = '5.000'
+        order_unit               = 'EA'
+        base_unit                = 'EA' )
+      ( planned_order            = '0000000003'
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        special_procurement_type = space
+        finish_date              = '20261110'
+        quantity                 = '6.000'
+        order_unit               = 'EA'
+        base_unit                = 'EA' )
+      ( planned_order            = '0000000004'
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        special_procurement_type = '3'
+        finish_date              = '20261110'
+        quantity                 = '7.000'
+        order_unit               = 'EA'
+        base_unit                = 'EA' ) ).
+    DATA(lo_cut) = NEW zcl_planned_order_read_service( lo_repository ).
+
+    DATA(ls_result) = lo_cut->read_orders_by_finish_window(
+      is_selection = VALUE #(
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        filter_special_proc_type = abap_true
+        special_procurement_type = '3'
+        finish_date_from         = '20261101'
+        finish_date_to           = '20261130'
+        maximum_results          = 1 ) ).
+
+    cl_abap_unit_assert=>assert_true( ls_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-found_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_true( ls_result-is_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-next_planned_order
+      exp = '0000000002' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 1 ]-planned_order
+      exp = '0000000002' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 1 ]-order_header-special_procurement_type
+      exp = '3' ).
+
+    DATA(ls_blank_result) = lo_cut->read_orders_by_finish_window(
+      is_selection = VALUE #(
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        filter_special_proc_type = abap_true
+        special_procurement_type = space
+        finish_date_from         = '20261101'
+        finish_date_to           = '20261130'
+        maximum_results          = 10 ) ).
+
+    cl_abap_unit_assert=>assert_true( ls_blank_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_blank_result-found_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_blank_result-orders[ 1 ]-planned_order
+      exp = '0000000003' ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_spec_proc_filter.
+    DATA(lo_repository) = NEW lcl_planned_order_read_repo( ).
+    DATA(lo_cut) = NEW zcl_planned_order_read_service( lo_repository ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material                 = 'MAT-1'
+            plant                    = '1000'
+            filter_special_proc_type = 'Y'
+            finish_date_from         = '20261101'
+            finish_date_to           = '20261130'
+            maximum_results          = 10 ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_repository->selection_read_calls
+      exp = 0 ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material                 = 'MAT-1'
+            plant                    = '1000'
+            special_procurement_type = '2'
+            finish_date_from         = '20261101'
+            finish_date_to           = '20261130'
+            maximum_results          = 10 ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_repository->selection_read_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD rejects_special_proc_scope.
+    DATA(lo_repository) = NEW lcl_planned_order_read_repo( ).
+    lo_repository->use_finish_window_override = abap_true.
+    lo_repository->finish_window_override = VALUE #(
+      ( planned_order            = '0000000001'
+        material                 = 'MAT-1'
+        plant                    = '1000'
+        special_procurement_type = '3'
+        finish_date              = '20261110' ) ).
+    DATA(lo_cut) = NEW zcl_planned_order_read_service( lo_repository ).
+    DATA lv_raised TYPE abap_bool.
+
+    TRY.
+        lo_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material                 = 'MAT-1'
+            plant                    = '1000'
+            filter_special_proc_type = abap_true
+            special_procurement_type = '2'
+            finish_date_from         = '20261101'
+            finish_date_to           = '20261130'
+            maximum_results          = 10 ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_repository->selection_read_calls
+      exp = 1 ).
+
+    CLEAR lv_raised.
+    TRY.
+        lo_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material                 = 'MAT-1'
+            plant                    = '1000'
+            filter_special_proc_type = abap_true
+            special_procurement_type = space
+            finish_date_from         = '20261101'
+            finish_date_to           = '20261130'
+            maximum_results          = 10 ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_repository->selection_read_calls
+      exp = 2 ).
   ENDMETHOD.
 
   METHOD filters_positive_quantity.

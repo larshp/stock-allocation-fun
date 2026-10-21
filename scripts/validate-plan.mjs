@@ -79,6 +79,7 @@ for (const path of [
   "stubs/src/afko.tabl.xml",
   "stubs/src/aufk.tabl.xml",
   "stubs/src/afvc.tabl.xml",
+  "stubs/src/crhd.tabl.xml",
   "stubs/src/afru.tabl.xml",
   "stubs/src/jest.tabl.xml",
   "stubs/src/tj02t.tabl.xml",
@@ -197,8 +198,9 @@ const requiredStubFields = {
   ],
   "stubs/src/afvc.tabl.xml": [
     "MANDT", "AUFPL", "APLZL", "PLNFL", "VORNR", "UVORN", "LTXA1",
-    "STEUS",
+    "STEUS", "ARBID",
   ],
+  "stubs/src/crhd.tabl.xml": ["MANDT", "OBJTY", "OBJID", "ARBPL", "WERKS"],
   "stubs/src/afru.tabl.xml": [
     "MANDT", "RUECK", "RMZHL", "AUFNR", "AUFPL", "APLZL", "BUDAT",
     "AUERU", "STOKZ", "LMNGA", "RMNGA", "XMNGA", "MEINH",
@@ -333,6 +335,7 @@ const requiredStubFields = {
     "LGORT",
     "PAART",
     "BESKZ",
+    "SOBES",
     "DISPO",
     "PLGRP",
     "VERID",
@@ -492,7 +495,13 @@ if (existsSync(join(projectRoot, productionOrderReadRepoPath))) {
     operationsEnd,
   );
   if (operationsStart < 0 || operationsEnd < 0
-      || !/ty_order_routings TYPE SORTED TABLE OF ty_order_routing\s+WITH NON-UNIQUE KEY aufpl/i.test(operationsMethod)) {
+      || !/ty_order_routings TYPE SORTED TABLE OF ty_order_routing\s+WITH NON-UNIQUE KEY aufpl/i.test(operationsMethod)
+      || !/arbid\s+TYPE afvc-arbid/i.test(operationsMethod)
+      || !/steus,\s+arbid/i.test(operationsMethod)
+      || !/lv_resource_object_id = iv_resource_object_id/i.test(operationsMethod)
+      || !/@iv_filter_resource_object_id = @lv_false_indicator/i.test(operationsMethod)
+      || !/arbid = @lv_resource_object_id/i.test(operationsMethod)
+      || !/ls_operation-resource_object_id\s*=\s*ls_afvc-arbid/i.test(operationsMethod)) {
     errors.push(
       `${productionOrderReadRepoPath} must index order routings by routing number`,
     );
@@ -1022,6 +1031,7 @@ const requiredStubShapes = {
     PSTMP: ["DEC", "000015"],
     PAART: ["CHAR", "000004"],
     BESKZ: ["CHAR", "000001"],
+    SOBES: ["CHAR", "000001"],
     DISPO: ["CHAR", "000003"],
     PLGRP: ["CHAR", "000003"],
     VERID: ["CHAR", "000004"],
@@ -1052,6 +1062,19 @@ for (const [path, fields] of Object.entries(requiredStubShapes)) {
         `${path} field ${field} must be ${expectedType} length ${expectedLength}`,
       );
     }
+  }
+}
+
+for (const path of [
+  "scripts/run-unit.mjs",
+  "scripts/run-unit.mard-focused.mjs",
+]) {
+  const source = readFileSync(join(projectRoot, path), "utf8")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  const plafSchema = source.match(/create table 'plaf' \(([\s\S]*?)\);/)?.[1];
+  if (plafSchema === undefined || !plafSchema.includes("sobes nchar(1)")) {
+    errors.push(`${path} PLAF SQLite schema must include SOBES from the stub`);
   }
 }
 
@@ -4485,6 +4508,78 @@ if (existsSync(join(projectRoot, soStockAggregatePath))) {
       `${soStockAggregatePath} must aggregate sales-order stock in high precision and reject unrepresentable totals`,
     );
   }
+
+  const issuePreviewMethods = [
+    ["preview_issue_demands", "lv_covered_quantity = ls_request-requested_quantity"],
+    [
+      "preview_issue_demands_in_unit",
+      "lv_covered_base_quantity = ls_requested-base_quantity",
+    ],
+  ].map(([name, fullCoverageCheck]) => {
+    const start = soStockService.indexOf(`method ${name}.`);
+    const end = soStockService.indexOf("endmethod.", start);
+    return {
+      body: start < 0 || end < 0
+        ? ""
+        : soStockService.slice(start, end).replace(/\s+/g, " "),
+      fullCoverageCheck,
+    };
+  });
+  const normalizedSoStockService = soStockService.replace(/\s+/g, " ");
+  const issueOutcomeFieldCount = normalizedSoStockService
+    .split("allocation_outcome type c length 1").length - 1;
+  if (issueOutcomeFieldCount < 2
+      || !normalizedSoStockService.includes(
+        "c_issue_outcome_full type c length 1 value 'f'",
+      )
+      || !normalizedSoStockService.includes(
+        "c_issue_outcome_partial type c length 1 value 'p'",
+      )
+      || !normalizedSoStockService.includes(
+        "c_issue_outcome_none type c length 1 value 'u'",
+      )
+      || issuePreviewMethods.some(({ body, fullCoverageCheck }) =>
+        !body.includes(`allocation_outcome = cond #( when ${fullCoverageCheck}`)
+          || !body.includes("when lv_" + (fullCoverageCheck.includes("base_")
+            ? "covered_base_quantity"
+            : "covered_quantity") + " > 0 then c_issue_outcome_partial")
+          || !body.includes("else c_issue_outcome_none )"))) {
+    errors.push(
+      `${soStockAggregatePath} must expose F/P/U issue outcomes in both preview units using base coverage`,
+    );
+  }
+
+  const issuePreviewBodies = issuePreviewMethods.map(({ body }) => body);
+  const minimumCoverageFieldCount = normalizedSoStockService
+    .split("minimum_coverage_pct type p length 5 decimals 2").length - 1;
+  const minimumCoverageChecks = [
+    [
+      "lv_covered_quantity",
+      "ls_request-requested_quantity",
+    ],
+    [
+      "lv_covered_base_quantity",
+      "ls_requested-base_quantity",
+    ],
+  ].map(([covered, requested], index) =>
+    issuePreviewBodies[index].includes(
+      `conv decfloat34( ${covered} ) * conv decfloat34( 100 ) < conv decfloat34( ${requested} ) * conv decfloat34( ls_request-minimum_coverage_pct )`,
+    )
+      && issuePreviewBodies[index].includes(
+        "ls_request-minimum_coverage_pct < 0",
+      )
+      && issuePreviewBodies[index].includes(
+        "ls_request-minimum_coverage_pct > 100",
+      )
+      && issuePreviewBodies[index].includes(
+        "minimum_coverage_pct = ls_request-minimum_coverage_pct",
+      ));
+  if (minimumCoverageFieldCount < 4
+      || minimumCoverageChecks.some((isValid) => !isValid)) {
+    errors.push(
+      `${soStockAggregatePath} must validate, compare, and echo per-request minimum coverage in both preview units`,
+    );
+  }
 }
 
 const scopedComponentPath = "src/zcl_stock_service.clas.abap";
@@ -6217,6 +6312,563 @@ if (!qualityFlagValidation.includes("iv_include_undated_batches <> abap_true")
     || !qualityFlagValidation.includes("iv_test_run <> abap_true")
     || !qualityFlagValidation.includes("iv_require_full_allocation <> abap_true")) {
   errors.push("quality FEFO posting must validate all boolean options on empty and populated requests");
+}
+const sharedCoverageRequest = normalizedMethod(
+  stockServiceSource,
+  "allocate_request",
+);
+const sharedCoverageUnitRequest = normalizedMethod(
+  stockServiceSource,
+  "allocate_request_in_unit",
+);
+const sharedCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands",
+);
+const sharedCoverageUomAdapter = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_in_units",
+);
+const sharedCoveragePriorityAdapter = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_by_priority",
+);
+const sharedCoverageUomPriorityAdapter = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_uom_priority",
+);
+const sharedCoverageUomAtp = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_uom_atp",
+);
+const sharedCoverageUomAtpPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_demands_uom_atp_prio",
+);
+if (!sharedCoverageRequest.includes("iv_minimum_coverage_pct < 0")
+    || !sharedCoverageRequest.includes("iv_minimum_coverage_pct > 100")
+    || !sharedCoverageRequest.includes("minimum_coverage_pct = iv_minimum_coverage_pct")
+    || !sharedCoverageUnitRequest.includes("iv_minimum_coverage_pct < 0")
+    || !sharedCoverageUnitRequest.includes("iv_minimum_coverage_pct > 100")
+    || !sharedCoverageUnitRequest.includes("iv_minimum_coverage_pct = iv_minimum_coverage_pct")
+    || !sharedCoverageAllocator.includes("ls_demand-minimum_coverage_pct < 0")
+    || !sharedCoverageAllocator.includes("ls_demand-minimum_coverage_pct > 100")
+    || !sharedCoverageAllocator.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !sharedCoverageAllocator.includes("conv decfloat34( lv_candidate_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !sharedCoverageUomAdapter.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !sharedCoveragePriorityAdapter.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !sharedCoverageUomPriorityAdapter.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !sharedCoverageUomAtp.includes("allocate_demands_in_units(")
+    || !sharedCoverageUomAtpPriority.includes("allocate_demands_uom_priority(")) {
+  errors.push(
+    "shared material/plant allocations must validate and apply base-unit coverage floors across request, UOM, priority, and ATP paths",
+  );
+}
+if (!/allocation_outcome\s+type c length 1/.test(stockServiceSource)
+    || !sharedCoverageAllocator.includes("ls_allocation-allocation_outcome = cond #(")
+    || !sharedCoverageAllocator.includes("zif_stock_repository=>c_allocation_outcome_full")
+    || !sharedCoverageAllocator.includes("zif_stock_repository=>c_allocation_outcome_partial")
+    || !sharedCoverageAllocator.includes("zif_stock_repository=>c_allocation_outcome_none")) {
+  errors.push(
+    "shared allocation results must report full, partial, or uncovered outcomes from their base quantities",
+  );
+}
+for (const name of [
+  "allocate_by_storage_location",
+  "allocate_location_by_date",
+  "allocate_by_batch",
+  "allocate_by_expiry",
+  "allocate_quality_by_expiry",
+]) {
+  if (!normalizedMethod(stockServiceSource, name)
+    .includes("allocation_outcome = cond #(")) {
+    errors.push(`${name} must report full, partial, or uncovered allocation outcomes`);
+  }
+}
+const crossPlantOutcomeChecks = [
+  ["allocate_across_plants", "ls_allocation-allocation_outcome = cond #("],
+  ["allocate_plants_by_date", "allocation_outcome = cond #("],
+  ["allocate_plants_by_date_loc", "allocation_outcome = ls_local_allocation-allocation_outcome"],
+  ["allocate_plants_by_expiry", "ls_allocation-allocation_outcome = cond #("],
+  ["allocate_plants_fefo_by_date", "ls_allocation-allocation_outcome = cond #("],
+  ["allocate_plants_by_batch", "ls_allocation-allocation_outcome = cond #("],
+  ["allocate_plants_batch_by_date", "ls_date_demand_allocation-allocation_outcome = ls_base_allocation-allocation_outcome"],
+];
+for (const [name, marker] of crossPlantOutcomeChecks) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must report F/P/U from the base-unit allocation`);
+  }
+}
+const crossPlantCoverageChecks = [
+  ["allocate_across_plants", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_plants_by_date", "allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_plants_by_date_loc", "allocation_coverage_pct = ls_local_allocation-allocation_coverage_pct"],
+  ["allocate_plants_by_expiry", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_plants_fefo_by_date", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_plants_by_batch", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_plants_batch_by_date", "ls_date_demand_allocation-allocation_coverage_pct = ls_base_allocation-allocation_coverage_pct"],
+];
+for (const [name, marker] of crossPlantCoverageChecks) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must report coverage percentage from base-unit quantities`);
+  }
+}
+const localAllocationCoverageChecks = [
+  ["allocate_demands", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_by_storage_location", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_location_by_date", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_by_batch", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_by_expiry", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_quality_by_expiry", "ls_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+];
+for (const [name, marker] of localAllocationCoverageChecks) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must report coverage percentage from base-unit quantities`);
+  }
+}
+const localDatedOutcomeChecks = [
+  ["allocate_request_by_date", "rs_allocation-allocation_outcome = cond #("],
+  ["allocate_demands_by_date", "allocation_outcome = cond #("],
+];
+for (const [name, marker] of localDatedOutcomeChecks) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must report F/P/U from the base-unit allocation`);
+  }
+}
+const localDatedCoverageChecks = [
+  ["allocate_request_by_date", "rs_allocation-allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_demands_by_date", "allocation_coverage_pct = calculate_coverage_pct("],
+  ["allocate_date_demands_in_units", "allocation = ls_base_allocation"],
+  ["allocate_date_demands_atp", "allocate_date_demands_in_units("],
+  ["allocate_request_date_atp", "allocate_request_by_date("],
+];
+for (const [name, marker] of localDatedCoverageChecks) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must preserve the dated allocation coverage summary`);
+  }
+}
+const localDatedCoverageFloorChecks = [
+  [
+    "allocate_request_by_date",
+    [
+      "iv_minimum_coverage_pct < 0",
+      "iv_minimum_coverage_pct > 100",
+      "minimum_coverage_pct = iv_minimum_coverage_pct",
+      "conv decfloat34( rs_allocation-allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( iv_requested_quantity ) * conv decfloat34( iv_minimum_coverage_pct )",
+      "rs_allocation-shortfall_quantity = iv_requested_quantity",
+    ],
+  ],
+  [
+    "allocate_demands_by_date",
+    [
+      "ls_dated_input-minimum_coverage_pct < 0",
+      "ls_dated_input-minimum_coverage_pct > 100",
+      "minimum_coverage_pct = ls_dated_input-minimum_coverage_pct",
+      "conv decfloat34( lv_allocated_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_dated_demand-requested_quantity ) * conv decfloat34( ls_dated_demand-minimum_coverage_pct )",
+      "minimum_coverage_pct = ls_dated_demand-minimum_coverage_pct",
+    ],
+  ],
+  [
+    "allocate_date_demands_in_units",
+    [
+      "ls_input-minimum_coverage_pct < 0",
+      "ls_input-minimum_coverage_pct > 100",
+      "minimum_coverage_pct = ls_input-minimum_coverage_pct",
+    ],
+  ],
+  ["allocate_date_demands_atp", ["allocate_date_demands_in_units("]],
+  [
+    "allocate_request_date_atp",
+    [
+      "iv_minimum_coverage_pct < 0",
+      "iv_minimum_coverage_pct > 100",
+      "iv_minimum_coverage_pct = iv_minimum_coverage_pct",
+    ],
+  ],
+];
+for (const [name, markers] of localDatedCoverageFloorChecks) {
+  const body = normalizedMethod(stockServiceSource, name);
+  if (markers.some((marker) => !body.includes(marker))) {
+    errors.push(
+      `${name} must validate, apply, and preserve local date-first coverage floors`,
+    );
+  }
+}
+const coverageHelper = normalizedMethod(
+  stockServiceSource,
+  "calculate_coverage_pct",
+);
+const allocationSummaryTypeCount = (
+  stockServiceSource.match(/allocation_coverage_pct type ty_allocation_coverage_pct/g) ?? []
+).length;
+if (allocationSummaryTypeCount < 6
+    || !coverageHelper.includes("if iv_requested_quantity > 0")
+    || !coverageHelper.includes("conv decfloat34( iv_allocated_quantity )")
+    || !coverageHelper.includes("conv decfloat34( 100 )")
+    || !coverageHelper.includes("conv decfloat34( iv_requested_quantity )")) {
+  errors.push(
+    "shared, dated, and cross-plant summaries must expose a two-decimal base-unit coverage percentage that is zero for zero requests",
+  );
+}
+const crossPlantOutcomeAdapters = [
+  ["allocate_plants_in_units", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_date_units", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_date_loc_uom", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_batch_in_units", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_fefo_in_units", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_date_batch_uom", "ls_unit_demand-allocation = ls_base_demand"],
+  ["allocate_plants_fefo_date_uom", "ls_unit_allocation-allocation = ls_base_allocation"],
+  ["allocate_plants_uom_priority", "allocation = ls_unit_allocation"],
+  ["allocate_plants_batch_priority", "allocation = ls_base_allocation"],
+  ["allocate_plants_batch_uom_prio", "allocation = ls_unit_allocation"],
+  ["allocate_plants_fefo_priority", "allocation = ls_base_allocation"],
+  ["allocate_plants_fefo_uom_prio", "allocation = ls_unit_allocation"],
+  ["allocate_plants_priority", "allocation = ls_base_allocation"],
+  ["allocate_plants_atp", "allocate_plants_in_units("],
+  ["allocate_plants_uom_atp_prio", "allocate_plants_uom_priority("],
+  ["allocate_plants_date_atp", "allocate_plants_date_units("],
+  ["allocate_plants_date_loc_atp", "allocate_plants_date_loc_uom("],
+  ["allocate_plants_batch_atp", "allocate_plants_batch_in_units("],
+  ["allocate_plants_batch_uom_atp", "allocate_plants_batch_uom_prio("],
+  ["allocate_plants_date_batch_atp", "allocate_plants_date_batch_uom("],
+  ["allocate_plants_fefo_atp", "allocate_plants_fefo_in_units("],
+  ["allocate_plants_fefo_uom_atp", "allocate_plants_fefo_uom_prio("],
+  ["allocate_plants_fefo_date_atp", "allocate_plants_fefo_date_uom("],
+];
+for (const [name, marker] of crossPlantOutcomeAdapters) {
+  if (!normalizedMethod(stockServiceSource, name).includes(marker)) {
+    errors.push(`${name} must preserve the local allocation outcome`);
+  }
+}
+const locationCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_storage_location",
+);
+const locationCoveragePriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_priority",
+);
+const locationCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_location_in_units",
+);
+const locationCoverageUomPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_uom_priority",
+);
+if (!locationCoverageAllocator.includes("ls_demand-minimum_coverage_pct < 0")
+    || !locationCoverageAllocator.includes("ls_demand-minimum_coverage_pct > 100")
+    || !locationCoverageAllocator.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !locationCoverageAllocator.includes("conv decfloat34( ls_allocation-available_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !locationCoverageAllocator.includes("clear lt_location_sequence")
+    || !locationCoveragePriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !locationCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !locationCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !locationCoverageUomPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_by_location_atp")
+      .includes("allocate_by_location_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_location_uom_atp_prio")
+      .includes("allocate_location_uom_priority(")) {
+  errors.push(
+    "storage-location allocations must validate and apply coverage floors before consuming balances across base, UOM, priority, and ATP paths",
+  );
+}
+const datedLocationCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_by_date",
+);
+const datedLocationCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_location_by_date_uom",
+);
+if (!datedLocationCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !datedLocationCoverage.includes("ls_demand-minimum_coverage_pct > 100")
+    || !datedLocationCoverage.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !datedLocationCoverage.includes("minimum_coverage_pct = ls_base_demand-minimum_coverage_pct")
+    || !datedLocationCoverage.includes("conv decfloat34( ls_allocation-available_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_base_demand-requested_quantity ) * conv decfloat34( ls_base_demand-minimum_coverage_pct )")
+    || !datedLocationCoverage.includes("clear lt_location_sequence")
+    || !datedLocationCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !datedLocationCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_location_date_uom_atp")
+      .includes("allocate_location_by_date_uom(")
+    || !normalizedMethod(stockServiceSource, "allocate_location_date_atp")
+      .includes("allocate_location_by_date(")) {
+  errors.push(
+    "dated storage-location allocations must apply per-demand coverage floors against required-date stock across UOM and ATP paths",
+  );
+}
+const batchCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch",
+);
+const batchCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_in_units",
+);
+const batchCoveragePriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_priority",
+);
+const batchCoverageUomPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_batch_uom_priority",
+);
+if (!batchCoverageAllocator.includes("ls_validation_demand-minimum_coverage_pct < 0")
+    || !batchCoverageAllocator.includes("ls_validation_demand-minimum_coverage_pct > 100")
+    || !batchCoverageAllocator.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !batchCoverageAllocator.includes("ls_batch_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !batchCoverageAllocator.includes("conv decfloat34( ls_allocation-available_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !batchCoverageAllocator.includes("clear lt_location_sequence")
+    || !batchCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !batchCoverageUom.includes("ls_demand-minimum_coverage_pct > 100")
+    || !batchCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !batchCoveragePriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !batchCoverageUomPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_by_batch_atp")
+      .includes("allocate_by_batch_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_by_batch_uom_atp_prio")
+      .includes("allocate_by_batch_uom_priority(")) {
+  errors.push(
+    "exact-batch allocation must validate coverage floors and preserve stock across base, UOM, priority, and ATP paths",
+  );
+}
+const fefoCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_expiry",
+);
+const fefoCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_expiry_in_units",
+);
+const fefoCoveragePriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_by_expiry_priority",
+);
+const fefoCoverageUomPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_fefo_uom_priority",
+);
+if (!fefoCoverageAllocator.includes("ls_demand-minimum_coverage_pct < 0")
+    || !fefoCoverageAllocator.includes("ls_demand-minimum_coverage_pct > 100")
+    || !fefoCoverageAllocator.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !fefoCoverageAllocator.includes("ls_batch_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !fefoCoverageAllocator.includes("conv decfloat34( ls_allocation-available_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !fefoCoverageAllocator.includes("clear lv_location_pass_count")
+    || !fefoCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !fefoCoverageUom.includes("ls_demand-minimum_coverage_pct > 100")
+    || !fefoCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !fefoCoveragePriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !fefoCoverageUomPriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_by_expiry_atp")
+      .includes("allocate_by_expiry_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_fefo_uom_atp_prio")
+      .includes("allocate_fefo_uom_priority(")) {
+  errors.push(
+    "FEFO allocation must apply coverage floors to eligible stock and preserve the field through UOM, priority, and ATP paths",
+  );
+}
+const qualityFefoCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_by_expiry",
+);
+const qualityFefoCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_by_expiry_uom",
+);
+const qualityFefoCoveragePriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_fefo_priority",
+);
+const qualityFefoCoverageUomPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_quality_uom_priority",
+);
+if (!qualityFefoCoverageAllocator.includes("ls_demand-minimum_coverage_pct < 0")
+    || !qualityFefoCoverageAllocator.includes("ls_demand-minimum_coverage_pct > 100")
+    || !qualityFefoCoverageAllocator.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !qualityFefoCoverageAllocator.includes("ls_batch_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !qualityFefoCoverageAllocator.includes("* conv decfloat34( 100 ) >= conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !qualityFefoCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !qualityFefoCoverageUom.includes("ls_demand-minimum_coverage_pct > 100")
+    || !qualityFefoCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !qualityFefoCoveragePriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !qualityFefoCoverageUomPriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_quality_by_expiry_atp")
+      .includes("allocate_quality_by_expiry_uom(")
+    || !normalizedMethod(stockServiceSource, "allocate_quality_uom_atp_prio")
+      .includes("allocate_quality_uom_priority(")) {
+  errors.push(
+    "quality FEFO allocation must apply coverage floors to eligible inspection stock and preserve the field through UOM, priority, and ATP paths",
+  );
+}
+const valtypeCoverageAllocator = normalizedMethod(
+  stockServiceSource,
+  "preview_by_valtype",
+);
+const valtypeCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "preview_by_valtype_uom",
+);
+if (!valtypeCoverageAllocator.includes("ls_demand-minimum_coverage_pct < 0")
+    || !valtypeCoverageAllocator.includes("ls_demand-minimum_coverage_pct > 100")
+    || !valtypeCoverageAllocator.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !valtypeCoverageAllocator.includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) < conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !valtypeCoverageAllocator.includes("ls_allocation-shortfall_quantity = ls_demand-requested_quantity")
+    || !valtypeCoverageAllocator.includes("append ls_allocation to rs_result-allocations.")
+    || !valtypeCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !valtypeCoverageUom.includes("ls_demand-minimum_coverage_pct > 100")
+    || !valtypeCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "preview_by_valtype_uom_atp")
+      .includes("preview_by_valtype_uom(")) {
+  errors.push(
+    "valuation-type allocations must validate and apply coverage floors before consuming balances across base, UOM, and ATP paths",
+  );
+}
+const crossPlantCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_across_plants",
+);
+const crossPlantCoverageUom = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_in_units",
+);
+const crossPlantCoveragePriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_priority",
+);
+const crossPlantCoverageUomPriority = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_uom_priority",
+);
+const crossPlantDateLocationCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_date_loc",
+);
+const crossPlantDateLocationUomCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_loc_uom",
+);
+const crossPlantDateCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_date",
+);
+const crossPlantDateUomCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_date_units",
+);
+if (!crossPlantCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantCoverage.includes("ls_demand-minimum_coverage_pct > 100")
+    || !crossPlantCoverage.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantCoverage.includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !crossPlantCoverageUom.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantCoverageUom.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantCoveragePriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !crossPlantCoverageUomPriority.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_atp")
+      .includes("allocate_plants_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_uom_atp_prio")
+      .includes("allocate_plants_uom_priority(")
+    || !crossPlantDateLocationCoverage.includes("minimum_coverage_pct = ls_work-demand-minimum_coverage_pct")
+    || !crossPlantDateLocationCoverage.includes("minimum_coverage_pct = ls_local_allocation-minimum_coverage_pct")
+    || !crossPlantDateLocationUomCoverage.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantDateCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantDateCoverage.includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_demand_index-requested_quantity ) * conv decfloat34( ls_demand_index-minimum_coverage_pct )")
+    || !crossPlantDateCoverage.includes("minimum_coverage_pct = ls_demand_index-minimum_coverage_pct")
+    || !crossPlantDateUomCoverage.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_date_loc_atp")
+      .includes("allocate_plants_date_loc_uom(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_date_atp")
+      .includes("allocate_plants_date_units(")) {
+  errors.push(
+    "cross-plant allocation must validate and apply coverage floors before consuming source balances across ordinary, priority, UOM, dated, and ATP paths",
+  );
+}
+const crossPlantBatchCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_batch",
+);
+const crossPlantBatchUomCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_in_units",
+);
+const crossPlantBatchPriorityCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_priority",
+);
+const crossPlantBatchUomPriorityCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_batch_uom_prio",
+);
+const crossPlantFefoCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_by_expiry",
+);
+const crossPlantFefoUomCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_in_units",
+);
+const crossPlantFefoPriorityCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_priority",
+);
+const crossPlantFefoUomPriorityCoverage = normalizedMethod(
+  stockServiceSource,
+  "allocate_plants_fefo_uom_prio",
+);
+if (!crossPlantBatchCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantBatchCoverage.includes("ls_demand-minimum_coverage_pct > 100")
+    || !crossPlantBatchCoverage.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantBatchCoverage.includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !crossPlantBatchUomCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantBatchUomCoverage.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantBatchPriorityCoverage.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !crossPlantBatchUomPriorityCoverage.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_batch_atp")
+      .includes("allocate_plants_batch_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_batch_uom_atp")
+      .includes("allocate_plants_batch_uom_prio(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_batch_by_date")
+      .includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_batch_by_date")
+      .includes("minimum_coverage_pct = ls_base_allocation-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_date_batch_uom")
+      .includes("ls_demand-minimum_coverage_pct < 0")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_date_batch_uom")
+      .includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_date_batch_atp")
+      .includes("allocate_plants_date_batch_uom(")) {
+  errors.push(
+    "cross-plant exact-batch allocation must apply and preserve coverage floors across base, UOM, priority, and ATP paths",
+  );
+}
+if (!crossPlantFefoCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantFefoCoverage.includes("ls_demand-minimum_coverage_pct > 100")
+    || !crossPlantFefoCoverage.includes("ls_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantFefoCoverage.includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_demand-requested_quantity ) * conv decfloat34( ls_demand-minimum_coverage_pct )")
+    || !crossPlantFefoCoverage.includes("ls_batch_allocation-minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantFefoUomCoverage.includes("ls_demand-minimum_coverage_pct < 0")
+    || !crossPlantFefoUomCoverage.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !crossPlantFefoPriorityCoverage.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !crossPlantFefoUomPriorityCoverage.includes("minimum_coverage_pct = ls_priority_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_atp")
+      .includes("allocate_plants_fefo_in_units(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_uom_atp")
+      .includes("allocate_plants_fefo_uom_prio(")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_by_date")
+      .includes("ls_demand-minimum_coverage_pct < 0")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_by_date")
+      .includes("conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_demand_index-requested_quantity ) * conv decfloat34( ls_demand_index-minimum_coverage_pct )")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_by_date")
+      .includes("ls_batch_allocation-minimum_coverage_pct = ls_demand_index-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_date_uom")
+      .includes("ls_demand-minimum_coverage_pct < 0")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_date_uom")
+      .includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !normalizedMethod(stockServiceSource, "allocate_plants_fefo_date_atp")
+      .includes("allocate_plants_fefo_date_uom(")) {
+  errors.push(
+    "cross-plant FEFO allocation must apply and preserve coverage floors across base, UOM, priority, ATP, and batch-split paths",
+  );
 }
 const priorityAllocatorNames = [
   "allocate_by_expiry_priority",
@@ -8504,6 +9156,28 @@ if (!soFefoStockSource.includes("allow_undated_batches")
   errors.push("sales-order FEFO must honor per-demand undated-stock policies through base, UOM, reservation, recheck, and goods-issue paths");
 }
 
+if (!soFefoBase.includes(
+  "minimum_coverage_pct = ls_request-minimum_coverage_pct",
+)
+    || !soFefoUom.includes(
+      "minimum_coverage_pct = ls_request-minimum_coverage_pct",
+    )
+    || !soFefoCore.includes("ls_request-minimum_coverage_pct < 0")
+    || !soFefoCore.includes("ls_request-minimum_coverage_pct > 100")
+    || !soFefoCore.includes(
+      "conv decfloat34( lv_available_base_quantity ) * conv decfloat34( 100 ) < conv decfloat34( lv_requested_base_quantity ) * conv decfloat34( ls_request-minimum_coverage_pct )",
+    )
+    || !soFefoCore.includes(
+      "minimum_coverage_pct = ls_request-minimum_coverage_pct",
+    )
+    || !soFefoCore.includes(
+      "allocation_outcome = cond #( when lv_covered_base_quantity = lv_requested_base_quantity then c_issue_outcome_full when lv_covered_base_quantity > 0 then c_issue_outcome_partial else c_issue_outcome_none )",
+    )) {
+  errors.push(
+    "sales-order FEFO previews must apply the request coverage floor before consuming batch stock and report the outcome",
+  );
+}
+
 const soFefoIssueServiceSource = readFileSync(
   join(projectRoot, "src/zcl_so_fefo_issue_service.clas.abap"),
   "utf8",
@@ -8624,6 +9298,9 @@ if (!ccLocationDemandPreview.includes("iv_check_atp")
     || !ccLocationDemandPreview.includes("allocate_location_uom_atp_prio(")
     || !ccLocationDemandPreview.includes("allocate_location_uom_priority(")
     || !ccLocationDemandPreview.includes("iv_prioritize_by_priority")
+    || !ccLocationDemandPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccLocationDemandPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccLocationDemandPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccLocationDemandPreview.includes("require_full_quantity = ls_demand-require_full_quantity")
     || !ccLocationDemandPreview.includes("xsdbool(")
     || !ccLocationDemandPreview.includes("ls_location_atp_result-atp_checks")
@@ -8644,7 +9321,7 @@ if (!ccLocationDemandPreview.includes("iv_check_atp")
     || !ccLocationDemandAtpValidationTest.includes("lv_full_quantity_flag_raised")
     || !ccLocationDemandAtpValidationTest.includes("20261335")
     || !ccLocationDemandAtpValidationTest.includes("lv_atp_date_raised")) {
-  errors.push("cost-center location previews must expose grouped SAP ATP diagnostics, support opt-in priority allocation, and reject invalid options before stock reads");
+  errors.push("cost-center location previews must expose grouped SAP ATP diagnostics, support opt-in priority allocation and per-demand coverage floors, and reject invalid options before stock reads");
 }
 
 const ccDatedLocationPreview = normalizedMethod(
@@ -8662,6 +9339,9 @@ const ccDatedLocationValidationTest = normalizedMethod(
 if (!ccDatedLocationPreview.includes("it_projected_receipts = it_projected_receipts")
     || !ccDatedLocationPreview.includes("allocate_location_by_date_uom(")
     || !ccDatedLocationPreview.includes("allocate_location_date_uom_atp(")
+    || !ccDatedLocationPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccDatedLocationPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccDatedLocationPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccDatedLocationPreview.includes("check_date = ls_demand-required_date")
     || !ccDatedLocationPreview.includes("request_locations = it_request_locations")
     || !ccDatedLocationPreview.includes("xsdbool(")
@@ -8674,7 +9354,7 @@ if (!ccDatedLocationPreview.includes("it_projected_receipts = it_projected_recei
     || !ccDatedLocationPreviewTest.includes("cumulative_base_quantity")
     || !ccDatedLocationValidationTest.includes("cc-date-loc-atp-no-rule")
     || !ccDatedLocationValidationTest.includes("cc-date-loc-bad-date")) {
-  errors.push("date-first cost-center location previews must preserve receipt cutoffs, scopes, and grouped ATP checks");
+  errors.push("date-first cost-center location previews must preserve receipt cutoffs, scopes, grouped ATP checks, and minimum coverage floors");
 }
 
 const ccBatchAtpPreview = normalizedMethod(
@@ -8795,16 +9475,23 @@ const ccFefoAtpValidationTest = normalizedMethod(
 if (!ccBatchAtpPreview.includes("iv_check_atp")
     || !ccBatchAtpPreview.includes("check_batch_allocation_atp(")
     || !ccBatchAtpPreview.includes("require_full_quantity = ls_demand-require_full_quantity")
+    || !ccBatchAtpPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccBatchAtpPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccBatchAtpPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccBatchAtpPreview.includes("xsdbool(")
     || !ccBatchAtpPreview.includes("cumulative_base_quantity")
     || !ccBatchAtpPreview.includes("it_projected_batch_receipts = it_projected_batch_receipts")
     || !ccFefoAtpPreview.includes("iv_atp_check_rule is not supplied")
     || !ccFefoAtpPreview.includes("check_batch_allocation_atp(")
+    || !ccFefoAtpPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccFefoAtpPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccFefoAtpPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccFefoAtpPreview.includes("confirmed_base_quantity")
     || !ccFefoAtpPreview.includes("it_projected_batch_receipts = it_projected_batch_receipts")
     || !ccDatedFefoAtpPreview.includes("iv_check_atp")
     || !ccDatedFefoAtpPreview.includes("iv_check_atp = iv_check_atp")
     || !ccDatedFefoAtpPreview.includes("iv_atp_check_rule = iv_atp_check_rule")
+    || !ccDatedFefoAtpPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccDatedFefoAtpPreview.includes("it_projected_batch_receipts = it_projected_batch_receipts")
     || !ccBatchAtpHelper.includes("check_atp_request(")
     || !ccBatchAtpHelper.includes("get_atp_confirmation_split(")
@@ -8835,7 +9522,7 @@ if (!ccBatchAtpPreview.includes("iv_check_atp")
     || !ccDatedFefoAtpTest.includes("receipt_date")
     || !ccFefoAtpValidationTest.includes("dated-fefo-atp-no-rule")
     || !ccFefoAtpValidationTest.includes("lv_atp_rule_raised")) {
-  errors.push("cost-center exact-batch and FEFO previews must preserve grouped ATP diagnostics while applying caller-resolved batch receipts");
+  errors.push("cost-center exact-batch and FEFO previews must preserve grouped ATP diagnostics and per-demand coverage floors while applying caller-resolved batch receipts");
 }
 
 const ccDatedDemandPreview = normalizedMethod(
@@ -8848,6 +9535,9 @@ const ccDatedDemandPreviewTest = normalizedMethod(
 );
 if (!ccDatedDemandPreview.includes("priority = ls_demand-priority")
     || !ccDatedDemandPreview.includes("require_full_quantity = ls_demand-require_full_quantity")
+    || !ccDatedDemandPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccDatedDemandPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccDatedDemandPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccDatedDemandPreview.includes("ls_demand-require_full_quantity <> abap_true")
     || !ccDatedDemandPreviewTest.includes("cc-date-row-full")
     || !ccDatedDemandPreviewTest.includes("cc-date-row-partial")
@@ -8858,7 +9548,7 @@ if (!ccDatedDemandPreview.includes("priority = ls_demand-priority")
       readFileSync(join(projectRoot, "src/zcl_cc_reservation_service.clas.testclasses.abap"), "utf8").toLowerCase(),
       "rejects_bad_dated_cc_demands",
     ).includes("lv_full_quantity_flag_raised")) {
-  errors.push("dated cost-center preview results must echo each demand priority in caller order");
+  errors.push("dated cost-center previews must echo each demand priority in caller order and preserve valid minimum coverage floors");
 }
 
 const ccBulkDemandPreview = normalizedMethod(
@@ -8885,6 +9575,9 @@ if (!ccBulkDemandPreview.includes("iv_check_atp")
     || !ccBulkDemandPreview.includes("allocate_demands_uom_priority(")
     || !ccBulkDemandPreview.includes("iv_prioritize_by_priority")
     || !ccBulkDemandPreview.includes("ls_demand-require_full_quantity <> abap_true")
+    || !ccBulkDemandPreview.includes("ls_demand-minimum_coverage_pct < 0")
+    || !ccBulkDemandPreview.includes("ls_demand-minimum_coverage_pct > 100")
+    || !ccBulkDemandPreview.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !ccBulkDemandPreview.includes("require_full_quantity = ls_demand-require_full_quantity")
     || !ccBulkDemandPreview.includes("require_full_quantity = xsdbool(")
     || !ccBulkDemandPreview.includes("ls_atp_result-atp_checks")
@@ -8906,7 +9599,7 @@ if (!ccBulkDemandPreview.includes("iv_check_atp")
     || !ccBulkDemandPreviewValidationTest.includes("lv_full_quantity_flag_raised")
     || !ccBulkDemandPreviewValidationTest.includes("20261335")
     || !ccBulkDemandPreviewValidationTest.includes("lv_atp_date_raised")) {
-  errors.push("bulk cost-center previews must offer grouped SAP ATP diagnostics, opt-in priority allocation, and validate options before reading stock");
+  errors.push("bulk cost-center previews must offer grouped SAP ATP diagnostics, opt-in priority allocation, per-demand coverage floors, and validate options before reading stock");
 }
 
 const ccReservationExpiryPolicySource = readFileSync(
@@ -9472,6 +10165,28 @@ const projectLocationPriorityAtp = normalizedMethod(
   projectFefoSource,
   "preview_location_priority_atp",
 );
+if (!projectFefoCore.includes("ls_demand-minimum_coverage_pct < 0")
+    || !projectFefoCore.includes("ls_demand-minimum_coverage_pct > 100")
+    || !projectFefoCore.includes("ls_policy_demand-minimum_coverage_pct < 0")
+    || !projectFefoCore.includes("ls_policy_demand-minimum_coverage_pct > 100")
+    || !projectFefoCore.includes("lv_available_quantity * conv decfloat34( 100 )")
+    || !projectFefoCore.includes("minimum_coverage_pct = ls_prepared_demand-minimum_coverage_pct")
+    || !projectFefoCore.includes("allocation_outcome = cond #(")
+    || !projectFefoCore.includes("allocation_coverage_pct = conv zcl_stock_service=>ty_allocation_coverage_pct(")
+    || !projectLocationBase.includes("ls_demand-minimum_coverage_pct < 0")
+    || !projectLocationBase.includes("ls_demand-minimum_coverage_pct > 100")
+    || !projectLocationBase.includes("ls_coverage_demand-minimum_coverage_pct < 0")
+    || !projectLocationBase.includes("ls_coverage_demand-minimum_coverage_pct > 100")
+    || !projectLocationBase.includes("lv_available_quantity * conv decfloat34( 100 )")
+    || !projectLocationBase.includes("allocation_outcome = cond #(")
+    || !projectLocationBase.includes("allocation_coverage_pct = conv zcl_stock_service=>ty_allocation_coverage_pct(")
+    || !projectFefoPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !projectFefoDate.includes("minimum_coverage_pct = ls_work-demand-minimum_coverage_pct")
+    || !projectLocationPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !projectLocationDate.includes("minimum_coverage_pct = ls_work-demand-minimum_coverage_pct")
+    || !projectReservationDocs.includes("`preview_fefo` and `preview_by_location` demand rows may set `minimum_coverage_pct` from 0 through 100")) {
+  errors.push("WBS FEFO and location allocation must gate per-demand floors before consuming stock and preserve floors, outcomes, and coverage through priority and date-first adapters");
+}
 const projectTransferLocation = normalizedMethod(
   projectFefoSource,
   "preview_transfer_by_location",
@@ -9540,6 +10255,15 @@ const projectFefoReserveDate = normalizedMethod(
   projectFefoReservationSource,
   "reserve_wbs_fefo_by_date",
 );
+if (!projectFefoReserve.includes("base ls_fefo_demand")
+    || !projectLocationReserveBase.includes("it_demands = it_demands")
+    || !projectFefoReservePriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectFefoReserveDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectLocationReservePriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectLocationReserveDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectReservationDocs.includes("wbs fefo and location reservation methods carry the floor through their first preview and fresh recheck")) {
+  errors.push("WBS FEFO and location reservation adapters must retain coverage floors through previews and rechecks");
+}
 const projectFefoReserveAllocation = normalizedMethod(
   projectFefoReservationSource,
   "reserve_allocation",
@@ -10025,6 +10749,22 @@ const wbsTransferFefoDate = normalizedMethod(
   goodsMovementServiceSource,
   "transfer_wbs_fefo_by_date",
 );
+const wbsIssueFefoPriority = normalizedMethod(
+  goodsMovementServiceSource,
+  "issue_project_wbs_fefo_prio",
+);
+const wbsIssueFefoDate = normalizedMethod(
+  goodsMovementServiceSource,
+  "issue_project_wbs_fefo_by_date",
+);
+const wbsIssueLocationPriority = normalizedMethod(
+  goodsMovementServiceSource,
+  "issue_project_wbs_loc_priority",
+);
+const wbsIssueLocationDate = normalizedMethod(
+  goodsMovementServiceSource,
+  "issue_project_wbs_loc_date",
+);
 const wbsTransferFefoCompare = normalizedMethod(
   goodsMovementServiceSource,
   "same_wbs_xfer_lines",
@@ -10155,8 +10895,16 @@ if (!projectTransferFefoCore.includes("require_known_expiry = ls_demand-require_
     || !wbsTransferFefoBase.includes("ls_internal_demand = ls_demand")
     || !wbsTransferFefoPriority.includes("require_known_expiry = ls_demand-require_known_expiry")
     || !wbsTransferFefoPriority.includes("allow_location_fallback = ls_demand-allow_location_fallback")
+    || !wbsTransferFefoPriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !wbsTransferFefoDate.includes("allow_undated_batches = ls_demand-allow_undated_batches")
     || !wbsTransferFefoDate.includes("allow_location_fallback = ls_demand-allow_location_fallback")
+    || !wbsTransferFefoDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsTransferLocationPriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsTransferLocationDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsIssueFefoPriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsIssueFefoDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsIssueLocationPriority.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !wbsIssueLocationDate.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
     || !wbsTransferFefoCompare.includes("ls_first-require_known_expiry")
     || !wbsTransferFefoCompare.includes("ls_first-allow_undated_batches")
     || !wbsTransferFefoBaseTest.includes("allow_undated_batches = abap_true")
@@ -10166,8 +10914,18 @@ if (!projectTransferFefoCore.includes("require_known_expiry = ls_demand-require_
     || !wbsTransferFefoPriorityTest.includes("require_known_expiry = abap_true")
     || !wbsTransferFefoDateTest.includes("allow_undated_batches = abap_true")
     || !wbsTransferFefoDateTest.includes("allow_location_fallback = abap_true")
-    || !wbsTransferFefoDateTest.includes("storage_location = '0002'")) {
+    || !wbsTransferFefoDateTest.includes("storage_location = '0002'")
+    || !projectReservationDocs.includes("priority and date-first wbs location and fefo issue wrappers, and wbs transfer posting wrappers, carry the floor through their fresh stock rechecks")) {
   errors.push("WBS FEFO transfer previews and posting rechecks must preserve per-demand expiry policies");
+}
+if (!projectTransferFefoCore.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectTransferFefoPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !projectTransferFefoDate.includes("minimum_coverage_pct = ls_work-demand-minimum_coverage_pct")
+    || !projectTransferLocation.includes("minimum_coverage_pct = ls_demand-minimum_coverage_pct")
+    || !projectTransferLocationPriority.includes("minimum_coverage_pct = ls_indexed_demand-demand-minimum_coverage_pct")
+    || !projectTransferLocationDate.includes("minimum_coverage_pct = ls_work-demand-minimum_coverage_pct")
+    || !projectReservationDocs.includes("wbs transfer fefo and location previews apply the same floor to eligible stock on the source wbs")) {
+  errors.push("WBS FEFO and location transfer previews must preserve per-demand coverage floors through base, priority, and date-first adapters");
 }
 
 const wbsFefoTransfer = normalizedMethod(
@@ -11096,6 +11854,114 @@ const goodsMovementTests = readFileSync(
   join(projectRoot, "src/zcl_goods_movement_service.clas.testclasses.abap"),
   "utf8",
 ).toLowerCase();
+const costCenterIssueCoverageMethod = normalizedMethod(
+  goodsMovementSource,
+  "validate_alloc_cov_floor",
+);
+const costCenterIssueCoveragePaths = [
+  ["issue_cost_center_allocation", "issue_to_cost_center("],
+  ["issue_cost_center_locations", "execute("],
+  ["issue_cc_batch_previews", "execute("],
+].every(([name, writer]) => {
+  const method = normalizedMethod(goodsMovementSource, name);
+  const floorCheck = method.indexOf("validate_alloc_cov_floor(");
+  const movement = method.lastIndexOf(writer);
+  return floorCheck >= 0 && movement >= 0 && floorCheck < movement;
+});
+const costCenterIssueCoverageWrappers = [
+  ["issue_cc_locations_by_date", "issue_cost_center_locations("],
+  ["issue_cost_center_batches", "issue_cc_batch_previews("],
+  ["issue_cost_center_fefo", "issue_cc_batch_previews("],
+].every(([name, target]) =>
+  normalizedMethod(goodsMovementSource, name).includes(target),
+);
+const costCenterIssueCoverageDocs = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (!costCenterIssueCoverageMethod.includes(
+  "iv_minimum_coverage_pct < 0",
+)
+    || !costCenterIssueCoverageMethod.includes(
+      "iv_minimum_coverage_pct > 100",
+    )
+    || !costCenterIssueCoverageMethod.includes(
+      "if iv_allocated_quantity > 0",
+    )
+    || !costCenterIssueCoverageMethod.includes(
+      "lv_allocated_coverage < lv_required_coverage",
+    )
+    || !costCenterIssueCoveragePaths
+    || !costCenterIssueCoverageWrappers
+    || !costCenterIssueCoverageDocs.includes(
+      "cost-center goods-issue adapters revalidate each echoed `minimum_coverage_pct` against requested and allocated base quantities before posting",
+    )
+    || !costCenterIssueCoverageDocs.includes(
+      "sales-order aggregate and fefo issue adapters and quality fefo posting adapters also revalidate each echoed floor against requested and allocated base-unit quantities before movement creation",
+    )
+    || !costCenterIssueCoverageDocs.includes(
+      "project-wbs issue and transfer adapters validate each echoed floor against requested and allocated base-unit quantities before movement creation",
+    )) {
+  errors.push(
+    "cost-center issue adapters must revalidate echoed minimum coverage floors before movement creation",
+  );
+}
+const allocationCoverageWriterPaths = [
+  ["issue_sales_order_fefo", "execute("],
+  ["post_sales_order_allocation", "execute("],
+  ["post_quality_fefo_rechecked", "release_quality_stock("],
+  ["issue_project_wbs_allocation", "execute("],
+  ["issue_project_wbs_batch_alloc", "execute("],
+  ["transfer_wbs_batch_alloc", "transfer_project_wbs_stock("],
+  ["transfer_wbs_location_alloc", "transfer_project_wbs_stock("],
+].every(([name, writer]) => {
+  const method = normalizedMethod(goodsMovementSource, name);
+  const floorCheck = method.indexOf("validate_alloc_cov_floor(");
+  const movement = method.lastIndexOf(writer);
+  return floorCheck >= 0 && movement >= 0 && floorCheck < movement;
+});
+const qualityCoverageWriter = normalizedMethod(
+  goodsMovementSource,
+  "post_quality_fefo_rechecked",
+);
+if (!allocationCoverageWriterPaths
+    || !qualityCoverageWriter.includes("send_stock_to_quality(")) {
+  errors.push(
+    "sales-order, project-WBS, transfer, and quality FEFO writers must revalidate echoed minimum coverage floors before movement creation",
+  );
+}
+const salesOrderAllocationSource = readFileSync(
+  join(projectRoot, "src/zcl_sales_order_alloc_service.clas.abap"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (!salesOrderAllocationSource.includes(
+  "minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct",
+)
+    || !salesOrderAllocationSource.includes(
+      "allocation_outcome type c length 1",
+    )
+    || !salesOrderAllocationSource.includes(
+      "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+    )
+    || !salesOrderAllocationSource.includes(
+      "ls_item_allocation_requirement-minimum_coverage_pct < 0",
+    )
+    || !salesOrderAllocationSource.includes(
+      "ls_item_allocation_requirement-minimum_coverage_pct > 100",
+    )
+    || !salesOrderAllocationSource.includes(
+      "minimum_coverage_pct = lv_minimum_coverage_pct",
+    )
+    || !salesOrderAllocationSource.includes(
+      "minimum_coverage_pct = ls_allocation-minimum_coverage_pct",
+    )
+    || !salesOrderAllocationSource.includes(
+      "allocation_outcome = ls_allocation-allocation_outcome",
+    )) {
+  errors.push(
+    "sales-order allocation previews must apply and echo per-item minimum coverage floors and F/P/U outcomes",
+  );
+}
 const goodsMovementSplitTotalMethods = [
   ...goodsMovementSource.matchAll(
     /method ([a-z0-9_]+)\.([\s\S]*?)endmethod\./g,
@@ -11166,6 +12032,48 @@ const stockTransferOrderTests = readFileSync(
   join(projectRoot, "src/zcl_stock_xfer_order_svc.clas.testclasses.abap"),
   "utf8",
 ).toLowerCase();
+const stockTransferCoverageFloor = normalizedMethod(
+  stockTransferOrderSource,
+  "validate_coverage_floor",
+);
+const stockTransferCoverageValidators = [
+  "validate_plant_pair_totals",
+  "validate_batch_pair_totals",
+  "validate_fefo_pair_totals",
+].every((name) => normalizedMethod(stockTransferOrderSource, name).includes(
+  "validate_coverage_floor(",
+));
+const stockTransferDateLocationFloor = normalizedMethod(
+  stockTransferOrderSource,
+  "validate_date_loc_pair_totals",
+);
+const stockTransferCoverageDocs = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+if (!stockTransferCoverageFloor.includes(
+  "iv_minimum_coverage_pct < 0",
+)
+    || !stockTransferCoverageFloor.includes(
+      "iv_minimum_coverage_pct > 100",
+    )
+    || !stockTransferCoverageFloor.includes(
+      "if iv_allocated_quantity > 0",
+    )
+    || !stockTransferCoverageFloor.includes(
+      "lv_allocated_coverage < lv_required_coverage",
+    )
+    || !stockTransferCoverageValidators
+    || !stockTransferDateLocationFloor.includes(
+      "validate_plant_pair_totals(",
+    )
+    || !stockTransferCoverageDocs.includes(
+      "before building any order request, the service also validates each carried `minimum_coverage_pct` from 0 through 100 against the demand's requested and allocated base quantities",
+    )) {
+  errors.push(
+    "STO creation must revalidate carried coverage floors against base-unit demand quantities before writing",
+  );
+}
 const stockTransferQuantityMethods = [
   ["map_dated_batch_fefo", [
     "source_base_quantity type decfloat34",
@@ -11683,6 +12591,10 @@ const componentAllocationPolicyType = productionComponentService.slice(
   productionComponentService.indexOf("begin of ty_component_allocation_policy"),
   productionComponentService.indexOf("end of ty_component_allocation_policy"),
 );
+const componentLocalEstimateType = productionComponentService.slice(
+  productionComponentService.indexOf("begin of ty_component_local_estimate"),
+  productionComponentService.indexOf("end of ty_component_local_estimate"),
+);
 const componentOrderReadinessType = productionComponentService.slice(
   productionComponentService.indexOf("begin of ty_component_order_readiness"),
   productionComponentService.indexOf("end of ty_component_order_readiness"),
@@ -11755,6 +12667,60 @@ const componentStockPreview = normalizedMethod(
   productionComponentService,
   "preview_components_stock",
 );
+if (!componentAllocationPolicyType.includes(
+      "minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct",
+    )
+    || !componentLocalEstimateType.includes(
+      "minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct",
+    )
+    || !componentLocalEstimateType.includes("allocation_outcome type c length 1")
+    || !componentLocalEstimateType.includes(
+      "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+    )
+    || !scopedComponentDemandType.includes(
+      "minimum_coverage_pct type ty_minimum_coverage_pct",
+    )
+    || !productionComponentPreview.includes(
+      "ls_policy_input-minimum_coverage_pct < 0",
+    )
+    || !productionComponentPreview.includes(
+      "ls_policy_input-minimum_coverage_pct > 100",
+    )
+    || !productionComponentPreview.includes(
+      "minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct",
+    )
+    || !productionComponentPreview.includes(
+      "ls_component_group_estimate-allocation_outcome = cond #(",
+    )
+    || !productionComponentPreview.includes(
+      "ls_component_group_estimate-allocation_coverage_pct = cond #(",
+    )
+    || !productionComponentPreview.includes(
+      "component_local_estimate = value #( requested_quantity = lv_component_base_quantity available_quantity = lv_component_available allocated_quantity = lv_component_allocated shortfall_quantity = lv_component_shortfall minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct allocation_outcome = cond #(",
+    )
+    || !productionComponentPreview.includes(
+      "conv decfloat34( lv_component_allocated ) * conv decfloat34( 100 ) / conv decfloat34( lv_component_base_quantity )",
+    )
+    || !componentStockAllocator.includes(
+      "ls_scope_input-minimum_coverage_pct < 0",
+    )
+    || !componentStockAllocator.includes(
+      "ls_scope_input-minimum_coverage_pct > 100",
+    )
+    || !componentStockAllocator.includes("lv_meets_coverage_floor = xsdbool(")
+    || !componentStockAllocator.includes(
+      "conv decfloat34( lv_available_quantity ) * conv decfloat34( 100 ) >= conv decfloat34( ls_scope_demand-requested_quantity ) * conv decfloat34( ls_scope_demand-minimum_coverage_pct )",
+    )
+    || !componentStockAllocator.includes(
+      "and lv_meets_coverage_floor = abap_true",
+    )
+    || !componentStockAllocator.includes(
+      "minimum_coverage_pct = ls_scope_demand-minimum_coverage_pct",
+    )) {
+  errors.push(
+    "production component coverage floors must validate policy rows, gate scoped balance consumption, and echo the threshold",
+  );
+}
 const crossPlantBatchIdentityMethods = [
   "allocate_plants_by_expiry",
   "allocate_plants_fefo_by_date",
@@ -11781,6 +12747,16 @@ const batchReceiptIdentityDocs = readFileSync(
   join(projectRoot, "README.md"),
   "utf8",
 ).toLowerCase().replace(/\s+/g, " ");
+if (!batchReceiptIdentityDocs.includes(
+  "each allocation policy may also set `minimum_coverage_pct` from 0 through 100",
+)
+    || !batchReceiptIdentityDocs.includes(
+      "per-component local estimates also report `allocation_outcome` (`f`, `p`, or `u`) and `allocation_coverage_pct` from base-unit quantities, rounded to two decimals and zero for zero demand",
+    )) {
+  errors.push(
+    "production component allocation policies must document their coverage floor",
+  );
+}
 const batchReceiptIdentityFieldTypes = [
   ["source_type", "type c length 16"],
   ["source_document", "type c length 35"],
@@ -11911,7 +12887,7 @@ const batchReceiptIdentityChecks = [
         "ls_scope_input-require_full_quantity <> abap_true and ls_scope_input-require_full_quantity <> abap_false",
       )
       && componentStockAllocator.includes(
-        "if ls_scope_demand-require_full_quantity <> abap_true or lv_available_quantity >= ls_scope_demand-requested_quantity",
+        "if ( ls_scope_demand-require_full_quantity <> abap_true or lv_available_quantity >= ls_scope_demand-requested_quantity ) and lv_meets_coverage_floor = abap_true",
       )
       && batchReceiptIdentityDocs.includes(
         "if eligible scoped availability is short, the row receives zero and leaves stock available for later demands",
@@ -12082,7 +13058,7 @@ const batchReceiptIdentityChecks = [
         "batch-restricted and batchless demands require expiry at least the required date plus the requested minimum shelf life",
       )
       && batchReceiptIdentityDocs.includes(
-        "direct `allocate_component_stock` callers can set `priority`, `require_full_quantity`, `allow_location_fallback`, `allow_batch_fallback`, `minimum_shelf_life_days`, and `require_known_expiry` per demand",
+        "direct `allocate_component_stock` callers can set `priority`, `require_full_quantity`, `minimum_coverage_pct`, `allow_location_fallback`, `allow_batch_fallback`, `minimum_shelf_life_days`, and `require_known_expiry` per demand",
       )
       && batchReceiptIdentityDocs.includes(
         "batch-fallback demands rank below exact-batch demands due on the same date, so the exact batch gets first access to shared stock",
@@ -12739,7 +13715,7 @@ const batchReceiptIdentityChecks = [
         "it_comp_batch_candidates = it_comp_batch_candidates",
       )
       && batchReceiptIdentityDocs.includes(
-        "`preview_components_stock`, `preview_components_stock_bulk`, `preview_components_atp`, `preview_components_atp_bulk`, `preview_scoped_components`, and `preview_scoped_components_bulk` accept `it_allocation_policies`, keyed by reservation number and item, to set per-demand `priority`, `require_full_quantity`, `allow_location_fallback`, `allow_batch_fallback`, `minimum_shelf_life_days`, and `require_known_expiry` for individual open components",
+        "`preview_components_stock`, `preview_components_stock_bulk`, `preview_components_atp`, `preview_components_atp_bulk`, `preview_scoped_components`, and `preview_scoped_components_bulk` accept `it_allocation_policies`, keyed by reservation number and item, to set per-demand `priority`, `require_full_quantity`, `minimum_coverage_pct`, `allow_location_fallback`, `allow_batch_fallback`, `minimum_shelf_life_days`, and `require_known_expiry` for individual open components",
       )
       && batchReceiptIdentityDocs.includes(
         "each component result echoes its matching input in `allocation_policy`; the field is initial when no row was supplied",
@@ -13807,6 +14783,56 @@ if (costCenterIssueBulkMethods.some((valid) => !valid)
   );
 }
 
+const reservationIssueBulkTests = readFileSync(
+  join(projectRoot, "src/zcl_reservation_issue_service.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const ccIssueBulkStopTest = normalizedMethod(
+  reservationIssueBulkTests,
+  "stops_cc_issue_bulk_failure",
+);
+const ccReversalBulkStopTest = normalizedMethod(
+  reservationIssueBulkTests,
+  "stops_cc_reversal_bulk_failure",
+);
+const ccBulkStopValidationTest = normalizedMethod(
+  reservationIssueBulkTests,
+  "rejects_bad_cc_bulk_stop_flags",
+);
+if (!ccIssueBulkStopTest.includes("iv_stop_on_failure = abap_true")
+    || !ccIssueBulkStopTest.includes("ls_result-stopped_on_failure")
+    || !ccIssueBulkStopTest.includes("ls_result-successful_count")
+    || !ccIssueBulkStopTest.includes("ls_result-failed_count")
+    || !ccIssueBulkStopTest.includes("ls_result-skipped_count")
+    || !ccIssueBulkStopTest.includes("ls_result-items[ 3 ]-is_skipped")
+    || !ccIssueBulkStopTest.includes("ls_result-items[ 1 ]-is_committed")
+    || !ccIssueBulkStopTest.includes("mo_goods_api->get_create_count( )")
+    || !ccIssueBulkStopTest.includes("mo_goods_api->get_commit_count( )")
+    || !ccReversalBulkStopTest.includes("iv_stop_on_failure = abap_true")
+    || !ccReversalBulkStopTest.includes("ls_result-stopped_on_failure")
+    || !ccReversalBulkStopTest.includes("ls_result-successful_count")
+    || !ccReversalBulkStopTest.includes("ls_result-failed_count")
+    || !ccReversalBulkStopTest.includes("ls_result-skipped_count")
+    || !ccReversalBulkStopTest.includes("ls_result-items[ 3 ]-is_skipped")
+    || !ccReversalBulkStopTest.includes("ls_result-items[ 1 ]-is_committed")
+    || !ccReversalBulkStopTest.includes("mo_goods_api->get_create_count( )")
+    || !ccReversalBulkStopTest.includes("mo_goods_api->get_commit_count( )")
+    || !ccReversalBulkStopTest.includes("mo_cc_reader->get_scope_read_count( )")
+    || !ccBulkStopValidationTest.includes("post_cc_goods_issue_bulk(")
+    || !ccBulkStopValidationTest.includes("post_cc_goods_issue_bulk_unit(")
+    || !ccBulkStopValidationTest.includes("post_cc_issue_rev_bulk(")
+    || !ccBulkStopValidationTest.includes("post_cc_issue_rev_bulk_unit(")
+    || !ccBulkStopValidationTest.includes("post_cc_issue_remaining(")
+    || !ccBulkStopValidationTest.includes("post_cc_remaining_items(")
+    || !ccBulkStopValidationTest.includes("post_cc_rev_remaining_bulk(")
+    || !ccBulkStopValidationTest.includes("iv_stop_on_failure = 'y'")
+    || !ccBulkStopValidationTest.includes("mo_cc_reader->get_open_read_count( )")
+    || !ccBulkStopValidationTest.includes("mo_cc_reader->get_scope_read_count( )")) {
+  errors.push(
+    "cost-center issue and reversal bulk stop-on-failure must test stopped, skipped, and pre-read validation behavior",
+  );
+}
+
 
 const productionComponentBulkSource = readFileSync(
   join(projectRoot, "src/zcl_prod_comp_service.clas.abap"),
@@ -14549,6 +15575,155 @@ if (!costCenterAtpFlagIsValidatedBeforeAllocation
   );
 }
 
+const costCenterMinimumCoverageMethod = (name) => {
+  const start = costCenterBooleanOptionSource.indexOf(`method ${name}.`);
+  const end = costCenterBooleanOptionSource.indexOf("endmethod.", start);
+  return start >= 0 && end >= 0
+    ? costCenterBooleanOptionSource.slice(start, end)
+    : "";
+};
+const costCenterMinimumCoveragePrepare = costCenterMinimumCoverageMethod(
+  "prepare_reservation",
+);
+const costCenterMinimumCoverageResultStart =
+  costCenterBooleanOptionSource.indexOf("begin of ty_result,");
+const costCenterMinimumCoverageResultEnd =
+  costCenterBooleanOptionSource.indexOf(
+    "end of ty_result.",
+    costCenterMinimumCoverageResultStart,
+  );
+const costCenterMinimumCoverageResult =
+  costCenterMinimumCoverageResultStart >= 0
+    && costCenterMinimumCoverageResultEnd >= 0
+    ? costCenterBooleanOptionSource.slice(
+      costCenterMinimumCoverageResultStart,
+      costCenterMinimumCoverageResultEnd,
+    )
+    : "";
+const costCenterMinimumCoverageMethodsForward = [
+  "reserve_for_cost_center",
+  "preview_for_cost_center",
+].every((name) => costCenterMinimumCoverageMethod(name).includes(
+  "iv_minimum_coverage_pct = iv_minimum_coverage_pct",
+));
+const costCenterMinimumCoverageValidateBeforeConversion = (() => {
+  const conversion = costCenterMinimumCoveragePrepare.indexOf(
+    "convert_material_unit(",
+  );
+  const lowerBound = costCenterMinimumCoveragePrepare.indexOf(
+    "iv_minimum_coverage_pct < 0",
+  );
+  const upperBound = costCenterMinimumCoveragePrepare.indexOf(
+    "iv_minimum_coverage_pct > 100",
+  );
+  return conversion >= 0
+    && lowerBound >= 0
+    && upperBound >= 0
+    && lowerBound < conversion
+    && upperBound < conversion;
+})();
+const costCenterMinimumCoverageMappings =
+  costCenterMinimumCoveragePrepare.split(
+    "minimum_coverage_pct = iv_minimum_coverage_pct",
+  ).length - 1;
+if ((costCenterBooleanOptionSource.match(
+  /iv_minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct optional/g,
+) ?? []).length < 2
+    || !costCenterMinimumCoverageMethodsForward
+    || !costCenterMinimumCoverageValidateBeforeConversion
+    || !costCenterMinimumCoveragePrepare.includes(
+      "rs_prepared-result-minimum_coverage_pct = iv_minimum_coverage_pct",
+    )
+    || costCenterMinimumCoverageMappings < 3
+    || !costCenterMinimumCoverageResult.includes(
+      "allocation_outcome type c length 1",
+    )
+    || !costCenterMinimumCoverageResult.includes(
+      "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+    )
+    || !costCenterMinimumCoveragePrepare.includes(
+      "rs_prepared-result-allocation_outcome = ls_allocation-allocation_outcome",
+    )
+    || !costCenterMinimumCoveragePrepare.includes(
+      "rs_prepared-result-allocation_coverage_pct = ls_allocation-allocation_coverage_pct",
+    )
+    || !costCenterBooleanOptionDocs.includes(
+      "single cost-center preview and reservation methods accept a scalar `minimum_coverage_pct` from 0 through 100",
+    )
+    || !costCenterBooleanOptionDocs.includes(
+      "results also report `allocation_outcome` (`f` fully covered, `p` partially covered, `u` zero allocation) and `allocation_coverage_pct`, rounded to two decimals from base quantities",
+    )
+    || !costCenterBooleanOptionDocs.includes(
+      "the optional input defaults to zero, preserving partial allocation",
+    )) {
+  errors.push(
+    "single cost-center preview and reservation methods must validate and forward the minimum coverage floor into each allocator and result",
+  );
+}
+
+const costCenterReservationDemandStart =
+  costCenterBooleanOptionSource.indexOf(
+    "begin of ty_atomic_reservation_demand,",
+  );
+const costCenterReservationDemandEnd =
+  costCenterBooleanOptionSource.indexOf(
+    "end of ty_atomic_reservation_demand.",
+    costCenterReservationDemandStart,
+  );
+const costCenterReservationDemandType =
+  costCenterReservationDemandStart >= 0
+    && costCenterReservationDemandEnd >= 0
+    ? costCenterBooleanOptionSource.slice(
+      costCenterReservationDemandStart,
+      costCenterReservationDemandEnd,
+    )
+    : "";
+const costCenterReservationFloorMethod = (name) => {
+  const start = costCenterBooleanOptionSource.indexOf(`method ${name}.`);
+  const end = costCenterBooleanOptionSource.indexOf("endmethod.", start);
+  return start >= 0 && end >= 0
+    ? costCenterBooleanOptionSource.slice(start, end)
+    : "";
+};
+const costCenterReservationFloorAtomic = costCenterReservationFloorMethod(
+  "reserve_cost_centers_atomic",
+);
+const costCenterReservationFloorBulk = costCenterReservationFloorMethod(
+  "reserve_cost_centers_bulk",
+);
+const costCenterReservationFloorWrappersPreserve = [
+  "reserve_cc_fefo_date_atomic",
+  "reserve_cc_fefo_date_bulk",
+].every((name) => costCenterReservationFloorMethod(name).includes(
+  "minimum_coverage_pct = ls_demand-minimum_coverage_pct",
+));
+if (!costCenterReservationDemandType.includes(
+  "minimum_coverage_pct type zcl_stock_service=>ty_minimum_coverage_pct",
+)
+    || !costCenterReservationFloorAtomic.includes(
+      "ls_demand-minimum_coverage_pct < 0",
+    )
+    || !costCenterReservationFloorAtomic.includes(
+      "ls_demand-minimum_coverage_pct > 100",
+    )
+    || !costCenterReservationFloorAtomic.includes(
+      "minimum_coverage_pct = ls_demand-minimum_coverage_pct",
+    )
+    || !costCenterReservationFloorBulk.includes(
+      "ls_demand-minimum_coverage_pct < 0",
+    )
+    || !costCenterReservationFloorBulk.includes(
+      "ls_demand-minimum_coverage_pct > 100",
+    )
+    || !costCenterReservationFloorWrappersPreserve
+    || !costCenterBooleanOptionDocs.includes(
+      "atomic and bulk reservation demand rows also accept `minimum_coverage_pct` from 0 through 100",
+    )) {
+  errors.push(
+    "atomic and bulk cost-center reservation floors must be validated, allocated, and preserved by date-first FEFO wrappers",
+  );
+}
+
 
 const salesOrderItemDeletionInterface = readFileSync(
   join(projectRoot, "src/zif_sales_order_api.intf.abap"),
@@ -15206,6 +16381,38 @@ const batchExpiryExposureMethod = normalizedMethod(
   stockServiceSource,
   "get_batch_expiry_exposure_bulk",
 );
+const expiryValuationScopeOffset = batchExpiryExposureMethod.indexOf(
+  "if ( ls_request-filter_valuation_type = abap_true",
+);
+const expiryUndatedSummaryOffset = batchExpiryExposureMethod.indexOf(
+  "add 1 to ls_result-undated_batch_row_count.",
+);
+const expiryDatedSummaryOffset = batchExpiryExposureMethod.indexOf(
+  "add 1 to ls_result-expired_batch_row_count.",
+);
+const expiryBatchPagingOffset = batchExpiryExposureMethod.indexOf(
+  "clear: lt_batch_page, lt_returned_batch_page",
+);
+const batchExpirySummaryRowMethod = normalizedMethod(
+  stockServiceSource,
+  "summarize_expiry_row",
+);
+const batchExpiryExposureTest = normalizedMethod(
+  stockServiceTests,
+  "reports_batch_expiry_exposure",
+);
+const expiryExposureUomTest = normalizedMethod(
+  stockServiceTests,
+  "reports_expiry_exposure_uom",
+);
+const expiryUndatedUomTest = normalizedMethod(
+  stockServiceTests,
+  "reports_undated_expiry_uom",
+);
+const expiryOpenResvUomTest = normalizedMethod(
+  stockServiceTests,
+  "reports_open_resv_uom_horizons",
+);
 const expirySourceSpansTest = normalizedMethod(
   stockServiceTests,
   "reports_expiry_source_spans",
@@ -15213,6 +16420,14 @@ const expirySourceSpansTest = normalizedMethod(
 const expiryStatusFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_expiry_status",
+);
+const expiryValuationTypeFilterTest = normalizedMethod(
+  stockServiceTests,
+  "filters_expiry_valuation_type",
+);
+const expiryStorageLocationFilterTest = normalizedMethod(
+  stockServiceTests,
+  "filters_exp_storage_location",
 );
 const expiryAgeBandFilterTest = normalizedMethod(
   stockServiceTests,
@@ -15226,9 +16441,41 @@ const afterWindowBandFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_after_window_lead_band",
 );
+const afterWindowSummaryTest = normalizedMethod(
+  stockServiceTests,
+  "reports_after_window_bands",
+);
 const expiryDayRangeFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_expiry_day_range",
+);
+const expiryExpirationDateRangeTest = normalizedMethod(
+  stockServiceTests,
+  "filters_expiration_date_range",
+);
+const expiryRiskBucketsTest = normalizedMethod(
+  stockServiceTests,
+  "reports_expiry_risk_buckets",
+);
+const batchExpiryPageTotalsTest = normalizedMethod(
+  stockServiceTests,
+  "report_exp_page_totals",
+);
+const batchExpiryPageQuantitySharesTest = normalizedMethod(
+  stockServiceTests,
+  "rep_page_exp_status_shares",
+);
+const batchExpiryPageAgeBandsTest = normalizedMethod(
+  stockServiceTests,
+  "rep_page_exp_src_age_bands",
+);
+const batchExpiryPageWindowBandsTest = normalizedMethod(
+  stockServiceTests,
+  "rep_page_exp_src_window_bands",
+);
+const accumulateExpiryPageWindowMethod = normalizedMethod(
+  stockServiceSource,
+  "get_batch_expiry_exposure_bulk",
 );
 if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository_status-open_reservation_row_count")
     || !batchStockStatusMethod.includes("get time stamp field lv_snapshot_timestamp")
@@ -15341,38 +16588,38 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
       > batchStockRepositoryMethod.indexOf("add 1 to ls_result-excluded_open_resv_row_count")
     || batchStockRepositoryMethod.indexOf("add 1 to ls_result-excluded_open_resv_row_count")
       > batchStockRepositoryMethod.indexOf("add 1 to ls_result-open_reservation_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-open_reservation_row_count = ls_batch_result-open_reservation_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-excluded_open_resv_row_count = ls_batch_result-excluded_open_resv_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-unmatched_open_resv_excl_count = ls_batch_result-unmatched_open_resv_excl_count")
-    || !batchExpiryExposureMethod.includes("ls_result-unmatched_excl_reservations = ls_batch_result-unmatched_excl_reservations")
-    || !batchExpiryExposureMethod.includes("ls_result-open_reservation_quantity = ls_batch_result-open_reservation_quantity")
-    || !batchExpiryExposureMethod.includes("ls_result-excluded_open_resv_quantity = ls_batch_result-excluded_open_resv_quantity")
-    || !batchExpiryExposureMethod.includes("ls_result-matched_allocation_quantity = ls_batch_result-matched_allocation_quantity")
-    || !batchExpiryExposureMethod.includes("ls_result-fallback_allocation_quantity = ls_batch_result-fallback_allocation_quantity")
-    || !batchExpiryExposureMethod.includes("ls_result-matched_allocation_row_count = ls_batch_result-matched_allocation_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-fallback_allocation_row_count = ls_batch_result-fallback_allocation_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-fully_allocated_resv_count = ls_batch_result-fully_allocated_resv_count")
-    || !batchExpiryExposureMethod.includes("ls_result-partially_allocated_resv_count = ls_batch_result-partially_allocated_resv_count")
-    || !batchExpiryExposureMethod.includes("ls_result-unallocated_resv_count = ls_batch_result-unallocated_resv_count")
-    || !batchExpiryExposureMethod.includes("ls_result-fully_alloc_resv_open_qty = ls_batch_result-fully_alloc_resv_open_qty")
-    || !batchExpiryExposureMethod.includes("ls_result-part_alloc_resv_open_qty = ls_batch_result-part_alloc_resv_open_qty")
-    || !batchExpiryExposureMethod.includes("ls_result-unalloc_resv_open_qty = ls_batch_result-unalloc_resv_open_qty")
+    || !batchExpiryExposureMethod.includes("ls_result-open_reservation_row_count = <ls_batch_result>-open_reservation_row_count")
+    || !batchExpiryExposureMethod.includes("ls_result-excluded_open_resv_row_count = <ls_batch_result>-excluded_open_resv_row_count")
+    || !batchExpiryExposureMethod.includes("ls_result-unmatched_open_resv_excl_count = <ls_batch_result>-unmatched_open_resv_excl_count")
+    || !batchExpiryExposureMethod.includes("ls_result-unmatched_excl_reservations = <ls_batch_result>-unmatched_excl_reservations")
+    || !batchExpiryExposureMethod.includes("ls_result-open_reservation_quantity = <ls_batch_result>-open_reservation_quantity")
+    || !batchExpiryExposureMethod.includes("ls_result-excluded_open_resv_quantity = <ls_batch_result>-excluded_open_resv_quantity")
+    || !batchExpiryExposureMethod.includes("ls_result-matched_allocation_quantity = <ls_batch_result>-matched_allocation_quantity")
+    || !batchExpiryExposureMethod.includes("ls_result-fallback_allocation_quantity = <ls_batch_result>-fallback_allocation_quantity")
+    || !batchExpiryExposureMethod.includes("ls_result-matched_allocation_row_count = <ls_batch_result>-matched_allocation_row_count")
+    || !batchExpiryExposureMethod.includes("ls_result-fallback_allocation_row_count = <ls_batch_result>-fallback_allocation_row_count")
+    || !batchExpiryExposureMethod.includes("ls_result-fully_allocated_resv_count = <ls_batch_result>-fully_allocated_resv_count")
+    || !batchExpiryExposureMethod.includes("ls_result-partially_allocated_resv_count = <ls_batch_result>-partially_allocated_resv_count")
+    || !batchExpiryExposureMethod.includes("ls_result-unallocated_resv_count = <ls_batch_result>-unallocated_resv_count")
+    || !batchExpiryExposureMethod.includes("ls_result-fully_alloc_resv_open_qty = <ls_batch_result>-fully_alloc_resv_open_qty")
+    || !batchExpiryExposureMethod.includes("ls_result-part_alloc_resv_open_qty = <ls_batch_result>-part_alloc_resv_open_qty")
+    || !batchExpiryExposureMethod.includes("ls_result-unalloc_resv_open_qty = <ls_batch_result>-unalloc_resv_open_qty")
     || !batchExpiryExposureMethod.includes("ls_result-overdue_open_resv_qty")
     || !batchExpiryExposureMethod.includes("ls_result-due_today_open_resv_qty")
     || !batchExpiryExposureMethod.includes("ls_result-future_open_resv_qty")
     || !batchExpiryExposureMethod.includes("ls_result-undated_open_resv_qty")
-    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_quantity = ls_batch_result-uncovered_open_resv_quantity")
-    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_keys = ls_batch_result-uncovered_open_resv_keys")
-    || !batchExpiryExposureMethod.includes("loop at ls_batch_result-uncovered_open_reservations into data(ls_uncovered_reservation)")
-    || !batchExpiryExposureMethod.includes("corresponding ty_batch_expiry_uncovered( ls_uncovered_reservation )")
+    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_quantity = <ls_batch_result>-uncovered_open_resv_quantity")
+    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_keys = <ls_batch_result>-uncovered_open_resv_keys")
+    || !batchExpiryExposureMethod.includes("loop at <ls_batch_result>-uncovered_open_reservations into ls_uncovered_reservation")
+    || !batchExpiryExposureMethod.includes("data(ls_expiry_uncovered) = map_expiry_uncovered_row(")
     || !batchExpiryExposureMethod.includes("append ls_expiry_uncovered to ls_result-uncovered_open_reservations")
-    || !batchExpiryExposureMethod.includes("ls_result-allocation_details = ls_batch_result-allocation_details")
-    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_row_count = ls_batch_result-uncovered_open_resv_row_count")
-    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_required_date = ls_batch_result-first_uncovered_required_date")
-    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_resv_number = ls_batch_result-first_uncovered_resv_number")
-    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_resv_item = ls_batch_result-first_uncovered_resv_item")
+    || !batchExpiryExposureMethod.includes("ls_result-allocation_details = <ls_batch_result>-allocation_details")
+    || !batchExpiryExposureMethod.includes("ls_result-uncovered_open_resv_row_count = <ls_batch_result>-uncovered_open_resv_row_count")
+    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_required_date = <ls_batch_result>-first_uncovered_required_date")
+    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_resv_number = <ls_batch_result>-first_uncovered_resv_number")
+    || !batchExpiryExposureMethod.includes("ls_result-first_uncovered_resv_item = <ls_batch_result>-first_uncovered_resv_item")
     || !batchExpiryExposureMethod.includes("ls_result-days_until_first_uncovered_req = ls_result-first_uncovered_required_date - ls_request-as_of_date")
-    || !batchExpiryExposureMethod.includes("ls_expiry_uncovered-days_until_required = ls_uncovered_reservation-required_date - ls_request-as_of_date")
+    || !batchExpiryExposureMethod.includes("iv_as_of_date = ls_request-as_of_date")
     || !batchExpiryExposureMethod.includes("if ls_expiry_uncovered-required_date is initial. add 1 to ls_result-undated_uncovered_row_count.")
     || !batchExpiryExposureMethod.includes("ls_result-undated_uncovered_resv_qty += ls_expiry_uncovered-uncovered_quantity")
     || !batchExpiryExposureMethod.includes("elseif ls_expiry_uncovered-days_until_required < 0. add 1 to ls_result-overdue_uncovered_row_count.")
@@ -15431,7 +16678,7 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !batchExpiryExposureMethod.includes("ls_result-first_undated_available_qty = ls_batch-available_quantity")
     || !batchExpiryExposureMethod.includes("ls_result-first_undated_quality_qty = ls_batch-quality_inspection_quantity")
     || !batchExpiryExposureMethod.includes("ls_result-first_undated_blocked_qty = ls_batch-blocked_quantity")
-    || !batchExpiryExposureMethod.includes("append value #( storage_location = ls_batch-storage_location batch = ls_batch-batch valuation_type = ls_batch-valuation_type unrestricted_quantity = ls_batch-unrestricted_quantity available_quantity = ls_batch-available_quantity quality_inspection_quantity = ls_batch-quality_inspection_quantity blocked_quantity = ls_batch-blocked_quantity ) to ls_result-undated_batches")
+    || !batchExpiryExposureMethod.includes("append ls_undated_batch_row to ls_result-undated_batches")
     || !batchExpiryExposureMethod.includes("sort ls_result-undated_batches by batch storage_location valuation_type")
     || !batchExpiryExposureMethod.includes("elseif ls_batch-expiration_date <= ls_request-through_date. lv_expired = abap_false. else. if ls_batch-unrestricted_quantity > 0")
     || !batchExpiryExposureMethod.includes("add 1 to ls_result-after_window_batch_row_count")
@@ -15579,10 +16826,10 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !batchExpiryExposureMethod.includes("<ls_expiry_source_window>-last_expiration_date =")
     || !batchExpiryExposureMethod.includes("<ls_after_window_source_band>-first_expiration_date =")
     || !batchExpiryExposureMethod.includes("<ls_after_window_source_band>-last_expiration_date =")
-    || !batchExpiryExposureMethod.includes("lv_upcoming_window_band = c_upcoming_band_0_7")
-    || !batchExpiryExposureMethod.includes("lv_upcoming_window_band = c_upcoming_band_8_30")
-    || !batchExpiryExposureMethod.includes("lv_upcoming_window_band = c_upcoming_band_31_90")
-    || !batchExpiryExposureMethod.includes("lv_upcoming_window_band = c_upcoming_band_over_90")
+    || !batchExpiryExposureMethod.includes("lv_upcoming_through_band = c_upcoming_band_0_7")
+    || !batchExpiryExposureMethod.includes("lv_upcoming_through_band = c_upcoming_band_8_30")
+    || !batchExpiryExposureMethod.includes("lv_upcoming_through_band = c_upcoming_band_31_90")
+    || !batchExpiryExposureMethod.includes("lv_upcoming_through_band = c_upcoming_band_over_90")
     || !batchExpiryExposureMethod.includes("ls_result-expiry_src_age_bands = value #(")
     || !batchExpiryExposureMethod.includes("age_band = c_exp_age_band_1_7")
     || !batchExpiryExposureMethod.includes("age_band = c_exp_age_band_8_30")
@@ -15635,6 +16882,9 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !batchExpiryExposureMethod.includes("ls_result-storage_location = ls_request-storage_location")
     || !batchExpiryExposureMethod.includes("ls_request-filter_batch <> abap_true and ls_request-filter_batch <> abap_false")
     || !batchExpiryExposureMethod.includes("ls_request-batch is not initial")
+    || !batchExpiryExposureMethod.includes(
+      "if ( ls_request-filter_batch = abap_true or ls_request-batch is not initial ) and ls_batch-batch <> ls_request-batch",
+    )
     || !batchExpiryExposureMethod.includes("ls_batch-batch <> ls_request-batch")
     || !batchExpiryExposureMethod.includes("ls_result-filter_batch = ls_request-filter_batch")
     || !batchExpiryExposureMethod.includes("ls_result-batch = ls_request-batch")
@@ -15660,7 +16910,7 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !batchExpiryExposureMethod.includes("ls_batch-expiration_date <= ls_request-through_date")
     || !batchExpiryExposureMethod.includes("ls_result-filter_expiry_status = ls_request-filter_expiry_status")
     || !batchExpiryExposureMethod.includes("ls_result-expiry_status = ls_request-expiry_status")
-    || !batchExpiryExposureMethod.includes("append value ty_batch_expiry_row(")
+    || !batchExpiryExposureMethod.includes("append ls_after_window_row to ls_result-batches")
     || !batchExpiryExposureMethod.includes("status = c_expiry_status_after_window")
     || !batchExpiryExposureMethod.includes("ls_request-filter_expiry_age_band <> abap_true and ls_request-filter_expiry_age_band <> abap_false")
     || !batchExpiryExposureMethod.includes("ls_request-expiry_age_band <> c_exp_age_band_1_7")
@@ -15708,6 +16958,13 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || (stockServiceSource.match(/next_expiry_global_src_count\s+type i/g) ?? []).length < 2
     || (stockServiceSource.match(/next_expiry_other_src_count\s+type i/g) ?? []).length < 2
     || !batchExpiryExposureMethod.includes("sort ls_result-batches by status expiration_date batch storage_location valuation_type")
+    || expiryValuationScopeOffset < 0
+    || expiryUndatedSummaryOffset < expiryValuationScopeOffset
+    || expiryDatedSummaryOffset < expiryValuationScopeOffset
+    || expiryBatchPagingOffset < expiryValuationScopeOffset
+    || !batchExpiryExposureMethod.includes(
+      "and ls_batch-valuation_type <> ls_request-valuation_type",
+    )
     || !/days_to_expiration\s+type i/.test(stockServiceSource)
     || (stockServiceSource.match(/filter_storage_location\s+type abap_bool/g) ?? []).length < 4
     || (stockServiceSource.match(/filter_batch\s+type abap_bool/g) ?? []).length < 4
@@ -15732,6 +16989,65 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || (stockServiceSource.match(/after_next_exp_other_count\s+type i/g) ?? []).length < 2
     || !stockServiceSource.includes("methods get_batch_expiry_exposure_bulk")
     || !stockServiceTests.includes("method reports_batch_expiry_exposure.")
+    || !stockServiceTests.includes("method filters_expiry_valuation_type.")
+    || !stockServiceTests.includes("method filters_exp_storage_location.")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'loc-exact'")
+    || !expiryStorageLocationFilterTest.includes("storage_location = '0002'")
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_results[ request_id = 'loc-exact' ]-filter_storage_location",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_results[ request_id = 'loc-exact' ]-storage_location",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_results[ request_id = 'loc-exact' ]-filter_batch",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_uom_results[ 1 ]-filter_batch",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "batch = 'loc-2' storage_location = '0002'",
+    )
+    || !expiryStorageLocationFilterTest.includes("request_id = 'loc-blank'")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'loc-blank-uom'")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'batch-exact'")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'batch-blank'")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'batch-exact-uom'")
+    || !expiryStorageLocationFilterTest.includes("request_id = 'batch-blank-uom'")
+    || !expiryStorageLocationFilterTest.includes("batch = 'loc-2'")
+    || !expiryStorageLocationFilterTest.includes("filter_batch = abap_true")
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_results[ request_id = 'batch-exact' ]-batch",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_results[ request_id = 'batch-blank' ]-undated_batches[ 1 ]-batch",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_uom_results[ request_id = 'batch-exact-uom' ]-batches[ 1 ]-base_row-batch",
+    )
+    || !expiryStorageLocationFilterTest.includes(
+      "lt_uom_results[ request_id = 'batch-blank-uom' ]-undated_batches[ 1 ]-base_row-batch",
+    )
+    || !expiryStorageLocationFilterTest.includes("filter_storage_location = abap_true")
+    || !expiryStorageLocationFilterTest.includes("undated_unrestricted_quantity")
+    || !expiryStorageLocationFilterTest.includes("get_expiry_exposure_uom_bulk(")
+    || !expiryStorageLocationFilterTest.includes("src_upcoming_unrestricted_qty")
+    || !expiryStorageLocationFilterTest.includes("src_undated_unrestricted_qty")
+    || !expiryStorageLocationFilterTest.includes("filter_storage_location = 'y'")
+    || !expiryStorageLocationFilterTest.includes("filter_batch = 'y'")
+    || !expiryStorageLocationFilterTest.includes("get_batch_bulk_call_count(")
+    || !expiryValuationTypeFilterTest.includes("request_id = 'val-type-b'")
+    || !expiryValuationTypeFilterTest.includes("request_id = 'val-type-b-implicit'")
+    || !expiryValuationTypeFilterTest.includes("request_id = 'val-type-blank'")
+    || !expiryValuationTypeFilterTest.includes("filter_valuation_type = abap_true")
+    || !expiryValuationTypeFilterTest.includes("maximum_batch_rows = 1")
+    || !expiryValuationTypeFilterTest.includes("total_dated_batch_row_count")
+    || !expiryValuationTypeFilterTest.includes("filter_batch_cursor = abap_true")
+    || !expiryValuationTypeFilterTest.includes("undated_unrestricted_quantity")
+    || !expiryValuationTypeFilterTest.includes("get_expiry_exposure_uom_bulk(")
+    || !expiryValuationTypeFilterTest.includes("base_row-valuation_type")
+    || !expiryValuationTypeFilterTest.includes("filter_valuation_type = 'y'")
+    || !expiryValuationTypeFilterTest.includes("get_batch_bulk_call_count(")
     || !stockServiceTests.includes("method filters_expiry_status.")
     || !expiryStatusFilterTest.includes("expiration_date = '20261018'")
     || !expiryStatusFilterTest.includes("expiration_date = '20261025'")
@@ -15914,7 +17230,7 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockDocs.includes("the filters narrow returned stock rows, expiry and source counts, and stock-category totals after netting")
     || !valuationStockDocs.includes("expired_batch_row_count` and `upcoming_batch_row_count")
     || !valuationStockDocs.includes("undated_batch_row_count` and base-unit unrestricted, available,")
-    || !valuationStockDocs.includes("first_undated_storage_location`, `first_undated_batch`, and `first_undated_valuation_type")
+    || !valuationStockDocs.includes("first_undated_storage_location`, `first_undated_batch`, `first_undated_valuation_type`")
     || !valuationStockDocs.includes("after_window_batch_row_count` for positive-stock batch/location/valuation rows with valid expiry")
     || !valuationStockDocs.includes("after_next_storage_location`, `after_next_batch`, and `after_next_valuation_type")
     || !valuationStockDocs.includes("days_to_after_next_expiration")
@@ -16157,9 +17473,9 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockTests.includes("uncovered_open_reservations[ 1 ]-allocation_outcome")
     || !valuationStockTests.includes("lt_results[ 8 ]-uncovered_open_reservations[ 7 ]-overdue_age_band")
     || !valuationStockTests.includes("lt_overdue_uom[ 1 ]-uncovered_open_reservations[ 1 ]-overdue_age_band")
-    || !valuationStockService.includes("ls_expiry_uncovered-overdue_age_band = '1'")
+    || !valuationStockService.includes("rs_expiry_uncovered-overdue_age_band = '1'")
     || !valuationStockService.includes("overdue_age_band = ls_uncovered_reservation-overdue_age_band")
-    || !valuationStockService.includes("ls_expiry_uncovered-overdue_age_days =")
+    || !valuationStockService.includes("rs_expiry_uncovered-overdue_age_days =")
     || !valuationStockService.includes("overdue_age_days = ls_uncovered_reservation-overdue_age_days")
     || !valuationStockTests.includes("uncovered_open_reservations[ 7 ]-overdue_age_days")
     || !valuationStockTests.includes("lt_overdue_uom[ 1 ]-uncovered_open_reservations[ 1 ]-overdue_age_days")
@@ -16201,15 +17517,15 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockTests.includes("filtered_uncov_overdue_ages[ 2 ]-last_required_date")
     || !valuationStockDocs.includes("each row also reports `first_required_date` and `last_required_date` across its matching dated reservations")
     || !valuationStockTests.includes("lt_mixed_uom[ 1 ]-uncovered_open_reservations[ 1 ]-allocation_outcome")
-    || !valuationStockService.includes("ls_expiry_uncovered-allocation_outcome = 'u'")
+    || !valuationStockService.includes("rs_expiry_uncovered-allocation_outcome = 'u'")
     || !valuationStockService.includes("allocation_outcome = ls_uncovered_reservation-allocation_outcome")
     || !valuationStockService.includes("ls_uncovered_page_row-allocation_outcome <>")
     || !valuationStockDocs.includes("each uncovered detail also exposes `allocation_outcome`: `p` when allocated quantity is positive and `u` when it is zero")
     || !valuationStockDocs.includes("uom detail rows echo the code unchanged")
-    || !valuationStockService.includes("ls_expiry_uncovered-due_horizon_band = 'u'")
+    || !valuationStockService.includes("rs_expiry_uncovered-due_horizon_band = 'u'")
     || !valuationStockService.includes("due_horizon_band = ls_uncovered_reservation-due_horizon_band")
-    || !valuationStockService.includes("ls_expiry_uncovered-due_horizon_band = 'o'")
-    || !valuationStockService.includes("ls_expiry_uncovered-due_horizon_band = '1'")
+    || !valuationStockService.includes("rs_expiry_uncovered-due_horizon_band = 'o'")
+    || !valuationStockService.includes("rs_expiry_uncovered-due_horizon_band = '1'")
     || !valuationStockDocs.includes("each returned uncovered detail row also exposes `due_horizon_band` using the same codes relative to `as_of_date`")
     || !valuationStockDocs.includes("uom detail rows echo the code unchanged")
     || !valuationStockTests.includes("source_open_demand_quantity")
@@ -16240,6 +17556,8 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockTests.includes("filtered_unalloc_open_qty")
     || !valuationStockTests.includes("filtered_partial_short_qty")
     || !valuationStockTests.includes("filtered_unalloc_short_qty")
+    || !valuationStockTests.includes("src_uncov_partial_short_qty")
+    || !valuationStockTests.includes("src_uncov_unalloc_short_qty")
     || !valuationStockTests.includes("src_uncov_partial_open_qty")
     || !valuationStockTests.includes("lt_mixed[ 1 ]-partial_coverage_pct")
     || !valuationStockTests.includes("lt_mixed_uom[ 1 ]-partial_coverage_pct")
@@ -16281,6 +17599,7 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockDocs.includes("set `filter_uncovered_due_horizon = abap_true` with `uncovered_due_horizon` set to `o`, `t`, `1`, `2`, `3`, `4`, or `u` to select overdue, due-today, 1–7, 8–30, 31–90, over-90, or undated detail rows")
     || !valuationStockDocs.includes("`total_uncovered_detail_count` counts all horizon-matching rows independent of the cursor")
     || !valuationStockDocs.includes("set `omit_uncovered_detail_rows = abap_true` to return no uncovered detail rows or parallel keys while retaining the filtered detail total and full-scope shortage summaries")
+    || !valuationStockDocs.includes("summary-only mode still calculates the filtered totals and fixed due-horizon and overdue-age summaries from repository reservation rows without building detail or key tables")
     || !valuationStockDocs.includes("set `filter_uncovered_sequence = abap_true` with a positive `uncovered_sequence` to select one reservation's shortage row in shared-stock allocation order")
     || !valuationStockDocs.includes("optional inclusive `uncovered_required_date_from` and `uncovered_required_date_to` bounds select a caller-chosen required-date window")
     || !valuationStockDocs.includes("set `filter_uncovered_reservation = abap_true` with both `uncovered_reservation_number` and `uncovered_reservation_item` to select one shortage row")
@@ -16299,6 +17618,9 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockService.includes("ls_uncovered_page_row-allocated_quantity is initial")
     || !valuationStockService.includes("ls_uncovered_page_row-allocation_outcome <> ls_request-uncovered_outcome")
     || !valuationStockService.includes("ls_request-uncovered_outcome <> 'p'")
+    || !valuationStockService.includes("method map_expiry_uncovered_row.")
+    || !valuationStockService.includes("if ls_request-omit_uncovered_detail_rows <> abap_true. append ls_expiry_uncovered to ls_result-uncovered_open_reservations")
+    || !valuationStockService.includes("loop at <ls_batch_result>-uncovered_open_reservations assigning <ls_uncovered_src_resv>. lv_uncovered_source_index = sy-tabix")
     || !stockServiceTests.includes("method filters_uncovered_outcome.")
     || !stockServiceTests.includes("method filters_uncovered_shortage_pct.")
     || !stockServiceTests.includes("filter_uncovered_pct_from = abap_true")
@@ -16319,7 +17641,13 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockService.includes("case ls_request-uncovered_due_horizon")
     || !valuationStockService.includes("ls_uncovered_page_row-days_until_required > 7")
     || !valuationStockService.includes("if ls_request-omit_uncovered_detail_rows = abap_true")
-    || !valuationStockService.includes("clear: ls_result-uncovered_open_reservations, ls_result-uncovered_open_resv_keys")
+    || !valuationStockService.includes("free ls_result-uncovered_open_reservations")
+    || !valuationStockService.includes("free ls_result-uncovered_open_resv_keys")
+    || !valuationStockService.includes("free lt_uncovered_page")
+    || !valuationStockService.includes("free lt_returned_uncovered_page")
+    || !valuationStockService.includes("free lt_uncovered_page_keys")
+    || valuationStockService.indexOf("ls_result-total_uncovered_detail_count = lv_uncovered_total_count") > valuationStockService.indexOf("free ls_result-uncovered_open_reservations")
+    || valuationStockService.indexOf("free ls_result-uncovered_open_reservations") > valuationStockService.indexOf("ls_result-returned_uncovered_row_count = lines( ls_result-uncovered_open_reservations )")
     || !valuationStockService.includes("if ls_request-filter_uncovered_sequence = abap_true")
     || !valuationStockService.includes("ls_uncovered_page_row-allocation_sequence <>")
     || !valuationStockService.includes("ls_request-uncovered_required_date_to < ls_request-uncovered_required_date_from")
@@ -16332,6 +17660,7 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !stockServiceTests.replace(/\s+/g, " ").includes("uncovered_due_horizon = '4'")
     || !stockServiceTests.includes("method omits_uncovered_details.")
     || !stockServiceTests.includes("omit_uncovered_detail_rows = abap_true")
+    || !stockServiceTests.includes("filtered_uncov_due_horizons[")
     || !stockServiceTests.includes("method filters_uncovered_sequence.")
     || !stockServiceTests.includes("filter_uncovered_sequence = abap_true")
     || !stockServiceTests.includes("uncovered_sequence = 2")
@@ -16565,6 +17894,12 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockTests.includes("method omits_allocation_details.")
     || !valuationStockTests.includes("lt_omitted_details[ 1 ]-omit_allocation_detail_rows")
     || !valuationStockService.includes("if ls_request-omit_allocation_detail_rows = abap_true")
+    || !valuationStockService.includes("assign <ls_batch_result>-allocation_details to <lt_allocation_details>")
+    || !valuationStockService.includes("sort <ls_batch_result>-allocation_details stable")
+    || !valuationStockService.includes("loop at <lt_allocation_details>")
+    || !valuationStockService.includes("free ls_result-allocation_details")
+    || valuationStockService.indexOf("ls_result-total_allocation_detail_count = lv_alloc_total_count") > valuationStockService.indexOf("free ls_result-allocation_details")
+    || valuationStockService.indexOf("free ls_result-allocation_details") > valuationStockService.indexOf("ls_result-returned_allocation_row_count = lines( ls_result-allocation_details )")
     || !valuationStockDocs.includes("set `omit_allocation_detail_rows = abap_true` to omit detail rows")
     || !valuationStockTests.includes("method filters_allocation_reservation.")
     || !valuationStockTests.includes("method filters_allocation_pass.")
@@ -16720,7 +18055,14 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !valuationStockTests.includes("method omits_resv_alloc_summaries.")
     || !valuationStockTests.includes("lt_omitted[ 1 ]-omit_resv_alloc_summary_rows")
     || !valuationStockTests.includes("method rejects_bad_resv_alloc_page.")
+    || !valuationStockService.includes("read table lt_batch_statuses assigning field-symbol(<ls_batch_result>)")
     || !valuationStockService.includes("if ls_request-omit_resv_alloc_summary_rows = abap_true")
+    || !valuationStockService.includes("assign <ls_batch_result>-resv_allocation_summaries to <lt_resv_alloc_summaries>")
+    || !valuationStockService.includes("loop at <lt_resv_alloc_summaries>")
+    || !valuationStockService.includes("if ls_request-omit_resv_alloc_summary_rows <> abap_true")
+    || !valuationStockService.includes("free ls_result-resv_alloc_summaries")
+    || valuationStockService.indexOf("ls_result-total_resv_alloc_summary_count = lv_total_resv_alloc_count") > valuationStockService.indexOf("free ls_result-resv_alloc_summaries")
+    || valuationStockService.indexOf("free ls_result-resv_alloc_summaries") > valuationStockService.indexOf("ls_result-returned_resv_alloc_row_count = lines( ls_result-resv_alloc_summaries )")
     || !valuationStockDocs.includes("set `omit_resv_alloc_summary_rows = abap_true` to")
     || !valuationStockService.includes("ls_result-total_resv_alloc_summary_count = lv_total_resv_alloc_count")
     || !valuationStockService.includes("if ls_request-filter_resv_alloc_outcome = abap_true")
@@ -17121,7 +18463,7 @@ if (!expiryExposureUomMethod.includes("get_stock_unit_ratio(")
     || !expiryExposureUomMethod.includes("to ls_result-expiry_src_age_bands")
     || !expiryExposureUomMethod.includes("loop at ls_base_result-upcoming_src_bands into data(ls_base_source_window)")
     || !expiryExposureUomMethod.includes("source_group = ls_base_source_window-source_group")
-    || !expiryExposureUomMethod.includes("window_band = ls_base_source_window-window_band")
+    || !expiryExposureUomMethod.includes("through_band = ls_base_source_window-through_band")
     || !expiryExposureUomMethod.includes("first_expiration_date = ls_base_source_window-first_expiration_date")
     || !expiryExposureUomMethod.includes("last_expiration_date = ls_base_source_window-last_expiration_date")
     || !expiryExposureUomMethod.includes("row_count = ls_base_source_window-row_count")
@@ -17136,7 +18478,7 @@ if (!expiryExposureUomMethod.includes("get_stock_unit_ratio(")
     || !expiryExposureUomMethod.includes("to ls_result-upcoming_src_bands")
     || !expiryExposureUomMethod.includes("loop at ls_base_result-after_window_src_bands into data(ls_base_after_window_band)")
     || !expiryExposureUomMethod.includes("source_group = ls_base_after_window_band-source_group")
-    || !expiryExposureUomMethod.includes("window_band = ls_base_after_window_band-window_band")
+    || !expiryExposureUomMethod.includes("through_band = ls_base_after_window_band-through_band")
     || !expiryExposureUomMethod.includes("first_expiration_date = ls_base_after_window_band-first_expiration_date")
     || !expiryExposureUomMethod.includes("last_expiration_date = ls_base_after_window_band-last_expiration_date")
     || !expiryExposureUomMethod.includes("row_count = ls_base_after_window_band-row_count")
@@ -17757,6 +19099,14 @@ const expiredPreviewCategoriesTest = normalizedMethod(
   goodsMovementServiceTests,
   "previews_scrap_categories",
 );
+const expiredPreviewBaseTest = normalizedMethod(
+  goodsMovementServiceTests,
+  "previews_expired_scrap",
+);
+const expiredPreviewBadCategoryTest = normalizedMethod(
+  goodsMovementServiceTests,
+  "rejects_unknown_preview_cat",
+);
 const expiredPreviewLegacyTimestampTest = normalizedMethod(
   goodsMovementServiceTests,
   "rejects_short_blocked_preview",
@@ -17811,6 +19161,30 @@ if (!expiredBlockedScrapPreviewMethod.includes("preview_exp_scrap_category(")
     || !expiredPreviewCategoriesTest.includes("act = ls_quality-excluded_reservations[ 1 ]-reservation_number")
     || !expiredPreviewCategoriesTest.includes("act = ls_quality-excluded_reservations[ 1 ]-reservation_item")
     || !expiredPreviewCategoriesTest.includes("act = ls_quality-selection_details[ 1 ]-location_priority_rank")
+    || !expiredPreviewBaseTest.includes("mo_cut->preview_expired_scrap(")
+    || !expiredPreviewBaseTest.includes("b-posting-date")
+    || !expiredPreviewBaseTest.includes("act = lines( ls_result-selection_details )")
+    || !expiredPreviewBaseTest.includes("act = ls_result-selections[ 2 ]-batch")
+    || !expiredPreviewBaseTest.includes("act = ls_result-selection_details[ 1 ]-days_expired_at_posting")
+    || !expiredPreviewBaseTest.includes("act = ls_result-selection_details[ 2 ]-days_expired_at_posting")
+    || !expiredPreviewBaseTest.includes("act = ls_result-excluded_reservations[ 1 ]-reservation_number")
+    || !expiredPreviewBaseTest.includes("iv_stock_category = zcl_goods_movement_service=>c_scrap_stock_quality")
+    || !expiredPreviewBaseTest.includes("iv_stock_category = zcl_goods_movement_service=>c_scrap_stock_blocked")
+    || !expiredPreviewBaseTest.includes("act = ls_quality_result-movement_type")
+    || !expiredPreviewBaseTest.includes("act = ls_blocked_result-movement_type")
+    || !expiredPreviewBaseTest.includes("act = ls_quality_result-selection_details[ 2 ]-category_balance")
+    || !expiredPreviewBaseTest.includes("act = ls_quality_result-selections[ 2 ]-quantity")
+    || !expiredPreviewBaseTest.includes("act = ls_blocked_result-selections[ 2 ]-quantity")
+    || !expiredPreviewBaseTest.includes("act = lines( ls_quality_result-selections )")
+    || !expiredPreviewBaseTest.includes("act = lines( ls_blocked_result-selections )")
+    || !expiredPreviewBaseTest.includes("iv_require_full_quantity = abap_true")
+    || !expiredPreviewBaseTest.includes("act = lines( ls_strict_result-selections )")
+    || !expiredPreviewBaseTest.includes("act = lines( ls_strict_result-selection_details )")
+    || !expiredPreviewBaseTest.includes("act = ls_strict_result-allocated_quantity")
+    || !expiredPreviewBaseTest.includes("act = ls_strict_result-remaining_quantity")
+    || !expiredPreviewBaseTest.includes("act = ls_strict_result-is_fully_allocated")
+    || !expiredPreviewBadCategoryTest.includes("iv_stock_category = 'x'")
+    || !expiredPreviewBadCategoryTest.includes("catch zcx_invalid_goods_movement")
     || !expiredPreviewCategoriesTest.includes("exp = conv mard-labst( '2.000' ) act = ls_quality-selection_details[ 1 ]-category_balance")
     || !expiredPreviewCategoriesTest.includes("exp = conv mard-labst( '3.000' ) act = ls_blocked-selection_details[ 1 ]-category_balance")
     || !expiredPreviewCategoriesTest.includes("exp = conv mard-labst( '1.000' ) act = ls_unrestricted-selection_details[ 1 ]-category_balance")
@@ -17834,6 +19208,8 @@ if (!expiredBlockedScrapPreviewMethod.includes("preview_exp_scrap_category(")
     || !goodsMovementServiceTests.includes("method previews_blocked_scrap.")
     || !goodsMovementServiceTests.includes("method rejects_short_blocked_preview.")
     || !goodsMovementServiceTests.includes("method previews_scrap_categories.")
+    || !goodsMovementServiceTests.includes("method previews_expired_scrap.")
+    || !goodsMovementServiceTests.includes("method rejects_unknown_preview_cat.")
     || !goodsMovementServiceTests.includes("method rejects_missing_preview_batch.")
     || !valuationStockPlan.includes("it rejects exposure rows without a storage location or batch before allocation")
     || !valuationStockPlan.includes("appears in `selection_details` with its expiry date, source marker, and")
@@ -18283,6 +19659,10 @@ const stockExpiryReaderAdapter = readFileSync(
 ).toLowerCase();
 const batchExpiryPlan = readFileSync(
   join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase().replace(/\s+/g, " ");
+const batchExpiryReadme = readFileSync(
+  join(projectRoot, "README.md"),
   "utf8",
 ).toLowerCase().replace(/\s+/g, " ");
 const stockAllocationFactorySource = readFileSync(
@@ -18882,13 +20262,88 @@ if (!plannedOrderBulkSource.includes("is_skipped type abap_bool")
     || ![
       "stops_planned_create_failure",
       "stops_last_create_failure",
+      "stops_last_create_commit_fail",
       "stops_suggestion_bulk",
+      "stops_sugg_commit_fail",
+      "bulk_sugg_commit_continues",
       "stops_planned_delete_failure",
       "stops_planned_change_failure",
       "stops_conversion_bulk",
     ].every((name) => plannedOrderBulkTests.includes(`method ${name}.`))
     || !normalizedMethod(plannedOrderBulkSource, "create_from_suggestions_bulk")
       .includes("iv_stop_on_failure = iv_stop_on_failure")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("ls_result-stopped_on_failure")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("act = ls_result-skipped_count exp = 0")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("lo_api->create_calls exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("act = ls_result-successful_count exp = 1")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("act = ls_result-failed_count exp = 1")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("lo_api->commit_calls exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("lo_api->rollback_calls exp = 1")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("ls_result-orders[ 2 ]-is_committed")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "bulk_sugg_commit_continues",
+    ).includes("ls_result-orders[ 2 ]-source_suggestion_index")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_last_create_commit_fail",
+    ).includes("ls_result-stopped_on_failure")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_last_create_commit_fail",
+    ).includes("act = ls_result-skipped_count exp = 0")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("act = ls_result-skipped_count exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("lo_api->create_calls exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("lo_api->commit_calls exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("act = ls_result-orders[ 3 ]-receipt_index exp = 3")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("ls_result-orders[ 3 ]-is_skipped")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("act = ls_result-orders[ 4 ]-source_suggestion_index exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_sugg_commit_fail",
+    ).includes("ls_result-orders[ 4 ]-is_skipped")
     || !plannedOrderBulkDocs.includes(
       "earlier successful per-order commits remain committed",
     )
@@ -18939,7 +20394,48 @@ if (!plannedOrderApiInterface.includes(
     || !plannedOrderBulkTests.includes("method simulates_create_test_run.")
     || !plannedOrderBulkTests.includes("method simulates_suggestion_test_run.")
     || !plannedOrderBulkTests.includes("method stops_bulk_test_run.")
+    || !plannedOrderBulkTests.includes("method stops_suggestion_test_run.")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("ls_result-orders[ 4 ]-is_skipped")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = ls_result-skipped_count exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = ls_result-orders[ 3 ]-receipt_index exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = ls_result-orders[ 4 ]-source_suggestion_index exp = 2")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = ls_result-orders[ 4 ]-receipt_index exp = 3")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = lo_api->commit_calls exp = 0")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "stops_suggestion_test_run",
+    ).includes("act = lo_api->rollback_calls exp = 0")
     || !plannedOrderBulkTests.includes("method rejects_bad_test_run_flag.")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "rejects_bad_test_run_flag",
+    ).includes("create_orders_bulk(")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "rejects_bad_test_run_flag",
+    ).includes("create_from_suggestions_bulk(")
+    || !normalizedMethod(
+      plannedOrderBulkTests,
+      "rejects_bad_test_run_flag",
+    ).includes("act = lo_api->create_calls exp = 0")
     || !plannedOrderBulkSource.includes("is_test_run type abap_bool")
     || !plannedOrderBulkDocs.includes(
       "simulated calls do not commit or roll back",
@@ -19640,6 +21136,114 @@ const stoAtomicPublicMethodsExposeStop =
   && stoAtomicPublicDeclarations.every((match) =>
     match[2].includes("iv_stop_on_failure"),
   );
+const stoAtomicPublicMethodsPreserveStop =
+  stoAtomicPublicDeclarations.length > 0
+  && stoAtomicPublicDeclarations.every((match) => {
+    const method = normalizedMethod(stoOrderServiceSource, match[1]);
+    const forwardsStop = method.includes(
+      "iv_stop_on_failure = iv_stop_on_failure",
+    );
+    const validatesStop = method.includes(
+      "iv_stop_on_failure <> abap_true",
+    ) && method.includes("iv_stop_on_failure <> abap_false");
+    return method.length > 0 && (forwardsStop || validatesStop);
+  });
+const stopOnFailurePublicMethodFailures = [];
+for (const filename of readdirSync(join(projectRoot, "src"))) {
+  if (!filename.endsWith(".clas.abap")) continue;
+  const source = readFileSync(
+    join(projectRoot, "src", filename),
+    "utf8",
+  ).toLowerCase();
+  const publicSection = source.match(
+    /public section\.([\s\S]*?)(?:private section\.|protected section\.)/,
+  );
+  if (!publicSection) continue;
+  for (const declaration of publicSection[1].matchAll(
+    /methods\s+(\w+)\b([\s\S]*?\.)/g,
+  )) {
+    if (!declaration[2].includes("iv_stop_on_failure")) continue;
+    const method = normalizedMethod(source, declaration[1]);
+    const forwardsStop = method.includes(
+      "iv_stop_on_failure = iv_stop_on_failure",
+    );
+    const validatesStop = method.includes(
+      "iv_stop_on_failure <> abap_true",
+    ) && method.includes("iv_stop_on_failure <> abap_false");
+    const callsStopValidator = method.includes("validate_stop_on_failure");
+    if (!method || (!forwardsStop && !validatesStop && !callsStopValidator)) {
+      stopOnFailurePublicMethodFailures.push(
+        `${filename}:${declaration[1]}`,
+      );
+    }
+  }
+}
+if (stopOnFailurePublicMethodFailures.length > 0) {
+  errors.push(
+    "Public iv_stop_on_failure methods must validate or forward the option: "
+      + stopOnFailurePublicMethodFailures.join(", "),
+  );
+}
+const testRunPublicMethodFailures = [];
+for (const filename of readdirSync(join(projectRoot, "src"))) {
+  if (!filename.endsWith(".clas.abap")) continue;
+  const source = readFileSync(
+    join(projectRoot, "src", filename),
+    "utf8",
+  ).toLowerCase();
+  const publicSection = source.match(
+    /public section\.([\s\S]*?)(?:private section\.|protected section\.)/,
+  );
+  if (!publicSection) continue;
+  for (const declaration of publicSection[1].matchAll(
+    /methods\s+(\w+)\b([\s\S]*?\.)/g,
+  )) {
+    if (!declaration[2].includes("iv_test_run")) continue;
+    const method = normalizedMethod(source, declaration[1]);
+    if (!method || !method.includes("iv_test_run")) {
+      testRunPublicMethodFailures.push(
+        `${filename}:${declaration[1]}`,
+      );
+    }
+  }
+}
+if (testRunPublicMethodFailures.length > 0) {
+  errors.push(
+    "Public iv_test_run methods must use or forward simulation mode: "
+      + testRunPublicMethodFailures.join(", "),
+  );
+}
+const atomicPublicMethodFailures = [];
+for (const filename of readdirSync(join(projectRoot, "src"))) {
+  if (!filename.endsWith(".clas.abap")) continue;
+  const source = readFileSync(
+    join(projectRoot, "src", filename),
+    "utf8",
+  ).toLowerCase();
+  const publicSection = source.match(
+    /public section\.([\s\S]*?)(?:private section\.|protected section\.)/,
+  );
+  if (!publicSection) continue;
+  for (const declaration of publicSection[1].matchAll(
+    /methods\s+(\w+)\b([\s\S]*?\.)/g,
+  )) {
+    if (!declaration[2].includes("iv_atomic")) continue;
+    const method = normalizedMethod(source, declaration[1]);
+    const forwardsAtomic = method.includes("iv_atomic = iv_atomic");
+    const validatesAtomic = method.includes("iv_atomic <> abap_true")
+      && method.includes("iv_atomic <> abap_false");
+    const callsAtomicValidator = method.includes("validate_atomic");
+    if (!method || (!forwardsAtomic && !validatesAtomic && !callsAtomicValidator)) {
+      atomicPublicMethodFailures.push(`${filename}:${declaration[1]}`);
+    }
+  }
+}
+if (atomicPublicMethodFailures.length > 0) {
+  errors.push(
+    "Public iv_atomic methods must validate or forward atomic mode: "
+      + atomicPublicMethodFailures.join(", "),
+  );
+}
 const stoPairCreateExecutor = normalizedMethod(
   stoOrderServiceSource,
   "execute_pair_orders",
@@ -19660,7 +21264,28 @@ const stoOrderServiceTests = readFileSync(
   join(projectRoot, "src/zcl_stock_xfer_order_svc.clas.testclasses.abap"),
   "utf8",
 ).toLowerCase();
+const stoAtomicSourceRollbackTest = normalizedMethod(
+  stoOrderServiceTests,
+  "rolls_back_atomic_sources",
+);
+const stoAtomicSourceCommitTest = normalizedMethod(
+  stoOrderServiceTests,
+  "fails_atomic_source_commit",
+);
+const stoPlantPairFailureTest = normalizedMethod(
+  stoOrderServiceTests,
+  "stops_plant_pair_failures",
+);
+const stoAtomicPlantPairFailureTest = normalizedMethod(
+  stoOrderServiceTests,
+  "fails_atomic_plant_pairs",
+);
+const stoAtpPlantPairFailureTest = normalizedMethod(
+  stoOrderServiceTests,
+  "stops_atp_plant_pair_failures",
+);
 if (!stoAtomicPublicMethodsExposeStop
+    || !stoAtomicPublicMethodsPreserveStop
     || !stoPairCreateExecutor.includes("iv_stop_on_failure")
     || !stoPairCreateExecutor.includes("stopped_on_failure = abap_true")
     || !stoPairCreateExecutor.includes("is_skipped = abap_true")
@@ -19676,11 +21301,106 @@ if (!stoAtomicPublicMethodsExposeStop
     || ![
       "stops_source_plant_failures",
       "stops_atp_source_failures",
+      "rolls_back_atomic_sources",
+      "fails_atomic_source_commit",
       "stops_plant_pair_failures",
+      "stops_atp_plant_pair_failures",
+      "fails_atomic_plant_pairs",
       "fails_atomic_pair_commit",
-    ].every((name) => stoOrderServiceTests.includes(`method ${name}.`))) {
+    ].every((name) => stoOrderServiceTests.includes(`method ${name}.`))
+    || !stoAtomicSourceRollbackTest.includes(
+      "exp = 3 act = lines( ls_result-orders )",
+    )
+    || !stoAtomicSourceRollbackTest.includes(
+      "act = ls_result-orders[ 3 ]-is_skipped",
+    )
+    || !stoAtomicSourceRollbackTest.includes(
+      "exp = 2 act = ls_result-failed_count",
+    )
+    || !stoAtomicSourceRollbackTest.includes(
+      "exp = 1 act = ls_result-skipped_count",
+    )
+    || !stoAtomicSourceRollbackTest.includes(
+      "exp = '1200' act = ls_result-orders[ 3 ]-supplying_plant",
+    )
+    || !stoAtomicSourceRollbackTest.includes(
+      "exp = 2 act = lo_api->get_create_count( )",
+    )
+    || !stoAtomicSourceCommitTest.includes(
+      "iv_stop_on_failure = abap_true",
+    )
+    || !stoAtomicSourceCommitTest.includes(
+      "act = ls_result-stopped_on_failure",
+    )
+    || !stoPlantPairFailureTest.includes("act = ls_result-is_committed")
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 1 ]-result-is_committed",
+    )
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 1 ]-result-bapi_was_called",
+    )
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 2 ]-result-bapi_was_called",
+    )
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 2 ]-result-is_committed",
+    )
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 3 ]-result-bapi_was_called",
+    )
+    || !stoPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 4 ]-result-bapi_was_called",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "iv_stop_on_failure = abap_true",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "act = ls_result-stopped_on_failure",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "exp = abap_false act = ls_result-is_committed",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "exp = 2 act = ls_result-failed_count",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "exp = 2 act = ls_result-skipped_count",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 1 ]-result-bapi_was_called",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 2 ]-result-bapi_was_called",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "exp = abap_false act = ls_result-orders[ 1 ]-result-is_committed",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 3 ]-result-bapi_was_called",
+    )
+    || !stoAtomicPlantPairFailureTest.includes(
+      "exp = 1 act = lo_api->get_rollback_count( )",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "lo_cut->create_for_atp_plant_pairs(",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "iv_stop_on_failure = abap_true",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "act = ls_result-stopped_on_failure",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "exp = 2 act = ls_result-skipped_count",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 3 ]-result-bapi_was_called",
+    )
+    || !stoAtpPlantPairFailureTest.includes(
+      "act = ls_result-orders[ 4 ]-result-bapi_was_called",
+    )) {
   errors.push(
-    "STO creation bulk methods must expose stop-on-failure, preserve skipped rows, and count outcomes",
+    "STO pair wrappers must validate or forward stop-on-failure and preserve skipped outcome rows",
   );
 }
 
@@ -19924,6 +21644,22 @@ const plannedOrderReadTests = readFileSync(
   join(projectRoot, "src/zcl_planned_order_read_service.clas.testclasses.abap"),
   "utf8",
 ).toLowerCase();
+const plannedOrderRepoTests = readFileSync(
+  join(projectRoot, "src/zcl_plaf_order_read_repo.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderSpecialProcTest = normalizedMethod(
+  plannedOrderReadTests,
+  "filters_special_proc_type",
+);
+const plannedOrderRepoSpecialProcTest = normalizedMethod(
+  plannedOrderRepoTests,
+  "filters_special_proc_type",
+);
+const plannedOrderSpecialProcScopeTest = normalizedMethod(
+  plannedOrderReadTests,
+  "rejects_special_proc_scope",
+);
 const plannedOrderFakeFinishRepoRead = normalizedMethod(
   plannedOrderReadTests,
   "zif_planned_order_read_repo~read_orders_by_finish_window",
@@ -20103,14 +21839,30 @@ const plannedOrderFinishRepoRead = normalizedMethod(
 if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || !plannedOrderReadPlan.includes("filter_quantity_from")
     || !plannedOrderReadPlan.includes("filter_quantity_to")
+    || !plannedOrderReadPlan.includes(
+      "`filter_base_quantity_from` and `filter_base_quantity_to` add inclusive bounds for `quantity_in_base_unit` in the material base unit",
+    )
+    || !plannedOrderReadPlan.includes("filter_special_proc_type")
+    || !plannedOrderReadPlan.includes("special_procurement_type")
+    || !plannedOrderReadPlan.includes("plaf-sobes")
     || !plannedOrderReadPlan.includes("filter_order_unit")
     || !plannedOrderReadPlan.includes("order_unit")
     || !plannedOrderReadDocs.includes("filter_quantity_from")
+    || !plannedOrderReadDocs.includes("filter_special_proc_type")
+    || !plannedOrderReadDocs.includes("plaf-sobes")
     || !plannedOrderReadDocs.includes("filter_quantity_to")
+    || !plannedOrderReadDocs.includes(
+      "`filter_base_quantity_from` and `filter_base_quantity_to` to apply inclusive bounds to `quantity_in_base_unit` in the material base unit",
+    )
     || !plannedOrderReadDocs.includes("filter_order_unit")
     || !plannedOrderReadAnomalies.includes("filter_quantity_from")
     || !plannedOrderReadAnomalies.includes("filter_quantity_to")
+    || !plannedOrderReadAnomalies.includes(
+      "base-unit quantity bounds join mara and marm into the finish-window key query",
+    )
     || !plannedOrderReadAnomalies.includes("filter_order_unit")
+    || !plannedOrderReadAnomalies.includes("filter_special_proc_type")
+    || !plannedOrderReadAnomalies.includes("plaf-sobes")
     || !plannedOrderReadInterface.includes("maximum_results type i")
     || !plannedOrderReadInterface.includes(
       "after_planned_order type plaf-plnum",
@@ -20205,6 +21957,12 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
       "procurement_indicator type plaf-beskz",
     )
     || !plannedOrderReadInterface.includes(
+      "filter_special_proc_type type abap_bool",
+    )
+    || (plannedOrderReadInterface.match(
+      /special_procurement_type type plaf-sobes/g,
+    ) ?? []).length !== 2
+    || !plannedOrderReadInterface.includes(
       "filter_order_unit type abap_bool",
     )
     || !plannedOrderReadInterface.includes("order_unit type plaf-meins")
@@ -20219,6 +21977,18 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     )
     || !plannedOrderReadInterface.includes("quantity_from type plaf-gsmng")
     || !plannedOrderReadInterface.includes("quantity_to type plaf-gsmng")
+    || !plannedOrderReadInterface.includes(
+      "filter_base_quantity_from type abap_bool",
+    )
+    || !plannedOrderReadInterface.includes(
+      "base_quantity_from type decfloat34",
+    )
+    || !plannedOrderReadInterface.includes(
+      "filter_base_quantity_to type abap_bool",
+    )
+    || !plannedOrderReadInterface.includes(
+      "base_quantity_to type decfloat34",
+    )
     || !plannedOrderReadInterface.includes(
       "filter_mrp_controller type abap_bool",
     )
@@ -20369,6 +22139,12 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
       "is_selection-filter_procurement_indicator <> abap_true",
     )
     || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_special_proc_type <> abap_true",
+    )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-special_procurement_type is not initial",
+    )
+    || !plannedOrderFinishValidation.includes(
       "is_selection-positive_quantity_only <> abap_true",
     )
     || !plannedOrderFinishValidation.includes(
@@ -20380,11 +22156,41 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || !plannedOrderFinishValidation.includes(
       "is_selection-filter_quantity_from = abap_true and is_selection-filter_quantity_to = abap_true and is_selection-quantity_from > is_selection-quantity_to",
     )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_base_quantity_from <> abap_true and is_selection-filter_base_quantity_from <> abap_false",
+    )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_base_quantity_from = abap_false and is_selection-base_quantity_from is not initial",
+    )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_base_quantity_to <> abap_true and is_selection-filter_base_quantity_to <> abap_false",
+    )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_base_quantity_to = abap_false and is_selection-base_quantity_to is not initial",
+    )
+    || !plannedOrderFinishValidation.includes(
+      "is_selection-filter_base_quantity_from = abap_true and is_selection-filter_base_quantity_to = abap_true and is_selection-base_quantity_from > is_selection-base_quantity_to",
+    )
     || !plannedOrderFinishHeadersValidation.includes(
       "ls_order_header-quantity < is_selection-quantity_from",
     )
     || !plannedOrderFinishHeadersValidation.includes(
       "ls_order_header-quantity > is_selection-quantity_to",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
+      "ls_order_header-base_unit is initial",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
+      "ls_order_header-order_unit = ls_order_header-base_unit",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
+      "ls_order_header-unit_to_base_numerator <= 0",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
+      "lv_base_quantity < is_selection-base_quantity_from",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
+      "lv_base_quantity > is_selection-base_quantity_to",
     )
     || !plannedOrderFinishHeadersValidation.includes(
       "ls_order_header-order_unit <> is_selection-order_unit",
@@ -20563,6 +22369,9 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
       "ls_order_header-procurement_indicator <> is_selection-procurement_indicator",
     )
     || !plannedOrderFinishHeadersValidation.includes(
+      "ls_order_header-special_procurement_type <> is_selection-special_procurement_type",
+    )
+    || !plannedOrderFinishHeadersValidation.includes(
       "ls_order_header-quantity <= 0",
     )
     || !plannedOrderFinishHeadersValidation.includes(
@@ -20662,7 +22471,10 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
       "ls_order_header-planned_order <= ls_previous_order-planned_order",
     )
     || !plannedOrderFinishRepoRead.includes(
-      "matnr = @is_selection-material",
+      "lv_material = is_selection-material",
+    )
+    || !plannedOrderFinishRepoRead.includes(
+      "plaf_row~matnr = @lv_material",
     )
     || !plannedOrderBulkRepoRead.includes("paart as order_type")
     || !plannedOrderFinishRepoRead.includes(
@@ -20701,6 +22513,12 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     )
     || !plannedOrderFakeFinishRepoRead.includes(
       "ls_order-order_unit <> is_selection-order_unit",
+    )
+    || !plannedOrderFakeFinishRepoRead.includes(
+      "is_selection-filter_special_proc_type = abap_true",
+    )
+    || !plannedOrderFakeFinishRepoRead.includes(
+      "ls_order-special_procurement_type <> is_selection-special_procurement_type",
     )
     || !plannedOrderFakeFinishRepoRead.includes(
       "is_selection-filter_start_date = abap_true or is_selection-start_date is not initial",
@@ -20773,6 +22591,15 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || !plannedOrderFinishRepoRead.includes(
       "beskz = @lv_procurement_indicator",
     )
+    || !plannedOrderFinishRepoRead.includes(
+      "sobes = @lv_special_procurement_type",
+    )
+    || (plannedOrderBulkRepoRead.match(
+      /sobes as special_procurement_type/g,
+    ) ?? []).length !== 1
+    || (plannedOrderFinishRepoRead.match(
+      /sobes as special_procurement_type/g,
+    ) ?? []).length !== 2
     || plannedOrderFinishRepoRead.split(
       "meins = @lv_order_unit",
     ).length < 3
@@ -20783,6 +22610,36 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || plannedOrderFinishRepoRead.split(
       "gsmng <= @lv_quantity_to",
     ).length < 3
+    || !plannedOrderFinishRepoRead.includes(
+      "lv_filter_base_quantity_from = is_selection-filter_base_quantity_from",
+    )
+    || !plannedOrderFinishRepoRead.includes(
+      "lv_base_quantity_from = is_selection-base_quantity_from",
+    )
+    || !plannedOrderFinishRepoRead.includes(
+      "lv_filter_base_quantity_to = is_selection-filter_base_quantity_to",
+    )
+    || !plannedOrderFinishRepoRead.includes(
+      "lv_base_quantity_to = is_selection-base_quantity_to",
+    )
+    || plannedOrderFinishRepoRead.split(
+      "@lv_filter_base_quantity_from = @lv_false",
+    ).length !== 3
+    || plannedOrderFinishRepoRead.split(
+      "@lv_filter_base_quantity_to = @lv_false",
+    ).length !== 3
+    || plannedOrderFinishRepoRead.split(
+      "left outer join mara as mara_row",
+    ).length !== 3
+    || plannedOrderFinishRepoRead.split(
+      "left outer join marm as marm_row",
+    ).length !== 3
+    || !plannedOrderFinishRepoRead.includes(
+      "gsmng * marm_row~umrez >= @lv_base_quantity_from * marm_row~umren",
+    )
+    || !plannedOrderFinishRepoRead.includes(
+      "gsmng * marm_row~umrez <= @lv_base_quantity_to * marm_row~umren",
+    )
     || !plannedOrderFinishRepoRead.includes("dispo = @lv_mrp_controller")
     || !plannedOrderFinishRepoRead.includes(
       "plgrp = @lv_production_supervisor",
@@ -20982,6 +22839,28 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || !plannedOrderReadTests.includes(
       "method filters_procurement_indicator.",
     )
+    || !plannedOrderReadTests.includes(
+      "method filters_special_proc_type.",
+    )
+    || !plannedOrderReadTests.includes(
+      "method rejects_bad_spec_proc_filter.",
+    )
+    || !plannedOrderReadTests.includes(
+      "method rejects_special_proc_scope.",
+    )
+    || !plannedOrderRepoTests.includes(
+      "method filters_special_proc_type.",
+    )
+    || !plannedOrderSpecialProcTest.includes("maximum_results = 1")
+    || !plannedOrderSpecialProcTest.includes("is_truncated")
+    || !plannedOrderSpecialProcTest.includes("next_planned_order")
+    || !plannedOrderSpecialProcScopeTest.includes(
+      "special_procurement_type = space",
+    )
+    || !plannedOrderSpecialProcScopeTest.includes("exp = 2")
+    || !plannedOrderRepoSpecialProcTest.includes("maximum_results = 1")
+    || !plannedOrderRepoSpecialProcTest.includes("exp = 2")
+    || !plannedOrderRepoSpecialProcTest.includes("2004")
     || !plannedOrderReadTests.includes(
       "method rejects_bad_procurement_filter.",
     )
@@ -21329,7 +23208,7 @@ if (!plannedOrderReadInterface.includes("read_orders_by_finish_window")
     || !plannedOrderReadDocs.includes("filter_sales_schedule_line")
     || !plannedOrderReadAnomalies.includes("plaf-kdein")
     || !plannedOrderReadDocs.includes(
-      "the service validates the returned row count and unique nonblank order numbers, then checks selected material, production plant, planning plant, creation-date range, planned-order user, sales order and item, planning scenario, order type, storage location, procurement, positive quantity, mrp controller, production supervisor, production version, mrp area, account-assignment category, sales-order schedule line, special-stock and fixed indicators",
+      "the service validates the returned row count and unique nonblank order numbers, then checks selected material",
     )
     || !plannedOrderReadAnomalies.includes(
       "the service rejects malformed result rows before mapping",
@@ -21375,11 +23254,19 @@ const productionOrderReadRepo = readFileSync(
 const productionOrderReadServiceSource = readFileSync(
   join(projectRoot, "src/zcl_prod_order_read_service.clas.abap"),
   "utf8",
-).toLowerCase();
+).replace(/\s+/g, " ").toLowerCase();
 const productionOrderReadServiceTests = readFileSync(
   join(projectRoot, "src/zcl_prod_order_read_service.clas.testclasses.abap"),
   "utf8",
 ).replace(/\s+/g, " ").toLowerCase();
+const productionOrderReadRepoTests = readFileSync(
+  join(projectRoot, "src/zcl_prod_order_read_repo.clas.testclasses.abap"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const productionConfirmationRepoUnitTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_confirmations",
+);
 const productionOrderFinishRepoSearch = normalizedMethod(
   productionOrderReadRepo,
   "zif_prod_order_read_repo~read_orders_by_finish_window",
@@ -21400,9 +23287,65 @@ const productionConfirmationBulkReadService = normalizedMethod(
   productionOrderReadServiceSource,
   "read_confirmations_bulk",
 );
+const productionConfirmationBulkRepoRead = normalizedMethod(
+  productionOrderReadRepo,
+  "zif_prod_order_read_repo~read_confirmations",
+);
+const productionConfirmationBulkFakeRead = normalizedMethod(
+  productionOrderReadServiceTests,
+  "zif_prod_order_read_repo~read_confirmations",
+);
+const productionConfirmationResultValidation = normalizedMethod(
+  productionOrderReadServiceSource,
+  "validate_confirmation_results",
+);
+const productionConfirmationValidationTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "validates_confirmation_reads",
+);
+const productionConfirmationRepoReadTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_confirmations",
+);
+const productionConfirmationAuditFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_audit",
+);
+const productionConfirmationUnitFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_unit",
+);
+const productionConfirmationTimeFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_time",
+);
+const productionConfirmationQualityFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_quality_ranges",
+);
+const productionConfirmationRepoTimeTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_confirmations",
+);
 const productionOperationBulkReadService = normalizedMethod(
   productionOrderReadServiceSource,
   "read_operations_bulk",
+);
+const productionOperationResultsValidation = normalizedMethod(
+  productionOrderReadServiceSource,
+  "validate_operation_results",
+);
+const productionOperationBulkRepoRead = normalizedMethod(
+  productionOrderReadRepo,
+  "zif_prod_order_read_repo~read_operations",
+);
+const productionOperationBulkFakeRead = normalizedMethod(
+  productionOrderReadServiceTests,
+  "zif_prod_order_read_repo~read_operations",
+);
+const productionOperationRepoReadTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_operations",
 );
 const productionConfirmationBulkReadTest = normalizedMethod(
   productionOrderReadServiceTests,
@@ -21411,6 +23354,10 @@ const productionConfirmationBulkReadTest = normalizedMethod(
 const productionOperationBulkReadTest = normalizedMethod(
   productionOrderReadServiceTests,
   "reads_order_operations",
+);
+const productionOperationValidationTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "validates_operation_reads",
 );
 const productionEmptyConfirmationBulkReadTest = normalizedMethod(
   productionOrderReadServiceTests,
@@ -21436,6 +23383,30 @@ const productionOrderBulkReadTest = normalizedMethod(
   productionOrderReadServiceTests,
   "reads_multiple_items_and_units",
 );
+const productionOrderFinishReadTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "searches_order_finish_window",
+);
+const productionOrderFinishConversionTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "summarizes_finish_conv_scope",
+);
+const productionOrderFinishProgressFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_finish_receipt_state",
+);
+const productionOrderFinishReceivedQuantityFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_finish_rcvd_qty",
+);
+const productionOrderFinishRepoProgressFilterTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "filters_finish_receipt_state",
+);
+const productionOrderBadUnitsTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "reports_missing_or_bad_units",
+);
 const productionOrderEmptyFinishTest = normalizedMethod(
   productionOrderReadServiceTests,
   "searches_empty_finish_window",
@@ -21443,6 +23414,10 @@ const productionOrderEmptyFinishTest = normalizedMethod(
 const productionOrderStatusDriftTest = normalizedMethod(
   productionOrderReadServiceTests,
   "reports_status_drift",
+);
+const productionOrderFinishDriftTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "reports_finish_scope_drift",
 );
 const productionOrderEmptyBulkReadTest = normalizedMethod(
   productionOrderReadServiceTests,
@@ -21478,6 +23453,9 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderReadInterface.includes(
       "active_status_code type jest-stat",
+    )
+    || !productionOrderReadInterface.includes(
+      "active_status_codes type standard table of jest-stat with empty key",
     )
     || !productionOrderReadInterface.includes(
       "production_item type afpo-posnr",
@@ -21600,6 +23578,54 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderReadInterface.includes("order_qty_to type afpo-psmng")
     || !productionOrderReadInterface.includes(
+      "filter_order_qty_base_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "order_qty_base_from type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_order_qty_base_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "order_qty_base_to type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_qty_base_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_base_from type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_qty_base_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_base_to type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_rcpt_qty_base_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_rcpt_qty_base_from type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_rcpt_qty_base_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_rcpt_qty_base_to type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_unrecv_qty_base_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "unrecv_qty_base_from type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_unrecv_qty_base_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "unrecv_qty_base_to type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
       "filter_unreceived_qty_from type abap_bool",
     )
     || !productionOrderReadInterface.includes(
@@ -21616,7 +23642,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || (productionOrderReadInterface.match(
       /order_type type aufk-auart/g,
-    ) ?? []).length !== 2
+    ) ?? []).length < 2
     || (productionOrderReadInterface.match(
       /order_description type aufk-ktext/g,
     ) ?? []).length !== 2
@@ -21747,10 +23773,40 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       /left outer join prps as prps_row/g,
     ) ?? []).length !== 4
     || !productionOrderFinishRepoSearch.includes(
-      "afpo_row~matnr = @is_selection-material",
+      "afpo_row~matnr = @lv_material",
     )
     || !productionOrderFinishRepoSearch.includes(
-      "afpo_row~werks = @is_selection-plant",
+      "afpo_row~werks = @lv_plant",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_material = is_selection-material",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_plant = is_selection-plant",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_finish_date_from = is_selection-finish_date_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_finish_date_to = is_selection-finish_date_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_after_finish_date = is_selection-after_finish_date",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_after_order = is_selection-after_order",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_active_status_code = is_selection-active_status_code",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "data lr_active_status_codes type range of jest-stat",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "loop at is_selection-active_status_codes into data(lv_selected_active_status_code)",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "append value #( sign = 'i' option = 'eq' low = lv_selected_active_status_code ) to lr_active_status_codes",
     )
     || !productionOrderFinishRepoSearch.includes(
       "lv_filter_sales_order = is_selection-filter_sales_order",
@@ -22059,6 +24115,9 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       /afpo_row~amein = @lv_order_unit/g,
     ) ?? []).length !== 4
     || !productionOrderFinishRepoSearch.includes("gltrp between")
+    || (productionOrderFinishRepoSearch.match(
+      /afko_row~gltrp between @lv_finish_date_from and @lv_finish_date_to/g,
+    ) ?? []).length !== 4
     || !productionOrderFinishRepoSearch.includes(
       "lv_unreceived_quantity_only = is_selection-unreceived_quantity_only",
     )
@@ -22073,6 +24132,102 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderFinishRepoSearch.includes(
       "lv_order_qty_to = is_selection-order_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_order_qty_base_from = is_selection-filter_order_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_order_qty_base_from = is_selection-order_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_order_qty_base_to = is_selection-filter_order_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_order_qty_base_to = is_selection-order_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_rcv_qty_base_from = is_selection-filter_received_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_base_from = is_selection-received_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_rcv_qty_base_to = is_selection-filter_received_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_base_to = is_selection-received_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_base_from = is_selection-filter_over_rcpt_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_base_from = is_selection-over_rcpt_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_base_to = is_selection-filter_over_rcpt_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_base_to = is_selection-over_rcpt_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_unrcv_base_from = is_selection-filter_unrecv_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_unrcv_base_from = is_selection-unrecv_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_unrcv_base_to = is_selection-filter_unrecv_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_unrcv_base_to = is_selection-unrecv_qty_base_to",
+    )
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_order_qty_base_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_order_qty_base_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_rcv_qty_base_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_rcv_qty_base_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_unrcv_base_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_unrcv_base_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~psmng \* afpo_row~umrez >= @lv_order_qty_base_from \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~psmng \* afpo_row~umrez <= @lv_order_qty_base_to \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* afpo_row~umrez >= @lv_received_qty_base_from \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* afpo_row~umrez <= @lv_received_qty_base_to \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~psmng \* afpo_row~umrez - afpo_row~wemng \* afpo_row~umrez >= @lv_unrcv_base_from \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~psmng \* afpo_row~umrez - afpo_row~wemng \* afpo_row~umrez <= @lv_unrcv_base_to \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~psmng >= 0 and afpo_row~wemng >= 0/g,
+    ) ?? []).length !== 24
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~umrez > 0 and afpo_row~umren > 0/g,
+    ) ?? []).length !== 32
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~amein <> @lv_blank_order_unit",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~meins <> @lv_blank_base_unit",
     )
     || !productionOrderFinishRepoSearch.includes(
       "lv_order_type = is_selection-order_type",
@@ -22200,7 +24355,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     || (productionOrderFinishRepoSearch.match(
       /afpo_row~elikz = @lv_blank_delivery_complete/g,
     ) ?? []).length !== 4
-    || (productionOrderFinishRepoSearch.match(/afpo_row~psmng > afpo_row~wemng/g) ?? []).length !== 12
+    || (productionOrderFinishRepoSearch.match(/afpo_row~psmng > afpo_row~wemng/g) ?? []).length !== 28
     || !productionOrderFinishRepoSearch.includes("autyp = '10'")
     || !productionOrderFinishRepoSearch.includes("autyp = '40'")
     || !productionOrderFinishRepoSearch.includes(
@@ -22214,8 +24369,11 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderFinishRepoSearch.includes("inner join jest")
     || !productionOrderFinishRepoSearch.includes(
-      "jest_row~stat = @is_selection-active_status_code",
+      "jest_row~stat = @lv_active_status_code",
     )
+    || (productionOrderFinishRepoSearch.match(
+      /jest_row~stat in @lr_active_status_codes/g,
+    ) ?? []).length !== 2
     || !productionOrderFinishRepoSearch.includes(
       "jest_row~inact = @lv_active_indicator",
     )
@@ -22223,7 +24381,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "order by basic_finish_date, production_order",
     )
     || !productionOrderFinishRepoSearch.includes(
-      "afpo_row~aufnr > @is_selection-after_order",
+      "afpo_row~aufnr > @lv_after_order",
     )
     || !productionOrderFinishRepoSearch.includes("up to @lv_fetch_limit rows")
     || !productionOrderFinishServiceSearch.includes(
@@ -22231,6 +24389,15 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderFinishValidation.includes(
       "is_selection-order_category <> '10'",
+    )
+    || !productionOrderFinishValidation.includes(
+      "loop at is_selection-active_status_codes into data(lv_selected_status_code)",
+    )
+    || !productionOrderFinishValidation.includes(
+      "lv_selected_status_code is initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-active_status_code is not initial and is_selection-active_status_codes is not initial",
     )
     || !productionOrderFinishValidation.includes(
       "is_selection-filter_order_description <> abap_true and is_selection-filter_order_description <> abap_false",
@@ -22368,6 +24535,90 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "is_selection-order_qty_from > is_selection-order_qty_to",
     )
     || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_from <> abap_true and is_selection-filter_order_qty_base_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_from = abap_false and is_selection-order_qty_base_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_from = abap_true and is_selection-order_qty_base_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_to <> abap_true and is_selection-filter_order_qty_base_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_to = abap_false and is_selection-order_qty_base_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_qty_base_to = abap_true and is_selection-order_qty_base_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-order_qty_base_from > is_selection-order_qty_base_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from <> abap_true and is_selection-filter_received_qty_base_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from = abap_false and is_selection-received_qty_base_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from = abap_true and is_selection-received_qty_base_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to <> abap_true and is_selection-filter_received_qty_base_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to = abap_false and is_selection-received_qty_base_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to = abap_true and is_selection-received_qty_base_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-received_qty_base_from > is_selection-received_qty_base_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_from <> abap_true and is_selection-filter_over_rcpt_qty_base_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_from = abap_false and is_selection-over_rcpt_qty_base_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_from = abap_true and is_selection-over_rcpt_qty_base_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_to <> abap_true and is_selection-filter_over_rcpt_qty_base_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_to = abap_false and is_selection-over_rcpt_qty_base_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_rcpt_qty_base_to = abap_true and is_selection-over_rcpt_qty_base_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-over_rcpt_qty_base_from > is_selection-over_rcpt_qty_base_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_from <> abap_true and is_selection-filter_unrecv_qty_base_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_from = abap_false and is_selection-unrecv_qty_base_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_from = abap_true and is_selection-unrecv_qty_base_from <= 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_to <> abap_true and is_selection-filter_unrecv_qty_base_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_to = abap_false and is_selection-unrecv_qty_base_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unrecv_qty_base_to = abap_true and is_selection-unrecv_qty_base_to <= 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unrecv_qty_base_from > is_selection-unrecv_qty_base_to",
+    )
+    || !productionOrderFinishValidation.includes(
       "is_selection-filter_unreceived_qty_from <> abap_true and is_selection-filter_unreceived_qty_from <> abap_false",
     )
     || !productionOrderFinishValidation.includes(
@@ -22428,6 +24679,25 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     )
     || !productionOrderFinishServiceSearch.includes(
       "finish_filter_lost_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method reports_finish_scope_drift.",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "use_finish_window_override = abap_true",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "use_unfiltered_order_items = abap_true",
+    )
+    || !productionOrderFinishDriftTest.includes("material = 'mat-2'")
+    || !productionOrderFinishDriftTest.includes(
+      "ls_result-orders[ 1 ]-finish_filter_lost",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "ls_result-orders[ 2 ]-finish_filter_lost",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "act = ls_result-finish_filter_lost_count",
     )
     || !productionOrderFinishServiceSearch.includes(
       "ls_finish_item-order_item-material = is_selection-material",
@@ -22565,6 +24835,30 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "is_selection-filter_order_qty_to = abap_false or ls_finish_item-order_item-order_quantity <= is_selection-order_qty_to",
     )
     || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_order_qty_base_from = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-order_quantity_base >= is_selection-order_qty_base_from )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_order_qty_base_to = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-order_quantity_base <= is_selection-order_qty_base_to )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_received_qty_base_from = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-received_quantity_base >= is_selection-received_qty_base_from )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_received_qty_base_to = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-received_quantity_base <= is_selection-received_qty_base_to )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_over_rcpt_qty_base_from = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-is_receipt_progress_valid = abap_true and ls_finish_item-over_receipt_quantity_base >= is_selection-over_rcpt_qty_base_from )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_over_rcpt_qty_base_to = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-is_receipt_progress_valid = abap_true and ls_finish_item-over_receipt_quantity_base <= is_selection-over_rcpt_qty_base_to )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_unrecv_qty_base_from = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-open_quantity_base >= is_selection-unrecv_qty_base_from )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_unrecv_qty_base_to = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-open_quantity_base <= is_selection-unrecv_qty_base_to )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
       "ls_finish_item-order_item-order_quantity - ls_finish_item-order_item-received_quantity >= is_selection-unreceived_qty_from",
     )
     || !productionOrderFinishServiceSearch.includes(
@@ -22573,14 +24867,53 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     || !productionOrderFinishServiceSearch.includes(
       "read table <ls_order_result>-statuses",
     )
+    || !productionOrderFinishServiceSearch.includes(
+      "loop at is_selection-active_status_codes into data(lv_status_code)",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "lv_selected_status_found <> abap_true",
+    )
     || !productionOrderFinishFake.includes(
       "is_selection-unreceived_quantity_only = abap_true and ls_order_item-order_quantity <= ls_order_item-received_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-active_status_codes is not initial",
+    )
+    || !productionOrderFinishFake.includes(
+      "status_code = lv_active_status_code",
     )
     || !productionOrderFinishFake.includes(
       "is_selection-filter_order_qty_from = abap_true and ls_order_item-order_quantity < is_selection-order_qty_from",
     )
     || !productionOrderFinishFake.includes(
       "is_selection-filter_order_qty_to = abap_true and ls_order_item-order_quantity > is_selection-order_qty_to",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_order_qty_base_from = abap_true and ( lv_quantity_converted <> abap_true or lv_order_quantity_base < is_selection-order_qty_base_from )",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_order_qty_base_to = abap_true and ( lv_quantity_converted <> abap_true or lv_order_quantity_base > is_selection-order_qty_base_to )",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_received_qty_base_from = abap_true and ( lv_quantity_converted <> abap_true or lv_received_quantity_base < is_selection-received_qty_base_from )",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_received_qty_base_to = abap_true and ( lv_quantity_converted <> abap_true or lv_received_quantity_base > is_selection-received_qty_base_to )",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_over_rcpt_qty_base_from = abap_true and ( lv_quantity_converted <> abap_true or lv_candidate_progress_status is initial",
+    )
+    || !productionOrderFinishFake.includes(
+      "lv_over_receipt_quantity_base < is_selection-over_rcpt_qty_base_from",
+    )
+    || !productionOrderFinishFake.includes(
+      "lv_over_receipt_quantity_base > is_selection-over_rcpt_qty_base_to",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_unrecv_qty_base_from = abap_true and ( lv_quantity_converted <> abap_true or lv_open_quantity_base < is_selection-unrecv_qty_base_from )",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_unrecv_qty_base_to = abap_true and ( lv_quantity_converted <> abap_true or lv_open_quantity_base > is_selection-unrecv_qty_base_to )",
     )
     || !productionOrderFinishFake.includes(
       "is_selection-production_item is not initial and ls_order_item-production_item <> is_selection-production_item",
@@ -22856,8 +25189,467 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     || !productionConfirmationBulkReadService.includes(
       "rs_result-snapshot_timestamp = lv_snapshot_timestamp",
     )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_filter_entered_by = iv_filter_entered_by",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_filter_changed_by = iv_filter_changed_by",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_last_change_date_from = iv_last_change_date_from",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_filter_quantity_unit = iv_filter_quantity_unit",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_operation_number_from > iv_operation_number_to",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_suboperation_number_from > iv_suboperation_number_to",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_suboperation_number_from is not initial",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "is_valid_time( iv_time = iv_entry_time_from )",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-entry_time > iv_entry_time_to",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_positive_yield_only type abap_bool optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_filter_yield_quantity_from type abap_bool optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_filter_rework_quantity_to type abap_bool optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_filter_scrap_quantity_to type abap_bool optional",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_positive_yield_only <> abap_true",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_filter_scrap_quantity_to <> abap_false",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_quantity_unit is initial and iv_filter_quantity_unit <> abap_true",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_yield_quantity_from > iv_yield_quantity_to",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_positive_scrap_only = iv_positive_scrap_only",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_filter_rework_quantity_from = iv_filter_rework_quantity_from",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_suboperation_number_from type afvc-uvorn optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_suboperation_number_to type afvc-uvorn optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_number_from type afvc-vornr optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_number_to type afvc-vornr optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_sequence_from type afvc-plnfl optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_sequence_to type afvc-plnfl optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_counter_from type afvc-aplzl optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_operation_counter_to type afvc-aplzl optional",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_operation_counter_from > iv_operation_counter_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~aplzl >= @iv_operation_counter_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~aplzl <= @iv_operation_counter_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "aplzl >= @iv_operation_counter_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "aplzl <= @iv_operation_counter_to",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_counter < iv_operation_counter_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_counter > iv_operation_counter_to",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_counter < iv_operation_counter_from",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_counter > iv_operation_counter_to",
+    )
+    || !productionConfirmationBulkReadService.includes(
+      "iv_operation_sequence_from > iv_operation_sequence_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~plnfl >= @iv_operation_sequence_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~plnfl <= @iv_operation_sequence_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "plnfl >= @iv_operation_sequence_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "plnfl <= @iv_operation_sequence_to",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_sequence < iv_operation_sequence_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_sequence > iv_operation_sequence_to",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_sequence < iv_operation_sequence_from",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_sequence > iv_operation_sequence_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~vornr >= @iv_operation_number_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~vornr <= @iv_operation_number_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "vornr >= @iv_operation_number_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "vornr <= @iv_operation_number_to",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_number < iv_operation_number_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_number > iv_operation_number_to",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_number < iv_operation_number_from",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_number > iv_operation_number_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~uvorn >= @iv_suboperation_number_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afvc_row~uvorn <= @iv_suboperation_number_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "uvorn >= @iv_suboperation_number_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "uvorn <= @iv_suboperation_number_to",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_suboperation < iv_suboperation_number_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where operation_suboperation > iv_suboperation_number_to",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_suboperation < iv_suboperation_number_from",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-operation_suboperation > iv_suboperation_number_to",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~lmnga >= @iv_yield_quantity_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "lmnga >= @iv_yield_quantity_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~xmnga > @lv_zero_scrap_quantity",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where rework_quantity < iv_rework_quantity_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where scrap_quantity > iv_scrap_quantity_to",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-yield_quantity < iv_yield_quantity_from",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-scrap_quantity > iv_scrap_quantity_to",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_quantity_unit = 'ea'",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_filter_quantity_unit = abap_true",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "exp = '0000000006'",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_filter_yield_quantity_from = abap_true",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_yield_quantity_from = '0.000'",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_positive_yield_only = abap_true",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_positive_rework_only = abap_true",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "iv_positive_scrap_only = abap_true",
+    )
+    || !productionConfirmationQualityFilterTest.includes(
+      "exp = '0000000003'",
+    )
+    || !productionConfirmationRepoUnitTest.includes(
+      "iv_filter_yield_quantity_to = abap_true",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~erzet between @iv_entry_time_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "erzet between @iv_entry_time_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where entry_time < iv_entry_time_from",
+    )
+    || !productionConfirmationTimeFilterTest.includes(
+      "iv_entry_time_from = '000000'",
+    )
+    || !productionConfirmationRepoTimeTest.includes(
+      "iv_entry_time_to = '120000'",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~meinh = @iv_quantity_unit",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "meinh = @iv_quantity_unit",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where quantity_unit <> iv_quantity_unit",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-quantity_unit <> iv_quantity_unit",
+    )
+    || !productionConfirmationUnitFilterTest.includes(
+      "iv_filter_quantity_unit = abap_true",
+    )
+    || !productionConfirmationRepoUnitTest.includes(
+      "iv_quantity_unit = 'box'",
+    )
+    || !productionConfirmationRepoUnitTest.includes(
+      "maximum_results = 1",
+    )
+    || !productionConfirmationAuditFilterTest.includes(
+      "iv_last_change_date_from = '20260230'",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~ernam = @iv_entered_by",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~aenam = @iv_changed_by",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "afru_row~laeda >= @iv_last_change_date_from",
+    )
+    || !productionConfirmationBulkRepoRead.includes(
+      "laeda >= @iv_last_change_date_from",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where entered_by <> iv_entered_by",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where changed_by <> iv_changed_by",
+    )
+    || !productionConfirmationBulkFakeRead.includes(
+      "delete rt_confirmations where last_change_date is initial",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-entered_by <> iv_entered_by",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-changed_by <> iv_changed_by",
+    )
+    || !productionConfirmationResultValidation.includes(
+      "ls_confirmation-last_change_date < iv_last_change_date_from",
+    )
+    || !productionConfirmationAuditFilterTest.includes(
+      "iv_filter_changed_by = abap_true",
+    )
+    || !productionConfirmationAuditFilterTest.includes(
+      "iv_last_change_date_from = '20261004'",
+    )
     || !productionOperationBulkReadService.includes(
       "mo_repository->read_operations(",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_filter_resource_object_id <> abap_true and iv_filter_resource_object_id <> abap_false",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_resource_object_id = iv_resource_object_id",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_filter_resource_object_id = iv_filter_resource_object_id",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_suboperation_number_from type afvc-uvorn optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_suboperation_number_to type afvc-uvorn optional",
+    )
+    || !productionOperationBulkReadService.includes(
+      "validate_operation_results(",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_operation_number_from > iv_operation_number_to",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_operation_counter_from > iv_operation_counter_to",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_operation_sequence_from > iv_operation_sequence_to",
+    )
+    || !productionOperationBulkReadService.includes(
+      "iv_suboperation_number_from > iv_suboperation_number_to",
+    )
+    || !productionOperationBulkReadService.includes(
+      "and iv_operation_number is initial",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~vornr >= @lv_operation_number_from",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~vornr <= @lv_operation_number_to",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~aplzl >= @lv_operation_counter_from",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~aplzl <= @lv_operation_counter_to",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~plnfl >= @lv_operation_sequence_from",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~plnfl <= @lv_operation_sequence_to",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~uvorn >= @lv_suboperation_number_from",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "afvc_row~uvorn <= @lv_suboperation_number_to",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "uvorn >= @lv_suboperation_number_from",
+    )
+    || !productionOperationBulkRepoRead.includes(
+      "uvorn <= @lv_suboperation_number_to",
+    )
+    || !productionOperationBulkFakeRead.includes(
+      "ls_operation-suboperation_number >= iv_suboperation_number_from",
+    )
+    || !productionOperationBulkFakeRead.includes(
+      "ls_operation-suboperation_number <= iv_suboperation_number_to",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_number < iv_operation_number_from",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_number > iv_operation_number_to",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_counter < iv_operation_counter_from",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_counter > iv_operation_counter_to",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_sequence < iv_operation_sequence_from",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-operation_sequence > iv_operation_sequence_to",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-suboperation_number < iv_suboperation_number_from",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-suboperation_number > iv_suboperation_number_to",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_operation_number_from = '0020'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_operation_number_from = '0030'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_operation_number_to = '0010'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_operation_counter_from = '00000002'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_operation_sequence_from = '000000'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_suboperation_number_from = '0002'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_suboperation_number_to = '0003'",
+    )
+    || !productionOperationValidationTest.includes(
+      "iv_operation_sequence_from = '000002'",
+    )
+    || !productionOperationValidationTest.includes(
+      "iv_suboperation_number_from = '0002'",
+    )
+    || !productionOperationValidationTest.includes(
+      "iv_operation_counter_from = '00000002'",
+    )
+    || !productionOperationValidationTest.includes(
+      "iv_operation_number_from = '0020'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_operation_number_to = '0020'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_operation_number_from = '0020'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_operation_number_to = '0010'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_operation_counter_to = '00000003'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_operation_sequence_to = '000001'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_suboperation_number_from = '0001'",
+    )
+    || !productionOperationRepoReadTest.includes(
+      "iv_suboperation_number_to = '0002'",
+    )
+    || !productionOperationResultsValidation.includes(
+      "ls_operation-resource_object_id <> iv_resource_object_id",
     )
     || !productionOperationBulkReadService.includes(
       "get time stamp field lv_snapshot_timestamp",
@@ -22880,10 +25672,97 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       productionOrderReadServiceSource,
     )
     || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_number_from = '0020'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_number_to = '0030'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_suboperation_number_from = '0002'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_suboperation_number_to = '0003'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_sequence_from = '000001'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_sequence_to = '000002'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_counter_from = '00000002'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_counter_to = '00000003'",
+    )
+    || !productionConfirmationValidationTest.includes(
+      "iv_operation_counter_from = '00000004'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
+      "iv_operation_sequence_from = '000002'",
+    )
+    || !productionConfirmationValidationTest.includes(
+      "iv_operation_number_from = '0030'",
+    )
+    || !productionConfirmationValidationTest.includes(
+      "iv_suboperation_number_from = '0002'",
+    )
+    || !productionConfirmationValidationTest.includes(
+      "lo_repository->confirmation_override",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "iv_operation_number_from = '0020'",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_paged_vornr_range",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_paged_subop_range",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_paged_sequence_range",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_sequence_intersection",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_counter_range",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_paged_counter_range",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "lt_counter_intersection",
+    )
+    || !productionConfirmationRepoReadTest.includes(
+      "iv_suboperation_number_to = '0002'",
+    )
+    || !productionConfirmationBulkReadTest.includes(
       "assert_not_initial( act = ls_result-snapshot_timestamp )",
     )
     || !productionOperationBulkReadTest.includes(
       "assert_not_initial( act = ls_result-snapshot_timestamp )",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "resource_object_id = '00000003'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "ls_result-orders[ 1 ]-operations[ 1 ]-resource_object_id",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_resource_object_id = '00000003'",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "iv_filter_resource_object_id = abap_true",
+    )
+    || !productionOperationBulkReadTest.includes(
+      "ls_unassigned_result-orders[ 1 ]-operations[ 1 ]-resource_object_id",
+    )
+    || !productionOperationValidationTest.includes(
+      "iv_filter_resource_object_id = 'y'",
+    )
+    || !productionOperationValidationTest.includes(
+      "lo_repository->operation_override",
     )
     || !productionEmptyConfirmationBulkReadTest.includes(
       "assert_initial( ls_result-snapshot_timestamp )",
@@ -23080,7 +25959,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "method rejects_bad_finish_category.",
     )
     || !productionOrderReadServiceTests.includes(
-      "act = lines( ls_result-orders[ 1 ]-items ) exp = 2",
+      "act = lines( ls_result-orders[ 1 ]-items ) exp = 3",
     )
     || !productionOrderReadServiceTests.includes("'0000000002'")
     || !productionOrderFinishPlan.includes(
@@ -23360,6 +26239,18 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "optional inclusive `filter_order_qty_from` and `filter_order_qty_to` bounds select items by `afpo-psmng` in the afpo order unit",
     )
     || !productionOrderFinishPlan.includes(
+      "optional inclusive `filter_order_qty_base_from` and `filter_order_qty_base_to` bounds select `order_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "optional inclusive `filter_received_qty_base_from` and `filter_received_qty_base_to` bounds select `received_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "optional inclusive `filter_over_rcpt_qty_base_from` and `filter_over_rcpt_qty_base_to` bounds select `over_receipt_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "optional inclusive `filter_unrecv_qty_base_from` and `filter_unrecv_qty_base_to` bounds select `open_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishPlan.includes(
       "enabled bounds must be positive, disabled bound values must be initial, and the lower bound cannot exceed the upper bound",
     )
     || !productionOrderFinishDocs.includes(
@@ -23419,9 +26310,66 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
     || !productionOrderFinishDocs.includes(
       "optional inclusive `filter_order_qty_from` / `order_qty_from` and `filter_order_qty_to` / `order_qty_to` pairs bound `afpo-psmng` in the afpo order unit",
     )
+    || !productionOrderFinishDocs.includes(
+      "optional inclusive `filter_order_qty_base_from` / `order_qty_base_from` and `filter_order_qty_base_to` / `order_qty_base_to` pairs bound `order_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "optional inclusive `filter_received_qty_base_from` / `received_qty_base_from` and `filter_received_qty_base_to` / `received_qty_base_to` pairs bound `received_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "optional inclusive `filter_over_rcpt_qty_base_from` and `filter_over_rcpt_qty_base_to` bounds select `over_receipt_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "optional inclusive `filter_over_receipt_qty_from` and `filter_over_receipt_qty_to` bounds select `over_receipt_qty_order_unit` in the afpo order unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "optional inclusive `filter_unrecv_qty_base_from` / `unrecv_qty_base_from` and `filter_unrecv_qty_base_to` / `unrecv_qty_base_to` pairs bound `open_quantity_base` in the material base unit",
+    )
     || !productionOrderFinishAnomalies.includes("unreceived_quantity_only")
     || !productionOrderFinishAnomalies.includes(
-      "category, order type and description, order quantity, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, finish/start-date, and order/remaining-quantity conditions",
+      "planning and delivery plants, item number, category, order type and description, order unit, sales-order assignment/item/schedule line, planned-order reference and start date, production version, special-stock indicator, stock type, goods recipient, unloading point, storage location, batch, account-assignment category, mrp area, wbs assignment, order-quantity and base-unit quantity bounds, received-quantity and over-receipt quantity bounds, received-base-unit and over-receipt-base-unit quantity bounds, received-percentage bounds, unreceived-quantity and unreceived-base-unit quantity bounds, unreceived-percentage bounds, and receipt-progress state, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, basic finish/start dates, and scheduled start/finish dates and time ranges",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "the key query uses afpo-umrez/umren cross-products before pagination and excludes rows whose order unit, base unit, order quantity, received quantity, or conversion ratio would leave quantity conversion unsuccessful",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "the key query compares afpo-wemng against the afpo-umrez/umren ratio before pagination and requires a successful quantity conversion",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "the key query compares the positive afpo-psmng minus afpo-wemng quantity against the afpo-umrez/umren ratio before pagination and requires successful quantity conversion",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`filter_over_rcpt_qty_base_from` and `filter_over_rcpt_qty_base_to` select inclusive bounds on `over_receipt_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`filter_over_receipt_qty_from` and `filter_over_receipt_qty_to` select inclusive bounds on the derived `over_receipt_qty_order_unit` in the afpo order unit",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`filter_over_receipt_pct_from` and `filter_over_receipt_pct_to` select inclusive bounds on the raw over-receipt-to-order ratio before display rounding",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_over_receipt_pct_from` and `filter_over_receipt_pct_to` add inclusive bounds for the raw over-receipt-to-order quantity ratio, expressed as a percentage before two-decimal display rounding",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `filter_over_receipt_pct_from` and `filter_over_receipt_pct_to` for inclusive bounds on the raw over-receipt-to-order quantity ratio as a percentage before two-decimal display rounding",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "production-order items also expose `over_receipt_pct_of_order_qty`, computed from valid afpo order and received quantities before two-decimal display rounding",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`over_receipt_quantity_base` exposes the excess in the material base unit when conversion succeeds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "optional inclusive `filter_over_receipt_qty_from` and `filter_over_receipt_qty_to` bounds select `over_receipt_qty_order_unit` in the afpo order unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`active_status_codes` can select several currently active sap system or user statuses; at least one listed code must be active",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`active_status_codes` can select several currently active sap system or user statuses; at least one listed code must be active",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`active_status_code` tests one active jest status, while `active_status_codes` accepts several and matches when any listed status is active at key selection time",
     )
     || !productionOrderFinishAnomalies.includes(
       "scheduled start and finish dates and time-of-day values are returned alongside basic dates; the finish window, result order, and continuation cursor still use basic finish dates",
@@ -23466,20 +26414,20 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "each order flags `status_filter_lost` if that status is no longer active",
     )
     || !productionOrderFinishPlan.includes(
-      "`finish_filter_lost` marks an order when none of its returned items still matches the selected material, plant, item number, category, order type and description, order quantity, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, finish/start-date, and remaining-quantity conditions",
+      "`finish_filter_lost` marks an order when none of its returned items still matches the selected material, production plant, planning and delivery plants, item number, category, order type and description, order unit, sales-order assignment/item/schedule line, planned-order reference and start date, production version, special-stock indicator, stock type, goods recipient, unloading point, storage location, batch, account-assignment category, mrp area, wbs assignment, order-quantity and base-unit quantity bounds, received-quantity and over-receipt quantity bounds, received-base-unit and over-receipt-base-unit quantity bounds, received-percentage bounds, unreceived-quantity and unreceived-base-unit quantity bounds, unreceived-percentage bounds, and receipt-progress state, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, basic finish/start dates, and scheduled start/finish dates and time ranges",
     )
     || !productionOrderFinishDocs.includes(
-      "`finish_filter_lost` marks an order if no returned item still matches its selected material, plant, item number, category, order type and description, order quantity, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, finish/start-date, and remaining-quantity conditions",
-    )
-    || !productionOrderFinishPlan.includes(
-      "the drift check also covers sales-order assignment and item, planned-order reference and start date, planning plant, production version, storage location, batch, account-assignment category, mrp area, and wbs assignment",
-    )
-    || !productionOrderFinishDocs.includes(
-      "the drift check also covers sales-order assignment and item, planned-order reference and start date, planning plant, production version, storage location, batch, account-assignment category, mrp area, and wbs assignment",
+      "`finish_filter_lost` marks an order if no returned item still matches its selected material, production plant, planning and delivery plants, item number, category, order type and description, order unit, sales-order assignment/item/schedule line, planned-order reference and start date, production version, special-stock indicator, stock type, goods recipient, unloading point, storage location, batch, account-assignment category, mrp area, wbs assignment, order-quantity and base-unit quantity bounds, received-quantity and over-receipt quantity bounds, received-base-unit and over-receipt-base-unit quantity bounds, received-percentage bounds, unreceived-quantity and unreceived-base-unit quantity bounds, unreceived-percentage bounds, and receipt-progress state, order creator and changer, creation and change-date ranges, required phase, deletion, receipt-expected state, delivery-completion state, basic finish/start dates, and scheduled start/finish dates and time ranges",
     )
     || !productionOrderFinishAnomalies.includes("finish_filter_lost_count")
     || !productionOrderFinishAnomalies.includes(
-      "the drift check also covers sales-order assignment and item, planned-order reference and start date, planning plant, production version, storage location, batch, account-assignment category, mrp area, and wbs assignment",
+      "finish-window results also report `finish_match_base_qty_summary` and each order reports `matching_base_qty_summary`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "each summary also reports received, open, and over-receipt percentages computed from the aggregate totals and rounded to two decimals",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`invalid_progress_count` includes invalid-progress rows even when conversion also failed; `valid_progress_conv_fail_count` counts conversion failures with valid progress",
     )
     || !productionOrderFinishPlan.includes(
       "## production-order bulk read completion times",
@@ -23586,6 +26534,1472 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
   );
 }
 
+if (!productionOrderFinishPlan.includes(
+      "## production-order receipt progress quantities and status",
+    )
+    || !productionOrderFinishPlan.includes(
+      "## production-order quantity conversion summaries",
+    )
+    || !productionOrderFinishPlan.includes(
+      "for each order and page, the two counts sum to the returned detail-item count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "finish-window results additionally expose `finish_match_conv_ok_count` and `finish_match_conv_fail_count`, with matching per-order counts `matching_conv_ok_count` and `matching_conv_fail_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "finish-window results also expose `finish_match_base_qty_summary` and the per-order `matching_base_qty_summary`, each with `item_count`, `excluded_item_count`, `contributing_progress_counts`, `contributing_progress_qty`, `invalid_progress_count`, `valid_progress_conv_fail_count`, `order_qty_base_total`, `received_qty_base_total`, `open_qty_base_total`, and `over_rcpt_qty_base_total` in the selected material's base unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`invalid_progress_count` includes every matching item with invalid receipt progress, even if conversion also failed",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`valid_progress_conv_fail_count` counts only matching items with valid receipt progress and failed conversion",
+    )
+    || !productionOrderFinishPlan.includes(
+      "these disjoint reason counts sum to `excluded_item_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "for each order, contributing and excluded counts sum to `finish_window_match_count`; page counts sum the per-order counts",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each order's two counts sum to its `finish_window_match_count`, and the page counts sum across the returned orders",
+    )
+    || !productionOrderFinishPlan.includes(
+      "the received percentage can exceed 100 when receipts exceed the order quantity",
+    )
+    || !productionOrderFinishPlan.includes(
+      "over-receipt quantity is the excess above the order quantity, or zero otherwise",
+    )
+    || !productionOrderFinishPlan.includes(
+      "for a valid not-started item, open quantity equals the full order quantity and open percentage is 100.00",
+    )
+    || !productionOrderFinishPlan.includes(
+      "a nonpositive order quantity or negative received quantity leaves the five derived numeric values initial",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each item also exposes `is_receipt_progress_valid`. it is true exactly when the order quantity is positive and received quantity is nonnegative, and false otherwise",
+    )
+    || !productionOrderFinishPlan.includes("receipt_progress_status")
+    || !productionOrderFinishPlan.includes("receipt_progress_counts")
+    || !productionOrderFinishPlan.includes("each returned item contributes to one count")
+    || !productionOrderFinishPlan.includes(
+      "`total_item_count` equals the sum of all five status counts",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each returned order also exposes `receipt_progress_counts`, calculated over all of that order's returned items; an itemless order leaves the summary initial",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each finish-window order's matching-summary `total_item_count` equals its `finish_window_match_count`, and the page-level matching total equals the sum of the per-order matching totals",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each receipt-progress summary also exposes `not_started_pct`, `partial_pct`, `complete_pct`, `over_received_pct`, and `invalid_pct`. each percentage uses `total_item_count` as its denominator, including invalid-quantity items, and is rounded to two decimal places. empty summaries leave the total and all percentages initial",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`n` for not started, `p` for partial, `c` for fully received, and `o` for over-received",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`over_receipt_pct_of_order_qty` is that excess divided by the order quantity, expressed as a percentage before two-decimal display rounding",
+    )
+    || !productionOrderFinishPlan.includes(
+      "when base-unit conversion succeeds, `over_receipt_quantity_base` reports the positive excess converted with the afpo order-to-base ratio",
+    )
+    || !productionOrderFinishPlan.includes("c_receipt_progress_*` constants")
+    || !productionOrderFinishDocs.includes(
+      "same order-unit open and over-receipt quantities, over-receipt percentage, receipt-progress percentages, and status as `read_orders_bulk`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "over_receipt_qty_order_unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`over_receipt_pct_of_order_qty`, the over-receipt quantity as a percentage of the order quantity before two-decimal rounding",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`over_receipt_quantity_base` in the material base unit",
+    )
+    || !productionOrderFinishDocs.includes("receipt_progress_status")
+    || !productionOrderFinishDocs.includes(
+      "a valid not-started item reports its full order quantity as open and an open percentage of 100.00",
+    )
+    || !productionOrderFinishDocs.includes("is_receipt_progress_valid")
+    || !productionOrderFinishDocs.includes(
+      "it remains false for invalid raw quantities, independently of base-unit conversion success",
+    )
+    || !productionOrderFinishDocs.includes("receipt_progress_counts")
+    || !productionOrderFinishDocs.includes(
+      "the page-level `conversion_succeeded_count` and `conversion_failed_count`, and the same per-order counts, reconcile to all returned detail items",
+    )
+    || !productionOrderFinishDocs.includes(
+      "finish-window results also report `finish_match_conv_ok_count` and `finish_match_conv_fail_count`, with per-order `matching_conv_ok_count` and `matching_conv_fail_count`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "finish-window results also expose `finish_match_base_qty_summary` and per-order `matching_base_qty_summary`, each with `item_count`, `excluded_item_count`, `contributing_progress_counts`, `contributing_progress_qty`, `invalid_progress_count`, `valid_progress_conv_fail_count`, `order_qty_base_total`, `received_qty_base_total`, `open_qty_base_total`, and `over_rcpt_qty_base_total` in the selected material's base unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`invalid_progress_count` includes invalid-progress rows even when conversion also failed",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`valid_progress_conv_fail_count` counts only conversion failures with valid progress",
+    )
+    || !productionOrderFinishDocs.includes(
+      "these disjoint reason counts sum to `excluded_item_count`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "per-order contributing and excluded counts sum to `finish_window_match_count`; page counts sum across orders",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each summary also reports `received_pct_of_order_qty`, `open_pct_of_order_qty`, and `over_rcpt_pct_of_order_qty`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each summary also includes `received_pct_of_order_qty`, `open_pct_of_order_qty`, and `over_rcpt_pct_of_order_qty`, calculated from the aggregate totals and rounded to two decimals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "these matching-only counts reconcile to `finish_window_match_count`; direct bulk reads leave them initial",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`invalid_item_count`, and `total_item_count`. each returned item contributes to one status count, and `total_item_count` is the sum of the five status counts",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each returned order also exposes `receipt_progress_counts` over every item returned for that order. its counts and total reconcile to the order's detail rows; an itemless order leaves the summary initial",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each finish-window order's matching-summary total equals its `finish_window_match_count`, and the page-level matching total is the sum of those per-order totals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each progress-count structure also exposes `not_started_pct`, `partial_pct`, `complete_pct`, `over_received_pct`, and `invalid_pct`, using the sum of all five state counts, including invalid items, exposed by `total_item_count` as the denominator. percentages are rounded to two decimal places; empty summaries leave the total and percentages initial",
+    )
+    || !productionOrderFinishDocs.includes(
+      "matching `c_receipt_progress_*` constants",
+    )
+    || !productionOrderFinishDocs.includes(
+      "over-receipt quantity reports the excess in order units",
+    )
+    || !productionOrderBulkReadService.includes("open_quantity_order_unit")
+    || !productionOrderBulkReadService.includes(
+      "over_receipt_qty_order_unit",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "over_receipt_pct_of_order_qty type p length 16 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "over_receipt_quantity_base type decfloat34",
+    )
+    || !productionOrderBulkReadService.includes(
+      "<ls_item_result>-over_receipt_pct_of_order_qty = <ls_item_result>-over_receipt_qty_order_unit * 100 / lv_order_quantity",
+    )
+    || !productionOrderBulkReadService.includes(
+      "<ls_item_result>-is_receipt_progress_valid = abap_true and ls_order_item-received_quantity > ls_order_item-order_quantity",
+    )
+    || !productionOrderBulkReadService.includes(
+      "iv_quantity = ls_order_item-received_quantity - ls_order_item-order_quantity",
+    )
+    || !productionOrderBulkReadService.includes(
+      "<ls_item_result>-over_receipt_quantity_base = lo_quantity_calculator->calculate_base_quantity",
+    )
+    || !productionOrderBulkReadService.includes(
+      "received_pct_of_order_qty",
+    )
+    || !productionOrderBulkReadService.includes(
+      "open_pct_of_order_qty",
+    )
+    || !productionOrderBulkReadService.includes("receipt_progress_status")
+    || !productionOrderBulkReadService.includes(
+      "<ls_item_result>-open_quantity_order_unit = lv_order_quantity",
+    )
+    || !productionOrderBulkReadService.includes("receipt_progress_counts")
+    || !productionOrderBulkReadService.includes("invalid_item_count")
+    || !productionOrderBulkReadService.includes("calculate_progress_shares")
+    || !productionOrderFinishServiceSearch.includes("calculate_progress_shares")
+    || !productionOrderReadServiceSource.includes(
+      "total_item_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_counts-total_item_count = lv_total_count",
+    )
+    || !/begin of ty_order_result,[\s\S]*?receipt_progress_counts\s+type ty_receipt_progress_counts[\s\S]*?end of ty_order_result/.test(
+      productionOrderReadServiceSource,
+    )
+    || !productionOrderReadServiceSource.includes(
+      "not_started_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "+ cs_counts-invalid_item_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "c_receipt_progress_not_started",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "c_receipt_progress_partial",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "c_receipt_progress_complete",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "c_receipt_over_received",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "is_receipt_progress_valid type abap_bool",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "is_receipt_progress_valid = abap_true",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "is_receipt_progress_valid = abap_false",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "conversion_succeeded_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "conversion_failed_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to rs_result-conversion_succeeded_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to <ls_order_result>-conversion_succeeded_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to <ls_order_result>-conversion_failed_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "matching_conv_ok_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "matching_conv_fail_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "finish_match_conv_ok_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "finish_match_conv_fail_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "begin of ty_finish_base_qty_summary, item_count type i, excluded_item_count type i, invalid_progress_count type i, valid_progress_conv_fail_count type i, order_qty_base_total type decfloat34, received_qty_base_total type decfloat34, open_qty_base_total type decfloat34, over_rcpt_qty_base_total type decfloat34, contributing_progress_counts type ty_receipt_progress_counts, contributing_progress_qty type ty_progress_qty_totals",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "matching_base_qty_summary type ty_finish_base_qty_summary",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "finish_match_base_qty_summary type ty_finish_base_qty_summary",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "received_pct_of_order_qty type p length 16 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "open_pct_of_order_qty type p length 16 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "over_rcpt_pct_of_order_qty type p length 16 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "over_rcpt_pct_of_received_qty type p length 16 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "contributing_item_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "contributing_progress_counts type ty_receipt_progress_counts",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "contributing_progress_qty type ty_progress_qty_totals",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "begin of ty_progress_qty_totals, not_started type ty_finish_base_progress_qty, partial type ty_finish_base_progress_qty, complete type ty_finish_base_progress_qty, over_received type ty_finish_base_progress_qty, invalid type ty_finish_base_progress_qty",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "order_qty_base_total type decfloat34, received_qty_base_total type decfloat34, open_qty_base_total type decfloat34, over_rcpt_qty_base_total type decfloat34, order_qty_total_share_pct type p length 5 decimals 2, received_qty_total_share_pct type p length 5 decimals 2, open_qty_total_share_pct type p length 5 decimals 2, over_rcpt_qty_total_share_pct type p length 5 decimals 2, end of ty_finish_base_progress_qty",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "order_qty_total_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "received_qty_total_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "open_qty_total_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "over_rcpt_qty_total_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "excluded_item_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "invalid_progress_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "valid_progress_conv_fail_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "invalid_excluded_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "conv_fail_excluded_share_pct type p length 5 decimals 2",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "invalid_progress_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "valid_progress_conv_fail_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method calc_finish_base_qty_shares. data(lv_matching_count) = cs_summary-item_count + cs_summary-excluded_item_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-contributing_item_pct = conv decfloat34( cs_summary-item_count ) * 100 / lv_matching_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-excluded_item_pct = conv decfloat34( cs_summary-excluded_item_count ) * 100 / lv_matching_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-invalid_progress_pct = conv decfloat34( cs_summary-invalid_progress_count ) * 100 / lv_matching_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-valid_progress_conv_fail_pct = conv decfloat34( cs_summary-valid_progress_conv_fail_count ) * 100 / lv_matching_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if cs_summary-excluded_item_count > 0. cs_summary-invalid_excluded_share_pct = conv decfloat34( cs_summary-invalid_progress_count ) * 100 / cs_summary-excluded_item_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-conv_fail_excluded_share_pct = conv decfloat34( cs_summary-valid_progress_conv_fail_count ) * 100 / cs_summary-excluded_item_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if cs_summary-item_count = 0 or cs_summary-order_qty_base_total <= 0. return. endif.",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-received_pct_of_order_qty = cs_summary-received_qty_base_total * 100 / cs_summary-order_qty_base_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-open_pct_of_order_qty = cs_summary-open_qty_base_total * 100 / cs_summary-order_qty_base_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_summary-over_rcpt_pct_of_order_qty = cs_summary-over_rcpt_qty_base_total * 100 / cs_summary-order_qty_base_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if cs_summary-received_qty_base_total <= 0. return. endif. cs_summary-over_rcpt_pct_of_received_qty = cs_summary-over_rcpt_qty_base_total * 100 / cs_summary-received_qty_base_total",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "calc_finish_base_qty_shares( changing cs_summary = <ls_finish_order>-matching_base_qty_summary )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "calc_finish_base_qty_shares( changing cs_summary = rs_result-finish_match_base_qty_summary )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "<ls_matching_finish_item>-is_quantity_converted = abap_true and <ls_matching_finish_item>-is_receipt_progress_valid = abap_true",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-item_count = rs_result-finish_match_base_qty_summary-item_count + <ls_finish_order>-matching_base_qty_summary-item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "case <ls_matching_finish_item>-receipt_progress_status. when c_receipt_progress_not_started. add 1 to <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-not_started_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-partial_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-complete_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-over_received_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-invalid_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "calculate_progress_shares( changing cs_counts = <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-contributing_progress_counts-not_started_item_count = rs_result-finish_match_base_qty_summary-contributing_progress_counts-not_started_item_count + <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-not_started_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-contributing_progress_counts-partial_item_count = rs_result-finish_match_base_qty_summary-contributing_progress_counts-partial_item_count + <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-partial_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-contributing_progress_counts-complete_item_count = rs_result-finish_match_base_qty_summary-contributing_progress_counts-complete_item_count + <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-complete_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-contributing_progress_counts-over_received_item_count = rs_result-finish_match_base_qty_summary-contributing_progress_counts-over_received_item_count + <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-over_received_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-contributing_progress_counts-invalid_item_count = rs_result-finish_match_base_qty_summary-contributing_progress_counts-invalid_item_count + <ls_finish_order>-matching_base_qty_summary-contributing_progress_counts-invalid_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "calculate_progress_shares( changing cs_counts = rs_result-finish_match_base_qty_summary-contributing_progress_counts )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "collect_contrib_progress_qty( exporting iv_progress_status = <ls_matching_finish_item>-receipt_progress_status is_item = <ls_matching_finish_item> changing cs_totals = <ls_finish_order>-matching_base_qty_summary-contributing_progress_qty )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "collect_progress_qty_totals( exporting is_source = <ls_finish_order>-matching_base_qty_summary-contributing_progress_qty changing cs_target = rs_result-finish_match_base_qty_summary-contributing_progress_qty )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method collect_contrib_progress_qty. case iv_progress_status. when c_receipt_progress_not_started. cs_totals-not_started-order_qty_base_total = cs_totals-not_started-order_qty_base_total + is_item-order_quantity_base",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "when c_receipt_over_received. cs_totals-over_received-order_qty_base_total = cs_totals-over_received-order_qty_base_total + is_item-order_quantity_base",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "when others. cs_totals-invalid-order_qty_base_total = cs_totals-invalid-order_qty_base_total + is_item-order_quantity_base",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method collect_progress_qty_totals. cs_target-not_started-order_qty_base_total = cs_target-not_started-order_qty_base_total + is_source-not_started-order_qty_base_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "cs_target-invalid-over_rcpt_qty_base_total = cs_target-invalid-over_rcpt_qty_base_total + is_source-invalid-over_rcpt_qty_base_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method calc_progress_qty_shares. if iv_order_qty_total > 0. cs_group-order_qty_total_share_pct = cs_group-order_qty_base_total * 100 / iv_order_qty_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if iv_received_qty_total > 0. cs_group-received_qty_total_share_pct = cs_group-received_qty_base_total * 100 / iv_received_qty_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if iv_open_qty_total > 0. cs_group-open_qty_total_share_pct = cs_group-open_qty_base_total * 100 / iv_open_qty_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if iv_over_rcpt_qty_total > 0. cs_group-over_rcpt_qty_total_share_pct = cs_group-over_rcpt_qty_base_total * 100 / iv_over_rcpt_qty_total",
+    )
+    || (productionOrderReadServiceSource.match(
+      /calc_progress_qty_shares\( exporting iv_order_qty_total = cs_summary-order_qty_base_total/g,
+    ) ?? []).length !== 5
+    || !productionOrderFinishServiceSearch.includes(
+      "<ls_finish_order>-matching_base_qty_summary-excluded_item_count = <ls_finish_order>-matching_base_qty_summary-invalid_progress_count + <ls_finish_order>-matching_base_qty_summary-valid_progress_conv_fail_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "if <ls_matching_finish_item>-is_receipt_progress_valid <> abap_true",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-invalid_progress_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "elseif <ls_matching_finish_item>-is_quantity_converted <> abap_true",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_base_qty_summary-valid_progress_conv_fail_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-invalid_progress_count = rs_result-finish_match_base_qty_summary-invalid_progress_count + <ls_finish_order>-matching_base_qty_summary-invalid_progress_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-valid_progress_conv_fail_count = rs_result-finish_match_base_qty_summary-valid_progress_conv_fail_count + <ls_finish_order>-matching_base_qty_summary-valid_progress_conv_fail_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "rs_result-finish_match_base_qty_summary-excluded_item_count = rs_result-finish_match_base_qty_summary-excluded_item_count + <ls_finish_order>-matching_base_qty_summary-excluded_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_matching_finish_item>-over_receipt_quantity_base",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_matching_finish_item>-order_quantity_base",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_matching_finish_item>-received_quantity_base",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_matching_finish_item>-open_quantity_base",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_finish_order>-matching_base_qty_summary-order_qty_base_total",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_finish_order>-matching_base_qty_summary-received_qty_base_total",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_finish_order>-matching_base_qty_summary-open_qty_base_total",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "+ <ls_finish_order>-matching_base_qty_summary-over_rcpt_qty_base_total",
+    )
+    || !productionOrderFinishPlan.includes(
+      "order plus over-receipt totals reconcile with received plus open totals, subject to decfloat34 rounding",
+    )
+    || !productionOrderFinishPlan.includes(
+      "this is a weighted ratio of totals, not an average of item percentages",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`over_rcpt_pct_of_received_qty` divides aggregate over-receipt by aggregate received base quantity",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`contributing_progress_counts` partitions contributing rows among not-started, partial, complete, and over-received states",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`contributing_progress_qty` reports order, received, open, and over-receipt base-unit totals for each `not_started`, `partial`, `complete`, `over_received`, and `invalid` status group",
+    )
+    || !productionOrderFinishPlan.includes(
+      "summing each quantity across the groups reconciles with its overall total, subject to decfloat34 rounding",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each group also exposes `order_qty_total_share_pct`, `received_qty_total_share_pct`, `open_qty_total_share_pct`, and `over_rcpt_qty_total_share_pct`, showing its share of the corresponding overall quantity total",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`contributing_item_pct` and `excluded_item_pct` show the two counts as percentages of all matching items, rounded to two decimals",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`invalid_progress_pct` and `valid_progress_conv_fail_pct` expose each disjoint exclusion reason as a percentage of all matching items",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`invalid_excluded_share_pct` and `conv_fail_excluded_share_pct` show each disjoint reason's share of `excluded_item_count`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`contributing_item_pct` and `excluded_item_pct` report the two counts as percentages of matched items, rounded to two decimals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`invalid_progress_pct` and `valid_progress_conv_fail_pct` report each disjoint exclusion reason as a percentage of all matched items",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`over_rcpt_pct_of_received_qty` divides the aggregate over-receipt total by aggregate received quantity",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`contributing_progress_counts` breaks contributing items down by not-started, partial, complete, and over-received states",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`contributing_progress_qty` reports order, received, open, and over-receipt base-unit totals for the not-started, partial, complete, over-received, and invalid groups",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each group also reports `order_qty_total_share_pct`, `received_qty_total_share_pct`, `open_qty_total_share_pct`, and `over_rcpt_qty_total_share_pct` as shares of the corresponding overall totals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`invalid_excluded_share_pct` and `conv_fail_excluded_share_pct` report each disjoint reason's share of the excluded items",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`contributing_item_pct` and `excluded_item_pct` report the two counts as percentages of matching items, rounded to two decimals",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`invalid_progress_pct` and `valid_progress_conv_fail_pct` report each disjoint exclusion reason as a share of matched items",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`over_rcpt_pct_of_received_qty` reports over-receipt as a share of received base quantity",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`contributing_progress_counts` breaks contributing items down by not-started, partial, complete, and over-received states",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`contributing_progress_qty` reports order, received, open, and over-receipt base-unit totals for each progress-state group",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "each group also exposes order, received, open, and over-receipt quantity share percentages relative to their corresponding overall totals",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`invalid_excluded_share_pct` and `conv_fail_excluded_share_pct` report each reason's share of excluded items",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to rs_result-finish_match_conv_ok_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to <ls_finish_order>-matching_conv_fail_count",
+    )
+    || !productionOrderBulkReadTest.includes("'125.00'")
+    || !productionOrderBulkReadTest.includes("'80.00'")
+    || !productionOrderBulkReadTest.includes("over_receipt_qty_order_unit")
+    || !productionOrderBulkReadTest.includes("'0.500'")
+    || !productionOrderBulkReadTest.includes("c_receipt_progress_partial")
+    || !productionOrderBulkReadTest.includes(
+      "is_receipt_progress_valid",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "act = ls_result-conversion_succeeded_count exp = 4",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "act = ls_result-orders[ 2 ]-conversion_succeeded_count exp = 3",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "act = ls_result-orders[ 1 ]-conversion_failed_count exp = 0",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-conversion_succeeded_count exp = 3",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-orders[ 1 ]-conversion_succeeded_count exp = 3",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-finish_match_conv_ok_count exp = 2",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-orders[ 1 ]-matching_conv_ok_count exp = 2",
+    )
+    || !productionOrderFinishConversionTest.includes(
+      "act = ls_result-conversion_failed_count exp = 1",
+    )
+    || !productionOrderFinishConversionTest.includes(
+      "act = ls_result-finish_match_conv_fail_count exp = 1",
+    )
+    || !productionOrderFinishConversionTest.includes(
+      "act = ls_result-orders[ 1 ]-matching_conv_fail_count exp = 1",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "orders[ 1 ]-matching_conv_ok_count",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "act = ls_result-orders[ 2 ]-matching_conv_ok_count exp = 1",
+    )
+    || !productionOrderFinishDriftTest.includes(
+      "act = ls_result-finish_match_conv_ok_count exp = 1",
+    )
+    || !productionOrderBulkReadTest.includes("c_receipt_progress_complete")
+    || !productionOrderBulkReadTest.includes(
+      "c_receipt_over_received",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "receipt_progress_counts-partial_item_count",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "receipt_progress_counts-complete_item_count",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "receipt_progress_counts-over_received_item_count",
+    )
+    || !productionOrderBulkReadTest.includes("receipt_progress_counts-partial_pct")
+    || !productionOrderBulkReadTest.includes("receipt_progress_counts-complete_pct")
+    || !productionOrderBulkReadTest.includes("receipt_progress_counts-over_received_pct")
+    || !productionOrderBulkReadTest.includes("receipt_progress_counts-total_item_count exp = 4")
+    || !productionOrderBulkReadTest.includes("orders[ 1 ]-receipt_progress_counts-total_item_count exp = 1")
+    || !productionOrderBulkReadTest.includes("orders[ 1 ]-receipt_progress_counts-partial_pct exp = conv decfloat34( '100.00' )")
+    || !productionOrderBulkReadTest.includes("orders[ 2 ]-receipt_progress_counts-total_item_count exp = 3")
+    || !productionOrderBulkReadTest.includes("orders[ 2 ]-receipt_progress_counts-over_received_item_count exp = 1")
+    || !productionOrderBadUnitsTest.includes("open_quantity_order_unit")
+    || !productionOrderBadUnitsTest.includes("received_pct_of_order_qty")
+    || !productionOrderBadUnitsTest.includes("open_pct_of_order_qty")
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 4 ]-open_quantity_order_unit",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 5 ]-open_quantity_order_unit",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 1 ]-open_quantity_order_unit exp = conv decfloat34( '2.000' )",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 1 ]-open_pct_of_order_qty exp = conv decfloat34( '100.00' )",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 4 ]-over_receipt_qty_order_unit",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 5 ]-over_receipt_qty_order_unit",
+    )
+    || !productionOrderBadUnitsTest.includes("receipt_progress_status")
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 3 ]-is_receipt_progress_valid",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 4 ]-is_receipt_progress_valid",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "items[ 5 ]-is_receipt_progress_valid",
+    )
+    || !productionOrderBadUnitsTest.includes(
+      "receipt_progress_counts-invalid_item_count",
+    )
+    || !productionOrderBadUnitsTest.includes("receipt_progress_counts-invalid_pct")
+    || !productionOrderBadUnitsTest.includes("receipt_progress_counts-total_item_count exp = 5")
+    || !productionOrderBadUnitsTest.includes("orders[ 1 ]-receipt_progress_counts-total_item_count exp = 5")
+    || !productionOrderBadUnitsTest.includes("assert_initial( ls_result-orders[ 2 ]-receipt_progress_counts )")
+    || !productionOrderFinishReadTest.includes("open_quantity_order_unit")
+    || !productionOrderFinishReadTest.includes(
+      "over_receipt_qty_order_unit",
+    )
+    || !productionOrderFinishReadTest.includes("c_receipt_progress_partial")
+    || !productionOrderFinishReadTest.includes(
+      "receipt_progress_counts-not_started_item_count",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "receipt_progress_counts-partial_item_count",
+    )
+    || !productionOrderFinishReadTest.includes("receipt_progress_counts-not_started_pct")
+    || !productionOrderFinishReadTest.includes("receipt_progress_counts-total_item_count exp = 3")
+    || !productionOrderFinishReadTest.includes("orders[ 1 ]-receipt_progress_counts-total_item_count exp = 3")
+    || !productionOrderFinishReadTest.includes("orders[ 1 ]-receipt_progress_counts-not_started_item_count exp = 2")
+    || !productionOrderFinishReadTest.includes("finish_match_progress_counts-partial_pct")
+    || !productionOrderFinishReadTest.includes("finish_match_progress_counts-total_item_count exp = 2")
+    || !productionOrderFinishReadTest.includes("matching_progress_counts-not_started_pct")
+    || !productionOrderFinishReadTest.includes("matching_progress_counts-total_item_count exp = 2")
+    || !productionOrderEmptyBulkReadTest.includes(
+      "receipt_progress_counts",
+    )
+    || !productionOrderFinishReadTest.includes("'30.00'")
+    || !productionOrderFinishReadTest.includes("'70.00'")) {
+  errors.push(
+    "production-order quantity progress must preserve order-unit values, receipt validity and states, and item summary counts across empty, partial, full, over-, and invalid-quantity cases with docs and regressions",
+  );
+}
+
+const productionOrderFinishProgressSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_rcpt_status = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishProgressSqlLimits = [
+  ...productionOrderFinishRepoSearch.matchAll(/up to @lv_fetch_limit rows/g),
+];
+if (!productionOrderReadInterface.includes(
+      "filter_receipt_progress_status type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "receipt_progress_status type c length 1",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_rcpt_status = is_selection-filter_receipt_progress_status",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_receipt_progress_status = is_selection-receipt_progress_status",
+    )
+    || productionOrderFinishProgressSqlFilters.length !== 4
+    || productionOrderFinishProgressSqlLimits.length !== 4
+    || productionOrderFinishProgressSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng > 0 and afpo_row~wemng = 0",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng > 0 and afpo_row~wemng > 0 and afpo_row~wemng < afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng = afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng > afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng <= 0 or afpo_row~wemng < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_receipt_progress_status <> abap_true and is_selection-filter_receipt_progress_status <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_receipt_progress_status = abap_false and is_selection-receipt_progress_status is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-receipt_progress_status <> c_receipt_over_received",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-receipt_progress_status = is_selection-receipt_progress_status",
+    )
+    || !productionOrderFinishFake.includes(
+      "lv_candidate_progress_status <> is_selection-receipt_progress_status",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_finish_receipt_state.",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "c_receipt_progress_not_started",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "c_receipt_progress_partial",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "c_receipt_progress_complete",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "c_receipt_over_received",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "finish_filter_lost_count",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "finish_window_read_calls exp = 0",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "filter_receipt_progress_status = 'y'",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "received_pct_from = '80.00'",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "filter_received_pct_from = 'y'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "filter_received_qty_from = 'y'",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "received_pct_to = '79.99'",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "received_pct_from = '-0.01'",
+    )
+    || !productionOrderReadRepoTests.includes(
+      "method filters_finish_receipt_state.",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "exp = 2 act = lines( lt_complete_keys )",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "act = lt_invalid_quantity_keys[ 2 ]-production_order",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "ls_selection-after_finish_date = '20260120'",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "ls_selection-active_status_code = 'i0002'",
+    )
+    || !productionOrderFinishPlan.includes(
+      "filter_receipt_progress_status` selects orders with at least one matching material/plant item in the requested receipt state before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "blank for an invalid quantity (nonpositive afpo-psmng or negative afpo-wemng)",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `filter_receipt_progress_status` to `abap_true`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "blank for invalid quantities (nonpositive afpo-psmng or negative afpo-wemng)",
+    )
+    || !productionOrderFinishDocs.includes(
+      "the service checks the selected state again against detail rows",
+    )) {
+  errors.push(
+    "production-order finish-window receipt progress filters must select valid and invalid receipt states before pagination, recheck detail rows, and retain tests and docs",
+  );
+}
+
+const productionOrderFinishReceivedFromSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_received_qty_from = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishReceivedToSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_received_qty_to = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishReceivedBaseFromSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_rcv_qty_base_from = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishReceivedBaseToSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_rcv_qty_base_to = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishReceivedPctFromSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_received_pct_from = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishReceivedPctToSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_received_pct_to = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishUnreceivedPctFromSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_unreceived_pct_from = @lv_false_indicator/g,
+  ),
+];
+const productionOrderFinishUnreceivedPctToSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_unreceived_pct_to = @lv_false_indicator/g,
+  ),
+];
+if (!productionOrderReadInterface.includes(
+      "filter_received_qty_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_from type afpo-wemng",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_qty_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_to type afpo-wemng",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_receipt_qty_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_receipt_qty_from type afpo-wemng",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_receipt_qty_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_receipt_qty_to type afpo-wemng",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_receipt_pct_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_receipt_pct_from type p length 8 decimals 2",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_over_receipt_pct_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "over_receipt_pct_to type p length 8 decimals 2",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_qty_base_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_base_from type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_qty_base_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_qty_base_to type decfloat34",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_pct_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_pct_from type p length 8 decimals 2",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_received_pct_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "received_pct_to type p length 8 decimals 2",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_received_qty_from = is_selection-filter_received_qty_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_from = is_selection-received_qty_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_received_qty_to = is_selection-filter_received_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_to = is_selection-received_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_qty_from = is_selection-filter_over_receipt_qty_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_qty_from = is_selection-over_receipt_qty_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_qty_to = is_selection-filter_over_receipt_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_qty_to = is_selection-over_receipt_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_pct_from = is_selection-filter_over_receipt_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_pct_from = is_selection-over_receipt_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_over_rcpt_pct_to = is_selection-filter_over_receipt_pct_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_over_rcpt_pct_to = is_selection-over_receipt_pct_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_rcv_qty_base_from = is_selection-filter_received_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_base_from = is_selection-received_qty_base_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_rcv_qty_base_to = is_selection-filter_received_qty_base_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_qty_base_to = is_selection-received_qty_base_to",
+    )
+    || productionOrderFinishReceivedFromSqlFilters.length !== 4
+    || productionOrderFinishReceivedToSqlFilters.length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_qty_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_qty_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng - afpo_row~psmng >= @lv_over_rcpt_qty_from/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng - afpo_row~psmng <= @lv_over_rcpt_qty_to/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_over_rcpt_qty_from = 0/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_pct_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_pct_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* 100 - afpo_row~psmng \* 100 >= @lv_over_rcpt_pct_from \* afpo_row~psmng/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* 100 - afpo_row~psmng \* 100 <= @lv_over_rcpt_pct_to \* afpo_row~psmng/g,
+    ) ?? []).length !== 4
+    || productionOrderFinishReceivedBaseFromSqlFilters.length !== 4
+    || productionOrderFinishReceivedBaseToSqlFilters.length !== 4
+    || productionOrderFinishReceivedPctFromSqlFilters.length !== 4
+    || productionOrderFinishReceivedPctToSqlFilters.length !== 4
+    || productionOrderFinishUnreceivedPctFromSqlFilters.length !== 4
+    || productionOrderFinishUnreceivedPctToSqlFilters.length !== 4
+    || productionOrderFinishProgressSqlLimits.length !== 4
+    || productionOrderFinishReceivedFromSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishReceivedToSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishReceivedBaseFromSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishReceivedBaseToSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishReceivedPctFromSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishReceivedPctToSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishUnreceivedPctFromSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || productionOrderFinishUnreceivedPctToSqlFilters.some(
+      (filter, index) => filter.index > productionOrderFinishProgressSqlLimits[index].index,
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng >= @lv_received_qty_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng <= @lv_received_qty_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng * afpo_row~umrez >= @lv_received_qty_base_from * afpo_row~umren",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng * afpo_row~umrez <= @lv_received_qty_base_to * afpo_row~umren",
+    )
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_base_from = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_filter_over_rcpt_base_to = @lv_false_indicator/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* afpo_row~umrez - afpo_row~psmng \* afpo_row~umrez >= @lv_over_rcpt_base_from \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /afpo_row~wemng \* afpo_row~umrez - afpo_row~psmng \* afpo_row~umrez <= @lv_over_rcpt_base_to \* afpo_row~umren/g,
+    ) ?? []).length !== 4
+    || (productionOrderFinishRepoSearch.match(
+      /@lv_over_rcpt_base_from = 0/g,
+    ) ?? []).length !== 4
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_received_pct_from = is_selection-filter_received_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_pct_from = is_selection-received_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_received_pct_to = is_selection-filter_received_pct_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_received_pct_to = is_selection-received_pct_to",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_unreceived_pct_from type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "unreceived_pct_from type p length 8 decimals 2",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_unreceived_pct_to type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "unreceived_pct_to type p length 8 decimals 2",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_unreceived_pct_from = is_selection-filter_unreceived_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_unreceived_pct_from = is_selection-unreceived_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_unreceived_pct_to = is_selection-filter_unreceived_pct_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_unreceived_pct_to = is_selection-unreceived_pct_to",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng * 100 - afpo_row~wemng * 100 >= @lv_unreceived_pct_from * afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng * 100 - afpo_row~wemng * 100 <= @lv_unreceived_pct_to * afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "@lv_zero_unreceived_pct >= @lv_unreceived_pct_from",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~psmng <= afpo_row~wemng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng * 100 >= @lv_received_pct_from * afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "afpo_row~wemng * 100 <= @lv_received_pct_to * afpo_row~psmng",
+    )
+    || !productionOrderFinishRepoSearch.includes("afpo_row~psmng > 0")
+    || !productionOrderFinishRepoSearch.includes("afpo_row~wemng >= 0")
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_from <> abap_true and is_selection-filter_received_qty_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_from = abap_false and is_selection-received_qty_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_from = abap_true and is_selection-received_qty_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_to <> abap_true and is_selection-filter_received_qty_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_to = abap_false and is_selection-received_qty_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_to = abap_true and is_selection-received_qty_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-received_qty_from > is_selection-received_qty_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_from <> abap_true and is_selection-filter_over_receipt_qty_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_from = abap_false and is_selection-over_receipt_qty_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_from = abap_true and is_selection-over_receipt_qty_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_to <> abap_true and is_selection-filter_over_receipt_qty_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_to = abap_false and is_selection-over_receipt_qty_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_qty_to = abap_true and is_selection-over_receipt_qty_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-over_receipt_qty_from > is_selection-over_receipt_qty_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_from <> abap_true and is_selection-filter_over_receipt_pct_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_from = abap_false and is_selection-over_receipt_pct_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_from = abap_true and is_selection-over_receipt_pct_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_to <> abap_true and is_selection-filter_over_receipt_pct_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_to = abap_false and is_selection-over_receipt_pct_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_over_receipt_pct_to = abap_true and is_selection-over_receipt_pct_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-over_receipt_pct_from > is_selection-over_receipt_pct_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from <> abap_true and is_selection-filter_received_qty_base_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from = abap_false and is_selection-received_qty_base_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_from = abap_true and is_selection-received_qty_base_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to <> abap_true and is_selection-filter_received_qty_base_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to = abap_false and is_selection-received_qty_base_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_qty_base_to = abap_true and is_selection-received_qty_base_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-received_qty_base_from > is_selection-received_qty_base_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_pct_from <> abap_true and is_selection-filter_received_pct_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_pct_from = abap_false and is_selection-received_pct_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_pct_from = abap_true and is_selection-received_pct_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_pct_to = abap_false and is_selection-received_pct_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_received_pct_to = abap_true and is_selection-received_pct_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-received_pct_from > is_selection-received_pct_to",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unreceived_pct_from <> abap_true and is_selection-filter_unreceived_pct_from <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unreceived_pct_from = abap_false and is_selection-unreceived_pct_from is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unreceived_pct_from < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unreceived_pct_from > 100",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unreceived_pct_to <> abap_true and is_selection-filter_unreceived_pct_to <> abap_false",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_unreceived_pct_to = abap_false and is_selection-unreceived_pct_to is not initial",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unreceived_pct_to < 0",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unreceived_pct_to > 100",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-unreceived_pct_from > is_selection-unreceived_pct_to",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity >= is_selection-received_qty_from",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity <= is_selection-received_qty_to",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-is_receipt_progress_valid = abap_true and ls_finish_item-over_receipt_qty_order_unit >= is_selection-over_receipt_qty_from",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-is_receipt_progress_valid = abap_true and ls_finish_item-over_receipt_qty_order_unit <= is_selection-over_receipt_qty_to",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-over_receipt_pct_from = 0",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity * 100 - ls_finish_item-order_item-order_quantity * 100 >= is_selection-over_receipt_pct_from * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity * 100 - ls_finish_item-order_item-order_quantity * 100 <= is_selection-over_receipt_pct_to * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_received_qty_base_from = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-received_quantity_base >= is_selection-received_qty_base_from )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_received_qty_base_to = abap_false or ( ls_finish_item-is_quantity_converted = abap_true and ls_finish_item-received_quantity_base <= is_selection-received_qty_base_to )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity * 100 >= is_selection-received_pct_from * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-received_quantity * 100 <= is_selection-received_pct_to * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "( ls_finish_item-order_item-order_quantity - ls_finish_item-order_item-received_quantity ) * 100 >= is_selection-unreceived_pct_from * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "( ls_finish_item-order_item-order_quantity - ls_finish_item-order_item-received_quantity ) * 100 <= is_selection-unreceived_pct_to * ls_finish_item-order_item-order_quantity",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-unreceived_pct_from = 0",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "ls_finish_item-order_item-order_quantity <= ls_finish_item-order_item-received_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity < is_selection-received_qty_from",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity > is_selection-received_qty_to",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity - ls_order_item-order_quantity < is_selection-over_receipt_qty_from",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity - ls_order_item-order_quantity > is_selection-over_receipt_qty_to",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity * 100 - ls_order_item-order_quantity * 100 < is_selection-over_receipt_pct_from * ls_order_item-order_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity * 100 - ls_order_item-order_quantity * 100 > is_selection-over_receipt_pct_to * ls_order_item-order_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity * 100 < is_selection-received_pct_from * ls_order_item-order_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "ls_order_item-received_quantity * 100 > is_selection-received_pct_to * ls_order_item-order_quantity",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_finish_rcvd_qty.",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "received_qty_from = '10.000'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "received_qty_to = 0",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "exp = '0000000003'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "filter_received_qty_from = 'y'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "finish_filter_lost_count",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "use_finish_window_override = abap_true",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "received_pct_from = '30.00'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "received_pct_to = '100.00'",
+    )
+    || !productionOrderFinishReceivedQuantityFilterTest.includes(
+      "received_pct_drift-orders[ 1 ]-finish_filter_lost",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "act = lines( lt_zero_received_keys )",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "act = lt_exact_received_keys[ 1 ]-production_order",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "received_pct_from = '100.00'",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "received_pct_to = '110.00'",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "lt_received_pct_next_page[ 2 ]-production_order",
+    )
+    || !productionOrderFinishPlan.includes(
+      "inclusive lower and upper bounds for afpo-wemng in the order unit, before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "inclusive lower and upper bounds to afpo-wemng in the order unit before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_received_pct_from` and `filter_received_pct_to` add inclusive bounds for the raw received-to-order quantity ratio, expressed as a percentage before two-decimal display rounding",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`filter_received_pct_from` and `filter_received_pct_to` to apply inclusive bounds to the raw received-to-order quantity ratio as a percentage, before the two-decimal display rounding",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_unreceived_pct_from` and `filter_unreceived_pct_to` add inclusive bounds for `open_pct_of_order_qty`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`filter_unreceived_pct_from` and `filter_unreceived_pct_to` to apply inclusive bounds to the existing `open_pct_of_order_qty`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "completed and over-received items have zero open percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "completed and over-received items have zero open percentage",
+    )) {
+  errors.push(
+    "production-order finish-window receipt quantity and percentage bounds must be inclusive, validated, applied before pagination, checked for detail drift, and covered by regressions and docs",
+  );
+}
+
+if (!productionOrderReadServiceSource.includes(
+      "matches_finish_selection type abap_bool",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "<ls_matching_finish_item>-matches_finish_selection = abap_true",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "lv_finish_filter_matches = abap_true",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "matches_finish_selection",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "assert_false( ls_result-orders[ 1 ]-items[ 2 ]-matches_finish_selection )",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "assert_true( ls_result-orders[ 1 ]-items[ 3 ]-matches_finish_selection )",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-finish_window_match_count",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-orders[ 1 ]-finish_window_match_count exp = 2",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "act = ls_result-orders[ 2 ]-finish_window_match_count exp = 0",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to rs_result-finish_match_progress_counts-invalid_item_count",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "add 1 to <ls_finish_order>-matching_progress_counts-invalid_item_count",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-finish_match_progress_counts-not_started_item_count exp = 1",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-finish_match_progress_counts-partial_item_count exp = 1",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "assert_initial( ls_result-finish_match_progress_counts )",
+    )
+    || !productionOrderFinishReadTest.includes(
+      "act = ls_result-orders[ 1 ]-matching_progress_counts-not_started_item_count exp = 1",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "assert_initial( ls_result-orders[ 2 ]-matching_progress_counts )",
+    )
+    || !productionOrderBulkReadTest.includes(
+      "matches_finish_selection",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "finish_window_match_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "finish_match_progress_counts type ty_receipt_progress_counts",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "matching_progress_counts type ty_receipt_progress_counts",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each finish-window item sets `matches_finish_selection` when its detail row still matches the selected item scope",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each finish-window order reports `finish_window_match_count`, the number of returned detail rows still matching the selected item scope",
+    )
+    || !productionOrderFinishPlan.includes(
+      "while its separate `matching_progress_counts` counts only items marked `matches_finish_selection`; direct bulk reads leave this structure initial",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each item exposes `matches_finish_selection` to identify detail rows that still match the selected item scope after the detail read",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each finish-window order exposes `finish_window_match_count`, the number of returned detail rows that still match the selected item scope",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each finish-window order's `matching_progress_counts` counts only its items marked `matches_finish_selection`; direct bulk reads leave this structure initial. the page-level `finish_match_progress_counts` aggregates those order summaries, and its five counts sum to the `finish_window_match_count` values across returned orders",
+    )) {
+  errors.push(
+    "production-order finish-window results must mark each matching detail item while retaining nonmatching items, with bulk defaults and regression coverage",
+  );
+}
+
 const productionConfirmationWindowRepo = normalizedMethod(
   productionOrderReadRepo,
   "zif_prod_order_read_repo~search_confirmations_by_window",
@@ -23610,9 +28024,41 @@ const productionConfirmationWindowFake = normalizedMethod(
   productionOrderReadServiceTests,
   "zif_prod_order_read_repo~search_confirmations_by_window",
 );
+const productionConfirmationWindowOperationRangeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_operation_range",
+);
+const productionConfirmationWindowSequenceRangeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_sequence_range",
+);
+const productionConfirmationWindowSubopRangeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_subop_range",
+);
+const productionConfirmationWindowCounterRangeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_counter_range",
+);
+const productionConfirmationWindowConfirmCounterRangeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_rmzhl_range",
+);
+const productionConfirmationWindowWorkCenterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_work_center",
+);
 const productionConfirmationWindowSummaryBuilder = normalizedMethod(
   productionOrderReadServiceSource,
   "build_conf_summaries",
+);
+const productionConfirmationOrderSummaryBuilder = normalizedMethod(
+  productionOrderReadServiceSource,
+  "build_conf_order_summaries",
+);
+const productionConfirmationBaseOrderSummaryBuilder = normalizedMethod(
+  productionOrderReadServiceSource,
+  "build_base_order_summaries",
 );
 const productionConfirmationBaseUnitService = normalizedMethod(
   productionOrderReadServiceSource,
@@ -23648,10 +28094,40 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderReadInterface.includes("positive_yield_only type abap_bool")
     || !productionOrderReadInterface.includes("positive_rework_only type abap_bool")
     || !productionOrderReadInterface.includes("positive_scrap_only type abap_bool")
+    || !productionOrderReadInterface.includes("filter_yield_quantity_from type abap_bool")
+    || !productionOrderReadInterface.includes("yield_quantity_from type afru-lmnga")
+    || !productionOrderReadInterface.includes("filter_yield_quantity_to type abap_bool")
+    || !productionOrderReadInterface.includes("yield_quantity_to type afru-lmnga")
+    || !productionOrderReadInterface.includes("filter_rework_quantity_from type abap_bool")
+    || !productionOrderReadInterface.includes("rework_quantity_from type afru-rmnga")
+    || !productionOrderReadInterface.includes("filter_rework_quantity_to type abap_bool")
+    || !productionOrderReadInterface.includes("rework_quantity_to type afru-rmnga")
+    || !productionOrderReadInterface.includes("filter_scrap_quantity_from type abap_bool")
+    || !productionOrderReadInterface.includes("scrap_quantity_from type afru-xmnga")
+    || !productionOrderReadInterface.includes("filter_scrap_quantity_to type abap_bool")
+    || !productionOrderReadInterface.includes("scrap_quantity_to type afru-xmnga")
     || !productionOrderReadInterface.includes(
       "filter_quantity_unit type abap_bool",
     )
     || !productionOrderReadInterface.includes("quantity_unit type afru-meinh")
+    || !productionOrderReadInterface.includes(
+      "filter_resource_object_id type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "resource_object_id type afvc-arbid",
+    )
+    || !productionOrderReadInterface.includes(
+      "work_center type crhd-arbpl",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_work_center type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "filter_work_center_plant type abap_bool",
+    )
+    || !productionOrderReadInterface.includes(
+      "work_center_plant type crhd-werks",
+    )
     || !productionOrderReadInterface.includes("entered_by type afru-ernam")
     || !productionOrderReadInterface.includes("entry_date type afru-ersda")
     || !productionOrderReadInterface.includes("entry_date_from type afru-ersda")
@@ -23667,21 +28143,56 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderReadInterface.includes("entry_time_to type afru-erzet")
     || !productionOrderReadInterface.includes("confirmation_number type afru-rueck")
     || !productionOrderReadInterface.includes("confirmation_counter type afru-rmzhl")
+    || !productionOrderReadInterface.includes(
+      "confirmation_counter_from type afru-rmzhl",
+    )
+    || !productionOrderReadInterface.includes(
+      "confirmation_counter_to type afru-rmzhl",
+    )
     || !productionOrderReadInterface.includes("order_category type aufk-autyp")
     || !productionOrderReadInterface.includes("operation_counter type afvc-aplzl")
+    || !productionOrderReadInterface.includes("operation_counter_from type afvc-aplzl")
+    || !productionOrderReadInterface.includes("operation_counter_to type afvc-aplzl")
     || !productionOrderReadInterface.replace(/\s+/g, " ").includes(
-      "operation_number type afvc-vornr, operation_counter type afvc-aplzl",
+      "operation_counter type afvc-aplzl, operation_number type afvc-vornr, operation_sequence type afvc-plnfl",
     )
     || !productionOrderReadInterface.includes("operation_number type afvc-vornr")
+    || !productionOrderReadInterface.includes(
+      "operation_number_from type afvc-vornr",
+    )
+    || !productionOrderReadInterface.includes(
+      "operation_number_to type afvc-vornr",
+    )
     || !productionOrderReadInterface.includes(
       "filter_control_key type abap_bool",
     )
     || !productionOrderReadInterface.includes("control_key type afvc-steus")
     || !productionOrderReadInterface.includes(
+      "control_key type afvc-steus, resource_object_id type afvc-arbid, work_center type crhd-arbpl, work_center_plant type crhd-werks, end of ty_order_operation",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_filter_resource_object_id type abap_bool optional",
+    )
+    || !productionOrderReadInterface.includes(
+      "iv_resource_object_id type afvc-arbid optional",
+    )
+    || !productionOrderReadInterface.includes(
       "operation_suboperation type afvc-uvorn",
     )
     || !productionOrderReadInterface.includes(
+      "operation_suboperation_from type afvc-uvorn",
+    )
+    || !productionOrderReadInterface.includes(
+      "operation_suboperation_to type afvc-uvorn",
+    )
+    || !productionOrderReadInterface.includes(
       "operation_sequence type afvc-plnfl",
+    )
+    || !productionOrderReadInterface.includes(
+      "operation_sequence_from type afvc-plnfl",
+    )
+    || !productionOrderReadInterface.includes(
+      "operation_sequence_to type afvc-plnfl",
     )
     || !productionOrderReadInterface.includes(
       "filter_operation_sequence type abap_bool",
@@ -23700,6 +28211,33 @@ if (!productionOrderReadInterface.includes(
     || !productionConfirmationWindowRepo.includes("inner join afvc")
     || !productionConfirmationWindowRepo.includes("inner join afpo")
     || !productionConfirmationWindowRepo.includes("inner join aufk")
+    || !productionConfirmationWindowRepo.includes(
+      "left outer join crhd as crhd_row",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /crhd_row~arbpl as work_center/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /crhd_row~arbpl = @lv_work_center/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_work_center = is_selection-work_center",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_filter_work_center = is_selection-filter_work_center",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /@lv_filter_work_center = @lv_false_indicator/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /crhd_row~werks as work_center_plant/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /@lv_filter_work_center_plant = @lv_false_indicator/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_work_center_plant = is_selection-work_center_plant",
+    )
     || !productionConfirmationWindowRepo.includes(
       "lv_material = is_selection-material",
     )
@@ -23732,15 +28270,78 @@ if (!productionOrderReadInterface.includes(
     || !productionConfirmationWindowRepo.includes(
       "afvc_row~vornr in @lr_operation_numbers",
     )
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~vornr >= @lv_operation_number_from/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~vornr <= @lv_operation_number_to/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_number_from = is_selection-operation_number_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_number_to = is_selection-operation_number_to",
+    )
     || !productionConfirmationWindowRepo.includes(
       "afvc_row~uvorn in @lr_suboperation_numbers",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~uvorn >= @lv_operation_subop_from/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~uvorn <= @lv_operation_subop_to/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_subop_from = is_selection-operation_suboperation_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_subop_to = is_selection-operation_suboperation_to",
     )
     || !productionConfirmationWindowRepo.includes(
       "afvc_row~plnfl in @lr_operation_sequences",
     )
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~plnfl >= @lv_operation_sequence_from/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~plnfl <= @lv_operation_sequence_to/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_sequence_from = is_selection-operation_sequence_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_sequence_to = is_selection-operation_sequence_to",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~aplzl >= @lv_operation_counter_from/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~aplzl <= @lv_operation_counter_to/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_counter_from = is_selection-operation_counter_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_operation_counter_to = is_selection-operation_counter_to",
+    )
     || !productionConfirmationWindowRepo.includes(
       "afvc_row~steus = @lv_control_key",
     )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_filter_resource_id = is_selection-filter_resource_object_id",
+    )
+    || productionConfirmationWindowRepo.split(
+      "afvc_row~arbid as resource_object_id",
+    ).length !== 3
+    || (productionConfirmationWindowRepo.match(
+      /@lv_filter_resource_id = @lv_false_indicator/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "afvc_row~arbid = @lv_resource_object_id",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /afvc_row~arbid = @lv_resource_object_id/g,
+    ) ?? []).length !== 2
     || (productionConfirmationWindowRepo.match(/@lv_filter_control_key = @lv_false_indicator/g) ?? []).length !== 2
     || !productionConfirmationWindowRepo.includes(
       "afru_row~meinh = @lv_quantity_unit",
@@ -23787,6 +28388,18 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionConfirmationWindowRepo.includes(
       "afru_row~rmzhl = @lv_confirmation_counter",
+    )
+    || (productionConfirmationWindowRepo.match(
+      /afru_row~rmzhl >= @lv_confirmation_counter_from/g,
+    ) ?? []).length !== 2
+    || (productionConfirmationWindowRepo.match(
+      /afru_row~rmzhl <= @lv_confirmation_counter_to/g,
+    ) ?? []).length !== 2
+    || !productionConfirmationWindowRepo.includes(
+      "lv_confirmation_counter_from = is_selection-confirmation_counter_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_confirmation_counter_to = is_selection-confirmation_counter_to",
     )
     || !productionConfirmationWindowRepo.includes(
       "lv_confirmation_number = is_selection-confirmation_number",
@@ -23850,6 +28463,33 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionConfirmationWindowRepo.includes(
       "afru_row~lmnga > @lv_zero_yield_quantity",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_filter_yield_from = is_selection-filter_yield_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~lmnga >= @lv_yield_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~lmnga <= @lv_yield_quantity_to",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_filter_rework_from = is_selection-filter_rework_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~rmnga >= @lv_rework_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~rmnga <= @lv_rework_quantity_to",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "lv_filter_scrap_from = is_selection-filter_scrap_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~xmnga >= @lv_scrap_quantity_from",
+    )
+    || !productionConfirmationWindowRepo.includes(
+      "afru_row~xmnga <= @lv_scrap_quantity_to",
     )
     || !productionConfirmationWindowRepo.includes(
       "lv_positive_rework_only = is_selection-positive_rework_only",
@@ -23917,6 +28557,9 @@ if (!productionOrderReadInterface.includes(
       "operation_summaries = build_conf_summaries(",
     )
     || !productionConfirmationWindowService.includes(
+      "rs_result-work_center_summaries = build_wc_conf_summaries(",
+    )
+    || !productionConfirmationWindowService.includes(
       "lines( lt_confirmations ) > is_selection-maximum_results",
     )
     || !productionConfirmationWindowService.includes(
@@ -23950,6 +28593,36 @@ if (!productionOrderReadInterface.includes(
       "is_selection-positive_scrap_only <> abap_true",
     )
     || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_yield_quantity_from <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_yield_quantity_to <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_rework_quantity_from <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_rework_quantity_to <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_scrap_quantity_from <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_scrap_quantity_to <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-quantity_unit is initial and is_selection-filter_quantity_unit <> abap_true",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-yield_quantity_from > is_selection-yield_quantity_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-rework_quantity_from > is_selection-rework_quantity_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-scrap_quantity_from > is_selection-scrap_quantity_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
       "is_selection-exclude_reversed = abap_true and is_selection-reversed_only = abap_true",
     )
     || !productionConfirmationWindowValidation.includes(
@@ -23962,7 +28635,10 @@ if (!productionOrderReadInterface.includes(
       "is_selection-final_only = abap_true and is_selection-partial_only = abap_true",
     )
     || !productionConfirmationWindowValidation.includes(
-      "is_selection-confirmation_number is initial and is_selection-confirmation_counter is not initial",
+      "is_selection-confirmation_number is initial and ( is_selection-confirmation_counter is not initial or is_selection-confirmation_counter_from is not initial or is_selection-confirmation_counter_to is not initial )",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-confirmation_counter_from is not initial and is_selection-confirmation_counter_to is not initial and is_selection-confirmation_counter_from > is_selection-confirmation_counter_to",
     )
     || !productionConfirmationWindowValidation.includes(
       "is_selection-order_category <> '10'",
@@ -24001,6 +28677,15 @@ if (!productionOrderReadInterface.includes(
       "is_selection-filter_control_key <> abap_true and is_selection-filter_control_key <> abap_false",
     )
     || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_resource_object_id <> abap_true and is_selection-filter_resource_object_id <> abap_false",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_work_center <> abap_true and is_selection-filter_work_center <> abap_false",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-filter_work_center_plant <> abap_true and is_selection-filter_work_center_plant <> abap_false",
+    )
+    || !productionConfirmationWindowValidation.includes(
       "is_selection-filter_operation_sequence <> abap_true and is_selection-filter_operation_sequence <> abap_false",
     )
     || !productionConfirmationWindowValidation.includes(
@@ -24010,6 +28695,24 @@ if (!productionOrderReadInterface.includes(
       "is_selection-operation_number is initial and ( is_selection-operation_suboperation is not initial or is_selection-filter_operation_suboperation = abap_true )",
     )
     || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_number_from is not initial and is_selection-operation_number_to is not initial and is_selection-operation_number_from > is_selection-operation_number_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_sequence_from is not initial and is_selection-operation_sequence_to is not initial and is_selection-operation_sequence_from > is_selection-operation_sequence_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_number is initial and ( is_selection-operation_suboperation_from is not initial or is_selection-operation_suboperation_to is not initial )",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_suboperation_from is not initial and is_selection-operation_suboperation_to is not initial and is_selection-operation_suboperation_from > is_selection-operation_suboperation_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_counter_from is not initial or is_selection-operation_counter_to is not initial",
+    )
+    || !productionConfirmationWindowValidation.includes(
+      "is_selection-operation_counter_from is not initial and is_selection-operation_counter_to is not initial and is_selection-operation_counter_from > is_selection-operation_counter_to",
+    )
+    || !productionConfirmationWindowValidation.includes(
       "after_posting_date is initial",
     )
     || !productionConfirmationWindowResultsValidation.includes(
@@ -24017,6 +28720,30 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-operation_number",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_number < is_selection-operation_number_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_number > is_selection-operation_number_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_sequence < is_selection-operation_sequence_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_sequence > is_selection-operation_sequence_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_suboperation < is_selection-operation_suboperation_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_suboperation > is_selection-operation_suboperation_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_counter < is_selection-operation_counter_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-operation_counter > is_selection-operation_counter_to",
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-operation_suboperation",
@@ -24035,6 +28762,21 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-filter_control_key = abap_true",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-resource_object_id <> is_selection-resource_object_id",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-work_center <> is_selection-work_center",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_work_center = abap_true",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-work_center_plant <> is_selection-work_center_plant",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_work_center_plant = abap_true",
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-quantity_unit",
@@ -24061,6 +28803,12 @@ if (!productionOrderReadInterface.includes(
       "ls_confirmation-entry_time < is_selection-entry_time_from",
     )
     || !productionConfirmationWindowFake.includes(
+      "is_selection-confirmation_counter_from is initial or ls_confirmation-confirmation_counter >= is_selection-confirmation_counter_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-confirmation_counter_to is initial or ls_confirmation-confirmation_counter <= is_selection-confirmation_counter_to",
+    )
+    || !productionConfirmationWindowFake.includes(
       "is_selection-filter_quantity_unit = abap_false",
     )
     || !productionConfirmationWindowFake.includes(
@@ -24082,16 +28830,82 @@ if (!productionOrderReadInterface.includes(
       "is_selection-filter_control_key = abap_false",
     )
     || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_resource_object_id = abap_false",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-resource_object_id = is_selection-resource_object_id",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-work_center = is_selection-work_center",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_work_center = abap_false",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_work_center_plant = abap_false",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-work_center_plant = is_selection-work_center_plant",
+    )
+    || !productionConfirmationWindowFake.includes(
       "is_selection-filter_operation_sequence = abap_false",
     )
     || !productionConfirmationWindowFake.includes(
       "is_selection-filter_operation_suboperation = abap_false",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_number >= is_selection-operation_number_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_number <= is_selection-operation_number_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_sequence >= is_selection-operation_sequence_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_sequence <= is_selection-operation_sequence_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_suboperation >= is_selection-operation_suboperation_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_suboperation <= is_selection-operation_suboperation_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_counter >= is_selection-operation_counter_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "ls_confirmation-operation_counter <= is_selection-operation_counter_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_yield_quantity_from = abap_false or ls_confirmation-yield_quantity >= is_selection-yield_quantity_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_yield_quantity_to = abap_false or ls_confirmation-yield_quantity <= is_selection-yield_quantity_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_rework_quantity_from = abap_false or ls_confirmation-rework_quantity >= is_selection-rework_quantity_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_rework_quantity_to = abap_false or ls_confirmation-rework_quantity <= is_selection-rework_quantity_to",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_scrap_quantity_from = abap_false or ls_confirmation-scrap_quantity >= is_selection-scrap_quantity_from",
+    )
+    || !productionConfirmationWindowFake.includes(
+      "is_selection-filter_scrap_quantity_to = abap_false or ls_confirmation-scrap_quantity <= is_selection-scrap_quantity_to",
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-confirmation_number",
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-confirmation_counter",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-confirmation_counter < is_selection-confirmation_counter_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "ls_confirmation-confirmation_counter > is_selection-confirmation_counter_to",
     )
     || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-order_category",
@@ -24133,6 +28947,24 @@ if (!productionOrderReadInterface.includes(
       "is_selection-positive_yield_only = abap_true and ls_confirmation-yield_quantity <= 0",
     )
     || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_yield_quantity_from = abap_true and ls_confirmation-yield_quantity < is_selection-yield_quantity_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_yield_quantity_to = abap_true and ls_confirmation-yield_quantity > is_selection-yield_quantity_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_rework_quantity_from = abap_true and ls_confirmation-rework_quantity < is_selection-rework_quantity_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_rework_quantity_to = abap_true and ls_confirmation-rework_quantity > is_selection-rework_quantity_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_scrap_quantity_from = abap_true and ls_confirmation-scrap_quantity < is_selection-scrap_quantity_from",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
+      "is_selection-filter_scrap_quantity_to = abap_true and ls_confirmation-scrap_quantity > is_selection-scrap_quantity_to",
+    )
+    || !productionConfirmationWindowResultsValidation.includes(
       "is_selection-positive_rework_only = abap_true and ls_confirmation-rework_quantity <= 0",
     )
     || !productionConfirmationWindowResultsValidation.includes(
@@ -24144,9 +28976,1914 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderReadServiceSource.includes(
       "ty_confirmation_operation_summary",
     )
+    || !productionOrderReadServiceSource.includes(
+      "ty_exec_duration_issue_counts type sorted table of ty_exec_duration_issue_count with unique key issue_code",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "confirmation_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "nonrev_confirmation_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "reversed_confirmation_count type i",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "nonrev_confirmation_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "reversed_confirmation_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_share_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "nonrev_issue_share_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "reversed_issue_share_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "status_share_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "nonrev_status_share_pct type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "reversed_status_share_pct type decfloat34",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_issue_counts\s+type ty_exec_duration_issue_counts/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_code\s+type c length 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_status\s+type c length 1/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_pct\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_issue_code\s+type c length 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_issue_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_share_pct\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_issue_code\s+type c length 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_issue_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_share_pct\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_code\s+type c length 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_status\s+type c length 1/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_pct\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_code\s+type c length 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_status\s+type c length 1/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_pct\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_issue_counts =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_code =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_status =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_issue_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_issue_code =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_issue_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_invalid_share_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_issue_code =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_issue_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_missing_share_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_code =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_status =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_nonrev_issue_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_code =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_status =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_top_reversed_issue_pct =/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_pct>-confirmation_pct",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_pct>-confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_pct>-nonrev_confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_pct>-reversed_confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_share>-confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_share>-nonrev_confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_share>-reversed_confirmation_count ) * 100",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ lv_issue_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "data(lv_issue_confirmation_count) = rs_interval_result-summary_confirmation_count - lv_duration_value_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "data(lv_nonrev_issue_total) = rs_interval_result-nonrev_invalid_count + rs_interval_result-nonrev_missing_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "data(lv_reversed_issue_total) = rs_interval_result-rev_invalid_count + rs_interval_result-rev_missing_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ lv_nonrev_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ lv_reversed_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ lv_invalid_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ lv_missing_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-nonrev_invalid_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-rev_invalid_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-nonrev_missing_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-rev_missing_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "status = c_exec_duration_invalid",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "status = c_exec_duration_missing",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-nonrev_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "/ rs_interval_result-reversed_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_top_issue_candidate-confirmation_count > rs_interval_result-top_issue_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_top_issue_candidate-confirmation_count > rs_interval_result-top_invalid_issue_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_top_issue_candidate-confirmation_count > rs_interval_result-top_missing_issue_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_top_issue_candidate-nonrev_confirmation_count > rs_interval_result-top_nonrev_issue_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_top_issue_candidate-reversed_confirmation_count > rs_interval_result-top_reversed_issue_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_interval_result-top_issue_pct = conv decfloat34( rs_interval_result-top_issue_count ) * 100 / rs_interval_result-summary_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_interval_result-top_invalid_share_pct = conv decfloat34( rs_interval_result-top_invalid_issue_count ) * 100 / lv_invalid_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_interval_result-top_missing_share_pct = conv decfloat34( rs_interval_result-top_missing_issue_count ) * 100 / lv_missing_issue_total",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_interval_result-top_nonrev_issue_pct = conv decfloat34( rs_interval_result-top_nonrev_issue_count ) * 100 / rs_interval_result-nonrev_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_interval_result-top_reversed_issue_pct = conv decfloat34( rs_interval_result-top_reversed_issue_count ) * 100 / rs_interval_result-reversed_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_count>-nonrev_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "<ls_duration_issue_count>-reversed_confirmation_count",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "resource_object_id type afvc-arbid",
+    )
+    || !productionOrderReadInterface.includes(
+      "exec_duration_status type c length 1",
+    )
+    || !productionOrderReadInterface.includes(
+      "exec_duration_issue_code type c length 2",
+    )
+    || !productionOrderReadInterface.includes(
+      "exec_duration_seconds type decfloat34",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method calc_exec_duration.",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "method calc_exec_interval_metrics.",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_interval_metrics(",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "exec_duration_status =",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_issue_code = ls_interval_status-issue_code/g,
+    ) ?? []).length !== 2
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'md'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'ms'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'mf'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'is'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'if'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'ts'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'tf'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "rs_duration-issue_code = 'ne'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "exec_duration_seconds = ls_interval_status-duration_seconds",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'if'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'is'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'md'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'mf'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'ms'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'ne'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'tf'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "issue_code = 'ts'",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "add 1 to <ls_duration_issue_count>-confirmation_count",
+    )
+    || (productionOrderReadServiceSource.match(
+      /work_center\s+type crhd-arbpl/g,
+    ) ?? []).length !== 11
+    || (productionOrderReadServiceSource.match(
+      /work_center_plant\s+type crhd-werks/g,
+    ) ?? []).length !== 11
+    || !productionOrderReadServiceSource.includes(
+      "partial_confirmation_count",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_avg\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_min\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_max\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_median\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_p90\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_p95\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_p99\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_iqr\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_p25\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_p75\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_seconds_mad\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_min_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_max_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_min_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_max_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      'lt_nonrev_duration_values[ lv_nonrev_value_count ]',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lt_reversed_duration_values[ lv_reversed_value_count ]',
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_median_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_median_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p90_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p90_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p90_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p95_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p99_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      'duration_p95_seconds / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'nonrev_p95_seconds / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'reversed_p95_seconds / rs_interval_result-reversed_duration_median_secs',
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p95_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p95_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p99_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_p99_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_exceed_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_exceed_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      'p95_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_gross_duration_value > lv_duration_p95_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_duration_value > lv_nonrev_p95_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_reversed_duration_value > lv_reversed_p95_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_gross_p99_value > rs_interval_result-duration_p99_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_p99_value > rs_interval_result-nonrev_p99_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_reversed_p99_value > rs_interval_result-reversed_p99_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'duration_p99_seconds / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'nonrev_p99_seconds / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'reversed_p99_seconds / rs_interval_result-reversed_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'duration_p90_seconds / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'nonrev_p90_seconds / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'reversed_p90_seconds / rs_interval_result-reversed_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_gross_p90_value > rs_interval_result-duration_p90_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_p90_value > rs_interval_result-nonrev_p90_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_reversed_p90_value > rs_interval_result-reversed_p90_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'p90_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'p99_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p99_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p99_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_iqr_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_iqr_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_iqr_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_iqr_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_iqr_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p25_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_p75_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p25_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_p75_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_duration_values iv_percentile = 25 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_duration_values iv_percentile = 75 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_nonrev_duration_values iv_percentile = 75 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_reversed_duration_values iv_percentile = 75 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_nonrev_duration_values iv_percentile = 25 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_reversed_duration_values iv_percentile = 25 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_nonrev_duration_values iv_percentile = 99 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_reversed_duration_values iv_percentile = 99 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_nonrev_duration_values iv_percentile = 95 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_reversed_duration_values iv_percentile = 95 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_duration_values iv_percentile = 99 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "sy-index * 100 >= lv_duration_count * iv_percentile",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ls_base_op_interval_metrics-nonrev_p95_seconds",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_mad_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_mad_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_mad_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_mad_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_mad_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_avg_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_avg_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_avg_median_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_duration_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_median_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_median_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_zero_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_zero_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_zero_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_zero_valid_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_zero_valid_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_zero_valid_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_invalid_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_invalid_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_missing_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_missing_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_valid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_invalid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_invalid_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_missing_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_missing_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_median_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_p90_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p25_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p75_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_iqr_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_mad_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p25_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p75_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_iqr_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_mad_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p25_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p75_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_iqr_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_mad_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_iqr_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_iqr_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_iqr_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_mad_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_mad_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_mad_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_avg_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_avg_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_avg_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_min_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_max_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_range_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_min_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_max_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_range_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_min_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_max_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_range_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_gt_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_gt_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_tail_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_tail_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_med_ratio\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_duration_avg_median_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_avg_median_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_avg_median_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_duration_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_median_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_median_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_duration_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_duration_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_duration_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_zero_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_zero_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_zero_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_zero_valid_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_zero_valid_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_zero_valid_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_invalid_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_invalid_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_missing_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_missing_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_valid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_invalid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_invalid_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_missing_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_missing_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_median_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_pos_p90_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p90_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p90_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p90_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p25_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p75_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_iqr_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_mad_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p25_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p75_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_iqr_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_mad_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p25_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p75_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_iqr_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_mad_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_iqr_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_iqr_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_iqr_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_mad_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_mad_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_mad_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_avg_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_avg_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_avg_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_avg_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_avg_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_avg_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_min_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_max_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_range_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_min_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_max_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_range_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_min_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_max_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_range_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_gt_count =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_gt_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_tail_secs =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_tail_pct =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p95_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p95_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p95_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pos_p99_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_pos_p99_med_ratio =/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_pos_p99_med_ratio =/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      'duration_iqr_seconds / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'nonrev_iqr_seconds / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'reversed_iqr_seconds / rs_interval_result-reversed_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'duration_mad_seconds / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'nonrev_mad_seconds / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'reversed_mad_seconds / rs_interval_result-reversed_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_avg( iv_duration_count = lv_duration_value_count iv_duration_seconds_total = lv_duration_seconds_total ) / rs_interval_result-duration_median_seconds',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'insert ls_duration-duration_seconds into table lt_positive_duration_values',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_median( lt_positive_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_p90_secs / rs_interval_result-positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_positive_p90_secs / rs_interval_result-nonrev_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_positive_p90_secs / rs_interval_result-reversed_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_pos_p90_value > rs_interval_result-positive_p90_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_pos_p90_value > rs_interval_result-nonrev_positive_p90_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_rev_pos_p90_value > rs_interval_result-reversed_positive_p90_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_p90_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_pos_p90_tail_secs * 100 / rs_interval_result-nonrev_duration_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_pos_p90_tail_secs * 100 / rs_interval_result-reversed_duration_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_positive_duration_values iv_percentile = 90 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_median( lt_nonrev_pos_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_nonrev_pos_duration_values iv_percentile = 90 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_median( lt_rev_pos_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_rev_pos_duration_values iv_percentile = 90 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_positive_duration_values iv_percentile = 95 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_positive_duration_values iv_percentile = 99 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_nonrev_pos_duration_values iv_percentile = 95 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_nonrev_pos_duration_values iv_percentile = 99 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_rev_pos_duration_values iv_percentile = 95 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_rev_pos_duration_values iv_percentile = 99 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_positive_duration_values iv_percentile = 25 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_positive_duration_values iv_percentile = 75 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_nonrev_pos_duration_values iv_percentile = 25 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_nonrev_pos_duration_values iv_percentile = 75 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_rev_pos_duration_values iv_percentile = 25 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_percentile( it_duration_values = lt_rev_pos_duration_values iv_percentile = 75 )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_mad( lt_positive_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_mad( lt_nonrev_pos_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'calc_exec_duration_mad( lt_rev_pos_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_avg_secs = lv_duration_seconds_total / rs_interval_result-positive_duration_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_pos_avg_secs = rs_interval_result-nonrev_duration_total / rs_interval_result-nonrev_positive_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_pos_avg_secs = rs_interval_result-reversed_duration_total / rs_interval_result-reversed_positive_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_avg_secs / rs_interval_result-positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_pos_avg_secs / rs_interval_result-nonrev_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_pos_avg_secs / rs_interval_result-reversed_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_min_secs = lt_positive_duration_values[ 1 ]',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_positive_min_secs = lt_nonrev_pos_duration_values[ 1 ]',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_positive_min_secs = lt_rev_pos_duration_values[ 1 ]',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_max_secs = lt_positive_duration_values[ rs_interval_result-positive_duration_count ]',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_max_secs - rs_interval_result-positive_min_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_positive_max_secs - rs_interval_result-nonrev_positive_min_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_positive_max_secs - rs_interval_result-reversed_positive_min_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_positive_tail_value > rs_interval_result-positive_p95_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_positive_tail_value > rs_interval_result-positive_p99_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_positive_tail_value > rs_interval_result-nonrev_positive_p95_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_nonrev_positive_tail_value > rs_interval_result-nonrev_positive_p99_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_rev_positive_tail_value > rs_interval_result-reversed_positive_p95_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'lv_rev_positive_tail_value > rs_interval_result-reversed_positive_p99_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_p95_tail_pct = rs_interval_result-pos_p95_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_p99_tail_pct = rs_interval_result-pos_p99_tail_secs * 100 / lv_duration_seconds_total',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_p95_secs / rs_interval_result-positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_p99_secs / rs_interval_result-positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_positive_p95_secs / rs_interval_result-nonrev_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_positive_p99_secs / rs_interval_result-nonrev_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_positive_p95_secs / rs_interval_result-reversed_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_positive_p99_secs / rs_interval_result-reversed_positive_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-summary_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-nonrev_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-reversed_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-positive_pct = conv decfloat34( rs_interval_result-positive_duration_count ) * 100 / rs_interval_result-summary_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_pos_pct = conv decfloat34( rs_interval_result-nonrev_positive_count ) * 100 / rs_interval_result-nonrev_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_pos_pct = conv decfloat34( rs_interval_result-reversed_positive_count ) * 100 / rs_interval_result-reversed_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-pos_valid_pct = conv decfloat34( rs_interval_result-positive_duration_count ) * 100 / lv_duration_value_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_pos_valid_pct = conv decfloat34( rs_interval_result-nonrev_positive_count ) * 100 / lines( lt_nonrev_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_pos_valid_pct = conv decfloat34( rs_interval_result-reversed_positive_count ) * 100 / lines( lt_reversed_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-zero_valid_count = lv_duration_value_count - rs_interval_result-positive_duration_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_zero_valid_count = lines( lt_nonrev_duration_values ) - rs_interval_result-nonrev_positive_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_zero_valid_count = lines( lt_reversed_duration_values ) - rs_interval_result-reversed_positive_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-zero_valid_pct = conv decfloat34( rs_interval_result-zero_valid_count ) * 100 / lv_duration_value_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_zero_valid_pct = conv decfloat34( rs_interval_result-nonrev_zero_valid_count ) * 100 / lines( lt_nonrev_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_zero_valid_pct = conv decfloat34( rs_interval_result-rev_zero_valid_count ) * 100 / lines( lt_reversed_duration_values )',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-nonrev_invalid_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-rev_invalid_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-nonrev_missing_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'add 1 to rs_interval_result-rev_missing_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_valid_pct = conv decfloat34( rs_interval_result-nonrev_duration_count ) * 100 / rs_interval_result-nonrev_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_invalid_pct = conv decfloat34( rs_interval_result-nonrev_invalid_count ) * 100 / rs_interval_result-nonrev_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_missing_pct = conv decfloat34( rs_interval_result-nonrev_missing_count ) * 100 / rs_interval_result-nonrev_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_valid_pct = conv decfloat34( rs_interval_result-reversed_duration_count ) * 100 / rs_interval_result-reversed_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_invalid_pct = conv decfloat34( rs_interval_result-rev_invalid_count ) * 100 / rs_interval_result-reversed_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-rev_missing_pct = conv decfloat34( rs_interval_result-rev_missing_count ) * 100 / rs_interval_result-reversed_confirmation_count',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-nonrev_duration_avg_secs / rs_interval_result-nonrev_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      'rs_interval_result-reversed_avg_secs / rs_interval_result-reversed_duration_median_secs',
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_mad( it_duration_values = lt_nonrev_duration_values )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_mad( it_duration_values = lt_reversed_duration_values )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_nonrev_duration_values iv_percentile = 90 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_percentile( it_duration_values = lt_reversed_duration_values iv_percentile = 90 )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_median( lt_nonrev_duration_values )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "calc_exec_duration_median( lt_reversed_duration_values )",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "duration_mad_seconds",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "duration_p95_seconds",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "duration_p90_seconds",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "duration_median_seconds",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_covered_seconds\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_covered_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_duration_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_total_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_duration_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_excess_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_duration_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_total_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_rev_duration_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_covered_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_excess_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_nonrev_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_reversed_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || !productionOrderReadServiceSource.includes(
+      "method calc_exec_interval_union.",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "nonrev_covered_seconds",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "if ls_confirmation-is_reversed <> abap_true",
+    )
+    || (productionOrderReadServiceSource.match(
+      /exec_single_active_seconds\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_single_episode_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_single_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_single_active_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_high_concurrency_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_exactly_two_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_exactly_two_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_3plus_episode_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_3plus_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_3plus_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_3plus_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_excess_seconds\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_peak_concurrency\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_peak_concurrency_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_peak_concurrency_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_peak_episode_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_peak_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_peak_episode_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_avg_concurrency\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_overlap_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_wall_seconds\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_pairwise_overlap_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_episode_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_pair_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_pair_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_pair_overlap_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_idle_gap_seconds\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_longest_idle_gap_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_idle_gap_episode_count\s+type i/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_idle_gap_avg_secs\s+type decfloat34/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_interval_coverage_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_single_active_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /exec_overlap_wall_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 7
+    || (productionOrderReadServiceSource.match(
+      /\bvalid_exec_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 8
+    || (productionOrderReadServiceSource.match(
+      /invalid_exec_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 8
+    || (productionOrderReadServiceSource.match(
+      /missing_exec_duration_count\s+type i/g,
+    ) ?? []).length !== 8
+    || (productionOrderReadServiceSource.match(
+      /missing_exec_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 8
+    || (productionOrderReadServiceSource.match(
+      /zero_exec_duration_count\s+type i/g,
+    ) ?? []).length !== 8
+    || (productionOrderReadServiceSource.match(
+      /zero_exec_duration_pct\s+type p length 5 decimals 2/g,
+    ) ?? []).length !== 8
+    || !productionOrderReadServiceSource.includes(
+      "method calc_exec_duration_avg.",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "final_confirmation_pct",
+    )
     || !productionOrderReadServiceSource.includes("operation_summaries")
     || !productionOrderReadServiceSource.includes(
-      "snapshot_timestamp        type timestampl",
+      "ty_conf_order_summary",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "with unique key production_order quantity_unit",
+    )
+    || !/order_summaries\s+type ty_conf_order_summaries/.test(
+      productionOrderReadServiceSource,
+    )
+    || !productionOrderReadServiceSource.includes(
+      "ty_base_conf_order_summary",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "with unique key production_order base_quantity_unit",
+    )
+    || !/base_order_summaries\s+type ty_base_conf_order_summaries/.test(
+      productionOrderReadServiceSource,
+    )
+    || !productionOrderReadServiceSource.includes(
+      "snapshot_timestamp type timestampl",
     )
     || !productionOrderReadServiceSource.includes(
       "ty_confirmation_operation_summaries",
@@ -24159,6 +30896,12 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionOrderReadServiceSource.includes(
       "base_operation_summaries type ty_base_conf_summaries",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "order_summaries = build_conf_order_summaries(",
+    )
+    || !productionOrderReadServiceSource.includes(
+      "base_order_summaries = build_base_order_summaries(",
     )
     || !productionConfirmationBaseUnitService.includes(
       "search_confirmations_by_window(",
@@ -24235,6 +30978,30 @@ if (!productionOrderReadInterface.includes(
     || !productionConfirmationWindowSummaryBuilder.includes(
       "order_category = ls_confirmation-order_category",
     )
+    || !productionConfirmationOrderSummaryBuilder.includes(
+      "quantity_unit = ls_operation_summary-quantity_unit",
+    )
+    || !productionConfirmationOrderSummaryBuilder.includes(
+      "yield_quantity_total =",
+    )
+    || !productionConfirmationOrderSummaryBuilder.includes(
+      "scrap_non_reversed_total =",
+    )
+    || !productionConfirmationOrderSummaryBuilder.includes(
+      "add ls_operation_summary-reversed_confirmation_count to",
+    )
+    || !productionConfirmationBaseOrderSummaryBuilder.includes(
+      "base_quantity_unit = ls_operation_summary-base_quantity_unit",
+    )
+    || !productionConfirmationBaseOrderSummaryBuilder.includes(
+      "yield_quantity_base_total =",
+    )
+    || !productionConfirmationBaseOrderSummaryBuilder.includes(
+      "scrap_base_non_reversed_total =",
+    )
+    || !productionConfirmationBaseOrderSummaryBuilder.includes(
+      "add ls_operation_summary-reversed_confirmation_count to",
+    )
     || !productionConfirmationWindowSummaryBuilder.includes(
       "yield_quantity_total",
     )
@@ -24262,12 +31029,19 @@ if (!productionOrderReadInterface.includes(
     || !productionConfirmationWindowSummaryBuilder.includes(
       "control_key = ls_confirmation-control_key",
     )
+    || !productionConfirmationWindowSummaryBuilder.includes(
+      "resource_object_id = ls_confirmation-resource_object_id",
+    )
+    || !productionConfirmationBaseUnitService.includes(
+      "resource_object_id = ls_confirmation-resource_object_id",
+    )
     || !productionOrderReadServiceSource.includes(
       "with unique key production_order operation_counter",
     )
     || !productionConfirmationByOrderRepo.includes("uvorn type afvc-uvorn")
     || !productionConfirmationByOrderRepo.includes("ltxa1 type afvc-ltxa1")
     || !productionConfirmationByOrderRepo.includes("steus type afvc-steus")
+    || !productionConfirmationByOrderRepo.includes("arbid type afvc-arbid")
     || !productionConfirmationByOrderRepo.includes("ernam type afru-ernam")
     || !productionConfirmationByOrderRepo.includes("ersda type afru-ersda")
     || !productionConfirmationByOrderRepo.includes("aenam type afru-aenam")
@@ -24294,6 +31068,9 @@ if (!productionOrderReadInterface.includes(
     || !productionConfirmationByOrderRepo.includes(
       "ls_confirmation-operation_counter = ls_afvc-aplzl",
     )
+    || !productionConfirmationByOrderRepo.includes(
+      "ls_confirmation-resource_object_id = ls_afvc-arbid",
+    )
     || !productionConfirmationWindowRepoTests.includes(
       "lt_confirmations[ confirmation = '0000000003' ]-order_category",
     )
@@ -24301,13 +31078,193 @@ if (!productionOrderReadInterface.includes(
       "lt_confirmations[ confirmation = '0000000003' ]-operation_counter",
     )
     || !productionConfirmationWindowRepoTests.includes(
+      "lt_confirmations[ confirmation = '0000000003' ]-resource_object_id",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-resource_object_id = '00000002'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "data(ls_unasgn_conf) = lt_unasgn_page[ 1 ]",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-filter_resource_object_id = abap_true",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "assert_initial( ls_unasgn_conf-resource_object_id )",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "method reads_operations.",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_operations[ production_order = '1002' ]-resource_object_id",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "iv_resource_object_id = '00000002'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "iv_filter_resource_object_id = abap_true",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_unassigned_operations[ 1 ]-resource_object_id",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
       "lt_first_page[ 1 ]-operation_counter",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-operation_number_from = '0020'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_late_operation_page[ 1 ]-operation_number",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-operation_sequence_from = '000001'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_sequence_intersection",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-operation_suboperation_from = '0001'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_subop_intersection",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-operation_counter_from = '00000003'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_counter_intersection",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-confirmation_counter_from = '00000002'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_conf_cnt_intersection",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-work_center = 'wc-02'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_work_center_page[ 1 ]-work_center",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-filter_work_center = abap_true",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_blank_work_center",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_selection-work_center_plant = '2000'",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_work_center_plant[ 1 ]-work_center_plant",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_blank_work_center_plant",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "ls_blank_work_center_plant-work_center_plant",
     )
     || !productionConfirmationByOrderRepo.includes(
       "operation_description = ls_afvc-ltxa1",
     )
     || !productionOrderReadServiceTests.includes(
       "method searches_confirmation_window.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_operation_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_sequence_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_subop_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_counter_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_rmzhl_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_work_center.",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "work_center = 'wc-02'",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "operation_summaries[ 1 ]-work_center",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "filter_work_center = abap_true",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "assert_initial( ls_blank_result-confirmations[ 1 ]-work_center )",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "work_center_plant = '2000'",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "operation_summaries[ 1 ]-work_center_plant",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "ls_page_result-work_center_summaries",
+    )
+    || !productionConfirmationWindowWorkCenterTest.includes(
+      "filter_work_center_plant = abap_true",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_work_center = 'y'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_work_center_plant = 'y'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_primary-work_center",
+    )
+    || !productionConfirmationWindowConfirmCounterRangeTest.includes(
+      "confirmation_counter_from = '00000002'",
+    )
+    || !productionConfirmationWindowConfirmCounterRangeTest.includes(
+      "confirmation_counter_to = '00000003'",
+    )
+    || !productionConfirmationWindowConfirmCounterRangeTest.includes(
+      "confirmation_counter = '00000003'",
+    )
+    || !productionConfirmationWindowCounterRangeTest.includes(
+      "operation_counter_from = '00000001'",
+    )
+    || !productionConfirmationWindowCounterRangeTest.includes(
+      "operation_counter_to = '00000002'",
+    )
+    || !productionConfirmationWindowCounterRangeTest.includes(
+      "operation_counter = '00000003'",
+    )
+    || !productionConfirmationWindowSubopRangeTest.includes(
+      "operation_suboperation_from = '0001'",
+    )
+    || !productionConfirmationWindowSubopRangeTest.includes(
+      "operation_suboperation_to = '0002'",
+    )
+    || !productionConfirmationWindowSubopRangeTest.includes(
+      "operation_number = space",
+    )
+    || !productionConfirmationWindowSequenceRangeTest.includes(
+      "operation_sequence_from = '000001'",
+    )
+    || !productionConfirmationWindowSequenceRangeTest.includes(
+      "operation_sequence_to = '000002'",
+    )
+    || !productionConfirmationWindowSequenceRangeTest.includes(
+      "filter_operation_sequence = abap_true",
+    )
+    || !productionConfirmationWindowOperationRangeTest.includes(
+      "operation_number_from = '0010'",
+    )
+    || !productionConfirmationWindowOperationRangeTest.includes(
+      "operation_number_to = '0020'",
+    )
+    || !productionConfirmationWindowOperationRangeTest.includes(
+      "operation_number = '0030'",
     )
     || !productionOrderReadServiceTests.includes(
       "act = ls_result-snapshot_timestamp",
@@ -24333,6 +31290,1235 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderReadServiceTests.includes(
       "base_operation_summaries[ 1 ]-yield_quantity_base_total",
     )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_primary-resource_object_id",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_secondary-resource_object_id",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "base_order_summaries[ 1 ]-partial_confirmation_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "order_summaries[ 1 ]-partial_confirmation_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "base_order_summaries[ 1 ]-partial_confirmation_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_ea-exec_duration_seconds_total",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_order_box-invalid_exec_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_primary-invalid_exec_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-execution_start_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method checks_avg_exec_duration.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method checks_zero_exec_duration.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method checks_exec_duration_union.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method checks_exec_percentiles.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method checks_exec_p99_tails.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_p95",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p95_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p95_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p95_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p90_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p90_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p90_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p90_exceed_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p90_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p90_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p99_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p99_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p99_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p95_exceed_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p95_exceed_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_p99_exceed_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p99_exceed_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_unit_summary-exec_nonrev_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_operation_summary-exec_p90_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_order_summary-exec_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_work_center_summary-exec_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_summary-exec_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p95_exceed_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p95_exceed_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_p95_exceed_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_p99",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_iqr",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_p25",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_p75",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_iqr_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_iqr_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_iqr_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_duration_seconds_mad",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_mad",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'ea' ]-exec_nonrev_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_mad_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_mad_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_mad_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_duration_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p90_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p90_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p90_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p90_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p90_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p25_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p75_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_iqr_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_mad_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_iqr_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_mad_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_avg_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_min_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_max_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_range_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_gt_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_gt_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_tail_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_tail_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p95_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_p99_med_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_reversed_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_pos_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_pos_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_rev_zero_valid_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_zero_valid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_zero_valid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_rev_zero_valid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_zero_valid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_quality_summary-exec_nonrev_invalid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_quality_summary-exec_rev_invalid_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_quality_summary-exec_nonrev_missing_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_quality_summary-exec_rev_missing_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_reversed_pos_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_pos_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_reversed_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_pos_median_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_reversed_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_pos_p90_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_nonrev_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_skew_summary-exec_reversed_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_nonrev_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_reversed_avg_median_ratio",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_duration_seconds_median",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_median",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_duration_seconds_p90",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_duration_seconds_p90",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'ea' ]-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'box' ]-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_total_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_duration_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'ea' ]-exec_nonrev_duration_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_nonrev_duration_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_total_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_rev_duration_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'box' ]-exec_reversed_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_excess_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_reversed_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'box' ]-exec_nonrev_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_reversed_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_nonrev_excess_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'ea' ]-exec_nonrev_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "quantity_unit = 'box' ]-exec_nonrev_excess_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_nonrev_total_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_work_center_summary-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_ea-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_order_box-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_summary-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_covered_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_work_center_summary-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_ea-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_box-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_order_ea-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_order_box-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_summary-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_nonrev_covered_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_excess_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_box-exec_overlap_excess_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_overlap_excess_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_peak_concurrency",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_peak_concurrency",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_peak_concurrency_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_peak_concurrency_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_peak_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_longest_peak_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_result-work_center_summaries[ 1 ]-exec_peak_episode_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_avg_concurrency",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_avg_concurrency",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_result-work_center_summaries[ 1 ]-exec_peak_concurrency_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_peak_concurrency_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_peak_concurrency_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_longest_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_longest_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_overlap_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_longest_idle_gap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_longest_idle_gap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_idle_gap_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_idle_gap_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_idle_gap_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "checks_exec_idle_gap_average",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-exec_interval_coverage_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_overlap_wall_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_single_active_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_single_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_longest_single_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_single_active_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_high_concurrency_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_exactly_two_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_exactly_two_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_exactly_two_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_exactly_two_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_3plus_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_longest_3plus_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_3plus_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_3plus_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_result-work_center_summaries[ 1 ]-exec_3plus_pct",
+    )
+    || !productionOrderReadServiceTests.includes("checks_exec_3plus_avg")
+    || !productionOrderReadServiceTests.includes(
+      "ls_touching_result-work_center_summaries[ 1 ]-exec_single_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_touching_result-work_center_summaries[ 1 ]-exec_longest_single_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_single_active_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_high_concurrency_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_3plus_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_single_active_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_single_active_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_single_active_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_touching_result-work_center_summaries",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_idle_gap_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_ea-exec_idle_gap_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_idle_gap_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_wall_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_pairwise_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_pair_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_pair_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_longest_pair_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_longest_pair_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_overlap_pair_avg_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_overlap_pair_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_overlap_episodes_result-work_center_summaries[ 1 ]-exec_pairwise_overlap_secs",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_operation_box-exec_overlap_wall_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_overlap_wall_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_work_center_summary-exec_overlap_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-exec_overlap_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_touching_result-work_center_summaries[ 1 ]-exec_overlap_episode_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_confirmation_invalid-exec_duration_status",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_confirmation_missing-exec_duration_status",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_bulk_confirmation-exec_duration_status",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_confirmation-exec_duration_status",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_valid_confirmation-exec_duration_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_confirmation_missing-exec_duration_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_confirmation-exec_duration_seconds",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-zero_exec_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_summary-zero_exec_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "exec_duration_seconds_avg",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "exec_duration_seconds_min",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "exec_duration_seconds_max",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "valid_exec_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_raw_order_box-missing_exec_duration_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_order_summary-missing_exec_duration_pct",
+    )
+    || !productionOrderReadServiceTests.includes("'6300.5'")
     || !productionOrderReadServiceTests.includes(
       "base_operation_summaries[ 1 ]-yield_base_non_reversed_total",
     )
@@ -24411,10 +32597,43 @@ if (!productionOrderReadInterface.includes(
       "operation_summaries[ 1 ]-operation_counter",
     )
     || !productionOrderReadServiceTests.includes(
+      "order_summaries[ 1 ]-confirmation_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "order_summaries[ 2 ]-yield_quantity_total",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "base_order_summaries[ 1 ]-confirmation_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "order_summaries[ 1 ]-rework_non_reversed_total",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "base_order_summaries[ 1 ]-scrap_base_non_reversed_total",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "raw_result-order_summaries[ 2 ]-confirmation_count",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_base_operation_secondary-operation_counter",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "raw_result-operation_summaries ) exp = 3",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "base_order_summaries[ 1 ]-confirmation_count exp = 3",
+    )
+    || !productionOrderReadServiceTests.includes(
       "operation_summaries[ 1 ]-order_category",
     )
     || !productionOrderReadServiceTests.includes(
       "operation_summaries[ 2 ]-operation_counter",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "operation_summaries[ 1 ]-resource_object_id",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "operation_summaries[ 2 ]-resource_object_id",
     )
     || !productionOrderReadServiceTests.includes(
       "order_category = '99'",
@@ -24446,6 +32665,42 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderReadServiceTests.includes("partial_only = 'y'")
     || !productionOrderReadServiceTests.includes(
       "method rejects_bad_window_results.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "method filters_conf_yield_range.",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_resource_object_id = 'y'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_resource_result-confirmations[ 1 ]-resource_object_id",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_blank_resource_result-confirmations[ 1 ]-resource_object_id",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "resource_object_id = '00000002'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_rework_quantity_from = abap_true rework_quantity_from = '3.000'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_scrap_quantity_to = abap_true scrap_quantity_to = '4.000'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_yield_page_result-is_truncated",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "ls_yield_page_result-next_confirmation",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_yield_quantity_from = abap_true yield_quantity_from = '0.000'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "filter_yield_quantity_to = abap_true yield_quantity_to = '2.000'",
+    )
+    || !productionOrderReadServiceTests.includes(
+      "lo_repository->use_conf_window_override = abap_true",
     )
     || !productionOrderReadServiceTests.includes(
       "method summarizes_confirmation_page.",
@@ -24490,6 +32745,24 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionConfirmationWindowRepoTests.includes(
       "ls_selection-positive_yield_only = abap_true",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_yield_range_page[ 1 ]-yield_quantity",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_yield_upper_page",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_yield_lower_page",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_yield_late_page[ 1 ]-confirmation",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_rework_range_page[ 1 ]-confirmation",
+    )
+    || !productionConfirmationWindowRepoTests.includes(
+      "lt_scrap_range_page[ 1 ]-confirmation",
     )
     || !productionConfirmationWindowRepoTests.includes(
       "ls_yield_confirmation-yield_quantity > 0",
@@ -24545,6 +32818,36 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishDocs.includes(
       "optional nonblank `control_key` filters by the afvc routing control key",
     )
+    || !productionOrderFinishPlan.includes(
+      "optional nonblank `resource_object_id` filters `afvc-arbid`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "optional nonblank `resource_object_id` filters `afvc-arbid`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_resource_object_id` to `abap_true` to select the exact initial value",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`filter_resource_object_id` to `abap_true` to match the exact initial id",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`filter_resource_object_id` flag matches initial ids for operations without an assigned resource",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`crhd-objid` identifies the same object and `crhd-arbpl` contains the work-center identifier",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`crhd-objid` identifies the same object and `crhd-arbpl` contains the work-center identifier",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "crhd-objid identifies the same object and crhd-arbpl contains the work-center identifier",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "operation and base operation summaries also report the assigned resource id",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "direct confirmation and operation reads populate the field from afvc",
+    )
     || !productionOrderFinishPlan.includes("filter_control_key")
     || !productionOrderFinishDocs.includes("filter_control_key")
     || !productionOrderFinishAnomalies.includes("filter_control_key")
@@ -24577,6 +32880,24 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishAnomalies.includes("afru-ersda")
     || !productionOrderFinishPlan.includes("last_change_date_from")
     || !productionOrderFinishDocs.includes("last_change_date_from")
+    || !productionOrderFinishPlan.includes(
+      "pass `iv_entered_by` or `iv_changed_by` to filter exact afru users",
+    )
+    || !productionOrderFinishDocs.includes("iv_filter_entered_by")
+    || !productionOrderFinishDocs.includes("iv_filter_changed_by")
+    || !productionOrderFinishPlan.includes(
+      "pass `iv_quantity_unit` to restrict rows to one afru confirmation unit",
+    )
+    || !productionOrderFinishDocs.includes("iv_filter_quantity_unit")
+    || !productionOrderFinishPlan.includes("afru-erzet inclusively")
+    || !productionOrderFinishDocs.includes("iv_filter_entry_time")
+    || !productionOrderFinishPlan.includes("iv_positive_yield_only")
+    || !productionOrderFinishPlan.includes("quantity ranges require one unit scope")
+    || !productionOrderFinishDocs.includes("iv_positive_rework_only")
+    || !productionOrderFinishDocs.includes("quantity ranges require one unit scope")
+    || !productionOrderFinishAnomalies.includes("afru-erzet")
+    || !productionOrderFinishAnomalies.includes("midnight is valid")
+    || !productionOrderFinishAnomalies.includes("iv_quantity_unit")
     || !productionOrderFinishAnomalies.includes("afru-laeda")
     || !productionOrderFinishPlan.includes("filter_changed_by")
     || !productionOrderFinishDocs.includes("filter_changed_by")
@@ -24659,7 +32980,10 @@ if (!productionOrderReadInterface.includes(
       "`first_posting_date` and `last_posting_date` identify the earliest and latest posting dates among its returned confirmations",
     )
     || !productionOrderFinishPlan.includes(
-      "summaries also carry the operation description and control key",
+      "summaries also carry the operation description, control key, and assigned `resource_object_id`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "base operation summaries preserve the same resource id when they merge confirmation units",
     )
     || !productionOrderFinishPlan.includes(
       "raw totals include reversed rows; non-reversed totals include only returned rows whose `is_reversed` is not `abap_true`",
@@ -24676,11 +33000,783 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishDocs.includes(
       "`operation_summaries`, grouped by afvc operation counter, operation number, sequence, suboperation, and confirmation unit within each production order",
     )
+    || !productionOrderFinishPlan.includes(
+      "the same page also includes `order_summaries`, grouped by production order and confirmation unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "operation summaries, and order summaries also report `execution_start_count` and `execution_finish_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_avg` divides the total by that valid-pair count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_min` and `exec_duration_seconds_max` report the shortest",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_median` reports the middle valid duration after",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_p90` reports the nearest-rank 90th percentile of",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p90_median_ratio`, `exec_nonrev_p90_median_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p90_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_p90_tail_secs` sums valid durations strictly above p90",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_p95` reports the nearest-rank 95th percentile",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p95_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p95_median_ratio` divides the group's p95 duration by its",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_p95_tail_secs` sums valid durations strictly above",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p99_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_p99_tail_secs` sums valid durations strictly above",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_reversed_p99_tail_pct`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_p99_median_ratio`, `exec_nonrev_p99_median_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_p99` reports the nearest-rank 99th percentile",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_iqr` reports the interquartile range: the nearest-rank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_iqr_median_ratio`, `exec_nonrev_iqr_median_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_p25` and `exec_duration_seconds_p75` report the",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_seconds_mad` reports the median absolute deviation of",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_min_secs`, `exec_nonrev_max_secs`, `exec_reversed_min_secs`,",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_median_secs` and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p90_secs` and `exec_reversed_p90_secs` report nearest-rank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p95_secs` and `exec_reversed_p95_secs` report nearest-rank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p95_exceed_count` and `exec_reversed_p95_exceed_count` count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p95_median_ratio` and `exec_reversed_p95_median_ratio` divide",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p95_tail_secs` and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p99_secs` and `exec_reversed_p99_secs` report nearest-rank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_iqr_secs` and `exec_reversed_iqr_secs` report the nearest-rank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_p25_secs`, `exec_nonrev_p75_secs`,",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_mad_secs` and `exec_reversed_mad_secs` report median",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_mad_median_ratio`, `exec_nonrev_mad_median_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p95_secs` and `exec_pos_p99_secs` report the nearest-rank 95th",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p25_secs`, `exec_pos_p75_secs`, `exec_pos_iqr_secs`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_avg_secs`, `exec_nonrev_pos_avg_secs`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_min_secs`, `exec_pos_max_secs`, and `exec_pos_range_secs` report the",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p95_gt_count` and `exec_pos_p99_gt_count` count positive durations",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p95_med_ratio`, `exec_nonrev_pos_p95_med_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_duration_pct` divides `exec_pos_duration_count` by the summary's",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_valid_pct` divides the positive-duration count by valid duration",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_zero_valid_pct`, `exec_nonrev_zero_valid_pct`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_zero_valid_count`, `exec_nonrev_zero_valid_count`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_invalid_count` and `exec_rev_invalid_count` count invalid",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_valid_pct`, `exec_nonrev_invalid_pct`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p90_gt_count` counts positive durations strictly greater than",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_p90_med_ratio`, `exec_nonrev_pos_p90_med_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pos_duration_count`, `exec_pos_median_secs`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_avg_median_ratio`, `exec_nonrev_avg_median_ratio`, and",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`zero_exec_duration_count` counts valid intervals whose start and finish are",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`valid_exec_duration_pct` divides `exec_duration_count` by the summary's `confirmation_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "valid, invalid, and missing counts partition `confirmation_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_status` is `v` for a complete valid interval, including a",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_issue_code` to identify the first applicable",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_duration_issue_counts`, a fixed eight-row table",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`confirmation_pct` against the summary's `confirmation_count`, returning zero",
+    )
+    || !productionOrderFinishPlan.includes(
+      "rows also split `nonrev_confirmation_count` and `reversed_confirmation_count`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "using the matching cohort's confirmation count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`issue_share_pct` reports each reason's share of all invalid and missing",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`nonrev_issue_share_pct` and `reversed_issue_share_pct` report each reason's",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`status_share_pct` reports a reason's share within its own status",
+    )
+    || !productionOrderFinishPlan.includes(
+      "zero when no invalid or missing intervals have that status",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`nonrev_status_share_pct` and `reversed_status_share_pct` split that",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each summary also reports `exec_top_issue_code`, `exec_top_issue_status`,",
+    )
+    || !productionOrderFinishPlan.includes(
+      "lexically first issue code; when the summary has no issues",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each summary also reports the most frequent invalid reason with",
+    )
+    || !productionOrderFinishPlan.includes(
+      "the shares use all invalid and all missing confirmations respectively",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each summary also reports the most frequent issue within non-reversed and reversed confirmations",
+    )
+    || !productionOrderFinishPlan.includes(
+      "each row also exposes `exec_duration_seconds`, the elapsed whole seconds for a valid interval",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_covered_seconds`, the union of valid execution intervals with overlaps merged",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_covered_secs` reports the same valid-interval union after",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_duration_count` counts valid non-reversed intervals",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_duration_avg_secs` divides that",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_excess_secs` is `exec_nonrev_total_secs` minus",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_reversed_duration_count` counts valid reversed intervals",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_reversed_covered_secs` reports the union",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_nonrev_duration_pct` and `exec_reversed_duration_pct` divide each",
+    )
+    || !productionOrderFinishPlan.includes(
+      "operation summaries also report the union within",
+    )
+    || !productionOrderFinishPlan.includes(
+      "summaries report the union within each base-unit group",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_excess_seconds` reports the difference between a group's summed valid duration",
+    )
+    || !productionOrderFinishPlan.includes(
+      "a 30-second triple overlap contributes 60 excess seconds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_peak_concurrency`, the maximum number of simultaneously active valid, positive-duration intervals in that group",
+    )
+    || !productionOrderFinishPlan.includes(
+      "a finish coinciding with another start does not increase concurrency",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_peak_concurrency_secs` reports the elapsed time during which active interval count equaled that group's peak concurrency",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_peak_concurrency_pct` reports that time as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_peak_episode_count` counts continuous stretches at the final peak concurrency",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_peak_episode_avg_secs` divides `exec_peak_concurrency_secs` by the episode count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_avg_concurrency` divides summed valid interval duration by that span",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_idle_gap_seconds` reports the uncovered elapsed time inside the envelope",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_longest_idle_gap_secs` reports the longest continuous uncovered segment",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_idle_gap_episode_count` reports the number of positive-duration internal",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_idle_gap_avg_secs` reports the arithmetic mean duration of those internal",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_interval_coverage_pct` reports the covered union as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_wall_pct` reports overlap wall time as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_single_active_seconds` reports time inside the covered union",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_single_active_pct` reports that single-active time as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_single_episode_count` reports distinct continuous stretches",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_longest_single_secs` reports the duration of the longest such stretch",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_single_active_avg_secs` reports the arithmetic mean duration of those",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_high_concurrency_secs` reports wall-clock time with at least three valid",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_exactly_two_secs` reports wall-clock time with exactly two valid",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_exactly_two_pct` reports that time as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_3plus_episode_count` reports separate continuous stretches",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_longest_3plus_secs` reports the longest continuous stretch",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_3plus_avg_secs` divides",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_3plus_pct` reports `exec_high_concurrency_secs` as a percentage",
+    )
+    || !productionOrderFinishPlan.includes(
+      "time before the first or after the last positive interval is not counted",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_wall_seconds` reports elapsed wall-clock time inside the positive intervals' envelope",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_pairwise_overlap_secs` sums overlap duration for every unordered pair",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_pair_count` counts each distinct pair of valid positive-duration",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_pair_avg_secs` divides `exec_pairwise_overlap_secs` by that pair count",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_longest_pair_overlap_secs` reports the longest positive-duration intersection",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_longest_overlap_secs` reports the longest continuous stretch with at least two valid positive-duration intervals active",
+    )
+    || !productionOrderFinishPlan.includes(
+      "a 30-second triple overlap contributes 30 seconds here and 60 excess seconds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_episode_count` reports the number of separate continuous stretches",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`exec_overlap_avg_secs` reports the arithmetic mean overlap-episode duration",
+    )
+    || !productionOrderFinishPlan.includes(
+      "fractional seconds when episode lengths do not divide evenly",
+    )
+    || !productionOrderFinishPlan.includes(
+      "a positive-duration gap starts a new episode",
+    )
+    || !productionOrderFinishPlan.includes(
+      "they also report execution coverage and span fields",
+    )
+    || !productionOrderFinishPlan.includes(
+      "partial counts include confirmations whose `is_final` is not `abap_true`",
+    )
+    || !productionOrderFinishPlan.includes("`partial_confirmation_count`")
+    || !productionOrderFinishPlan.includes("`final_confirmation_pct`")
     || !productionOrderFinishDocs.includes(
-      "`first_posting_date`, `last_posting_date`",
+      "the same page also contains `order_summaries`, grouped by production order and confirmation unit",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each operation summary also reports its execution-start and execution-finish",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_avg` divides the total by that valid-interval count",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_min` and `exec_duration_seconds_max` report the shortest",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_median` reports the middle valid duration after",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_p90` reports the nearest-rank 90th percentile of",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p90_median_ratio`, `exec_nonrev_p90_median_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p90_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_p90_tail_secs` sums valid durations strictly above p90",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_p95` reports the nearest-rank 95th percentile",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p95_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p95_median_ratio` divides the group's p95 duration by its",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_p95_tail_secs` sums valid durations strictly above",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p99_exceed_count` counts valid durations strictly greater than",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_p99_tail_secs` sums valid durations strictly above",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_reversed_p99_tail_pct`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_p99_median_ratio`, `exec_nonrev_p99_median_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_p99` reports the nearest-rank 99th percentile",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_iqr` reports the interquartile range: the nearest-rank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_iqr_median_ratio`, `exec_nonrev_iqr_median_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_p25` and `exec_duration_seconds_p75` report the",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_seconds_mad` reports the median absolute deviation of",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_min_secs`, `exec_nonrev_max_secs`, `exec_reversed_min_secs`,",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_median_secs` and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p90_secs` and `exec_reversed_p90_secs` report nearest-rank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p95_secs` and `exec_reversed_p95_secs` report nearest-rank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p95_exceed_count` and `exec_reversed_p95_exceed_count` count",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p95_median_ratio` and `exec_reversed_p95_median_ratio` divide",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p95_tail_secs` and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p99_secs` and `exec_reversed_p99_secs` report nearest-rank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_iqr_secs` and `exec_reversed_iqr_secs` report the nearest-rank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_p25_secs`, `exec_nonrev_p75_secs`,",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_mad_secs` and `exec_reversed_mad_secs` report median",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_mad_median_ratio`, `exec_nonrev_mad_median_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p95_secs` and `exec_pos_p99_secs` report the nearest-rank 95th",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p25_secs`, `exec_pos_p75_secs`, `exec_pos_iqr_secs`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_avg_secs`, `exec_nonrev_pos_avg_secs`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_min_secs`, `exec_pos_max_secs`, and `exec_pos_range_secs` report the",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p95_gt_count` and `exec_pos_p99_gt_count` count positive durations",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p95_med_ratio`, `exec_nonrev_pos_p95_med_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_duration_pct` divides `exec_pos_duration_count` by the summary's",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_valid_pct` divides the positive-duration count by valid duration",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_zero_valid_pct`, `exec_nonrev_zero_valid_pct`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_zero_valid_count`, `exec_nonrev_zero_valid_count`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_invalid_count` and `exec_rev_invalid_count` count invalid",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_valid_pct`, `exec_nonrev_invalid_pct`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p90_gt_count` counts positive durations strictly greater than",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_p90_med_ratio`, `exec_nonrev_pos_p90_med_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pos_duration_count`, `exec_pos_median_secs`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_avg_median_ratio`, `exec_nonrev_avg_median_ratio`, and",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`zero_exec_duration_count` also counts complete valid intervals whose start",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`valid_exec_duration_pct` reports `exec_duration_count` as a percentage of the group's `confirmation_count`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "valid, invalid, and missing counts partition the summary's confirmations",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_status` is `v` for a complete valid interval, including a",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_issue_code` to identify the first applicable",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_duration_issue_counts`, a fixed eight-row table",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`confirmation_pct` against the summary's `confirmation_count`, returning zero",
+    )
+    || !productionOrderFinishDocs.includes(
+      "rows also split `nonrev_confirmation_count` and `reversed_confirmation_count`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "using the matching cohort's confirmation count",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`issue_share_pct` reports each reason's share of all invalid and missing",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`nonrev_issue_share_pct` and `reversed_issue_share_pct` report each reason's",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`status_share_pct` reports a reason's share within its own status",
+    )
+    || !productionOrderFinishDocs.includes(
+      "zero when no invalid or missing intervals have that status",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`nonrev_status_share_pct` and `reversed_status_share_pct` split that",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each summary also reports `exec_top_issue_code`, `exec_top_issue_status`,",
+    )
+    || !productionOrderFinishDocs.includes(
+      "lexically first issue code; when the summary has no issues",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each summary also reports the most frequent invalid reason with",
+    )
+    || !productionOrderFinishDocs.includes(
+      "the shares use all invalid and all missing confirmations respectively",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each summary also reports the most frequent issue within non-reversed and reversed confirmations",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each row also exposes `exec_duration_seconds`, the elapsed whole seconds for a valid interval",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_covered_seconds`, the union of valid execution intervals with overlaps merged",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_covered_secs` reports the same valid-interval union after",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_duration_count` counts valid non-reversed intervals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_duration_avg_secs` divides that",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_excess_secs` is `exec_nonrev_total_secs` minus",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_reversed_duration_count` counts valid reversed intervals",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_reversed_covered_secs` reports the union",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_nonrev_duration_pct` and `exec_reversed_duration_pct` divide each",
+    )
+    || !productionOrderFinishDocs.includes(
+      "operation summaries also report the union within",
+    )
+    || !productionOrderFinishDocs.includes(
+      "summaries report the union within each base-unit group",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_excess_seconds` reports the difference between a group's summed valid duration",
+    )
+    || !productionOrderFinishDocs.includes(
+      "a 30-second triple overlap contributes 60 excess seconds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_peak_concurrency`, the maximum number of simultaneously active valid, positive-duration intervals in each group",
+    )
+    || !productionOrderFinishDocs.includes(
+      "a finish coinciding with another start does not increase concurrency",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_peak_concurrency_secs` reports elapsed time when active interval count equaled the group's peak concurrency",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_peak_concurrency_pct` reports that time as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_peak_episode_count` counts continuous stretches at the final peak concurrency",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_peak_episode_avg_secs` divides `exec_peak_concurrency_secs` by the episode count",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_avg_concurrency` divides summed valid interval duration by that span",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_idle_gap_seconds` reports uncovered elapsed time inside the envelope",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_longest_idle_gap_secs` reports the longest continuous uncovered segment",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_idle_gap_episode_count` reports the number of positive-duration internal",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_idle_gap_avg_secs` reports the arithmetic mean duration of those internal",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_interval_coverage_pct` reports the covered union as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_wall_pct` reports overlap wall time as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_single_active_seconds` reports time inside the covered union",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_single_active_pct` reports that single-active time as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_single_episode_count` reports distinct continuous stretches",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_longest_single_secs` reports the duration of the longest such stretch",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_single_active_avg_secs` reports the arithmetic mean duration of those",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_high_concurrency_secs` reports wall-clock time with at least three valid",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_exactly_two_secs` reports wall-clock time with exactly two valid",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_exactly_two_pct` reports that time as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_3plus_episode_count` reports separate continuous stretches",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_longest_3plus_secs` reports the longest continuous stretch",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_3plus_avg_secs` divides",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_3plus_pct` reports `exec_high_concurrency_secs` as a percentage",
+    )
+    || !productionOrderFinishDocs.includes(
+      "time before the first or after the last positive interval is not counted",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_wall_seconds` reports elapsed wall-clock time inside the positive intervals' envelope",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_pairwise_overlap_secs` sums overlap duration for every unordered pair",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_pair_count` counts each distinct pair of valid positive-duration",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_pair_avg_secs` divides `exec_pairwise_overlap_secs` by that pair count",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_longest_pair_overlap_secs` reports the longest positive-duration intersection",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_longest_overlap_secs` reports the longest continuous stretch with at least two valid positive-duration intervals active",
+    )
+    || !productionOrderFinishDocs.includes(
+      "a 30-second triple overlap contributes 30 seconds here and 60 excess seconds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_episode_count` reports the number of separate continuous stretches",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`exec_overlap_avg_secs` reports the arithmetic mean overlap-episode duration",
+    )
+    || !productionOrderFinishDocs.includes(
+      "fractional seconds when episode lengths do not divide evenly",
+    )
+    || !productionOrderFinishDocs.includes(
+      "a positive-duration gap starts a new episode",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "production confirmation detail rows now expose `exec_duration_seconds` alongside `exec_duration_status`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "work-center confirmation summaries now expose `exec_covered_seconds`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "operation and order confirmation summaries now expose `exec_covered_seconds`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries also report `exec_overlap_excess_seconds`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_peak_concurrency`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_idle_gap_seconds`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_overlap_wall_seconds`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_overlap_episode_count`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_peak_concurrency_secs`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_longest_overlap_secs`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_overlap_avg_secs`",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "confirmation summaries now report `exec_longest_idle_gap_secs`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "they also report execution coverage and span fields",
+    )
+    || !productionOrderFinishDocs.includes(
+      "partial counts include confirmations whose `is_final` is not `abap_true`",
+    )
+    || !productionOrderFinishDocs.includes("`partial_confirmation_count`")
+    || !productionOrderFinishDocs.includes("`final_confirmation_pct`")
+    || !productionOrderFinishDocs.includes(
+      "`first_posting_date` and `last_posting_date`",
     )
     || !productionOrderFinishDocs.includes(
       "the operation description and control key",
+    )
+    || !productionOrderFinishDocs.includes(
+      "each operation summary also reports `resource_object_id`, the assigned afvc resource id",
+    )
+    || !productionOrderFinishDocs.includes(
+      "base operation summaries retain it when merging source units",
     )
     || !productionOrderFinishDocs.includes(
       "summaries echo the order category",
@@ -24691,17 +33787,71 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishDocs.includes(
       "each row also includes its afvc operation counter, operation subnumber, sequence, description, control key, and order category",
     )
+    || !productionOrderFinishPlan.includes(
+      "work-center code from crhd-arbpl, entered-by user, order category",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`work_center_summaries` is also returned on each page, grouped by work-center plant and code",
+    )
+    || !productionOrderFinishDocs.includes(
+      "rows and operation summaries expose the matching work-center code",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`work_center_summaries` is also returned on each page, grouped by plant and code",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "`search_confirmations_by_window` now includes the same page-scoped work-center summary",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`resource_object_id` from afvc-arbid",
+    )
+    || !productionOrderFinishPlan.includes(
+      "including operations without confirmations",
+    )
+    || !productionOrderFinishPlan.includes(
+      "pass `iv_resource_object_id` to return operations assigned to one resource; a nonblank id filters by default",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_filter_resource_object_id` to `abap_true` with an initial id to select unassigned operations exactly",
+    )
+    || !productionOrderFinishDocs.includes(
+      "control key, and `resource_object_id` from `afvc-arbid`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "results are grouped per order in request order",
+    )
+    || !productionOrderFinishDocs.includes(
+      "pass `iv_resource_object_id` to restrict the rows to one assigned resource; a nonblank value filters automatically",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_filter_resource_object_id` to `abap_true` with an initial id to select unassigned operations exactly",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "read_operations_bulk` can filter by nonblank `iv_resource_object_id`",
+    )
     || !productionOrderFinishDocs.includes(
       "set `exclude_reversed` to `abap_true`",
     )
     || !productionOrderFinishPlan.includes(
-      "`reversed_only` selects only reversed rows",
+      "`iv_reversed_only` to `abap_true` to return only reversed rows",
     )
     || !productionOrderFinishDocs.includes(
       "set `reversed_only` to `abap_true` to return only reversed rows",
     )
     || !productionOrderFinishPlan.includes(
       "`positive_yield_only`, `positive_rework_only`, and `positive_scrap_only` select rows with a positive quantity in the corresponding afru field",
+    )
+    || !productionOrderFinishPlan.includes(
+      "these raw quantity bounds require a single confirmation unit scope: provide a nonblank `quantity_unit` or set `filter_quantity_unit` to `abap_true` to select an exact unit, including blank",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_rework_quantity_from` / `filter_rework_quantity_to`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`filter_scrap_quantity_from` / `filter_scrap_quantity_to`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "either bound may be enabled alone, including a zero bound; disabled values must be initial, and two active bounds must be ascending",
     )
     || !productionOrderFinishPlan.includes(
       "`search_conf_window_base_unit` returns the same paged result together with one base-quantity row for each returned confirmation",
@@ -24712,8 +33862,47 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishPlan.includes(
       "the base-unit result also provides `base_operation_summaries`, merging source units",
     )
+    || !productionOrderFinishPlan.includes(
+      "it also provides `base_order_summaries`, grouped by production order and base unit",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_number_from` and/or `iv_operation_number_to` for inclusive afvc-vornr bounds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_counter_from` and/or `iv_operation_counter_to` for inclusive aplzl bounds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_counter_from` and/or `iv_operation_counter_to` for inclusive afvc-aplzl bounds; initial values omit their bound, paired active bounds must ascend, and the exact counter selector intersects with the range",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_sequence_from` and/or `iv_operation_sequence_to` for inclusive afvc-plnfl bounds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_sequence_from` and/or `iv_operation_sequence_to` for inclusive afvc-plnfl bounds; initial values omit their bound, paired active bounds must ascend, and the exact sequence selector intersects with the range",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_suboperation_number_from` and/or `iv_suboperation_number_to` for inclusive afvc-uvorn bounds",
+    )
+    || !productionOrderFinishPlan.includes(
+      "an active range requires an exact noninitial `iv_operation_number`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_operation_number_from` and/or `iv_operation_number_to` for inclusive afvc-vornr bounds; initial values omit their bound, and noninitial bounds must ascend when both are supplied. the exact `iv_operation_number` selector intersects with the range",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `iv_suboperation_number_from` and/or `iv_suboperation_number_to` for inclusive afvc-uvorn bounds; initial values omit their bound, and paired active bounds must ascend",
+    )
     || !productionOrderFinishDocs.includes(
       "`positive_yield_only`, `positive_rework_only`, and `positive_scrap_only` select rows whose corresponding afru quantity is greater than zero",
+    )
+    || !productionOrderFinishDocs.includes(
+      "these raw quantity bounds require a single confirmation unit scope: provide a nonblank `quantity_unit` or set `filter_quantity_unit` to `abap_true` to select an exact unit, including blank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`filter_rework_quantity_from` / `filter_rework_quantity_to`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`filter_scrap_quantity_from` / `filter_scrap_quantity_to`",
     )
     || !productionOrderFinishDocs.includes(
       "`search_conf_window_base_unit` returns the same paged search result plus one base-quantity row per returned confirmation",
@@ -24724,11 +33913,50 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishAnomalies.includes(
       "production confirmation-window results now include a utc timestamp captured after the repository returns",
     )
+    || !productionOrderFinishAnomalies.includes(
+      "they require an exact confirmation-unit scope because values in different `afru-meinh` units are not comparable",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "yield, rework, and scrap quantity bounds compare `afru-lmnga`, `afru-rmnga`, and `afru-xmnga` inclusively before pagination",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "the plan validator's `valid_exec_duration_pct` field-count pattern also matched",
+    )
     || !productionOrderFinishDocs.includes(
       "`base_operation_summaries` merges those operation/unit groups and totals their converted quantities in base units",
     )
     || !productionOrderFinishDocs.includes(
+      "`base_order_summaries` also groups converted quantities by production order and base unit",
+    )
+    || !productionOrderFinishDocs.includes(
       "set `operation_number` to restrict results to one routing operation",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_number_from` and/or `iv_operation_number_to` for inclusive afvc-vornr bounds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_sequence_from` and/or `iv_operation_sequence_to` for inclusive afvc-plnfl bounds; initial values omit their bound, paired active bounds must ascend, and the exact sequence selector intersects with the range",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_counter_from` and/or `iv_operation_counter_to` for inclusive aplzl bounds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_counter_from` and/or `iv_operation_counter_to` for inclusive afvc-aplzl bounds; initial values omit their bound, paired active bounds must ascend, and the exact counter selector intersects with the range",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_sequence_from` and/or `iv_operation_sequence_to` for inclusive afvc-plnfl bounds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_suboperation_number_from` and/or `iv_suboperation_number_to` for inclusive afvc-uvorn bounds",
+    )
+    || !productionOrderFinishDocs.includes(
+      "an active range requires an exact noninitial `iv_operation_number`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_operation_number_from` and/or `iv_operation_number_to` for inclusive afvc-vornr bounds; initial values omit their bound, paired active bounds must ascend, and the exact `iv_operation_number` selector intersects with the range",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `iv_suboperation_number_from` and/or `iv_suboperation_number_to` for inclusive afvc-uvorn bounds; initial values omit their bound, and paired active bounds must ascend",
     )
     || !productionOrderFinishDocs.includes(
       "`operation_sequence` can restrict results to one routing sequence alone or alongside an operation number",
@@ -24736,14 +33964,68 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishDocs.includes(
       "a nonblank `operation_suboperation` filters one suboperation and requires `operation_number`",
     )
+    || !productionOrderFinishPlan.includes(
+      "`operation_number_from` and `operation_number_to` bounds filter afvc-vornr inclusively before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`operation_number_from` and `operation_number_to` bounds filter afvc-vornr inclusively before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`operation_sequence_from` and `operation_sequence_to` bounds filter afvc-plnfl inclusively before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`operation_sequence_from` and `operation_sequence_to` bounds filter afvc-plnfl inclusively before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`operation_suboperation_from` and `operation_suboperation_to` bounds filter afvc-uvorn inclusively before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`operation_suboperation_from` and `operation_suboperation_to` bounds filter afvc-uvorn inclusively before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`operation_counter_from` and `operation_counter_to` bounds filter afvc-aplzl inclusively before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`operation_counter_from` and `operation_counter_to` bounds filter afvc-aplzl inclusively before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "`confirmation_counter_from` and `confirmation_counter_to` bounds filter afru-rmzhl inclusively before pagination",
+    )
+    || !productionOrderFinishDocs.includes(
+      "`confirmation_counter_from` and `confirmation_counter_to` bounds filter afru-rmzhl inclusively before pagination",
+    )
+    || !productionOrderFinishPlan.includes(
+      "an optional nonblank `work_center` filters `crhd-arbpl` through the `afvc-arbid` / `crhd-objid` link",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `filter_work_center` to `abap_true` with a blank `work_center` to select operations with no resolved work-center code",
+    )
+    || !productionOrderFinishPlan.includes(
+      "an optional nonblank `work_center_plant` to filter `crhd-werks`",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `filter_work_center_plant` to `abap_true` with a blank `work_center_plant` to select operations without a resolved work-center plant",
+    )
+    || !productionOrderFinishDocs.includes(
+      "an optional nonblank `work_center` filters crhd-arbpl through the afvc-arbid / crhd-objid link",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `filter_work_center` to `abap_true` with a blank `work_center` to select operations without a resolved work-center code",
+    )
+    || !productionOrderFinishDocs.includes(
+      "an optional nonblank `work_center_plant` filters `crhd-werks`",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `filter_work_center_plant` to `abap_true` with a blank `work_center_plant` to select operations without a resolved work-center plant",
+    )
     || !productionOrderFinishDocs.includes(
       "set `final_only` to `abap_true`",
     )
     || !productionOrderFinishPlan.includes(
-      "`partial_only` returns confirmations not marked final",
+      "`iv_partial_only` returns confirmations not marked final",
     )
     || !productionOrderFinishPlan.includes(
-      "the two flags are mutually exclusive",
+      "both flags default to false, accept only `abap_true` or `abap_false`, and are mutually exclusive",
     )
     || !productionOrderFinishDocs.includes(
       "set `partial_only` to `abap_true` to return only confirmations not marked final",
@@ -24773,12 +34055,56 @@ const expiredAgeAnomalies = readFileSync(
 ).toLowerCase().replace(/\s+/g, " ");
 const expiredAgeBuckets = ["1_7", "8_30", "31_90", "ov90"];
 const expiredAgeCategories = ["unrestricted", "available", "quality", "blocked"];
+const compactExpiredAgeSource = expiredAgeSource.replace(/\s+/g, " ");
+const compactExpiredAgeTests = expiredAgeTests.replace(/\s+/g, " ");
 let expiredAgeBucketsAreGuarded =
   expiredAgeSource.includes("0 - ls_expiry_row-days_to_expiration")
+  && compactExpiredAgeSource.includes(
+    "if ls_result-expired_batch_row_count > 0. loop at ls_result-expiry_src_age_bands",
+  )
+  && compactExpiredAgeSource.includes(
+    "<ls_expiry_source_age_share>-row_share_pct = conv decfloat34( <ls_expiry_source_age_share>-row_count ) * 100 / conv decfloat34( ls_result-expired_batch_row_count )",
+  )
+  && compactExpiredAgeSource.includes(
+    "if ls_result-upcoming_batch_row_count > 0. loop at ls_result-upcoming_src_bands",
+  )
+  && compactExpiredAgeSource.includes(
+    "<ls_upc_src_band_share>-row_share_pct = conv decfloat34( <ls_upc_src_band_share>-row_count ) * 100 / conv decfloat34( ls_result-upcoming_batch_row_count )",
+  )
+  && compactExpiredAgeSource.includes(
+    "if ls_result-after_window_batch_row_count > 0. loop at ls_result-after_window_src_bands",
+  )
+  && compactExpiredAgeSource.includes(
+    "<ls_after_win_src_band_share>-row_share_pct = conv decfloat34( <ls_after_win_src_band_share>-row_count ) * 100 / conv decfloat34( ls_result-after_window_batch_row_count )",
+  )
+  && compactExpiredAgeSource.includes(
+    "row_share_pct = ls_base_source_age-row_share_pct",
+  )
+  && compactExpiredAgeSource.includes(
+    "row_share_pct = ls_base_source_window-row_share_pct",
+  )
+  && compactExpiredAgeSource.includes(
+    "row_share_pct = ls_base_after_window_band-row_share_pct",
+  )
+  && compactExpiredAgeTests.includes(
+    "row_share_pct = conv decfloat34( '28.57' )",
+  )
+  && compactExpiredAgeTests.includes(
+    "ls_base_upcoming_window-row_share_pct",
+  )
+  && compactExpiredAgeTests.includes(
+    "ls_unit_after_window-row_share_pct",
+  )
   && expiredAgeTests.includes("method reports_expired_age_buckets.")
   && expiredAgeTests.includes("method reports_expired_age_uom.")
   && expiredAgePlan.includes("the four buckets partition the expired row count and category totals")
+  && expiredAgePlan.includes("each row's `row_share_pct` is its percentage of all matching expired rows")
+  && expiredAgePlan.includes("the row share uses the full matching upcoming row count")
+  && expiredAgePlan.includes("row_share_pct` within the full matching after-window row count")
   && expiredAgeDocs.includes("together, the buckets partition the expired counts and totals")
+  && expiredAgeDocs.includes("each row's `row_share_pct` is its percentage of all matching expired rows")
+  && expiredAgeDocs.includes("percentage of all matching upcoming rows")
+  && expiredAgeDocs.includes("percentage of all matching after-window rows")
   && expiredAgeAnomalies.includes("their counts and four stock-category totals partition the expired totals");
 for (const bucket of expiredAgeBuckets) {
   expiredAgeBucketsAreGuarded &&= expiredAgeSource.includes(
@@ -24940,6 +34266,209 @@ if (!afterWindowBandFilterIsGuarded) {
   );
 }
 
+const availableQuantityBoundsAreGuarded =
+  batchExpiryExposureMethod.includes("ls_request-filter_available_from <> abap_true and ls_request-filter_available_from <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_to <> abap_true and ls_request-filter_available_to <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_from = abap_false and ls_request-available_quantity_from is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_to = abap_false and ls_request-available_quantity_to is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-available_quantity_from > ls_request-available_quantity_to")
+  && batchExpiryExposureMethod.includes("ls_batch-available_quantity < ls_request-available_quantity_from")
+  && batchExpiryExposureMethod.includes("ls_batch-available_quantity > ls_request-available_quantity_to")
+  && batchExpiryExposureMethod.includes("ls_result-filter_available_from = ls_request-filter_available_from")
+  && batchExpiryExposureMethod.includes("ls_result-available_quantity_from = ls_request-available_quantity_from")
+  && batchExpiryExposureMethod.includes("ls_result-filter_available_to = ls_request-filter_available_to")
+  && batchExpiryExposureMethod.includes("ls_result-available_quantity_to = ls_request-available_quantity_to")
+  && batchExpiryExposureMethod.indexOf("if ls_request-filter_available_from = abap_true and ls_batch-available_quantity <") < batchExpiryExposureMethod.indexOf("if ls_batch-expiration_date is initial.")
+  && expiryExposureUomMethod.includes("available_quantity_from = ls_request-available_quantity_from")
+  && expiryExposureUomMethod.includes("available_quantity_to = ls_request-available_quantity_to")
+  && expiryExposureUomMethod.includes("ls_base_result-available_quantity_from <> ls_request-available_quantity_from")
+  && expiryExposureUomMethod.includes("ls_base_result-available_quantity_to <> ls_request-available_quantity_to")
+  && expiryExposureUomMethod.includes("ls_result-filter_available_from = ls_request-filter_available_from")
+  && expiryExposureUomMethod.includes("ls_result-available_quantity_from = ls_request-available_quantity_from")
+  && expiryExposureUomMethod.includes("ls_result-filter_available_to = ls_request-filter_available_to")
+  && expiryExposureUomMethod.includes("ls_result-available_quantity_to = ls_request-available_quantity_to")
+  && (stockServiceSource.match(/filter_available_from\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/available_quantity_from\s+type mchb-clabs/g) ?? []).length >= 4
+  && (stockServiceSource.match(/filter_available_to\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/available_quantity_to\s+type mchb-clabs/g) ?? []).length >= 4
+  && valuationStockDocs.includes("optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`")
+  && valuationStockDocs.includes("thresholds use the material base stock unit for both base and uom requests")
+  && expiredAgePlan.includes("optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`")
+  && expiredAgePlan.includes("thresholds use the material base stock unit for both base and uom requests");
+if (!availableQuantityBoundsAreGuarded) {
+  errors.push(
+    "batch expiry reservation-net availability bounds must validate, filter before summaries, forward and echo through UOM, and document units and inclusive limits",
+  );
+}
+
+const availablePercentageBoundsAreGuarded =
+  batchExpiryExposureMethod.includes("ls_request-filter_available_pct_from <> abap_true and ls_request-filter_available_pct_from <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_pct_to <> abap_true and ls_request-filter_available_pct_to <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_pct_from = abap_false and ls_request-available_pct_from is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-filter_available_pct_to = abap_false and ls_request-available_pct_to is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-available_pct_from > ls_request-available_pct_to")
+  && batchExpiryExposureMethod.includes("clear lv_filter_available_pct")
+  && batchExpiryExposureMethod.includes("if ls_batch-unrestricted_quantity > 0.")
+  && batchExpiryExposureMethod.includes("lv_filter_available_pct = conv decfloat34( ls_batch-available_quantity ) * 100 / conv decfloat34( ls_batch-unrestricted_quantity )")
+  && batchExpiryExposureMethod.includes("if ls_request-filter_available_pct_from = abap_true and lv_filter_available_pct < ls_request-available_pct_from. continue. endif.")
+  && batchExpiryExposureMethod.includes("if ls_request-filter_available_pct_to = abap_true and lv_filter_available_pct > ls_request-available_pct_to. continue. endif.")
+  && batchExpiryExposureMethod.includes("ls_result-filter_available_pct_from = ls_request-filter_available_pct_from")
+  && batchExpiryExposureMethod.includes("ls_result-available_pct_from = ls_request-available_pct_from")
+  && batchExpiryExposureMethod.includes("ls_result-filter_available_pct_to = ls_request-filter_available_pct_to")
+  && batchExpiryExposureMethod.includes("ls_result-available_pct_to = ls_request-available_pct_to")
+  && expiryExposureUomMethod.includes("filter_available_pct_from = ls_request-filter_available_pct_from")
+  && expiryExposureUomMethod.includes("available_pct_from = ls_request-available_pct_from")
+  && expiryExposureUomMethod.includes("filter_available_pct_to = ls_request-filter_available_pct_to")
+  && expiryExposureUomMethod.includes("available_pct_to = ls_request-available_pct_to")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_available_pct_from <> ls_request-filter_available_pct_from")
+  && expiryExposureUomMethod.includes("ls_base_result-available_pct_from <> ls_request-available_pct_from")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_available_pct_to <> ls_request-filter_available_pct_to")
+  && expiryExposureUomMethod.includes("ls_base_result-available_pct_to <> ls_request-available_pct_to")
+  && expiryExposureUomMethod.includes("ls_result-filter_available_pct_from = ls_request-filter_available_pct_from")
+  && expiryExposureUomMethod.includes("ls_result-available_pct_from = ls_request-available_pct_from")
+  && expiryExposureUomMethod.includes("ls_result-filter_available_pct_to = ls_request-filter_available_pct_to")
+  && expiryExposureUomMethod.includes("ls_result-available_pct_to = ls_request-available_pct_to")
+  && (stockServiceSource.match(/filter_available_pct_from\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/available_pct_from\s+type p length 5 decimals 2/g) ?? []).length >= 4
+  && (stockServiceSource.match(/filter_available_pct_to\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/available_pct_to\s+type p length 5 decimals 2/g) ?? []).length >= 4
+  && valuationStockDocs.includes("optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`")
+  && valuationStockDocs.includes("the value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative")
+  && expiredAgePlan.includes("optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`")
+  && expiredAgePlan.includes("the value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative");
+if (!availablePercentageBoundsAreGuarded) {
+  errors.push(
+    "batch expiry availability-ratio bounds must validate, use the reported two-decimal ratio, forward and echo through UOM, and document edge cases",
+  );
+}
+
+const reservationDeductionBoundsAreGuarded =
+  batchExpiryExposureMethod.includes("ls_request-filter_resv_deduction_from <> abap_true and ls_request-filter_resv_deduction_from <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_resv_deduction_to <> abap_true and ls_request-filter_resv_deduction_to <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_resv_deduction_from = abap_false and ls_request-resv_deduction_from is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-filter_resv_deduction_to = abap_false and ls_request-resv_deduction_to is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-resv_deduction_from > ls_request-resv_deduction_to")
+  && batchExpiryExposureMethod.includes("lv_filter_resv_deduction = conv decfloat34( ls_batch-unrestricted_quantity ) - conv decfloat34( ls_batch-available_quantity )")
+  && batchExpiryExposureMethod.includes("lv_filter_resv_deduction < ls_request-resv_deduction_from")
+  && batchExpiryExposureMethod.includes("lv_filter_resv_deduction > ls_request-resv_deduction_to")
+  && batchExpiryExposureMethod.lastIndexOf("if ls_request-filter_resv_deduction_from = abap_true or ls_request-filter_resv_deduction_to = abap_true") < batchExpiryExposureMethod.indexOf("if ls_batch-expiration_date is initial.")
+  && batchExpiryExposureMethod.includes("ls_result-filter_resv_deduction_from = ls_request-filter_resv_deduction_from")
+  && batchExpiryExposureMethod.includes("ls_result-resv_deduction_from = ls_request-resv_deduction_from")
+  && batchExpiryExposureMethod.includes("ls_result-filter_resv_deduction_to = ls_request-filter_resv_deduction_to")
+  && batchExpiryExposureMethod.includes("ls_result-resv_deduction_to = ls_request-resv_deduction_to")
+  && expiryExposureUomMethod.includes("filter_resv_deduction_from = ls_request-filter_resv_deduction_from")
+  && expiryExposureUomMethod.includes("resv_deduction_from = ls_request-resv_deduction_from")
+  && expiryExposureUomMethod.includes("filter_resv_deduction_to = ls_request-filter_resv_deduction_to")
+  && expiryExposureUomMethod.includes("resv_deduction_to = ls_request-resv_deduction_to")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_resv_deduction_from <> ls_request-filter_resv_deduction_from")
+  && expiryExposureUomMethod.includes("ls_base_result-resv_deduction_from <> ls_request-resv_deduction_from")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_resv_deduction_to <> ls_request-filter_resv_deduction_to")
+  && expiryExposureUomMethod.includes("ls_base_result-resv_deduction_to <> ls_request-resv_deduction_to")
+  && expiryExposureUomMethod.includes("ls_result-filter_resv_deduction_from = ls_request-filter_resv_deduction_from")
+  && expiryExposureUomMethod.includes("ls_result-resv_deduction_from = ls_request-resv_deduction_from")
+  && expiryExposureUomMethod.includes("ls_result-filter_resv_deduction_to = ls_request-filter_resv_deduction_to")
+  && expiryExposureUomMethod.includes("ls_result-resv_deduction_to = ls_request-resv_deduction_to")
+  && (stockServiceSource.match(/filter_resv_deduction_from\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/resv_deduction_from\s+type decfloat34/g) ?? []).length >= 4
+  && (stockServiceSource.match(/filter_resv_deduction_to\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/resv_deduction_to\s+type decfloat34/g) ?? []).length >= 4
+  && valuationStockDocs.includes("optional inclusive `resv_deduction_from` and `resv_deduction_to` bounds, enabled by `filter_resv_deduction_from` and `filter_resv_deduction_to`")
+  && valuationStockDocs.includes("filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`")
+  && expiredAgePlan.includes("optional inclusive `resv_deduction_from` and `resv_deduction_to` bounds, enabled by `filter_resv_deduction_from` and `filter_resv_deduction_to`")
+  && expiredAgePlan.includes("filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`");
+if (!reservationDeductionBoundsAreGuarded) {
+  errors.push(
+    "batch expiry reservation-deduction bounds must validate, use the signed stock difference, forward and echo through UOM, and be documented",
+  );
+}
+
+const stockCategoryQuantityBoundsAreGuarded =
+  batchExpiryExposureMethod.includes("ls_request-filter_category_quantity_from <> abap_true and ls_request-filter_category_quantity_from <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_category_quantity_to <> abap_true and ls_request-filter_category_quantity_to <> abap_false")
+  && batchExpiryExposureMethod.includes("ls_request-filter_category_quantity_from = abap_false and ls_request-category_quantity_from is not initial")
+  && batchExpiryExposureMethod.includes("ls_request-filter_category_quantity_to = abap_false and ls_request-category_quantity_to is not initial")
+  && batchExpiryExposureMethod.includes("and ls_request-filter_positive_category <> abap_true")
+  && batchExpiryExposureMethod.includes("ls_request-category_quantity_from > ls_request-category_quantity_to")
+  && batchExpiryExposureMethod.includes("case ls_request-positive_stock_category. when c_exp_category_unrestricted. lv_category_filter_quantity = ls_batch-unrestricted_quantity")
+  && batchExpiryExposureMethod.includes("when c_exp_category_available. lv_category_filter_quantity = ls_batch-available_quantity")
+  && batchExpiryExposureMethod.includes("when c_exp_category_quality. lv_category_filter_quantity = ls_batch-quality_inspection_quantity")
+  && batchExpiryExposureMethod.includes("when c_exp_category_blocked. lv_category_filter_quantity = ls_batch-blocked_quantity")
+  && batchExpiryExposureMethod.includes("lv_category_filter_quantity < ls_request-category_quantity_from")
+  && batchExpiryExposureMethod.includes("lv_category_filter_quantity > ls_request-category_quantity_to")
+  && batchExpiryExposureMethod.lastIndexOf("if ls_request-filter_category_quantity_from = abap_true or ls_request-filter_category_quantity_to = abap_true") < batchExpiryExposureMethod.indexOf("if ls_batch-expiration_date is initial.")
+  && batchExpiryExposureMethod.includes("ls_result-filter_category_quantity_from = ls_request-filter_category_quantity_from")
+  && batchExpiryExposureMethod.includes("ls_result-category_quantity_from = ls_request-category_quantity_from")
+  && batchExpiryExposureMethod.includes("ls_result-filter_category_quantity_to = ls_request-filter_category_quantity_to")
+  && batchExpiryExposureMethod.includes("ls_result-category_quantity_to = ls_request-category_quantity_to")
+  && expiryExposureUomMethod.includes("filter_category_quantity_from = ls_request-filter_category_quantity_from")
+  && expiryExposureUomMethod.includes("category_quantity_from = ls_request-category_quantity_from")
+  && expiryExposureUomMethod.includes("filter_category_quantity_to = ls_request-filter_category_quantity_to")
+  && expiryExposureUomMethod.includes("category_quantity_to = ls_request-category_quantity_to")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_category_quantity_from <> ls_request-filter_category_quantity_from")
+  && expiryExposureUomMethod.includes("ls_base_result-category_quantity_from <> ls_request-category_quantity_from")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_category_quantity_to <> ls_request-filter_category_quantity_to")
+  && expiryExposureUomMethod.includes("ls_base_result-category_quantity_to <> ls_request-category_quantity_to")
+  && expiryExposureUomMethod.includes("ls_result-filter_category_quantity_from = ls_request-filter_category_quantity_from")
+  && expiryExposureUomMethod.includes("ls_result-category_quantity_from = ls_request-category_quantity_from")
+  && expiryExposureUomMethod.includes("ls_result-filter_category_quantity_to = ls_request-filter_category_quantity_to")
+  && expiryExposureUomMethod.includes("ls_result-category_quantity_to = ls_request-category_quantity_to")
+  && (stockServiceSource.match(/filter_category_quantity_from\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/category_quantity_from\s+type mchb-clabs/g) ?? []).length >= 4
+  && (stockServiceSource.match(/filter_category_quantity_to\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/category_quantity_to\s+type mchb-clabs/g) ?? []).length >= 4
+  && valuationStockDocs.includes("optional inclusive `category_quantity_from` and `category_quantity_to` bounds, enabled by `filter_category_quantity_from` and `filter_category_quantity_to`")
+  && valuationStockDocs.includes("they use the category named by `positive_stock_category`, in material base units for both base and uom requests")
+  && expiredAgePlan.includes("optional inclusive `category_quantity_from` and `category_quantity_to` bounds, enabled by `filter_category_quantity_from` and `filter_category_quantity_to`")
+  && expiredAgePlan.includes("they use the category named by `positive_stock_category`, in material base units for both base and uom requests");
+if (!stockCategoryQuantityBoundsAreGuarded) {
+  errors.push(
+    "batch expiry selected-category quantity bounds must validate, filter before summaries, forward and echo through UOM, and document base-unit semantics",
+  );
+}
+
+const positiveStockCategoryFilterIsGuarded =
+  batchExpiryExposureMethod.includes("ls_request-filter_positive_category <> abap_true and ls_request-filter_positive_category <> abap_false")
+  && batchExpiryExposureMethod.includes("when c_exp_category_unrestricted or c_exp_category_available or c_exp_category_quality or c_exp_category_blocked")
+  && batchExpiryExposureMethod.includes("elseif ls_request-positive_stock_category is not initial")
+  && batchExpiryExposureMethod.includes("when c_exp_category_unrestricted. if ls_batch-unrestricted_quantity <= 0. continue. endif.")
+  && batchExpiryExposureMethod.includes("when c_exp_category_available. if ls_batch-available_quantity <= 0. continue. endif.")
+  && batchExpiryExposureMethod.includes("when c_exp_category_quality. if ls_batch-quality_inspection_quantity <= 0. continue. endif.")
+  && batchExpiryExposureMethod.includes("when c_exp_category_blocked. if ls_batch-blocked_quantity <= 0. continue. endif.")
+  && batchExpiryExposureMethod.lastIndexOf("if ls_request-filter_positive_category = abap_true") < batchExpiryExposureMethod.indexOf("if ls_batch-expiration_date is initial.")
+  && batchExpiryExposureMethod.includes("ls_result-filter_positive_category = ls_request-filter_positive_category")
+  && batchExpiryExposureMethod.includes("ls_result-positive_stock_category = ls_request-positive_stock_category")
+  && expiryExposureUomMethod.includes("filter_positive_category = ls_request-filter_positive_category")
+  && expiryExposureUomMethod.includes("positive_stock_category = ls_request-positive_stock_category")
+  && expiryExposureUomMethod.includes("ls_base_result-filter_positive_category <> ls_request-filter_positive_category")
+  && expiryExposureUomMethod.includes("ls_base_result-positive_stock_category <> ls_request-positive_stock_category")
+  && expiryExposureUomMethod.includes("ls_result-filter_positive_category = ls_request-filter_positive_category")
+  && expiryExposureUomMethod.includes("ls_result-positive_stock_category = ls_request-positive_stock_category")
+  && (stockServiceSource.match(/filter_positive_category\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/positive_stock_category\s+type c length 1/g) ?? []).length >= 4
+  && valuationStockDocs.includes("set `filter_positive_category` to `abap_true` and `positive_stock_category` to `u` for unrestricted, `a` for reservation-net available, `q` for quality-inspection, or `b` for blocked quantity")
+  && expiredAgePlan.includes("set `filter_positive_category` to `abap_true` and `positive_stock_category` to `u` for unrestricted, `a` for reservation-net available, `q` for quality-inspection, or `b` for blocked quantity");
+if (!positiveStockCategoryFilterIsGuarded) {
+  errors.push(
+    "positive stock-category expiry filtering must validate its category, filter before summaries, round-trip through UOM, and preserve other row balances",
+  );
+}
+
+const positiveAvailableOnlyIsGuarded =
+  batchExpiryExposureMethod.includes("ls_request-positive_available_only <> abap_true and ls_request-positive_available_only <> abap_false")
+  && batchExpiryExposureMethod.includes("if ls_request-positive_available_only = abap_true and ls_batch-available_quantity <= 0. continue. endif.")
+  && batchExpiryExposureMethod.includes("ls_result-positive_available_only = ls_request-positive_available_only")
+  && expiryExposureUomMethod.includes("positive_available_only = ls_request-positive_available_only")
+  && expiryExposureUomMethod.includes("ls_base_result-positive_available_only <> ls_request-positive_available_only")
+  && expiryExposureUomMethod.includes("ls_result-positive_available_only = ls_request-positive_available_only")
+  && (stockServiceSource.match(/positive_available_only\s+type abap_bool/g) ?? []).length >= 4
+  && valuationStockDocs.includes("set `positive_available_only` to `abap_true` to retain only rows whose reservation-net `available_quantity` is positive")
+  && expiredAgePlan.includes("set `positive_available_only` to `abap_true` to retain only rows whose reservation-net `available_quantity` is positive");
+if (!positiveAvailableOnlyIsGuarded) {
+  errors.push(
+    "positive available-only expiry filtering must validate, run before summaries and paging, forward and echo through UOM, and be documented",
+  );
+}
+
 const expiryDayRangeFilterIsGuarded =
   stockServiceTests.includes("method filters_expiry_day_range.")
   && expiryDayRangeFilterTest.includes("expiration_date = '20261017'")
@@ -24985,6 +34514,2893 @@ const expiryDayRangeFilterIsGuarded =
 if (!expiryDayRangeFilterIsGuarded) {
   errors.push(
     "batch expiry signed day bounds must be inclusive, validated, composed before summaries and paging, forwarded and echoed by UOM, and documented with regression coverage",
+  );
+}
+
+const expiryExpirationDateRangeIsGuarded =
+  stockServiceTests.includes("method filters_expiration_date_range.")
+  && expiryExpirationDateRangeTest.includes("batch = 'date-befor'")
+  && expiryExpirationDateRangeTest.includes("expiration_date = '20261017'")
+  && expiryExpirationDateRangeTest.includes("expiration_date = '20261018'")
+  && expiryExpirationDateRangeTest.includes("expiration_date = '20261023'")
+  && expiryExpirationDateRangeTest.includes("expiration_date = '20261024'")
+  && expiryExpirationDateRangeTest.includes("expiration_date_from = '20261018'")
+  && expiryExpirationDateRangeTest.includes("expiration_date_to = '20261023'")
+  && expiryExpirationDateRangeTest.includes("expiration_date_from = '20261023'")
+  && expiryExpirationDateRangeTest.includes("expiration_date_to = '20261018'")
+  && expiryExpirationDateRangeTest.includes("line_exists( lt_from_only[ 1 ]-batches[ batch = 'date-to' ] )")
+  && expiryExpirationDateRangeTest.includes("line_exists( lt_to_only[ 1 ]-batches[ batch = 'date-befor' ] )")
+  && expiryExpirationDateRangeTest.includes("lt_range[ 1 ]-total_dated_batch_row_count")
+  && expiryExpirationDateRangeTest.includes("lt_range[ 1 ]-undated_batch_row_count")
+  && expiryExpirationDateRangeTest.includes("get_expiry_exposure_uom_bulk(")
+  && expiryExpirationDateRangeTest.includes("lt_uom_results[ 1 ]-batches[ 1 ]-base_row-expiration_date")
+  && expiryExpirationDateRangeTest.includes("lv_reversed_range_rejected")
+  && expiryExpirationDateRangeTest.includes("get_batch_bulk_call_count(")
+  && batchExpiryExposureMethod.includes("ls_request-expiration_date_to < ls_request-expiration_date_from")
+  && batchExpiryExposureMethod.includes("ls_batch-expiration_date < ls_request-expiration_date_from")
+  && batchExpiryExposureMethod.includes("ls_batch-expiration_date > ls_request-expiration_date_to")
+  && expiryExposureUomMethod.includes("expiration_date_from = ls_request-expiration_date_from")
+  && expiryExposureUomMethod.includes("expiration_date_to = ls_request-expiration_date_to");
+if (!expiryExpirationDateRangeIsGuarded) {
+  errors.push(
+    "batch expiry date bounds must cover inclusive range edges, one-sided bounds, undated exclusion, paging, UOM echo, and reversed-range rejection",
+  );
+}
+
+const afterWindowFirstSummaryCategories = [
+  "unrestr_qty",
+  "available_qty",
+  "quality_qty",
+  "blocked_qty",
+];
+let afterWindowFirstSummaryIsGuarded =
+  stockServiceTests.includes("method reports_after_window_bands.")
+  && afterWindowSummaryTest.includes("after_next_expiration_date")
+  && afterWindowSummaryTest.includes("after_next_storage_location")
+  && afterWindowSummaryTest.includes("after_next_valuation_type")
+  && afterWindowSummaryTest.includes("after_next_date_source")
+  && afterWindowSummaryTest.includes("days_to_after_next_expiration")
+  && afterWindowSummaryTest.includes("days_after_window_end")
+  && afterWindowSummaryTest.includes("after_next_expiry_batch_count")
+  && afterWindowSummaryTest.includes("get_expiry_exposure_uom_bulk(")
+  && afterWindowSummaryTest.includes(
+    "lt_uom_results[ 1 ]-after_next_storage_location",
+  )
+  && afterWindowSummaryTest.includes(
+    "lt_uom_results[ 1 ]-after_next_valuation_type",
+  )
+  && afterWindowSummaryTest.includes(
+    "lt_uom_results[ 1 ]-after_next_date_source",
+  );
+for (const category of afterWindowFirstSummaryCategories) {
+  afterWindowFirstSummaryIsGuarded &&=
+    afterWindowSummaryTest.includes(`after_next_${category}`)
+    && afterWindowSummaryTest.includes(`base_after_next_${category}`)
+    && afterWindowSummaryTest.includes(`src_after_next_${category}`);
+}
+if (!afterWindowFirstSummaryIsGuarded) {
+  errors.push(
+    "earliest after-window identity, date distances, and four base/UOM quantities must be covered by regression tests",
+  );
+}
+
+let expirySummaryDistancesAreGuarded =
+  batchExpiryExposureTest.includes("days_since_first_expired_date")
+  && batchExpiryExposureTest.includes("days_to_next_expiration")
+  && expiryExposureUomTest.includes("days_since_first_expired_date")
+  && expiryExposureUomTest.includes("days_to_next_expiration")
+  && expiryExposureUomTest.includes("first_expired_storage_location")
+  && expiryExposureUomTest.includes("first_expired_valuation_type")
+  && expiryExposureUomTest.includes("first_expired_date_source")
+  && expiryExposureUomTest.includes("first_expired_expiration_date")
+  && expiryExposureUomTest.includes("next_upcoming_storage_location")
+  && expiryExposureUomTest.includes("next_upcoming_valuation_type")
+  && expiryExposureUomTest.includes("next_upcoming_date_source")
+  && expiryExposureUomTest.includes("next_upcoming_expiration_date");
+for (const category of ["unrestr", "avail", "quality", "blocked"]) {
+  expirySummaryDistancesAreGuarded &&=
+    expiryExposureUomTest.includes(`base_expired_first_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_expired_first_${category}_qty`);
+}
+for (const category of ["unrestricted", "available", "quality", "blocked"]) {
+  expirySummaryDistancesAreGuarded &&=
+    expiryExposureUomTest.includes(`base_next_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_next_${category}_qty`);
+  expirySummaryDistancesAreGuarded &&=
+    batchExpiryExposureTest.includes(`first_expired_${category}_qty`)
+    && batchExpiryExposureTest.includes(`next_upcoming_${category}_qty`)
+    && expiryExposureUomTest.includes(`base_expired_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_expired_${category}_qty`)
+    && expiryExposureUomTest.includes(`base_upcoming_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_upcoming_${category}_qty`)
+    && expiryExposureUomTest.includes(`base_nexp_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_nexp_${category}_qty`)
+    && expiryExposureUomTest.includes(`base_after_${category}_qty`)
+    && expiryExposureUomTest.includes(`src_after_${category}_qty`);
+}
+if (!expirySummaryDistancesAreGuarded) {
+  errors.push(
+    "first-expired and next-upcoming identities, distances, and UOM quantities must be asserted in regressions",
+  );
+}
+
+let undatedFirstRowUomIsGuarded =
+  stockServiceTests.includes("method reports_undated_expiry_uom.")
+  && expiryUndatedUomTest.includes("undated_batch_row_count")
+  && expiryUndatedUomTest.includes("first_undated_storage_location")
+  && expiryUndatedUomTest.includes("first_undated_batch")
+  && expiryUndatedUomTest.includes("first_undated_valuation_type")
+  && expiryUndatedUomTest.includes("first_undated_expiry_source");
+for (const category of ["unrestr", "avail", "quality", "blocked"]) {
+  undatedFirstRowUomIsGuarded &&=
+    expiryUndatedUomTest.includes(`base_undated_first_${category}_qty`)
+    && expiryUndatedUomTest.includes(`src_undated_first_${category}_qty`);
+}
+for (const category of ["unrestricted", "available", "quality", "blocked"]) {
+  undatedFirstRowUomIsGuarded &&=
+    expiryUndatedUomTest.includes(`base_undated_${category}_qty`)
+    && expiryUndatedUomTest.includes(`src_undated_${category}_qty`);
+}
+if (!undatedFirstRowUomIsGuarded) {
+  errors.push(
+    "earliest undated batch identity and four base/UOM quantities must be covered",
+  );
+}
+
+const openReservationUomHorizonBuckets = ["o", "t", "1", "2", "3", "4", "u"];
+let openReservationUomHorizonsAreGuarded =
+  stockServiceTests.includes("method reports_open_resv_uom_horizons.")
+  && expiryOpenResvUomTest.includes("base_overdue_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_overdue_open_resv_qty")
+  && expiryOpenResvUomTest.includes("base_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_open_resv_qty")
+  && expiryOpenResvUomTest.includes("base_matched_allocation_qty")
+  && expiryOpenResvUomTest.includes("src_matched_allocation_qty")
+  && expiryOpenResvUomTest.includes("base_fallback_allocation_qty")
+  && expiryOpenResvUomTest.includes("src_fallback_allocation_qty")
+  && expiryOpenResvUomTest.includes("base_due_today_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_due_today_open_resv_qty")
+  && expiryOpenResvUomTest.includes("base_future_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_future_open_resv_qty")
+  && expiryOpenResvUomTest.includes("base_undated_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_undated_open_resv_qty")
+  && expiryOpenResvUomTest.includes("excluded_open_resv_row_count")
+  && expiryOpenResvUomTest.includes("base_excluded_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_excluded_open_resv_qty")
+  && expiryOpenResvUomTest.includes("unmatched_open_resv_excl_count")
+  && expiryOpenResvUomTest.includes("unmatched_excl_reservations")
+  && expiryOpenResvUomTest.includes("base_uncovered_open_resv_qty")
+  && expiryOpenResvUomTest.includes("src_uncovered_open_resv_qty")
+  && expiryOpenResvUomTest.includes("base_overdue_uncovered_qty")
+  && expiryOpenResvUomTest.includes("src_overdue_uncovered_qty")
+  && expiryOpenResvUomTest.includes("base_due_today_uncovered_qty")
+  && expiryOpenResvUomTest.includes("src_due_today_uncovered_qty")
+  && expiryOpenResvUomTest.includes("base_future_uncovered_qty")
+  && expiryOpenResvUomTest.includes("src_future_uncovered_qty")
+  && expiryOpenResvUomTest.includes("base_undated_uncovered_qty")
+  && expiryOpenResvUomTest.includes("src_undated_uncovered_qty")
+  && expiryOpenResvUomTest.includes("first_uncovered_required_date")
+  && expiryOpenResvUomTest.includes("days_until_first_uncovered_req")
+  && expiryOpenResvUomTest.includes("overdue_uncovered_resv_qty")
+  && expiryOpenResvUomTest.includes("due_today_uncovered_resv_qty")
+  && expiryOpenResvUomTest.includes("future_uncovered_resv_qty")
+  && expiryOpenResvUomTest.includes("undated_uncovered_resv_qty")
+  && expiryOpenResvUomTest.includes("next_open_resv_required_date")
+  && expiryOpenResvUomTest.includes("next_open_resv_number")
+  && expiryOpenResvUomTest.includes("next_open_resv_item")
+  && expiryOpenResvUomTest.includes("days_until_next_open_resv_req")
+  && expiryOpenResvUomTest.includes("open_resv_due_horizon_bands")
+  && expiryOpenResvUomTest.includes("resv_alloc_open_demand_bands")
+  && expiryOpenResvUomTest.includes("base_open_quantity")
+  && expiryOpenResvUomTest.includes("source_open_quantity");
+for (const band of openReservationUomHorizonBuckets) {
+  openReservationUomHorizonsAreGuarded &&=
+    expiryOpenResvUomTest.includes(`exp = '${band}'`);
+}
+if (!openReservationUomHorizonsAreGuarded) {
+  errors.push(
+    "expiry UOM results must cover all reservation horizon totals and fixed band order",
+  );
+}
+
+const upcomingCumulativeHorizonCategories = [
+  "unrestricted_qty",
+  "available_qty",
+  "quality_qty",
+  "blocked_qty",
+];
+let upcomingCumulativeHorizonsAreGuarded =
+  stockServiceTests.includes("method reports_expiry_risk_buckets.")
+  && expiryRiskBucketsTest.includes("within_7d_batch_row_count")
+  && expiryRiskBucketsTest.includes("within_30d_batch_row_count")
+  && expiryRiskBucketsTest.includes("within_90d_batch_row_count")
+  && expiryRiskBucketsTest.includes("get_expiry_exposure_uom_bulk(");
+for (const horizon of ["7d", "30d", "90d"]) {
+  for (const category of upcomingCumulativeHorizonCategories) {
+    upcomingCumulativeHorizonsAreGuarded &&=
+      expiryRiskBucketsTest.includes(`within_${horizon}_${category}`)
+      && expiryRiskBucketsTest.includes(`base_${horizon}_${category}`)
+      && expiryRiskBucketsTest.includes(`src_${horizon}_${category}`);
+  }
+}
+for (const band of ["8_to_30d", "31_90d", "over_90d"]) {
+  for (const category of upcomingCumulativeHorizonCategories) {
+    upcomingCumulativeHorizonsAreGuarded &&=
+      expiryRiskBucketsTest.includes(`base_${band}_${category}`)
+      && expiryRiskBucketsTest.includes(`src_${band}_${category}`);
+  }
+  const rowCountField = band === "8_to_30d"
+    ? "from_8_to_30d_batch_row_count"
+    : band === "31_90d"
+      ? "from_31_90d_batch_row_count"
+      : "over_90d_batch_row_count";
+  upcomingCumulativeHorizonsAreGuarded &&=
+    expiryRiskBucketsTest.includes(rowCountField);
+}
+if (!upcomingCumulativeHorizonsAreGuarded) {
+  errors.push(
+    "cumulative and disjoint upcoming horizons must assert counts and all four base/UOM category totals",
+  );
+}
+
+const compactBatchExpiryServiceSource = stockServiceSource.replace(/\s+/g, " ");
+const batchExpiryPageTotalsAreGuarded =
+  batchExpiryExposureMethod.includes(
+    "loop at ls_result-batches into ls_batch_page_row",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to ls_result-page_expired_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to ls_result-page_upcoming_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to ls_result-page_after_window_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_unrestricted_qty = sum_stock_quantities(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_available_qty = sum_stock_quantities(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_quality_qty = sum_stock_quantities(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_blocked_qty = sum_stock_quantities(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "loop at ls_result-undated_batches into ls_undated_page_row",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_page_unrestricted_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_page_available_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_page_quality_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_page_blocked_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_page_unrestricted_qty = convert_stock_quantity(",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_page_quality_qty = convert_stock_quantity(",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_und_page_unrestr_qty = convert_stock_quantity(",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 1 act = lt_first_page[ 1 ]-page_expired_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "filter_batch_cursor = abap_true",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "undated_cursor_batch = lt_first_page[ 1 ]-next_undated_cursor_batch",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_page[ 1 ]-page_after_window_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_page_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_page_available_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_page_available_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_page_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_page_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_und_page_unrestr_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_und_page_avail_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_und_page_avail_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_und_page_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_und_page_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_und_page_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_und_page_blocked_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_earliest_expiration_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_expiration_date_span_days = ls_result-page_latest_expiration_date - ls_result-page_earliest_expiration_date.",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_earliest_expiration_date = ls_base_result-page_earliest_expiration_date",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-page_expiration_date_span_days",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiration_date_span_days",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_statuses type ty_batch_exp_page_statuses,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_statuses type ty_batch_exp_page_status_uoms,",
+  )
+  && stockServiceSource.includes("begin of ty_batch_exp_page_status,")
+  && stockServiceSource.includes("begin of ty_batch_exp_page_status_uom,")
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_src_statuses type ty_batch_exp_src_statuses,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_src_statuses type ty_batch_exp_src_status_uoms,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_src_age_bands type ty_batch_exp_src_ages,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_expiry_src_age_bands type ty_batch_exp_src_age_uoms,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_age, source_group type c length 1, age_band type c length 1,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_age_uom, source_group type c length 1, age_band type c length 1,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_upcoming_src_bands type ty_batch_exp_src_windows,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_after_window_src_bands type ty_batch_exp_src_windows,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_upcoming_src_bands type ty_batch_exp_src_window_uoms,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_after_window_src_bands type ty_batch_exp_src_window_uoms,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_window, source_group type c length 1, through_band type c length 1,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_window_uom, source_group type c length 1, through_band type c length 1,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_expiry_src_statuses = ls_result-expiry_src_statuses",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_expiry_src_age_bands = ls_result-expiry_src_age_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_upcoming_src_bands = ls_result-upcoming_src_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_after_window_src_bands = ls_result-after_window_src_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "case ls_batch_page_row-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_src_statuses assigning <ls_page_expiry_source_status>",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-expiration_date_span_days =",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_src_age_bands assigning <ls_page_expiry_source_age>",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_source_age_share>-row_count ) * 100 / conv decfloat34( ls_result-page_expired_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_age_row_share>-source_row_share_pct = conv decfloat34( <ls_full_expiry_age_row_share>-row_count ) * 100 / conv decfloat34( lv_full_expiry_age_source_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_age_row_share>-age_band_row_share_pct = conv decfloat34( <ls_full_expiry_age_row_share>-row_count ) * 100 / conv decfloat34( lv_full_expiry_age_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_age_row_share>-source_row_share_pct = conv decfloat34( <ls_page_expiry_age_row_share>-row_count ) * 100 / conv decfloat34( lv_page_expiry_age_source_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_age_row_share>-age_band_row_share_pct = conv decfloat34( <ls_page_expiry_age_row_share>-row_count ) * 100 / conv decfloat34( lv_page_expiry_age_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_expiry_age_source_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_expiry_age_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_expiry_age_source_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_expiry_age_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-expiry_statuses into data(ls_full_exp_status_qty) with key expiry_status = c_expiry_status_expired",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_full_exp_src_age_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_full_exp_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_full_exp_src_age_share>-available_qty ) * 100 / conv decfloat34( ls_full_exp_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_full_exp_src_age_share>-quality_qty ) * 100 / conv decfloat34( ls_full_exp_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_full_exp_src_age_share>-blocked_qty ) * 100 / conv decfloat34( ls_full_exp_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_exp_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_exp_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_exp_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_exp_status_qty-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_statuses into data(ls_page_exp_status_qty) with key expiry_status = c_expiry_status_expired",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_page_exp_src_age_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_page_exp_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_page_exp_src_age_share>-available_qty ) * 100 / conv decfloat34( ls_page_exp_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_page_exp_src_age_share>-quality_qty ) * 100 / conv decfloat34( ls_page_exp_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_page_exp_src_age_share>-blocked_qty ) * 100 / conv decfloat34( ls_page_exp_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_exp_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_exp_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_exp_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_exp_status_qty-blocked_qty > 0",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_page_exp_src_age-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_page_exp_src_age-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "age_band_row_share_pct = ls_base_page_exp_src_age-age_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_page_exp_src_age-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_page_exp_src_age-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_page_exp_src_age-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_source_age-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_source_age-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "age_band_row_share_pct = ls_base_source_age-age_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_source_age-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_source_age-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_source_age-blocked_qty_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_upcoming_src_bands assigning <ls_page_exp_window> with key source_group = lv_expiry_source_group through_band = lv_page_upcoming_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_after_window_src_bands assigning <ls_page_exp_window> with key source_group = lv_expiry_source_group through_band = lv_page_after_window_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_upcoming_share>-row_count ) * 100 / conv decfloat34( ls_result-page_upcoming_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_after_window_share>-row_count ) * 100 / conv decfloat34( ls_result-page_after_window_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_upc_row_share>-source_row_share_pct = conv decfloat34( <ls_full_upc_row_share>-row_count ) * 100 / conv decfloat34( lv_full_upcoming_source_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_upc_row_share>-through_band_row_share_pct = conv decfloat34( <ls_full_upc_row_share>-row_count ) * 100 / conv decfloat34( lv_full_upcoming_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_after_win_row_share>-source_row_share_pct = conv decfloat34( <ls_full_after_win_row_share>-row_count ) * 100 / conv decfloat34( lv_full_after_win_src_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_after_win_row_share>-through_band_row_share_pct = conv decfloat34( <ls_full_after_win_row_share>-row_count ) * 100 / conv decfloat34( lv_full_after_window_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_upc_row_share>-source_row_share_pct = conv decfloat34( <ls_page_upc_row_share>-row_count ) * 100 / conv decfloat34( lv_page_upcoming_source_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_upc_row_share>-through_band_row_share_pct = conv decfloat34( <ls_page_upc_row_share>-row_count ) * 100 / conv decfloat34( lv_page_upcoming_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_after_win_row_share>-source_row_share_pct = conv decfloat34( <ls_page_after_win_row_share>-row_count ) * 100 / conv decfloat34( lv_page_after_src_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_after_win_row_share>-through_band_row_share_pct = conv decfloat34( <ls_page_after_win_row_share>-row_count ) * 100 / conv decfloat34( lv_page_after_window_band_rows )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_upcoming_source_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_upcoming_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_after_win_src_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_full_after_window_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_upcoming_source_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_upcoming_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_after_src_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_page_after_window_band_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-expiry_statuses into data(ls_full_upc_status_qty) with key expiry_status = c_expiry_status_upcoming",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_full_upc_src_qty_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_full_upc_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_full_upc_src_qty_share>-available_qty ) * 100 / conv decfloat34( ls_full_upc_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_full_upc_src_qty_share>-quality_qty ) * 100 / conv decfloat34( ls_full_upc_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_full_upc_src_qty_share>-blocked_qty ) * 100 / conv decfloat34( ls_full_upc_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_upc_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_upc_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_upc_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_upc_status_qty-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-expiry_statuses into data(ls_full_after_status_qty) with key expiry_status = c_expiry_status_after_window",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_full_after_src_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_full_after_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_full_after_src_share>-available_qty ) * 100 / conv decfloat34( ls_full_after_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_full_after_src_share>-quality_qty ) * 100 / conv decfloat34( ls_full_after_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_full_after_src_share>-blocked_qty ) * 100 / conv decfloat34( ls_full_after_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_after_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_after_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_after_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_after_status_qty-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_statuses into data(ls_page_upc_status_qty) with key expiry_status = c_expiry_status_upcoming",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_page_upc_src_qty_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_page_upc_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_page_upc_src_qty_share>-available_qty ) * 100 / conv decfloat34( ls_page_upc_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_page_upc_src_qty_share>-quality_qty ) * 100 / conv decfloat34( ls_page_upc_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_page_upc_src_qty_share>-blocked_qty ) * 100 / conv decfloat34( ls_page_upc_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_upc_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_upc_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_upc_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_upc_status_qty-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_statuses into data(ls_page_after_status_qty) with key expiry_status = c_expiry_status_after_window",
+  )
+  && batchExpiryExposureMethod.includes(
+    "unrestricted_qty_share_pct = conv decfloat34( <ls_page_after_src_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_page_after_status_qty-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "available_qty_share_pct = conv decfloat34( <ls_page_after_src_share>-available_qty ) * 100 / conv decfloat34( ls_page_after_status_qty-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "quality_qty_share_pct = conv decfloat34( <ls_page_after_src_share>-quality_qty ) * 100 / conv decfloat34( ls_page_after_status_qty-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "blocked_qty_share_pct = conv decfloat34( <ls_page_after_src_share>-blocked_qty ) * 100 / conv decfloat34( ls_page_after_status_qty-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_after_status_qty-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_after_status_qty-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_after_status_qty-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_after_status_qty-blocked_qty > 0",
+  )
+  && accumulateExpiryPageWindowMethod.includes(
+    "<ls_page_exp_window>-expiration_date_span_days = <ls_page_exp_window>-last_expiration_date - <ls_page_exp_window>-first_expiration_date",
+  )
+  && accumulateExpiryPageWindowMethod.includes(
+    "<ls_page_exp_window>-unrestricted_qty = sum_stock_quantities( iv_left_quantity = <ls_page_exp_window>-unrestricted_qty iv_right_quantity = ls_batch_page_row-unrestricted_quantity )",
+  )
+  && accumulateExpiryPageWindowMethod.includes(
+    "<ls_page_exp_window>-quality_qty = sum_stock_quantities( iv_left_quantity = <ls_page_exp_window>-quality_qty iv_right_quantity = ls_batch_page_row-quality_inspection_quantity )",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_expiry_src_statuses into data(ls_base_page_exp_src_status)",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_expiry_src_age_bands into data(ls_base_page_exp_src_age)",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-page_expiry_src_age_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_upcoming_src_bands into data(ls_base_page_upcoming_band)",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-page_upcoming_src_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_after_window_src_bands into data(ls_base_page_after_window_band)",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-page_after_window_src_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_page_upcoming_band-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_page_upcoming_band-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "through_band_row_share_pct = ls_base_page_upcoming_band-through_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_page_upcoming_band-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_page_upcoming_band-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_page_upcoming_band-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_page_after_window_band-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_page_after_window_band-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "through_band_row_share_pct = ls_base_page_after_window_band-through_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_page_after_window_band-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_page_after_window_band-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_page_after_window_band-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_source_window-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_source_window-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "through_band_row_share_pct = ls_base_source_window-through_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_source_window-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_source_window-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_source_window-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_after_window_band-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_after_window_band-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "through_band_row_share_pct = ls_base_after_window_band-through_band_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_after_window_band-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_after_window_band-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_after_window_band-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-page_expiry_src_statuses",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_src_statuses[ source_group = 'o' expiry_status = 'u' ]-unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-row_count",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-expiration_date_span_days",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "page_expiry_src_age_bands[ source_group = 'g' age_band = '3' ]-row_count",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-source_row_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-age_band_row_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_results[ 1 ]-expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_one_row_page[ 1 ]-expiry_src_age_bands[ source_group = 'o' age_band = '4' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_one_row_page[ 1 ]-page_expiry_src_age_bands[ source_group = 'o' age_band = '4' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_age_band_one_row_page[ 1 ]-expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-source_row_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_age_band_one_row_page[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-age_band_row_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_empty_page[ 1 ]-expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_empty_page[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-row_count",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPlan.includes("page source/age-band summaries")
+  && batchExpiryPlan.includes("matching full expired category total")
+  && batchExpiryPlan.includes("age_band_row_share_pct")
+  && batchExpiryPlan.includes("through_band_row_share_pct")
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unit_available_qty",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unit_quality_qty",
+  )
+  && batchExpiryPageAgeBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'p' age_band = '1' ]-unit_blocked_qty",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_upcoming_src_bands[ source_group = 'p' through_band = '4' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_after_window_src_bands[ source_group = 'g' through_band = '2' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_after_window_src_bands[ source_group = 'o' through_band = '3' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_upcoming[ 1 ]-upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_upcoming[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_after_window[ 1 ]-after_window_src_bands[ source_group = 'p' through_band = '1' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_after_window[ 1 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-source_row_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-through_band_row_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-source_row_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-through_band_row_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_upcoming_one_row[ 1 ]-upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_upcoming_one_row[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_empty_page[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_empty_page[ 1 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_summary_only[ 1 ]-upcoming_batch_row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_summary_only[ 1 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-row_count",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unit_blocked_qty",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_empty_page[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 2 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 2 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_upcoming_src_bands[ source_group = 'p' through_band = '1' ]-expiration_date_span_days",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 2 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-row_share_pct",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 3 ]-page_after_window_src_bands[ source_group = 'p' through_band = '1' ]-unit_blocked_qty",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "expiration_date_source type c length 1,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_expiry_undated_row, storage_location type mard-lgort, batch type mchb-charg, valuation_type type mcha-bwtar, expiration_date_source type c length 1, unrestricted_quantity type mchb-clabs",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "undated_page_expiry_sources type ty_exp_undated_sources,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "undated_page_expiry_sources type ty_exp_undated_source_uoms,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_page_expiry_sources = value #( ( source_group = zif_stock_repository=>c_expiry_source_plant ) ( source_group = zif_stock_repository=>c_expiry_source_global ) ( source_group = c_expiry_source_other ) ).",
+  )
+  && batchExpiryExposureMethod.includes(
+    "expiration_date_source = ls_batch-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-undated_page_expiry_sources assigning <ls_undated_page_source>",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_source>-quality_qty = sum_stock_quantities(",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-undated_page_expiry_sources into data(ls_base_undated_page_source)",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-undated_page_expiry_sources",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "undated_page_expiry_sources[ source_group = 'p' ]-unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "undated_page_expiry_sources[ source_group = 'g' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_unknown_page[ 1 ]-undated_batches[ 1 ]-expiration_date_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_unknown_page[ 1 ]-undated_page_expiry_sources[ source_group = 'o' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_unknown_page[ 1 ]-undated_batches[ 1 ]-base_row-expiration_date_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[ source_group = 'o' ]-unit_unrestricted_qty",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "row_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_batch_row_count > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_unrestricted_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_available_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_quality_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_blocked_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-returned_undated_row_count > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_page_unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_page_available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_page_quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_page_blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_source_share>-row_share_pct = conv decfloat34( <ls_undated_source_share>-row_count ) * 100 / conv decfloat34( ls_result-undated_batch_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_share>-row_share_pct = conv decfloat34( <ls_undated_page_share>-row_count ) * 100 / conv decfloat34( ls_result-returned_undated_row_count )",
+  )
+  && expiryExposureUomMethod.includes(
+    "row_share_pct = ls_base_undated_source-row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "row_share_pct = ls_base_undated_page_source-row_share_pct",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_exp_undated_source, source_group type c length 1, row_count type i, row_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_exp_undated_source_uom, source_group type c length 1, row_count type i, row_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_source_share>-unrestricted_qty_share_pct = conv decfloat34( <ls_undated_source_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_result-undated_unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_source_share>-available_qty_share_pct = conv decfloat34( <ls_undated_source_share>-available_qty ) * 100 / conv decfloat34( ls_result-undated_available_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_source_share>-quality_qty_share_pct = conv decfloat34( <ls_undated_source_share>-quality_qty ) * 100 / conv decfloat34( ls_result-undated_quality_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_source_share>-blocked_qty_share_pct = conv decfloat34( <ls_undated_source_share>-blocked_qty ) * 100 / conv decfloat34( ls_result-undated_blocked_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_share>-unrestricted_qty_share_pct = conv decfloat34( <ls_undated_page_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_result-undated_page_unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_share>-available_qty_share_pct = conv decfloat34( <ls_undated_page_share>-available_qty ) * 100 / conv decfloat34( ls_result-undated_page_available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_share>-quality_qty_share_pct = conv decfloat34( <ls_undated_page_share>-quality_qty ) * 100 / conv decfloat34( ls_result-undated_page_quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_undated_page_share>-blocked_qty_share_pct = conv decfloat34( <ls_undated_page_share>-blocked_qty ) * 100 / conv decfloat34( ls_result-undated_page_blocked_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_undated_source-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_undated_source-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_undated_source-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_undated_source-blocked_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_undated_page_source-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_undated_page_source-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_undated_page_source-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_undated_page_source-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_expiry_sources[ source_group = 'p' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_expiry_sources[ source_group = 'p' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_expiry_sources[ source_group = 'g' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_expiry_sources[ source_group = 'o' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-undated_expiry_sources[ source_group = 'p' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[ source_group = 'o' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_no_undated[ 1 ]-undated_expiry_sources[ source_group = 'p' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_no_undated_uom[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPlan.includes("batch expiry undated source quantity shares")
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_expiry_sources[ source_group = 'p' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-undated_page_expiry_sources[ source_group = 'p' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_page[ 1 ]-undated_expiry_sources[ source_group = 'o' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_unknown_page[ 1 ]-undated_page_expiry_sources[ source_group = 'o' ]-row_share_pct",
+  )
+  && batchExpiryPlan.includes("row_share_pct")
+  && compactBatchExpiryServiceSource.includes(
+    "undated_expiry_sources type ty_exp_undated_sources,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "undated_expiry_sources type ty_exp_undated_source_uoms,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_expiry_sources = value #( ( source_group = zif_stock_repository=>c_expiry_source_plant ) ( source_group = zif_stock_repository=>c_expiry_source_global ) ( source_group = c_expiry_source_other ) ).",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-undated_expiry_sources assigning field-symbol(<ls_undated_source>) with key source_group = lv_undated_source_group",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to <ls_undated_source>-row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-unrestricted_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-available_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-quality_inspection_quantity > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-blocked_quantity > 0",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-undated_expiry_sources into data(ls_base_undated_source)",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-undated_expiry_sources",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "undated_expiry_sources[ source_group = 'p' ]-unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "undated_expiry_sources[ source_group = 'o' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-undated_expiry_sources[ source_group = 'g' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-undated_expiry_sources[ source_group = 'o' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPlan.includes("batch expiry full-scope undated source summaries")
+  && batchExpiryPlan.includes("batch expiry undated page source summaries")
+  && batchExpiryPlan.includes("batch expiry page source/status summaries")
+  && batchExpiryPlan.includes("batch expiry page source/age-band summaries")
+  && batchExpiryPlan.includes("batch expiry page source/window-band summaries")
+  && batchExpiryPlan.includes("full upcoming category total")
+  && batchExpiryPlan.includes("full after-window category totals")
+  && batchExpiryPlan.includes("matching page status category total")
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_expiry_statuses = value #( ( expiry_status = c_expiry_status_expired ) ( expiry_status = c_expiry_status_upcoming ) ( expiry_status = c_expiry_status_after_window ) ).",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-page_expiry_statuses assigning <ls_page_expiry_status>",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_status>-quality_qty = sum_stock_quantities(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-returned_batch_row_count > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_status_share>-row_share_pct = conv decfloat34( <ls_page_status_share>-row_count ) * 100 / conv decfloat34( ls_result-returned_batch_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_source_status_share>-row_share_pct = conv decfloat34( <ls_page_source_status_share>-row_count ) * 100 / conv decfloat34( ls_result-returned_batch_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if lv_exp_src_status_rows > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_exp_src_status_share>-row_share_pct = conv decfloat34( <ls_exp_src_status_share>-row_count ) * 100 / conv decfloat34( lv_exp_src_status_rows )",
+  )
+  && expiryExposureUomMethod.includes(
+    "row_share_pct = ls_base_page_expiry_status-row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_base_page_exp_src_status-row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "row_share_pct = ls_base_source_status-row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_expiry_statuses into data(ls_base_page_expiry_status)",
+  )
+  && expiryExposureUomMethod.includes(
+    "unit_unrestricted_qty = convert_stock_quantity(",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_statuses[ expiry_status = 'e' ]-unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_page[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_statuses[ expiry_status = 'a' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "page_expiry_statuses[ expiry_status = 'e' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_status>-expiration_date_span_days = <ls_page_expiry_status>-last_expiration_date - <ls_page_expiry_status>-first_expiration_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_expiration_date = ls_base_page_expiry_status-first_expiration_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_expiration_date = ls_base_page_expiry_status-last_expiration_date",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_upcoming[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-expiration_date_span_days",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_after_window[ 1 ]-page_expiry_statuses[ expiry_status = 'a' ]-expiration_date_span_days",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_empty_page[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-first_expiration_date",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_summary_only[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-first_expiration_date",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-expiration_date_span_days",
+  )
+  && batchExpiryPageWindowBandsTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-last_expiration_date",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-first_expiration_date",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-expiration_date_span_days",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "unrestricted_qty_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "available_qty_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "quality_qty_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "blocked_qty_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_status_qty_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_result-page_unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_status_qty_share>-available_qty ) * 100 / conv decfloat34( ls_result-page_available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_status_qty_share>-quality_qty ) * 100 / conv decfloat34( ls_result-page_quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_status_qty_share>-blocked_qty ) * 100 / conv decfloat34( ls_result-page_blocked_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_page_expiry_status-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_page_expiry_status-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_page_expiry_status-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_page_expiry_status-blocked_qty_share_pct",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_status, source_group type c length 1, expiry_status type c length 1, row_count type i, row_share_pct type p length 5 decimals 2, status_row_share_pct type p length 5 decimals 2, source_row_share_pct type p length 5 decimals 2, unrestricted_qty_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "begin of ty_batch_exp_src_status_uom, source_group type c length 1, expiry_status type c length 1, row_count type i, row_share_pct type p length 5 decimals 2, status_row_share_pct type p length 5 decimals 2, source_row_share_pct type p length 5 decimals 2, unrestricted_qty_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_source_status_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_result-page_unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_page_source_status_share>-blocked_qty ) * 100 / conv decfloat34( ls_result-page_blocked_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_page_exp_src_status-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_page_exp_src_status-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_page_exp_src_status-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_page_exp_src_status-blocked_qty_share_pct",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "status_row_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_row_share_pct = conv decfloat34( <ls_exp_src_status_share>-row_count ) * 100 / conv decfloat34( ls_result-expired_batch_row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_row_share_pct = conv decfloat34( <ls_page_source_status_share>-row_count ) * 100 / conv decfloat34( ls_page_status_src_share-row_count )",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_row_share_pct = ls_base_source_status-status_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_row_share_pct = ls_base_page_exp_src_status-status_row_share_pct",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_row_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "status_unrestricted_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "status_available_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "status_quality_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "status_blocked_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_unrestricted_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_available_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_quality_share_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_blocked_share_pct type p length 5 decimals 2,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_row_share_pct = conv decfloat34( <ls_full_src_status_share>-row_count ) * 100 / conv decfloat34( ls_full_src_for_status-row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_row_share_pct = conv decfloat34( <ls_page_src_status_share>-row_count ) * 100 / conv decfloat34( ls_page_src_for_status-row_count )",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_source_status-source_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_row_share_pct = ls_base_page_exp_src_status-source_row_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_unrestricted_share_pct = conv decfloat34( <ls_full_src_status_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_full_status_for_src-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_available_share_pct = conv decfloat34( <ls_full_src_status_share>-available_qty ) * 100 / conv decfloat34( ls_full_status_for_src-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_quality_share_pct = conv decfloat34( <ls_full_src_status_share>-quality_qty ) * 100 / conv decfloat34( ls_full_status_for_src-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_blocked_share_pct = conv decfloat34( <ls_full_src_status_share>-blocked_qty ) * 100 / conv decfloat34( ls_full_status_for_src-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_status_for_src-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_status_for_src-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_status_for_src-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_status_for_src-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_unrestricted_share_pct = conv decfloat34( <ls_page_src_status_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_page_status_for_src-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_available_share_pct = conv decfloat34( <ls_page_src_status_share>-available_qty ) * 100 / conv decfloat34( ls_page_status_for_src-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_quality_share_pct = conv decfloat34( <ls_page_src_status_share>-quality_qty ) * 100 / conv decfloat34( ls_page_status_for_src-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "status_blocked_share_pct = conv decfloat34( <ls_page_src_status_share>-blocked_qty ) * 100 / conv decfloat34( ls_page_status_for_src-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_status_for_src-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_status_for_src-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_status_for_src-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_status_for_src-blocked_qty > 0",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_unrestricted_share_pct = ls_base_source_status-status_unrestricted_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_available_share_pct = ls_base_source_status-status_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_quality_share_pct = ls_base_source_status-status_quality_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_blocked_share_pct = ls_base_source_status-status_blocked_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_unrestricted_share_pct = ls_base_page_exp_src_status-status_unrestricted_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_available_share_pct = ls_base_page_exp_src_status-status_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_quality_share_pct = ls_base_page_exp_src_status-status_quality_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "status_blocked_share_pct = ls_base_page_exp_src_status-status_blocked_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_unrestricted_share_pct = conv decfloat34( <ls_full_src_status_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_full_src_for_status-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_available_share_pct = conv decfloat34( <ls_full_src_status_share>-available_qty ) * 100 / conv decfloat34( ls_full_src_for_status-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_quality_share_pct = conv decfloat34( <ls_full_src_status_share>-quality_qty ) * 100 / conv decfloat34( ls_full_src_for_status-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_blocked_share_pct = conv decfloat34( <ls_full_src_status_share>-blocked_qty ) * 100 / conv decfloat34( ls_full_src_for_status-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_src_for_status-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_src_for_status-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_src_for_status-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_full_src_for_status-blocked_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_unrestricted_share_pct = conv decfloat34( <ls_page_src_status_share>-unrestricted_qty ) * 100 / conv decfloat34( ls_page_src_for_status-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_available_share_pct = conv decfloat34( <ls_page_src_status_share>-available_qty ) * 100 / conv decfloat34( ls_page_src_for_status-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_quality_share_pct = conv decfloat34( <ls_page_src_status_share>-quality_qty ) * 100 / conv decfloat34( ls_page_src_for_status-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "source_blocked_share_pct = conv decfloat34( <ls_page_src_status_share>-blocked_qty ) * 100 / conv decfloat34( ls_page_src_for_status-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_src_for_status-unrestricted_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_src_for_status-available_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_src_for_status-quality_qty > 0",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_page_src_for_status-blocked_qty > 0",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_unrestricted_share_pct = ls_base_source_status-source_unrestricted_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_available_share_pct = ls_base_source_status-source_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_quality_share_pct = ls_base_source_status-source_quality_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_blocked_share_pct = ls_base_source_status-source_blocked_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_unrestricted_share_pct = ls_base_page_exp_src_status-source_unrestricted_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_available_share_pct = ls_base_page_exp_src_status-source_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_quality_share_pct = ls_base_page_exp_src_status-source_quality_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_blocked_share_pct = ls_base_page_exp_src_status-source_blocked_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_statuses[ expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_available_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_quality_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-status_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_available_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_blocked_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-source_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_available_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_summary[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-source_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_blocked_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-status_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-status_blocked_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_unrestricted_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_available_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_sources[ source_group = 'g' ]-row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-status_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_summary[ 1 ]-page_expiry_sources[ source_group = 'g' ]-row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_filtered[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-status_row_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-expiry_sources[ source_group = 'g' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'e' ]-unit_unrestricted_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_statuses[ expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_summary_only[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-available_qty_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = ls_result-expired_unrestricted_quantity iv_right_quantity = ls_result-upcoming_unrestricted_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = ls_result-expired_available_quantity iv_right_quantity = ls_result-upcoming_available_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = ls_result-expired_quality_quantity iv_right_quantity = ls_result-upcoming_quality_quantity",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = ls_result-expired_blocked_quantity iv_right_quantity = ls_result-upcoming_blocked_quantity",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = lv_exp_src_unr_qty iv_right_quantity = ls_result-after_window_unrestricted_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = lv_expiry_source_available_qty iv_right_quantity = ls_result-after_window_available_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = lv_expiry_source_quality_qty iv_right_quantity = ls_result-after_window_quality_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "iv_left_quantity = lv_expiry_source_blocked_qty iv_right_quantity = ls_result-after_window_blocked_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_exp_src_status_share>-unrestricted_qty ) * 100 / conv decfloat34( lv_exp_src_unr_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_exp_src_status_share>-available_qty ) * 100 / conv decfloat34( lv_expiry_source_available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_exp_src_status_share>-quality_qty ) * 100 / conv decfloat34( lv_expiry_source_quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "conv decfloat34( <ls_exp_src_status_share>-blocked_qty ) * 100 / conv decfloat34( lv_expiry_source_blocked_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "unrestricted_qty_share_pct = ls_base_source_status-unrestricted_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_qty_share_pct = ls_base_source_status-available_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "quality_qty_share_pct = ls_base_source_status-quality_qty_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "blocked_qty_share_pct = ls_base_source_status-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_results[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_summary_only[ 1 ]-after_window_batch_row_count",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_results[ 1 ]-expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_summary_only[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "request_id = 'page-status-qty-shares-filtered'",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "filter_expiry_status = abap_true expiry_status = 'e'",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_filtered[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_filtered[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "request_id = 'page-status-qty-shares-uom-filtered'",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "omit_dated_batch_rows = abap_true",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_filtered_uom_summary[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_filtered_uom_summary[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "batch = 'after-window-share'",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_results[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_results[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes("maximum_batch_rows = 2")
+  && batchExpiryPageQuantitySharesTest.includes("maximum_batch_rows = 1")
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_limited[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_limited[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_cursor[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_cursor[ 1 ]-page_expiry_src_statuses[ source_group = 'g' expiry_status = 'u' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPlan.includes("batch expiry full-scope dated source/status matrix")
+  && batchExpiryPlan.includes("batch expiry page source/status quantity shares")
+  && batchExpiryPlan.includes("status_unrestricted_share_pct")
+  && batchExpiryPlan.includes("status_*_share_pct")
+  && batchExpiryPlan.includes("source_*_share_pct")
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_statuses[ expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_statuses[ expiry_status = 'u' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_statuses[ expiry_status = 'u' ]-available_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "page_expiry_statuses[ expiry_status = 'u' ]-blocked_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes("conv decfloat34( '33.33' )")
+  && batchExpiryPageQuantitySharesTest.includes("conv decfloat34( '66.67' )")
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_summary_only[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-unrestricted_qty_share_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_uom_results[ 1 ]-page_expiry_statuses[ expiry_status = 'u' ]-quality_qty_share_pct",
+  )
+  && batchExpiryPlan.includes("batch expiry page status quantity shares")
+  && batchExpiryPlan.includes("batch expiry page status date ranges")
+  && batchExpiryPlan.includes("batch expiry page status summaries")
+  && batchExpiryPlan.includes("batch expiry full-scope dated source/status matrix")
+  && batchExpiryPlan.includes("batch expiry page date ranges")
+  && batchExpiryPlan.includes("batch expiry page-level totals")
+  && batchExpiryPlan.includes("`page_expired_row_count`")
+  && batchExpiryPlan.includes("`undated_page_unrestricted_qty`")
+  && (compactBatchExpiryServiceSource.match(
+    /omit_dated_batch_rows\s+type abap_bool/g,
+  ) ?? []).length >= 4
+  && batchExpiryExposureMethod.includes(
+    "ls_request-omit_dated_batch_rows <> abap_true and ls_request-omit_dated_batch_rows <> abap_false",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_request-omit_dated_batch_rows = abap_true and ( ls_request-maximum_batch_rows > 0 or ls_request-filter_batch_cursor = abap_true ). raise exception type zcx_invalid_stock_request",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-snapshot_timestamp = ls_exclusion_group-snapshot_timestamp",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_request-omit_dated_batch_rows = abap_true. call method me->summarize_expiry_row exporting is_expiry_row = ls_expiry_row iv_as_of_date = ls_request-as_of_date changing cs_result = ls_result. else. append ls_expiry_row to ls_result-batches. endif.",
+  )
+  && batchExpiryExposureMethod.includes(
+    "append ls_expiry_row to ls_result-batches",
+  )
+  && batchExpiryExposureMethod.includes(
+    "append ls_undated_batch_row to ls_result-undated_batches",
+  )
+  && batchExpiryExposureMethod.includes(
+    "to ls_result-undated_batches. endif.",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-total_undated_batch_row_count = ls_result-undated_batch_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-total_dated_batch_row_count = ls_result-after_window_batch_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-total_dated_batch_row_count = ls_result-expired_batch_row_count + ls_result-upcoming_batch_row_count",
+  )
+  && batchExpirySummaryRowMethod.includes(
+    "is_expiry_row-expiration_date < cs_result-first_expired_expiration_date",
+  )
+  && batchExpirySummaryRowMethod.includes(
+    "is_expiry_row-expiration_date < cs_result-next_upcoming_expiration_date",
+  )
+  && batchExpirySummaryRowMethod.includes(
+    "cs_result-first_expiry_batch_count",
+  )
+  && batchExpirySummaryRowMethod.includes(
+    "cs_result-next_expiry_batch_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_request-omit_dated_batch_rows <> abap_true. loop at ls_result-batches into ls_batch_page_row.",
+  )
+  && batchExpiryExposureMethod.indexOf(
+    "ls_result-total_dated_batch_row_count = lines( ls_result-batches )",
+  ) < batchExpiryExposureMethod.indexOf(
+    "if ls_request-omit_dated_batch_rows <> abap_true. loop at ls_result-batches",
+  )
+  && batchExpiryExposureMethod.indexOf(
+    "if ls_request-omit_dated_batch_rows <> abap_true. loop at ls_result-batches",
+  ) < batchExpiryExposureMethod.indexOf(
+    "ls_result-returned_batch_row_count = lines( ls_result-batches )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_request-omit_undated_batch_rows <> abap_true. loop at ls_result-undated_batches into ls_undated_page_row",
+  )
+  && batchExpiryExposureMethod.indexOf(
+    "ls_result-total_undated_batch_row_count = lines( ls_result-undated_batches )",
+  ) < batchExpiryExposureMethod.indexOf(
+    "if ls_request-omit_undated_batch_rows <> abap_true. loop at ls_result-undated_batches",
+  )
+  && batchExpiryExposureMethod.indexOf(
+    "if ls_request-omit_undated_batch_rows <> abap_true. loop at ls_result-undated_batches",
+  ) < batchExpiryExposureMethod.indexOf(
+    "ls_result-returned_undated_row_count = lines( ls_result-undated_batches )",
+  )
+  && expiryExposureUomMethod.includes(
+    "omit_dated_batch_rows = ls_request-omit_dated_batch_rows",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_base_result-omit_dated_batch_rows <> ls_request-omit_dated_batch_rows",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-omit_dated_batch_rows = ls_request-omit_dated_batch_rows",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-snapshot_timestamp = ls_base_result-snapshot_timestamp",
+  )
+  && batchExpiryExposureTest.includes(
+    "assert_not_initial( act = lt_results[ 1 ]-snapshot_timestamp )",
+  )
+  && batchExpiryExposureTest.includes(
+    "exp = lt_results[ 1 ]-snapshot_timestamp act = lt_results[ 2 ]-snapshot_timestamp",
+  )
+  && batchExpiryExposureTest.includes(
+    "lt_results[ 2 ]-first_expired_batch",
+  )
+  && batchExpiryExposureTest.includes(
+    "lt_results[ 2 ]-next_upcoming_batch",
+  )
+  && expiryExposureUomTest.includes(
+    "assert_not_initial( act = lt_results[ 1 ]-snapshot_timestamp )",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "omit_dated_batch_rows = abap_true",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-total_dated_batch_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-first_expired_batch",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-first_expiry_batch_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-next_upcoming_batch",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-next_expiry_batch_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_summary_only[ 1 ]-total_dated_batch_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_summary_only[ 1 ]-after_window_batch_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_undated_summary_only[ 1 ]-total_undated_batch_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_undated_summary_only[ 1 ]-first_undated_batch",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_undated_summary_only[ 1 ]-undated_expiry_sources[ source_group = 'o' ]-row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'e' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-returned_undated_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-expiry_src_statuses[ source_group = 'o' expiry_status = 'a' ]-row_share_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-base_expired_first_unrestr_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_expired_first_unrestr_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-base_next_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_next_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-total_undated_batch_row_count",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-first_undated_batch",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-base_undated_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-src_undated_unrestricted_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lv_reads_before_omit_err",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_invalid_dated_omit",
+  )
+  && batchExpiryPlan.includes("batch expiry summary-only dated results")
+  && batchExpiryPlan.includes("empty `batches` list, zero returned-row and page summaries")
+  && batchExpiryPlan.includes("without materializing dated detail rows")
+  && batchExpiryPlan.includes("without materializing undated detail rows")
+  && batchExpiryPlan.includes(
+    "requests that share the same effective reservation-exclusion set share that read timestamp",
+  )
+  && batchExpiryPlan.includes(
+    "does not make the stock read transactionally consistent",
+  )
+  && batchExpiryReadme.includes(
+    "`omit_dated_batch_rows = abap_true` to suppress the dated `batches` list while preserving full-scope summaries",
+  );
+if (!batchExpiryPageTotalsAreGuarded) {
+  errors.push(
+    "batch expiry pages, snapshots, and summary-only reads must preserve aggregation, paging, UOM echo, and omission behavior",
+  );
+}
+
+const expirySourceBandQuantityShareScopes = [
+  ["<ls_full_expiry_age_row_share>", "lv_full_exp_age_src"],
+  ["<ls_page_expiry_age_row_share>", "lv_page_exp_age_src"],
+  ["<ls_full_upc_row_share>", "lv_full_upc_src"],
+  ["<ls_full_after_win_row_share>", "lv_full_after_src"],
+  ["<ls_page_upc_row_share>", "lv_page_upc_src"],
+  ["<ls_page_after_win_row_share>", "lv_page_after_src"],
+];
+const expirySourceBandQuantityShareCategories = [
+  "unrestricted",
+  "available",
+  "quality",
+  "blocked",
+];
+const expirySourceBandQuantityShareSuffixes = {
+  unrestricted: "unr",
+  available: "avl",
+  quality: "qual",
+  blocked: "blk",
+};
+const expirySourceBandUomRows = [
+  "ls_base_page_exp_src_age",
+  "ls_base_source_age",
+  "ls_base_page_upcoming_band",
+  "ls_base_page_after_window_band",
+  "ls_base_source_window",
+  "ls_base_after_window_band",
+];
+let expirySourceBandQuantitySharesAreGuarded =
+  expirySourceBandQuantityShareCategories.every((category) =>
+    compactBatchExpiryServiceSource.includes(
+      `source_${category}_share_pct type p length 5 decimals 2,`,
+    ),
+  )
+  && batchExpiryPageAgeBandsTest.includes("source_quality_share_pct")
+  && batchExpiryPageAgeBandsTest.includes("lt_age_band_one_row_page")
+  && batchExpiryPageWindowBandsTest.includes("source_blocked_share_pct")
+  && batchExpiryPlan.includes("source_*_share_pct")
+  && batchExpiryReadme.includes("source_*_share_pct");
+for (const [row, denominatorPrefix] of expirySourceBandQuantityShareScopes) {
+  for (const category of expirySourceBandQuantityShareCategories) {
+    const denominatorSuffix = expirySourceBandQuantityShareSuffixes[category];
+    expirySourceBandQuantitySharesAreGuarded &&=
+      batchExpiryExposureMethod.includes(
+        `${row}-source_${category}_share_pct = conv decfloat34( ${row}-${category}_qty ) * 100 / ${denominatorPrefix}_${denominatorSuffix}`,
+      )
+      && batchExpiryExposureMethod.includes(
+        `if ${denominatorPrefix}_${denominatorSuffix} > 0`,
+      );
+  }
+}
+for (const row of expirySourceBandUomRows) {
+  for (const category of expirySourceBandQuantityShareCategories) {
+    expirySourceBandQuantitySharesAreGuarded &&=
+      expiryExposureUomMethod.includes(
+        `source_${category}_share_pct = ${row}-source_${category}_share_pct`,
+      );
+  }
+}
+if (!expirySourceBandQuantitySharesAreGuarded) {
+  errors.push(
+    "expiry source/age and source/window matrices must report source-relative category shares in full, page, and UOM results",
+  );
+}
+
+const expiryBandCategoryShareCategories = [
+  "unrestricted",
+  "available",
+  "quality",
+  "blocked",
+];
+const expiryBandCategoryShareScopes = [
+  ["<ls_full_expiry_age_row_share>", "lv_full_exp_age_band"],
+  ["<ls_page_expiry_age_row_share>", "lv_page_exp_age_band"],
+  ["<ls_full_upc_row_share>", "lv_full_upc_band"],
+  ["<ls_page_upc_row_share>", "lv_page_upc_band"],
+  ["<ls_full_after_win_row_share>", "lv_full_after_band"],
+  ["<ls_page_after_win_row_share>", "lv_page_after_band"],
+];
+const expiryBandCategoryUomRows = [
+  "ls_base_page_exp_src_age",
+  "ls_base_source_age",
+  "ls_base_page_upcoming_band",
+  "ls_base_page_after_window_band",
+  "ls_base_source_window",
+  "ls_base_after_window_band",
+];
+const expiryBandCategoryShareSuffixes = {
+  unrestricted: "unr",
+  available: "avl",
+  quality: "qual",
+  blocked: "blk",
+};
+let expiryBandCategorySharesAreGuarded =
+  ["ty_batch_exp_src_age", "ty_batch_exp_src_age_uom", "ty_batch_exp_src_window", "ty_batch_exp_src_window_uom"].every((typeName) =>
+    compactBatchExpiryServiceSource.includes(`begin of ${typeName}`),
+  )
+  && expiryBandCategoryShareCategories.every((category) =>
+    compactBatchExpiryServiceSource.includes(
+      `band_${category}_share_pct type p length 5 decimals 2,`,
+    ),
+  )
+  && batchExpiryPageAgeBandsTest.includes("band_available_share_pct")
+  && batchExpiryPageAgeBandsTest.includes("lt_age_band_two_one_row_page")
+  && batchExpiryPageAgeBandsTest.includes("lt_uom_results[ 2 ]-page_expiry_src_age_bands")
+  && batchExpiryPageWindowBandsTest.includes("band_quality_share_pct")
+  && batchExpiryPageWindowBandsTest.includes("lt_upcoming_one_row")
+  && batchExpiryPageWindowBandsTest.includes("lt_after_window_one_row")
+  && batchExpiryPageWindowBandsTest.includes("lt_uom_results[ 5 ]-page_after_window_src_bands")
+  && batchExpiryPlan.includes("band_*_share_pct")
+  && batchExpiryReadme.includes("band_*_share_pct");
+for (const [row, denominatorPrefix] of expiryBandCategoryShareScopes) {
+  for (const category of expiryBandCategoryShareCategories) {
+    const denominatorSuffix = expiryBandCategoryShareSuffixes[category];
+    expiryBandCategorySharesAreGuarded &&=
+      batchExpiryExposureMethod.includes(
+        `${row}-band_${category}_share_pct = conv decfloat34( ${row}-${category}_qty ) * 100 / ${denominatorPrefix}_${denominatorSuffix}`,
+      )
+      && batchExpiryExposureMethod.includes(
+        `if ${denominatorPrefix}_${denominatorSuffix} > 0`,
+      );
+  }
+}
+for (const row of expiryBandCategoryUomRows) {
+  for (const category of expiryBandCategoryShareCategories) {
+    expiryBandCategorySharesAreGuarded &&=
+      expiryExposureUomMethod.includes(
+        `band_${category}_share_pct = ${row}-band_${category}_share_pct`,
+      );
+  }
+}
+if (!expiryBandCategorySharesAreGuarded) {
+  errors.push(
+    "expiry age and window matrices must report band-relative category shares in full, page, and UOM results",
+  );
+}
+
+const expiryAvailabilityRatioScopes = [
+  "<ls_full_expiry_age_row_share>",
+  "<ls_page_expiry_age_row_share>",
+  "<ls_full_upc_row_share>",
+  "<ls_page_upc_row_share>",
+  "<ls_full_after_win_row_share>",
+  "<ls_page_after_win_row_share>",
+];
+const expiryAvailabilityRatioUomRows = [
+  "ls_base_page_exp_src_age",
+  "ls_base_source_age",
+  "ls_base_page_upcoming_band",
+  "ls_base_page_after_window_band",
+  "ls_base_source_window",
+  "ls_base_after_window_band",
+];
+let expiryAvailabilityRatioIsGuarded =
+  ["ty_batch_exp_src_age", "ty_batch_exp_src_age_uom", "ty_batch_exp_src_window", "ty_batch_exp_src_window_uom"].every((typeName) =>
+    compactBatchExpiryServiceSource.includes(`begin of ${typeName}`),
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "available_pct_of_unrestricted type p length 5 decimals 2,",
+  )
+  && batchExpiryPageAgeBandsTest.includes("available_pct_of_unrestricted")
+  && batchExpiryPageAgeBandsTest.includes("lt_age_band_two_one_row_page")
+  && batchExpiryPageWindowBandsTest.includes("available_pct_of_unrestricted")
+  && batchExpiryPageWindowBandsTest.includes("lt_summary_only")
+  && batchExpiryPageWindowBandsTest.includes("lt_uom_results[ 5 ]")
+  && batchExpiryPlan.includes("batch expiry age/window availability ratios")
+  && batchExpiryReadme.includes("available_pct_of_unrestricted");
+for (const row of expiryAvailabilityRatioScopes) {
+  expiryAvailabilityRatioIsGuarded &&=
+    batchExpiryExposureMethod.includes(
+      `${row}-available_pct_of_unrestricted = conv decfloat34( ${row}-available_qty ) * 100 / conv decfloat34( ${row}-unrestricted_qty )`,
+    )
+    && batchExpiryExposureMethod.includes(`if ${row}-unrestricted_qty > 0`);
+}
+for (const row of expiryAvailabilityRatioUomRows) {
+  expiryAvailabilityRatioIsGuarded &&=
+    expiryExposureUomMethod.includes(
+      `available_pct_of_unrestricted = ${row}-available_pct_of_unrestricted`,
+    );
+}
+if (!expiryAvailabilityRatioIsGuarded) {
+  errors.push(
+    "expiry source/age and source/window cells must expose a guarded available-to-unrestricted percentage in full, page, and UOM results",
+  );
+}
+
+const expiryReservationDeductionScopes = [
+  "<ls_full_expiry_age_row_share>",
+  "<ls_page_expiry_age_row_share>",
+  "<ls_full_upc_row_share>",
+  "<ls_page_upc_row_share>",
+  "<ls_full_after_win_row_share>",
+  "<ls_page_after_win_row_share>",
+];
+const expiryReservationDeductionUomRows = [
+  "ls_base_page_exp_src_age",
+  "ls_base_source_age",
+  "ls_base_page_upcoming_band",
+  "ls_base_page_after_window_band",
+  "ls_base_source_window",
+  "ls_base_after_window_band",
+];
+let expiryReservationDeductionIsGuarded =
+  compactBatchExpiryServiceSource.includes("reservation_deduction_qty type mchb-clabs,")
+  && compactBatchExpiryServiceSource.includes("base_reservation_deduction_qty type mchb-clabs,")
+  && compactBatchExpiryServiceSource.includes("unit_reservation_deduction_qty type mard-labst,")
+  && batchExpiryPageAgeBandsTest.includes("reservation_deduction_qty")
+  && batchExpiryPageAgeBandsTest.includes("unit_reservation_deduction_qty")
+  && batchExpiryPageWindowBandsTest.includes("reservation_deduction_qty")
+  && batchExpiryPageWindowBandsTest.includes("lt_summary_only")
+  && batchExpiryPlan.includes("reservation_deduction_qty")
+  && batchExpiryReadme.includes("reservation_deduction_qty");
+for (const row of expiryReservationDeductionScopes) {
+  expiryReservationDeductionIsGuarded &&=
+    batchExpiryExposureMethod.includes(
+      `${row}-reservation_deduction_qty = conv decfloat34( ${row}-unrestricted_qty ) - conv decfloat34( ${row}-available_qty )`,
+    );
+}
+for (const row of expiryReservationDeductionUomRows) {
+  expiryReservationDeductionIsGuarded &&=
+    expiryExposureUomMethod.includes(
+      `base_reservation_deduction_qty = ${row}-reservation_deduction_qty`,
+    )
+    && expiryExposureUomMethod.includes(
+      `unit_reservation_deduction_qty = convert_stock_quantity( iv_base_quantity = ${row}-reservation_deduction_qty iv_numerator = ls_ratio_cache-ratio-numerator iv_denominator = ls_ratio_cache-ratio-denominator )`,
+    );
+}
+if (!expiryReservationDeductionIsGuarded) {
+  errors.push(
+    "expiry source/age and source/window cells must report reservation deductions in full, page, and converted UOM results",
+  );
+}
+
+const expiryDetailAvailabilityMetricsAreGuarded =
+  compactBatchExpiryServiceSource.includes(
+    "available_pct_of_unrestricted type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "reservation_deduction_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "source_resv_deduction_qty type mard-labst,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_expiry_row-available_pct_of_unrestricted = conv decfloat34( ls_batch-available_quantity ) * 100 / conv decfloat34( ls_batch-unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_undated_batch_row-available_pct_of_unrestricted = conv decfloat34( ls_batch-available_quantity ) * 100 / conv decfloat34( ls_batch-unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_after_window_row-available_pct_of_unrestricted = conv decfloat34( ls_batch-available_quantity ) * 100 / conv decfloat34( ls_batch-unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.split(
+    "reservation_deduction_qty = conv decfloat34( ls_batch-unrestricted_quantity ) - conv decfloat34( ls_batch-available_quantity )",
+  ).length >= 4
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-unrestricted_quantity > 0. ls_expiry_row-available_pct_of_unrestricted",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-unrestricted_quantity > 0. ls_undated_batch_row-available_pct_of_unrestricted",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_batch-unrestricted_quantity > 0. ls_after_window_row-available_pct_of_unrestricted",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_pct_of_unrestricted = ls_base_row-available_pct_of_unrestricted",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_resv_deduction_qty = convert_stock_quantity( iv_base_quantity = ls_base_row-reservation_deduction_qty iv_numerator = ls_ratio_cache-ratio-numerator iv_denominator = ls_ratio_cache-ratio-denominator )",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_pct_of_unrestricted = ls_undated_base_row-available_pct_of_unrestricted",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_undated_base_row-reservation_deduction_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-undated_batches[ 1 ]-reservation_deduction_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-batches[ 1 ]-source_resv_deduction_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-undated_batches[ 1 ]-source_resv_deduction_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_page[ 1 ]-batches[ 1 ]-reservation_deduction_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 2 ]-batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 3 ]-batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 4 ]-undated_batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-batches[ 1 ]-source_resv_deduction_qty",
+  )
+  && batchExpiryPlan.includes("batch expiry detail availability and reservation deductions")
+  && batchExpiryReadme.includes("batch expiry detail availability and reservation deductions");
+if (!expiryDetailAvailabilityMetricsAreGuarded) {
+  errors.push(
+    "dated, undated, and after-window batch details must report guarded availability ratios and signed reservation deductions in base and converted UOM results",
+  );
+}
+
+const expiryPageTotalMetricsAreGuarded =
+  compactBatchExpiryServiceSource.includes(
+    "page_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "page_reservation_deduction_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_page_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_page_resv_deduct_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "und_page_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "und_page_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_und_page_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_und_page_resv_deduct_qty type mard-labst,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-page_unrestricted_qty > 0. ls_result-page_avail_pct = conv decfloat34( ls_result-page_available_qty ) * 100 / conv decfloat34( ls_result-page_unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_reservation_deduction_qty = conv decfloat34( ls_result-page_unrestricted_qty ) - conv decfloat34( ls_result-page_available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_page_unrestricted_qty > 0. ls_result-und_page_avail_pct = conv decfloat34( ls_result-undated_page_available_qty ) * 100 / conv decfloat34( ls_result-undated_page_unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-und_page_resv_deduct_qty = conv decfloat34( ls_result-undated_page_unrestricted_qty ) - conv decfloat34( ls_result-undated_page_available_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_avail_pct = ls_base_result-page_avail_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_page_resv_deduct_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-page_reservation_deduction_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-und_page_avail_pct = ls_base_result-und_page_avail_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_und_page_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-page_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-und_page_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-und_page_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_page_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_und_page_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 1 ]-src_page_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-page_avail_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-src_page_resv_deduct_qty",
+  )
+  && batchExpiryPlan.includes("page_avail_pct")
+  && batchExpiryReadme.includes("page_avail_pct");
+if (!expiryPageTotalMetricsAreGuarded) {
+  errors.push(
+    "dated and undated batch page totals must report guarded availability ratios and signed deductions in base and requested units",
+  );
+}
+
+const expiryFullUndatedMetricsAreGuarded =
+  compactBatchExpiryServiceSource.includes(
+    "undated_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "undated_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_undated_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_undated_resv_deduct_qty type mard-labst,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-undated_unrestricted_quantity > 0. ls_result-undated_avail_pct = conv decfloat34( ls_result-undated_available_quantity ) * 100 / conv decfloat34( ls_result-undated_unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-undated_resv_deduct_qty = conv decfloat34( ls_result-undated_unrestricted_quantity ) - conv decfloat34( ls_result-undated_available_quantity )",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-undated_avail_pct = ls_base_result-undated_avail_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_undated_resv_deduct_qty = ls_base_result-undated_resv_deduct_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_undated_resv_deduct_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-undated_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_undated_summary_only[ 1 ]-undated_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_undated_summary_only[ 1 ]-src_undated_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-undated_avail_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 1 ]-src_undated_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 4 ]-undated_avail_pct",
+  )
+  && batchExpiryPlan.includes("undated_avail_pct")
+  && batchExpiryReadme.includes("undated_avail_pct");
+if (!expiryFullUndatedMetricsAreGuarded) {
+  errors.push(
+    "full-scope undated expiry totals must expose guarded availability ratios and signed reservation deductions in base and requested UOM",
+  );
+}
+
+const expiryFullDatedMetricsAreGuarded =
+  compactBatchExpiryServiceSource.includes(
+    "dated_unrestricted_quantity type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "dated_quality_quantity type mchb-cinsm,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "dated_blocked_quantity type mchb-cspem,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_unrestricted_quantity type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_available_quantity type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_quality_quantity type mchb-cinsm,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_blocked_quantity type mchb-cspem,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_through_unrestricted_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_through_unrestricted_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_through_available_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_through_available_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_through_quality_qty type mchb-cinsm,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_through_quality_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_through_blocked_qty type mchb-cspem,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_through_blocked_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "through_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_through_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_through_resv_deduct_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "dated_avail_pct type p length 5 decimals 2,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "dated_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_dated_resv_deduct_qty type mchb-clabs,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_dated_resv_deduct_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_dated_quality_qty type mchb-cinsm,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_dated_quality_qty type mard-labst,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "base_dated_blocked_qty type mchb-cspem,",
+  )
+  && compactBatchExpiryServiceSource.includes(
+    "src_dated_blocked_qty type mard-labst,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "loop at ls_result-expiry_statuses into data(ls_dated_status_total).",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-dated_unrestricted_quantity = sum_stock_quantities( iv_left_quantity = ls_result-dated_unrestricted_quantity iv_right_quantity = ls_dated_status_total-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-dated_available_quantity = sum_stock_quantities( iv_left_quantity = ls_result-dated_available_quantity iv_right_quantity = ls_dated_status_total-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-dated_quality_quantity = sum_stock_quantities( iv_left_quantity = ls_result-dated_quality_quantity iv_right_quantity = ls_dated_status_total-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-dated_blocked_quantity = sum_stock_quantities( iv_left_quantity = ls_result-dated_blocked_quantity iv_right_quantity = ls_dated_status_total-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_dated_status_total-expiry_status = 'e' or ls_dated_status_total-expiry_status = 'u'.",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-through_unrestricted_quantity = sum_stock_quantities( iv_left_quantity = ls_result-through_unrestricted_quantity iv_right_quantity = ls_dated_status_total-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-through_available_quantity = sum_stock_quantities( iv_left_quantity = ls_result-through_available_quantity iv_right_quantity = ls_dated_status_total-available_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-through_quality_quantity = sum_stock_quantities( iv_left_quantity = ls_result-through_quality_quantity iv_right_quantity = ls_dated_status_total-quality_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-through_blocked_quantity = sum_stock_quantities( iv_left_quantity = ls_result-through_blocked_quantity iv_right_quantity = ls_dated_status_total-blocked_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-through_unrestricted_quantity > 0. ls_result-through_avail_pct = conv decfloat34( ls_result-through_available_quantity ) * 100 / conv decfloat34( ls_result-through_unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-through_resv_deduct_qty = conv decfloat34( ls_result-through_unrestricted_quantity ) - conv decfloat34( ls_result-through_available_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "if ls_result-dated_unrestricted_quantity > 0. ls_result-dated_avail_pct = conv decfloat34( ls_result-dated_available_quantity ) * 100 / conv decfloat34( ls_result-dated_unrestricted_quantity )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-dated_resv_deduct_qty = conv decfloat34( ls_result-dated_unrestricted_quantity ) - conv decfloat34( ls_result-dated_available_quantity )",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_dated_unrestricted_qty = ls_base_result-dated_unrestricted_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_dated_available_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-dated_available_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_dated_quality_qty = ls_base_result-dated_quality_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_dated_quality_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-dated_quality_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_dated_blocked_qty = ls_base_result-dated_blocked_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_dated_blocked_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-dated_blocked_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_through_unrestricted_qty = ls_base_result-through_unrestricted_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_through_unrestricted_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-through_unrestricted_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_through_available_qty = ls_base_result-through_available_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_through_available_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-through_available_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_through_quality_qty = ls_base_result-through_quality_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_through_quality_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-through_quality_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_through_blocked_qty = ls_base_result-through_blocked_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_through_blocked_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-through_blocked_quantity",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-through_avail_pct = ls_base_result-through_avail_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-base_through_resv_deduct_qty = ls_base_result-through_resv_deduct_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_through_resv_deduct_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-through_resv_deduct_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-dated_avail_pct = ls_base_result-dated_avail_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-src_dated_resv_deduct_qty = convert_stock_quantity( iv_base_quantity = ls_base_result-dated_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-dated_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-through_unrestricted_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-through_blocked_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-through_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-through_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-through_unrestricted_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-through_avail_pct",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-through_unrestricted_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-through_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_through_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_through_resv_deduct_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_through_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_through_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-through_avail_pct",
+  )
+  && batchExpiryPlan.includes("batch expiry full through-date aggregates")
+  && batchExpiryReadme.includes("batch expiry full through-date aggregates")
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-dated_quality_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-dated_blocked_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_summary_only[ 1 ]-dated_quality_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_dated_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_dated_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-base_dated_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-src_dated_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-base_dated_quality_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_dated_blocked_qty",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-base_dated_blocked_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-dated_quality_quantity",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-dated_blocked_quantity",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_summary_only[ 1 ]-src_dated_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_negative_uom[ 1 ]-src_dated_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_page[ 1 ]-dated_avail_pct",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_row_share_uom[ 1 ]-src_dated_resv_deduct_qty",
+  )
+  && batchExpiryPageQuantitySharesTest.includes(
+    "lt_empty[ 1 ]-dated_avail_pct",
+  )
+  && batchExpiryPlan.includes("dated_quality_quantity")
+  && batchExpiryPlan.includes("dated_blocked_quantity")
+  && batchExpiryReadme.includes("dated_quality_quantity")
+  && batchExpiryReadme.includes("dated_blocked_quantity");
+if (!expiryFullDatedMetricsAreGuarded) {
+  errors.push(
+    "full-scope dated expiry totals must reconcile all four stock categories and expose availability ratios and signed deductions in base and requested UOM",
+  );
+}
+
+const expirySummaryMetricScopes = [
+  "<ls_exp_src_status_share>",
+  "<ls_page_source_status_share>",
+  "<ls_full_expiry_status>",
+  "<ls_full_expiry_source>",
+  "<ls_page_expiry_source>",
+  "<ls_page_status_qty_share>",
+  "<ls_undated_source_share>",
+  "<ls_undated_page_share>",
+];
+const expirySummaryMetricUomRows = [
+  "ls_base_page_exp_src_status",
+  "ls_base_source_status",
+  "ls_base_expiry_source",
+  "ls_base_page_expiry_source",
+  "ls_base_expiry_status",
+  "ls_base_page_expiry_status",
+  "ls_base_undated_source",
+  "ls_base_undated_page_source",
+];
+let expirySourceStatusMetricsAreGuarded =
+  [
+    "ty_exp_undated_source",
+    "ty_exp_undated_source_uom",
+    "ty_batch_exp_page_status",
+    "ty_batch_exp_page_status_uom",
+    "ty_batch_exp_source",
+    "ty_batch_exp_source_uom",
+    "ty_batch_exp_src_status",
+    "ty_batch_exp_src_status_uom",
+  ].every((typeName) =>
+    compactBatchExpiryServiceSource.includes(`begin of ${typeName}`),
+  )
+  && batchExpiryPageQuantitySharesTest.includes("available_pct_of_unrestricted")
+  && batchExpiryPageQuantitySharesTest.includes("reservation_deduction_qty")
+  && batchExpiryExposureTest.includes("available_pct_of_unrestricted")
+  && batchExpiryExposureTest.includes("conv decfloat34( '150.00' )")
+  && batchExpiryExposureTest.includes("conv mchb-clabs( '-1.000' )")
+  && batchExpiryPageQuantitySharesTest.includes("unit_reservation_deduction_qty")
+  && batchExpiryPageQuantitySharesTest.includes("lt_negative_uom[ 1 ]-expiry_statuses")
+  && batchExpiryPageQuantitySharesTest.includes("conv mard-labst( '-0.250' )")
+  && batchExpiryPageTotalsTest.includes("available_pct_of_unrestricted")
+  && batchExpiryPageTotalsTest.includes("unit_reservation_deduction_qty")
+  && batchExpiryPageTotalsTest.includes("lt_uom_undated_summary_only")
+  && batchExpiryPlan.includes("batch expiry summary availability and reservation deductions")
+  && batchExpiryReadme.includes("batch expiry summary availability and reservation deductions");
+for (const row of expirySummaryMetricScopes) {
+  expirySourceStatusMetricsAreGuarded &&=
+    batchExpiryExposureMethod.includes(
+      `${row}-available_pct_of_unrestricted = conv decfloat34( ${row}-available_qty ) * 100 / conv decfloat34( ${row}-unrestricted_qty )`,
+    )
+    && batchExpiryExposureMethod.includes(`if ${row}-unrestricted_qty > 0`)
+    && batchExpiryExposureMethod.includes(
+      `${row}-reservation_deduction_qty = conv decfloat34( ${row}-unrestricted_qty ) - conv decfloat34( ${row}-available_qty )`,
+    );
+}
+for (const row of expirySummaryMetricUomRows) {
+  expirySourceStatusMetricsAreGuarded &&=
+    expiryExposureUomMethod.includes(
+      `available_pct_of_unrestricted = ${row}-available_pct_of_unrestricted`,
+    )
+    && expiryExposureUomMethod.includes(
+      `base_reservation_deduction_qty = ${row}-reservation_deduction_qty`,
+    )
+    && expiryExposureUomMethod.includes(
+      `unit_reservation_deduction_qty = convert_stock_quantity( iv_base_quantity = ${row}-reservation_deduction_qty iv_numerator = ls_ratio_cache-ratio-numerator iv_denominator = ls_ratio_cache-ratio-denominator )`,
+    );
+}
+if (!expirySourceStatusMetricsAreGuarded) {
+  errors.push(
+    "expiry status/source summaries and source/status cells must report guarded availability ratios and signed reservation deductions in full, page, and converted UOM results",
+  );
+}
+
+const firstUndatedSourceIsGuarded =
+  compactBatchExpiryServiceSource.includes(
+    "first_undated_expiry_source type c length 1,",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-first_undated_expiry_source = ls_batch-expiration_date_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-first_undated_expiry_source = ls_base_result-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_first_page[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_next_page[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_empty_page[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_after_page[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_uom_results[ 1 ]-undated_batches[ 1 ]-base_row-expiration_date_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_unknown_source_summary[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 'x' act = lt_unknown_source_summary[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_unknown_source_uom_summary[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 'x' act = lt_unknown_source_uom_summary[ 1 ]-first_undated_expiry_source",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "lt_unknown_source_uom_summary[ 1 ]-undated_batches",
+  )
+  && batchExpiryPlan.includes("batch expiry first-undated source marker");
+if (!firstUndatedSourceIsGuarded) {
+  errors.push(
+    "first-undated source provenance must be preserved in the base and UOM summaries with regression coverage",
   );
 }
 
@@ -25198,6 +37614,860 @@ let allocationExpiryDayRangeIsGuarded =
 if (!allocationExpiryDayRangeIsGuarded) {
   errors.push(
     "allocation expiry-day ranges must validate signed endpoints, omit undated rows, and cover UOM forwarding in tests and docs",
+  );
+}
+
+const confirmationDeletionServiceTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_deleted_conf_orders",
+);
+const confirmationDeletionRepositoryTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "filters_deleted_conf_orders",
+);
+const confirmationDeletionRuntimeSchema = readFileSync(
+  join(projectRoot, "scripts/run-unit.mjs"),
+  "utf8",
+).toLowerCase();
+const confirmationDeletionPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const confirmationDeletionDocs = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const confirmationDeletionAnomalies = readFileSync(
+  join(projectRoot, "ANOMALIES.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const confirmationDeletionFilterIsGuarded =
+  productionOrderReadInterface.includes("exclude_deleted type abap_bool")
+  && productionOrderReadInterface.includes(
+    "order_deletion_indicator type aufk-loekz",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "lv_exclude_deleted = is_selection-exclude_deleted",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "aufk_row~loekz as order_deletion_indicator",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afpo_row~xloek = @lv_blank_deletion_indicator",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_selection-exclude_deleted <> abap_true",
+  )
+  && productionConfirmationWindowResultsValidation.includes(
+    "ls_confirmation-order_deletion_indicator is not initial",
+  )
+  && confirmationDeletionServiceTest.includes(
+    "exclude_deleted = abap_true",
+  )
+  && confirmationDeletionServiceTest.includes("exclude_deleted = 'y'")
+  && confirmationDeletionRepositoryTest.includes("mat-4")
+  && confirmationDeletionRepositoryTest.includes("mat-5")
+  && confirmationDeletionRuntimeSchema.includes("create table 'crhd'")
+  && confirmationDeletionRuntimeSchema.includes("arbid nchar(8)")
+  && confirmationDeletionPlan.includes("afpo-xloek")
+  && confirmationDeletionPlan.includes("order_deletion_indicator")
+  && confirmationDeletionDocs.includes("afpo-xloek")
+  && confirmationDeletionDocs.includes("order_deletion_indicator")
+  && confirmationDeletionAnomalies.includes("afpo item with blank `xloek`");
+if (!confirmationDeletionFilterIsGuarded) {
+  errors.push(
+    "confirmation-window deletion filtering must validate header/item scope before paging and keep tests, runtime schema, and docs in sync",
+  );
+}
+
+const confirmationExecutionFinishTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_execution_finish",
+);
+const confirmationBulkExecutionServiceTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "reads_order_confirmations",
+);
+const confirmationBulkExecutionValidation = normalizedMethod(
+  productionOrderReadServiceSource,
+  "validate_confirmation_results",
+);
+const confirmationBulkWorkCenterValidation = normalizedMethod(
+  productionOrderReadServiceSource,
+  "validate_confirmation_results",
+);
+const confirmationBulkExecutionService = normalizedMethod(
+  productionOrderReadServiceSource,
+  "read_confirmations_bulk",
+);
+const confirmationBulkWorkCenterService = normalizedMethod(
+  productionOrderReadServiceSource,
+  "read_confirmations_bulk",
+);
+const confirmationBulkExecutionRepoTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_confirmations",
+);
+const confirmationBulkWorkCenterServiceTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_conf_bulk_work_center",
+);
+const confirmationBulkWorkCenterQuantityBuilder = normalizedMethod(
+  productionOrderReadServiceSource,
+  "build_wc_conf_summaries",
+);
+const confirmationBaseWorkCenterQuantityBuilder = normalizedMethod(
+  productionOrderReadServiceSource,
+  "build_base_wc_conf_summaries",
+);
+const confirmationWindowBaseUnitQuantityTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "converts_conf_window_base_unit",
+);
+const confirmationBulkWorkCenterFake = normalizedMethod(
+  productionOrderReadServiceTests,
+  "zif_prod_order_read_repo~read_confirmations",
+);
+const confirmationBulkWorkCenterRepoTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_confirmations",
+);
+const productionOperationByOrderRepo = normalizedMethod(
+  productionOrderReadRepo,
+  "zif_prod_order_read_repo~read_operations",
+);
+const productionOperationBulkService = normalizedMethod(
+  productionOrderReadServiceSource,
+  "read_operations_bulk",
+);
+const productionOperationResultValidation = normalizedMethod(
+  productionOrderReadServiceSource,
+  "validate_operation_results",
+);
+const productionOperationBulkFake = normalizedMethod(
+  productionOrderReadServiceTests,
+  "zif_prod_order_read_repo~read_operations",
+);
+const productionOperationWorkCenterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_ops_by_work_center",
+);
+const productionOperationRepoTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "reads_operations",
+);
+const confirmationExecutionRepoTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "searches_confirmation_window",
+);
+const confirmationExecutionSchema = readFileSync(
+  join(projectRoot, "scripts/run-unit.mjs"),
+  "utf8",
+).toLowerCase();
+const confirmationExecutionStub = readFileSync(
+  join(projectRoot, "stubs/src/afru.tabl.xml"),
+  "utf8",
+).toLowerCase();
+const confirmationExecutionPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const confirmationExecutionDocs = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).replace(/\s+/g, " ").toLowerCase();
+const confirmationExecutionFinishIsGuarded =
+  productionOrderReadInterface.includes(
+    "execution_start_date_from type afru-isdd",
+  )
+  && productionOrderReadInterface.includes(
+    "execution_finish_date_from type afru-iedd",
+  )
+  && productionOrderReadInterface.includes(
+    "filter_execution_start_time type abap_bool",
+  )
+  && productionOrderReadInterface.includes(
+    "filter_execution_finish_time type abap_bool",
+  )
+  && productionOrderReadInterface.includes(
+    "execution_start_date type afru-isdd",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~isdd >= @lv_execution_start_date_from",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~isdd <= @lv_execution_start_date_to",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~isdd <> @lv_blank_execution_start_date",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~isdz between @lv_execution_start_time_from and @lv_execution_start_time_to",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~iedd >= @lv_execution_finish_date_from",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~iedd <= @lv_execution_finish_date_to",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~iedd <> @lv_blank_execution_finish_date",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~iedz between @lv_execution_finish_time_from and @lv_execution_finish_time_to",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~isdd as execution_start_date",
+  )
+  && productionConfirmationWindowRepo.includes(
+    "afru_row~iedz as execution_finish_time",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_valid_gregorian_date( iv_date = is_selection-execution_start_date_from )",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_selection-filter_execution_start_time = abap_true",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_valid_time( iv_time = is_selection-execution_start_time_from )",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_selection-filter_execution_finish_time = abap_true",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_valid_time( iv_time = is_selection-execution_finish_time_from )",
+  )
+  && productionConfirmationWindowResultsValidation.includes(
+    "ls_confirmation-execution_start_date is initial",
+  )
+  && productionConfirmationWindowResultsValidation.includes(
+    "ls_confirmation-execution_start_time < is_selection-execution_start_time_from",
+  )
+  && productionConfirmationWindowResultsValidation.includes(
+    "ls_confirmation-execution_finish_time > is_selection-execution_finish_time_to",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "execution_start_date_from = '20261010'",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "filter_execution_start_time = abap_true",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "execution_start_time_from = '000000'",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "filter_execution_finish_time = abap_true",
+  )
+  && productionConfirmationWindowValidation.includes(
+    "is_valid_gregorian_date( iv_date = is_selection-execution_finish_date_from )",
+  )
+  && productionConfirmationWindowResultsValidation.includes(
+    "ls_confirmation-execution_finish_date is initial",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "execution_finish_date_from = '20261011'",
+  )
+  && confirmationExecutionFinishTest.includes(
+    "execution_finish_date_to = '20261010'",
+  )
+  && confirmationExecutionRepoTest.includes("lt_finish_range")
+  && confirmationExecutionRepoTest.includes("lt_finish_lower")
+  && confirmationExecutionRepoTest.includes("lt_finish_upper")
+  && confirmationExecutionRepoTest.includes("lt_start_range")
+  && confirmationExecutionRepoTest.includes("lt_start_lower")
+  && confirmationExecutionRepoTest.includes("lt_start_upper")
+  && confirmationExecutionRepoTest.includes("lt_start_time_range")
+  && confirmationExecutionRepoTest.includes("lt_finish_time_range")
+  && confirmationExecutionSchema.includes("iedd nchar(8)")
+  && confirmationExecutionSchema.includes("isdd nchar(8)")
+  && confirmationExecutionSchema.includes("isdz nchar(6)")
+  && confirmationExecutionSchema.includes("iedz nchar(6)")
+  && confirmationExecutionStub.includes("<fieldname>isdd</fieldname>")
+  && confirmationExecutionStub.includes("<fieldname>iedz</fieldname>")
+  && confirmationExecutionPlan.includes("filter afru-iedd inclusively")
+  && confirmationExecutionPlan.includes("filter afru-isdd inclusively")
+  && confirmationExecutionPlan.includes("filter afru-isdz inclusively")
+  && confirmationExecutionPlan.includes("filter afru-iedz inclusively")
+  && confirmationExecutionPlan.includes("execution_start_time")
+  && confirmationExecutionDocs.includes("filter afru-iedd inclusively")
+  && confirmationExecutionDocs.includes("filter afru-isdd inclusively")
+  && confirmationExecutionDocs.includes("filters afru-isdz inclusively")
+  && confirmationExecutionDocs.includes("filters afru-iedz inclusively")
+  && confirmationExecutionDocs.includes("execution_finish_time");
+if (!confirmationExecutionFinishIsGuarded) {
+  errors.push(
+    "confirmation execution-finish date filtering must omit undated rows and cover both query branches, runtime stubs, tests, and docs",
+  );
+}
+
+const confirmationBulkExecutionIsGuarded =
+  productionOrderReadInterface.includes(
+    "iv_execution_start_date_from type afru-isdd",
+  )
+  && productionOrderReadInterface.includes(
+    "iv_execution_finish_date_from type afru-iedd",
+  )
+  && productionOrderReadInterface.includes(
+    "iv_filter_exec_finish_time type abap_bool",
+  )
+  && productionOrderReadInterface.includes(
+    "execution_start_date type afru-isdd",
+  )
+  && productionOrderReadInterface.includes(
+    "execution_finish_time type afru-iedz",
+  )
+  && productionConfirmationByOrderRepo.includes(
+    "afru_row~isdd as execution_start_date",
+  )
+  && productionConfirmationByOrderRepo.includes(
+    "afru_row~iedz as execution_finish_time",
+  )
+  && (productionConfirmationByOrderRepo.match(
+    /@iv_filter_execution_start_time = @lv_false_indicator/g,
+  ) ?? []).length === 2
+  && (productionConfirmationByOrderRepo.match(
+    /@iv_filter_exec_finish_time = @lv_false_indicator/g,
+  ) ?? []).length === 2
+  && (productionConfirmationByOrderRepo.match(
+    /isdd <> @lv_blank_exec_start_date/g,
+  ) ?? []).length === 6
+  && (productionConfirmationByOrderRepo.match(
+    /iedd <> @lv_blank_exec_finish_date/g,
+  ) ?? []).length === 6
+  && confirmationBulkExecutionService.includes(
+    "iv_date = iv_execution_start_date_from",
+  )
+  && confirmationBulkExecutionService.includes(
+    "iv_date = iv_execution_finish_date_to",
+  )
+  && confirmationBulkExecutionValidation.includes(
+    "ls_confirmation-execution_start_time < iv_execution_start_time_from",
+  )
+  && confirmationBulkExecutionValidation.includes(
+    "ls_confirmation-execution_finish_time > iv_execution_finish_time_to",
+  )
+  && confirmationBulkExecutionService.includes(
+    "iv_execution_start_date_from = iv_execution_start_date_from",
+  )
+  && confirmationBulkExecutionService.includes(
+    "iv_filter_exec_finish_time = iv_filter_exec_finish_time",
+  )
+  && confirmationBulkExecutionServiceTest.includes(
+    "execution_start_time_from = '000000'",
+  )
+  && confirmationBulkExecutionServiceTest.includes(
+    "execution_finish_date_to = '20261010'",
+  )
+  && confirmationBulkExecutionRepoTest.includes(
+    "lt_execution_start_range",
+  )
+  && confirmationBulkExecutionRepoTest.includes(
+    "lt_paged_execution_start_range",
+  )
+  && confirmationBulkExecutionRepoTest.includes(
+    "lt_execution_finish_range",
+  )
+  && confirmationExecutionPlan.includes(
+    "iv_execution_start_date_from",
+  )
+  && confirmationExecutionDocs.includes(
+    "iv_execution_finish_time_from",
+  );
+if (!confirmationBulkExecutionIsGuarded) {
+  errors.push(
+    "number-based confirmation reads must expose and filter execution timestamps before pagination, with returned-scope validation, tests, and docs",
+  );
+}
+
+const confirmationBulkWorkCenterIsGuarded =
+  productionOrderReadInterface.includes(
+    "iv_filter_work_center type abap_bool",
+  )
+  && productionOrderReadInterface.includes(
+    "iv_work_center_plant type crhd-werks",
+  )
+  && (productionConfirmationByOrderRepo.match(
+    /left outer join crhd as crhd_row/g,
+  ) ?? []).length === 1
+  && (productionConfirmationByOrderRepo.match(
+    /crhd_row~arbpl as work_center/g,
+  ) ?? []).length === 1
+  && (productionConfirmationByOrderRepo.match(
+    /crhd_row~werks as work_center_plant/g,
+  ) ?? []).length === 1
+  && (productionConfirmationByOrderRepo.match(
+    /crhd_row~objid is null/g,
+  ) ?? []).length === 2
+  && productionConfirmationByOrderRepo.includes(
+    "select objid, arbpl, werks from crhd for all entries in @lt_afvc",
+  )
+  && productionConfirmationByOrderRepo.includes(
+    "<ls_confirmation_operation>-work_center = ls_confirmation_work_center-arbpl",
+  )
+  && productionConfirmationByOrderRepo.includes(
+    "iv_filter_work_center <> lv_false_indicator and iv_work_center = lv_blank_work_center",
+  )
+  && productionConfirmationByOrderRepo.includes(
+    "iv_filter_work_center_plant <> lv_false_indicator and iv_work_center_plant = lv_blank_work_center_plant",
+  )
+  && confirmationBulkWorkCenterValidation.includes(
+    "ls_confirmation-work_center <> iv_work_center",
+  )
+  && confirmationBulkWorkCenterValidation.includes(
+    "ls_confirmation-work_center_plant <> iv_work_center_plant",
+  )
+  && confirmationBulkWorkCenterService.includes(
+    "iv_filter_work_center <> abap_false",
+  )
+  && confirmationBulkWorkCenterService.includes(
+    "iv_filter_work_center_plant <> abap_false",
+  )
+  && confirmationBulkWorkCenterService.includes(
+    "iv_work_center_plant = iv_work_center_plant",
+  )
+  && confirmationBulkWorkCenterService.includes(
+    "rs_result-work_center_summaries = build_wc_conf_summaries(",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_work_center_confirmation_quantity_summary",
+  )
+  && confirmationBulkWorkCenterQuantityBuilder.includes(
+    "yield_quantity_total",
+  )
+  && confirmationBulkWorkCenterQuantityBuilder.includes(
+    "yield_non_reversed_total",
+  )
+  && confirmationBulkWorkCenterQuantityBuilder.includes(
+    "first_posting_date",
+  )
+  && confirmationBulkWorkCenterQuantityBuilder.includes(
+    "partial_confirmation_pct",
+  )
+  && confirmationBaseWorkCenterQuantityBuilder.includes(
+    "yield_quantity_base_total",
+  )
+  && confirmationBaseWorkCenterQuantityBuilder.includes(
+    "reversed_confirmation_count",
+  )
+  && confirmationBaseWorkCenterQuantityBuilder.includes(
+    "calculate_conf_percentages(",
+  )
+  && productionConfirmationBaseUnitService.includes(
+    "rs_result-base_work_center_summaries = build_base_wc_conf_summaries(",
+  )
+  && confirmationBulkWorkCenterServiceTest.includes(
+    "quantity_unit = 'ea'",
+  )
+  && confirmationWindowBaseUnitQuantityTest.includes(
+    "base_work_center_summaries[ 1 ]",
+  )
+  && confirmationWindowBaseUnitQuantityTest.includes(
+    "final_confirmation_count",
+  )
+  && confirmationBulkWorkCenterServiceTest.includes(
+    "partial_confirmation_pct",
+  )
+  && confirmationBulkWorkCenterServiceTest.includes(
+    "ls_page_result-work_center_summaries",
+  )
+  && productionOrderFinishPlan.includes(
+    "page-scoped `work_center_summaries`, grouped by work-center plant and code",
+  )
+  && productionOrderFinishDocs.includes(
+    "each page includes `work_center_summaries`, grouped by plant and code",
+  )
+  && productionOrderFinishPlan.includes(
+    "`afru-meinh`, so unlike units are never added together",
+  )
+  && productionOrderFinishDocs.includes(
+    "`quantity_summaries`, split by confirmation unit (`afru-meinh`)",
+  )
+  && productionOrderFinishPlan.includes(
+    "first_posting_date` and `last_posting_date` among dated confirmations",
+  )
+  && productionOrderFinishDocs.includes(
+    "first_posting_date` and `last_posting_date` among dated confirmations",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "number-based `read_confirmations_bulk` now includes page-scoped `work_center_summaries`",
+  )
+  && confirmationBulkWorkCenterFake.includes(
+    "delete rt_confirmations where work_center <> iv_work_center",
+  )
+  && confirmationBulkWorkCenterFake.includes(
+    "delete rt_confirmations where work_center_plant <> iv_work_center_plant",
+  )
+  && confirmationBulkWorkCenterServiceTest.includes(
+    "iv_filter_work_center = abap_true",
+  )
+  && confirmationBulkWorkCenterServiceTest.includes(
+    "iv_filter_work_center_plant = abap_true",
+  )
+  && confirmationBulkWorkCenterRepoTest.includes(
+    "lt_paged_blank_work_center",
+  )
+  && confirmationBulkWorkCenterRepoTest.includes(
+    "lt_page_blank_wc_plant",
+  )
+  && confirmationBulkWorkCenterRepoTest.includes(
+    "iv_work_center_plant = '2000'",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "the paged query applies these crhd selectors before its lookahead limit",
+  )
+  && productionOrderFinishPlan.includes(
+    "number-based bulk rows also expose work-center code and plant",
+  )
+  && productionOrderFinishDocs.includes(
+    "iv_filter_work_center_plant",
+  );
+if (!confirmationBulkWorkCenterIsGuarded) {
+  errors.push(
+    "number-based confirmation reads must return and filter CRHD work-center code and plant, including blank matches, before pagination",
+  );
+}
+
+const productionOperationWorkCenterIsGuarded =
+  productionOrderReadInterface.includes(
+    "work_center type crhd-arbpl",
+  )
+  && productionOrderReadInterface.includes(
+    "work_center_plant type crhd-werks",
+  )
+  && productionOperationByOrderRepo.includes(
+    "left outer join crhd as crhd_row",
+  )
+  && productionOperationByOrderRepo.includes(
+    "crhd_row~arbpl as work_center",
+  )
+  && productionOperationByOrderRepo.includes(
+    "crhd_row~werks as work_center_plant",
+  )
+  && productionOperationByOrderRepo.includes(
+    "select objid, arbpl, werks from crhd for all entries in @lt_afvc",
+  )
+  && productionOperationByOrderRepo.includes(
+    "<ls_operation_data>-work_center = ls_operation_work_center-arbpl",
+  )
+  && productionOperationByOrderRepo.includes(
+    "iv_work_center is initial and ls_afvc-work_center is not initial",
+  )
+  && productionOperationByOrderRepo.includes(
+    "iv_work_center_plant is initial and ls_afvc-work_center_plant is not initial",
+  )
+  && productionOperationBulkService.includes(
+    "iv_filter_work_center <> abap_true and iv_filter_work_center <> abap_false",
+  )
+  && productionOperationBulkService.includes(
+    "iv_filter_work_center_plant <> abap_true and iv_filter_work_center_plant <> abap_false",
+  )
+  && productionOperationBulkService.includes(
+    "iv_filter_work_center = iv_filter_work_center",
+  )
+  && productionOperationBulkService.includes(
+    "iv_filter_work_center_plant = iv_filter_work_center_plant",
+  )
+  && productionOperationResultValidation.includes(
+    "ls_operation-work_center <> iv_work_center",
+  )
+  && productionOperationResultValidation.includes(
+    "ls_operation-work_center_plant <> iv_work_center_plant",
+  )
+  && productionOperationBulkFake.includes(
+    "delete rt_operations where work_center <> iv_work_center",
+  )
+  && productionOperationBulkFake.includes(
+    "delete rt_operations where work_center_plant <> iv_work_center_plant",
+  )
+  && productionOperationWorkCenterTest.includes("iv_work_center = 'wc-02'")
+  && productionOperationWorkCenterTest.includes(
+    "iv_filter_work_center_plant = 'y'",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_work_center_operation_summaries type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "order_count type i",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_work_center_operation_order_keys type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_order_category_operation_summaries type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_order_category_operation_order_keys type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_order_type_operation_summaries type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_order_type_operation_order_keys type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_control_key_operation_summaries type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "ty_control_key_operation_order_keys type sorted table of",
+  )
+  && productionOrderReadServiceSource.includes(
+    "work_center_summaries type ty_work_center_operation_summaries",
+  )
+  && productionOrderReadServiceSource.includes(
+    "order_category_summaries type ty_order_category_operation_summaries",
+  )
+  && productionOrderReadServiceSource.includes(
+    "order_type_summaries type ty_order_type_operation_summaries",
+  )
+  && productionOrderReadServiceSource.includes(
+    "control_key_summaries type ty_control_key_operation_summaries",
+  )
+  && productionOrderReadServiceSource.includes(
+    "operation_pct type p length 5 decimals 2",
+  )
+  && productionOrderReadServiceSource.includes(
+    "order_pct type p length 5 decimals 2",
+  )
+  && productionOperationBulkService.includes(
+    "loop at lt_page_operations into data(ls_work_center_operation)",
+  )
+  && productionOperationBulkService.includes(
+    "data lt_work_center_orders type ty_work_center_operation_order_keys",
+  )
+  && productionOperationBulkService.includes(
+    "data lv_is_new_work_center_order type abap_bool",
+  )
+  && productionOperationBulkService.includes(
+    "insert value #( work_center = ls_work_center_operation-work_center work_center_plant = ls_work_center_operation-work_center_plant production_order = ls_work_center_operation-production_order ) into table lt_work_center_orders",
+  )
+  && productionOperationBulkService.includes(
+    "if lv_is_new_work_center_order = abap_true. add 1 to <ls_work_center_summary>-order_count.",
+  )
+  && productionOperationBulkService.includes(
+    "operation_count = 1",
+  )
+  && productionOperationBulkService.includes(
+    "loop at lt_page_operations into data(ls_order_category_operation)",
+  )
+  && productionOperationBulkService.includes(
+    "data lt_order_category_orders type ty_order_category_operation_order_keys",
+  )
+  && productionOperationBulkService.includes(
+    "insert value #( order_category = ls_order_category_operation-order_category production_order = ls_order_category_operation-production_order ) into table lt_order_category_orders",
+  )
+  && productionOperationBulkService.includes(
+    "if lv_is_new_summary_order = abap_true. add 1 to <ls_order_category_summary>-order_count.",
+  )
+  && productionOperationBulkService.includes(
+    "order_category = ls_order_category_operation-order_category",
+  )
+  && productionOperationBulkService.includes(
+    "loop at lt_page_operations into data(ls_order_type_operation)",
+  )
+  && productionOperationBulkService.includes(
+    "data lt_order_type_orders type ty_order_type_operation_order_keys",
+  )
+  && productionOperationBulkService.includes(
+    "insert value #( order_type = ls_order_type_operation-order_type production_order = ls_order_type_operation-production_order ) into table lt_order_type_orders",
+  )
+  && productionOperationBulkService.includes(
+    "if lv_is_new_summary_order = abap_true. add 1 to <ls_order_type_summary>-order_count.",
+  )
+  && productionOperationBulkService.includes(
+    "order_type = ls_order_type_operation-order_type",
+  )
+  && productionOperationBulkService.includes(
+    "loop at lt_page_operations into data(ls_control_key_operation)",
+  )
+  && productionOperationBulkService.includes(
+    "data lt_control_key_orders type ty_control_key_operation_order_keys",
+  )
+  && productionOperationBulkService.includes(
+    "insert value #( control_key = ls_control_key_operation-control_key production_order = ls_control_key_operation-production_order ) into table lt_control_key_orders",
+  )
+  && productionOperationBulkService.includes(
+    "if lv_is_new_summary_order = abap_true. add 1 to <ls_control_key_summary>-order_count.",
+  )
+  && productionOperationBulkService.includes(
+    "control_key = ls_control_key_operation-control_key",
+  )
+  && productionOperationBulkService.includes(
+    "loop at rs_result-control_key_summaries assigning field-symbol(<ls_page_control_summary>)",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_control_summary>-operation_pct = conv decfloat34( <ls_page_control_summary>-operation_count ) * 100 / rs_result-total_operation_count",
+  )
+  && productionOperationBulkService.includes(
+    "if rs_result-found_count > 0. loop at rs_result-work_center_summaries assigning field-symbol(<ls_page_wc_order_pct>)",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_wc_order_pct>-order_pct = conv decfloat34( <ls_page_wc_order_pct>-order_count ) * 100 / rs_result-found_count",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_cat_order_pct>-order_pct = conv decfloat34( <ls_page_cat_order_pct>-order_count ) * 100 / rs_result-found_count",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_type_order_pct>-order_pct = conv decfloat34( <ls_page_type_order_pct>-order_count ) * 100 / rs_result-found_count",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_ctrl_order_pct>-order_pct = conv decfloat34( <ls_page_ctrl_order_pct>-order_count ) * 100 / rs_result-found_count",
+  )
+  && productionOperationBulkService.includes(
+    "loop at rs_result-order_type_summaries assigning field-symbol(<ls_page_type_summary>)",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_type_summary>-operation_pct = conv decfloat34( <ls_page_type_summary>-operation_count ) * 100 / rs_result-total_operation_count",
+  )
+  && productionOperationBulkService.includes(
+    "loop at rs_result-order_category_summaries assigning field-symbol(<ls_page_category_summary>)",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_category_summary>-operation_pct = conv decfloat34( <ls_page_category_summary>-operation_count ) * 100 / rs_result-total_operation_count",
+  )
+  && productionOperationBulkService.includes(
+    "if rs_result-total_operation_count > 0. loop at rs_result-work_center_summaries assigning field-symbol(<ls_page_work_center_summary>)",
+  )
+  && productionOperationBulkService.includes(
+    "<ls_page_work_center_summary>-operation_pct = conv decfloat34( <ls_page_work_center_summary>-operation_count ) * 100 / rs_result-total_operation_count",
+  )
+  && productionOperationWorkCenterTest.includes(
+    "ls_page_summary_result-work_center_summaries",
+  )
+  && productionOrderFinishPlan.includes(
+    "`work_center_summaries`, grouped by work-center code and plant",
+  )
+  && productionOrderFinishPlan.includes(
+    "`order_count`, the number of distinct requested orders contributing returned operations to that work center",
+  )
+  && productionOrderFinishPlan.includes(
+    "`order_pct`, its distinct order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "`found_count` is the number of requested orders with operations on the returned page",
+  )
+  && productionOrderFinishPlan.includes(
+    "each category reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "each order type reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "each group also reports `operation_pct`, its share of the returned page's operations, rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "`order_category_summaries`, grouped by aufk-autyp",
+  )
+  && productionOrderFinishPlan.includes(
+    "each category reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "each category also reports `order_count`, the number of distinct requested orders",
+  )
+  && productionOrderFinishPlan.includes(
+    "`order_type_summaries`, grouped by aufk-auart",
+  )
+  && productionOrderFinishPlan.includes(
+    "each order type reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "each order type also reports `order_count`, the number of distinct requested orders",
+  )
+  && productionOrderFinishPlan.includes(
+    "`control_key_summaries`, grouped by afvc-steu",
+  )
+  && productionOrderFinishPlan.includes(
+    "each control key reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishPlan.includes(
+    "each control key also reports `order_count`, the number of distinct requested orders",
+  )
+  && productionOrderFinishPlan.includes(
+    "each control key also reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each page includes `work_center_summaries`",
+  )
+  && productionOrderFinishDocs.includes(
+    "`order_count`, the distinct requested orders with returned operations in the group",
+  )
+  && productionOrderFinishDocs.includes(
+    "`order_pct`, its distinct order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each category also reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each order type also reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "order percentages are initial when it is zero",
+  )
+  && productionOrderFinishDocs.includes(
+    "each group also reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "`order_category_summaries`, grouped by aufk-autyp",
+  )
+  && productionOrderFinishDocs.includes(
+    "each category reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each category also reports `order_count`, the distinct requested orders",
+  )
+  && productionOrderFinishDocs.includes(
+    "`order_type_summaries`, grouped by aufk-auart",
+  )
+  && productionOrderFinishDocs.includes(
+    "each order type reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each order type also reports `order_count`, the distinct requested orders",
+  )
+  && productionOrderFinishDocs.includes(
+    "`control_key_summaries`, grouped by afvc-steu",
+  )
+  && productionOrderFinishDocs.includes(
+    "each control key reports `operation_pct`, its share of page operations rounded to two decimals",
+  )
+  && productionOrderFinishDocs.includes(
+    "each control key also reports `order_count`, the distinct requested orders",
+  )
+  && productionOrderFinishDocs.includes(
+    "each control key also reports `order_pct`, its order count as a share of `found_count`, rounded to two decimals",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "page-scoped `work_center_summaries` grouped by crhd plant and code",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "the number of distinct contributing requested orders",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "it reports `operation_pct`, the group's share of returned page operations",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "page-scoped `order_category_summaries` grouped by aufk-autyp",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "page-scoped `order_type_summaries` grouped by aufk-auart",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "page-scoped `control_key_summaries` grouped by afvc-steu",
+  )
+  && productionOrderFinishAnomalies.includes(
+    "all operation summaries also report `order_pct` as `order_count` divided by page `found_count`",
+  )
+  && productionOperationRepoTest.includes("lt_page_wc_ops")
+  && productionOperationRepoTest.includes("lt_blank_wc_plant_ops")
+  && productionOrderFinishPlan.includes(
+    "operation rows from `read_operations_bulk`",
+  )
+  && productionOrderFinishDocs.includes("`read_operations_bulk` returns routing operations")
+  && productionOrderFinishAnomalies.includes(
+    "the paged path joins crhd before applying the lookahead limit",
+  );
+if (!productionOperationWorkCenterIsGuarded) {
+  errors.push(
+    "bulk operation reads must return and filter CRHD work-center code and plant, validate returned scope, and cover blank and paged reads",
   );
 }
 

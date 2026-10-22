@@ -307,6 +307,7 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     DATA lv_order_unit TYPE afpo-amein.
     DATA lv_blank_order_unit TYPE afpo-amein.
     DATA lv_order_type TYPE aufk-auart.
+    DATA lv_filter_order_type TYPE abap_bool.
     DATA lv_blank_order_type TYPE aufk-auart.
     DATA lv_order_description TYPE aufk-ktext.
     DATA lv_blank_order_description TYPE aufk-ktext.
@@ -472,6 +473,7 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
     lv_production_item = is_selection-production_item.
     lv_order_unit = is_selection-order_unit.
     lv_order_type = is_selection-order_type.
+    lv_filter_order_type = is_selection-filter_order_type.
     lv_order_description = is_selection-order_description.
     lv_filter_order_description = is_selection-filter_order_description.
     lv_order_created_by = is_selection-order_created_by.
@@ -853,7 +855,8 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
             AND ( @lv_order_category = @lv_blank_order_category
               OR aufk_row~autyp = @lv_order_category )
-            AND ( @lv_order_type = @lv_blank_order_type
+            AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
               OR aufk_row~auart = @lv_order_type )
             AND ( ( @lv_filter_order_description =
                 @lv_false_indicator
@@ -1154,7 +1157,8 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
             AND ( @lv_order_category = @lv_blank_order_category
               OR aufk_row~autyp = @lv_order_category )
-            AND ( @lv_order_type = @lv_blank_order_type
+            AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
               OR aufk_row~auart = @lv_order_type )
             AND ( ( @lv_filter_order_description =
                 @lv_false_indicator
@@ -1462,7 +1466,8 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
             AND ( @lv_order_category = @lv_blank_order_category
               OR aufk_row~autyp = @lv_order_category )
-            AND ( @lv_order_type = @lv_blank_order_type
+            AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
               OR aufk_row~auart = @lv_order_type )
             AND ( ( @lv_filter_order_description =
                 @lv_false_indicator
@@ -1768,7 +1773,8 @@ CLASS zcl_prod_order_read_repo IMPLEMENTATION.
             AND ( aufk_row~autyp = '10' OR aufk_row~autyp = '40' )
             AND ( @lv_order_category = @lv_blank_order_category
               OR aufk_row~autyp = @lv_order_category )
-            AND ( @lv_order_type = @lv_blank_order_type
+            AND ( ( @lv_filter_order_type = @lv_false_indicator
+                AND @lv_order_type = @lv_blank_order_type )
               OR aufk_row~auart = @lv_order_type )
             AND ( ( @lv_filter_order_description =
                 @lv_false_indicator

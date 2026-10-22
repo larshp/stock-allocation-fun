@@ -1246,6 +1246,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rejects_scope_receipt_range FOR TESTING.
     METHODS reports_batch_expiry_exposure FOR TESTING
       RAISING zcx_invalid_stock_request.
+    METHODS filters_exp_avail_ranges FOR TESTING
+      RAISING zcx_invalid_stock_request.
     METHODS report_exp_page_totals FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS rep_page_exp_status_shares FOR TESTING
@@ -1255,6 +1257,8 @@ CLASS ltcl_stock_service DEFINITION FINAL
     METHODS rep_page_exp_src_window_bands FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS reports_expiry_source_spans FOR TESTING
+      RAISING zcx_invalid_stock_request.
+    METHODS reports_page_expiry_ids FOR TESTING
       RAISING zcx_invalid_stock_request.
     METHODS filters_expiry_status FOR TESTING
       RAISING zcx_invalid_stock_request.
@@ -29172,6 +29176,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '20261017'
           last_expiration_date          = '20261017'
+          first_expiration_batch        = 'EXPIRED'
+          first_expiration_storage_loc  = '0001'
+          first_expiration_source       = 'P'
+          last_expiration_batch         = 'EXPIRED'
+          last_expiration_storage_loc   = '0001'
+          last_expiration_source        = 'P'
+          days_to_first_expiration      = -1
+          days_to_last_expiration       = -1
           expiration_date_span_days     = 0
           unrestricted_qty              = 10
           available_qty                 = 6
@@ -29200,6 +29212,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '20261018'
           last_expiration_date          = '20261018'
+          first_expiration_batch        = 'ASOF'
+          first_expiration_storage_loc  = '0001'
+          first_expiration_source       = 'P'
+          last_expiration_batch         = 'ASOF'
+          last_expiration_storage_loc   = '0001'
+          last_expiration_source        = 'P'
+          days_to_first_expiration      = 0
+          days_to_last_expiration       = 0
           expiration_date_span_days     = 0
           unrestricted_qty              = 3
           available_qty                 = 0
@@ -29228,6 +29248,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '20261024'
           last_expiration_date          = '20261024'
+          first_expiration_batch        = 'LATER'
+          first_expiration_storage_loc  = '0001'
+          first_expiration_source       = 'P'
+          last_expiration_batch         = 'LATER'
+          last_expiration_storage_loc   = '0001'
+          last_expiration_source        = 'P'
+          days_to_first_expiration      = 6
+          days_to_last_expiration       = 6
           expiration_date_span_days     = 0
           unrestricted_qty              = 7
           available_qty                 = 7
@@ -29256,6 +29284,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '50.00' )
           first_expiration_date         = '20261017'
           last_expiration_date          = '20261017'
+          first_expiration_batch        = 'EXPIRED-2'
+          first_expiration_storage_loc  = '0002'
+          first_expiration_source       = 'G'
+          last_expiration_batch         = 'EXPIRED-2'
+          last_expiration_storage_loc   = '0002'
+          last_expiration_source        = 'G'
+          days_to_first_expiration      = -1
+          days_to_last_expiration       = -1
           expiration_date_span_days     = 0
           unrestricted_qty              = 2
           available_qty                 = 3
@@ -29284,6 +29320,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '50.00' )
           first_expiration_date         = '20261018'
           last_expiration_date          = '20261018'
+          first_expiration_batch        = 'HORIZON-2'
+          first_expiration_storage_loc  = '0003'
+          first_expiration_source       = 'G'
+          last_expiration_batch         = 'HORIZON-2'
+          last_expiration_storage_loc   = '0003'
+          last_expiration_source        = 'G'
+          days_to_first_expiration      = 0
+          days_to_last_expiration       = 0
           expiration_date_span_days     = 0
           unrestricted_qty              = 2
           available_qty                 = 3
@@ -29312,6 +29356,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '20261024'
           last_expiration_date          = '20261024'
+          first_expiration_batch        = 'LATER-2'
+          first_expiration_storage_loc  = '0002'
+          first_expiration_source       = 'G'
+          last_expiration_batch         = 'LATER-2'
+          last_expiration_storage_loc   = '0002'
+          last_expiration_source        = 'G'
+          days_to_first_expiration      = 6
+          days_to_last_expiration       = 6
           expiration_date_span_days     = 0
           unrestricted_qty              = 4
           available_qty                 = 3
@@ -29340,6 +29392,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '00000000'
           last_expiration_date          = '00000000'
+        days_to_first_expiration = 0 days_to_last_expiration = 0
           expiration_date_span_days     = 0
           unrestricted_qty              = 0
           available_qty                 = 0
@@ -29368,6 +29421,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '20261023'
           last_expiration_date          = '20261023'
+          first_expiration_batch        = 'HORIZON'
+          first_expiration_storage_loc  = '0002'
+          last_expiration_batch         = 'HORIZON'
+          last_expiration_storage_loc   = '0002'
+          days_to_first_expiration      = 5
+          days_to_last_expiration       = 5
           expiration_date_span_days     = 0
           unrestricted_qty              = 5
           available_qty                 = 5
@@ -29396,6 +29455,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           source_blocked_share_pct      = CONV decfloat34( '0.00' )
           first_expiration_date         = '00000000'
           last_expiration_date          = '00000000'
+        days_to_first_expiration = 0 days_to_last_expiration = 0
           expiration_date_span_days     = 0
           unrestricted_qty              = 0
           available_qty                 = 0
@@ -29406,6 +29466,328 @@ CLASS ltcl_stock_service IMPLEMENTATION.
         )
       )
       act = lt_results[ 1 ]-expiry_src_statuses ).
+  ENDMETHOD.
+
+  METHOD filters_exp_avail_ranges.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location            = '0001'
+          batch                       = 'NEG'
+          batch_managed               = abap_true
+          expiration_date             = '20261019'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 10
+          available_quantity          = -2
+          quality_inspection_quantity = 0 )
+        ( storage_location            = '0001'
+          batch                       = 'LOW'
+          batch_managed               = abap_true
+          expiration_date             = '20261020'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 10
+          available_quantity          = 2
+          quality_inspection_quantity = 1 )
+        ( storage_location            = '0001'
+          batch                       = 'MID'
+          batch_managed               = abap_true
+          expiration_date             = '20261021'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 10
+          available_quantity          = 5
+          quality_inspection_quantity = 2 )
+        ( storage_location            = '0001'
+          batch                       = 'HIGH'
+          batch_managed               = abap_true
+          expiration_date             = '20261022'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 10
+          available_quantity          = 8
+          quality_inspection_quantity = 2 )
+        ( storage_location            = '0001'
+          batch                       = 'OVER'
+          batch_managed               = abap_true
+          expiration_date             = '20261023'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 10
+          available_quantity          = 12
+          quality_inspection_quantity = 3 )
+        ( storage_location            = '0001'
+          batch                       = 'ZERO-DEN'
+          batch_managed               = abap_true
+          expiration_date             = '20261024'
+          expiration_date_source      = 'P'
+          unrestricted_quantity       = 0
+          available_quantity          = 4
+          quality_inspection_quantity = 4 ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+
+    DATA(lt_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'AV-QTY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_available_from = abap_true available_quantity_from = -2
+          filter_available_to = abap_true available_quantity_to = 4 )
+        ( request_id = 'AV-QTY-POS' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          positive_available_only = abap_true
+          filter_available_from = abap_true available_quantity_from = -2
+          filter_available_to = abap_true available_quantity_to = 4 )
+        ( request_id = 'AV-PCT-NEG' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_available_pct_from = abap_true available_pct_from = -20
+          filter_available_pct_to = abap_true available_pct_to = 0 )
+        ( request_id = 'AV-PCT-OVER' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_available_pct_from = abap_true available_pct_from = 120
+          filter_available_pct_to = abap_true available_pct_to = 120 )
+        ( request_id = 'AV-CATEGORY' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_positive_category = abap_true
+          positive_stock_category = zcl_stock_service=>c_exp_category_quality
+          filter_category_quantity_from = abap_true category_quantity_from = 2
+          filter_category_quantity_to = abap_true category_quantity_to = 3 )
+        ( request_id = 'AV-QTY-NEG' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_available_from = abap_true available_quantity_from = -2
+          filter_available_to = abap_true available_quantity_to = -2 )
+        ( request_id = 'AV-RESV-SIGNED' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261025'
+          filter_resv_deduction_from = abap_true
+          resv_deduction_from = -4
+          filter_resv_deduction_to = abap_true
+          resv_deduction_to = 2 ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_results[ 1 ]-filter_available_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2 act = lt_results[ 1 ]-available_quantity_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_results[ 1 ]-filter_available_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lt_results[ 1 ]-available_quantity_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'NEG' act = lt_results[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '-20.00' )
+      act = lt_results[ 1 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_results[ 2 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'LOW' act = lt_results[ 2 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ZERO-DEN' act = lt_results[ 2 ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_results[ 3 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '-20.00' )
+      act = lt_results[ 3 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_results[ 3 ]-batches[ 2 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_results[ 4 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OVER' act = lt_results[ 4 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '120.00' )
+      act = lt_results[ 4 ]-batches[ 1 ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_results[ 5 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_results[ 5 ]-filter_positive_category ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zcl_stock_service=>c_exp_category_quality
+      act = lt_results[ 5 ]-positive_stock_category ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_results[ 5 ]-category_quantity_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_results[ 5 ]-category_quantity_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_results[ 6 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'NEG' act = lt_results[ 6 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-2.000' )
+      act = lt_results[ 6 ]-page_available_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_results[ 7 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'HIGH' act = lt_results[ 7 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OVER' act = lt_results[ 7 ]-batches[ 2 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ZERO-DEN' act = lt_results[ 7 ]-batches[ 3 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 7 ]-filter_resv_deduction_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '-4' )
+      act = lt_results[ 7 ]-resv_deduction_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_results[ 7 ]-filter_resv_deduction_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '2' )
+      act = lt_results[ 7 ]-resv_deduction_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lt_results[ 7 ]-returned_batch_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '-4.000' )
+      act = lt_results[ 7 ]-page_reservation_deduction_qty ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'AV-UOM' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_available_from = abap_true available_quantity_from = 2
+          filter_available_to = abap_true available_quantity_to = 8
+          filter_available_pct_from = abap_true available_pct_from = 20
+          filter_available_pct_to = abap_true available_pct_to = 80
+          filter_positive_category = abap_true
+          positive_stock_category = zcl_stock_service=>c_exp_category_quality
+          filter_category_quantity_from = abap_true category_quantity_from = 2
+          filter_category_quantity_to = abap_true category_quantity_to = 3 )
+        ( request_id = 'AV-UOM-RESV' material = 'MAT-1' plant = '1000'
+          unit = 'BOX' as_of_date = '20261018' through_date = '20261025'
+          filter_resv_deduction_from = abap_true
+          resv_deduction_from = -4
+          filter_resv_deduction_to = abap_true
+          resv_deduction_to = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lines( lt_uom_results[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom_results[ 1 ]-filter_available_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_uom_results[ 1 ]-available_quantity_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom_results[ 1 ]-filter_available_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 80 act = lt_uom_results[ 1 ]-available_pct_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lt_uom_results[ 1 ]-filter_category_quantity_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2 act = lt_uom_results[ 1 ]-category_quantity_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_uom_results[ 2 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'HIGH' act = lt_uom_results[ 2 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OVER' act = lt_uom_results[ 2 ]-batches[ 2 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'ZERO-DEN' act = lt_uom_results[ 2 ]-batches[ 3 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 2 ]-filter_resv_deduction_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '-4' )
+      act = lt_uom_results[ 2 ]-resv_deduction_from ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_results[ 2 ]-filter_resv_deduction_to ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '2' )
+      act = lt_uom_results[ 2 ]-resv_deduction_to ).
+
+    DATA(lv_calls_before_invalid) =
+      lo_repository->get_batch_bulk_call_count( ).
+    DATA(lv_reversed_quantity_rejected) = abap_false.
+    DATA(lv_reversed_pct_rejected) = abap_false.
+    DATA(lv_reversed_resv_rejected) = abap_false.
+    DATA(lv_inactive_resv_rejected) = abap_false.
+    DATA(lv_no_cat_sel_rejected) = abap_false.
+    DATA(lv_inactive_bound_rejected) = abap_false.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-REVERSED-QTY' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_available_from = abap_true available_quantity_from = 5
+              filter_available_to = abap_true available_quantity_to = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_reversed_quantity_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-REVERSED-PCT' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_available_pct_from = abap_true available_pct_from = 80
+              filter_available_pct_to = abap_true available_pct_to = 20 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_reversed_pct_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-RESV-REVERSED' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_resv_deduction_from = abap_true
+              resv_deduction_from = 3
+              filter_resv_deduction_to = abap_true
+              resv_deduction_to = 2 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_reversed_resv_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-RESV-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' resv_deduction_to = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_resv_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-CATEGORY-NO-SELECTOR' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025'
+              filter_category_quantity_from = abap_true
+              category_quantity_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_no_cat_sel_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'AV-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261025' available_quantity_from = 1 ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_bound_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_reversed_quantity_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_reversed_pct_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_reversed_resv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_resv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_no_cat_sel_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_bound_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lv_calls_before_invalid
+      act = lo_repository->get_batch_bulk_call_count( ) ).
   ENDMETHOD.
 
   METHOD report_exp_page_totals.
@@ -29482,6 +29864,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '20261022'
       act = lt_first_page[ 1 ]-page_latest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_first_page[ 1 ]-days_to_page_earliest_exp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_first_page[ 1 ]-days_to_page_latest_exp ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = lt_first_page[ 1 ]-page_expiration_date_span_days ).
@@ -30087,6 +30475,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 0
       act = lt_empty_page[ 1 ]-page_expiration_date_span_days ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-days_to_page_earliest_exp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_empty_page[ 1 ]-days_to_page_latest_exp ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV decfloat34( '0.00' )
       act = lt_empty_page[ 1 ]-page_avail_pct ).
     cl_abap_unit_assert=>assert_equals(
@@ -30684,6 +31078,12 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '20261017'
       act = lt_uom_results[ 1 ]-page_earliest_expiration_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_uom_results[ 1 ]-days_to_page_earliest_exp ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lt_uom_results[ 1 ]-days_to_page_latest_exp ).
     cl_abap_unit_assert=>assert_equals(
       exp = 5
       act = lt_uom_results[ 1 ]-page_expiration_date_span_days ).
@@ -31407,12 +31807,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           expiration_date       = '20261025'
           manufacturing_date    = '20261018'
           unrestricted_quantity = 1 )
-        ( storage_location      = '0001'
-          batch                 = 'FUTURE'
-          batch_managed         = abap_true
-          expiration_date       = '20261026'
-          manufacturing_date    = '20261020'
-          unrestricted_quantity = 1 )
+        ( storage_location          = '0001'
+          batch                     = 'FUTURE'
+          batch_managed             = abap_true
+          expiration_date           = '20261026'
+          manufacturing_date        = '20261020'
+          manufacturing_date_source = 'G'
+          unrestricted_quantity     = 1
+          available_quantity        = '0.500' )
         ( storage_location      = '0001'
           batch                 = 'UNDATED'
           batch_managed         = abap_true
@@ -31459,13 +31861,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 0
       act = lt_range[ 1 ]-batches[ 1 ]-days_since_manufacture ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 'T'
+      act = lt_range[ 1 ]-batches[ 1 ]-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
       exp = -2
       act = lt_range[ 1 ]-batches[ 2 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F'
+      act = lt_range[ 1 ]-batches[ 2 ]-manufacturing_age_band ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1 act = lines( lt_range[ 1 ]-undated_batches ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lt_range[ 1 ]-undated_batches[ 1 ]-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_range[ 1 ]-undated_batches[ 1 ]-manufacturing_age_band ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'UNDATED'
       act = lt_range[ 1 ]-oldest_manufacture_batch ).
@@ -31475,6 +31886,251 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lt_range[ 1 ]-days_since_oldest_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_range[ 1 ]-youngest_mfg_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_range[ 1 ]-youngest_mfg_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_range[ 1 ]-youngest_mfg_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_range[ 1 ]-days_since_youngest_mfg ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lines( lt_range[ 1 ]-manufacturing_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'T' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'T' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'T' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = '1' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = '1' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = '1' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'T' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_range[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-unrestricted_qty ).
+
+    DATA(lt_all_ages) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-ALL' material = 'MAT-1' plant = '1000'
+          as_of_date = '20261018' through_date = '20261201' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = '2' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-manufacturing_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 21
+      act = lines( lt_all_ages[ 1 ]-manufacturing_age_source_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-row_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-manufacturing_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '25.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'O' age_band = 'U' ]-source_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-age_band_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.500' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.500' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '20.00' )
+      act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-unrestricted_qty_share_pct ).
+
+    DATA(lt_future_band) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-FUTURE-BAND' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261030'
+          filter_manufacturing_age_band = abap_true
+          manufacturing_age_band = 'F' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_future_band[ 1 ]-filter_manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F' act = lt_future_band[ 1 ]-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_future_band[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE' act = lt_future_band[ 1 ]-batches[ 1 ]-batch ).
+    DATA(lt_global_mfg_source) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-SOURCE-GLOBAL' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261030'
+          filter_mfg_date_source = abap_true
+          mfg_date_source = 'G' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_global_mfg_source[ 1 ]-filter_mfg_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_global_mfg_source[ 1 ]-mfg_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_global_mfg_source[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_global_mfg_source[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_global_mfg_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_global_mfg_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_global_mfg_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_global_mfg_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_last_manufacture ).
+    DATA(lt_blank_mfg_source) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-SOURCE-BLANK' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261201'
+          filter_mfg_date_source = abap_true ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = REDUCE i( INIT total = 0
+        FOR ls_band IN lt_blank_mfg_source[ 1 ]-manufacturing_age_bands
+        NEXT total = total + ls_band-row_count ) ).
+    DATA(lt_unknown_mfg_band) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-UNKNOWN-BAND' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261030'
+          filter_manufacturing_age_band = abap_true
+          manufacturing_age_band = 'U' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_unknown_mfg_band[ 1 ]-batches ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'NO-MFG'
+      act = lt_unknown_mfg_band[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_unknown_mfg_band[ 1 ]-batches[ 1 ]-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unknown_mfg_band[ 1 ]-manufacturing_age_bands[
+        age_band = 'U' ]-row_count ).
 
     DATA(lt_from_only) = lo_cut->get_batch_expiry_exposure_bulk(
       it_requests = VALUE #(
@@ -31486,6 +32142,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 1 act = lines( lt_from_only[ 1 ]-batches ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'OLD' act = lt_from_only[ 1 ]-batches[ 1 ]-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'OLD'
+      act = lt_from_only[ 1 ]-youngest_mfg_batch ).
     DATA(lt_to_only) = lo_cut->get_batch_expiry_exposure_bulk(
       it_requests = VALUE #(
         ( request_id = 'MFG-AGE-TO' material = 'MAT-1' plant = '1000'
@@ -31502,6 +32161,9 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = -2
       act = lt_to_only[ 1 ]-days_since_oldest_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_to_only[ 1 ]-youngest_mfg_batch ).
 
     DATA(lt_uom) = lo_cut->get_expiry_exposure_uom_bulk(
       it_requests = VALUE #(
@@ -31526,8 +32188,22 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 0
       act = lt_uom[ 1 ]-batches[ 1 ]-base_row-days_since_manufacture ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 'T'
+      act = lt_uom[ 1 ]-batches[ 1 ]-base_row-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lt_uom[ 1 ]-undated_batches[ 1 ]-base_row-days_since_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_uom[ 1 ]-undated_batches[ 1 ]-base_row-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = '1' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = '1' ]-days_since_last_manufacture ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'UNDATED'
       act = lt_uom[ 1 ]-oldest_manufacture_batch ).
@@ -31537,10 +32213,578 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 3
       act = lt_uom[ 1 ]-days_since_oldest_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_uom[ 1 ]-youngest_mfg_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom[ 1 ]-youngest_mfg_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_uom[ 1 ]-days_since_youngest_mfg ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7 act = lines( lt_uom[ 1 ]-manufacturing_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( 1 )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-base_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.083' )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-unrestricted_qty_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.500' )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.042' )
+      act = lt_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-unit_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 21
+      act = lines( lt_uom[ 1 ]-manufacturing_age_source_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.083' )
+      act = lt_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-unit_unrestricted_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_pct_of_unrestricted ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mchb-clabs( '0.500' )
+      act = lt_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-base_reservation_deduction_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.042' )
+      act = lt_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-unit_reservation_deduction_qty ).
+    DATA(lt_uom_band) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-AGE-UOM-BAND' material = 'MAT-1'
+          plant = '1000' unit = 'BOX' as_of_date = '20261018'
+          through_date = '20261030'
+          filter_manufacturing_age_band = abap_true
+          manufacturing_age_band = 'F' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_uom_band[ 1 ]-filter_manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'F' act = lt_uom_band[ 1 ]-manufacturing_age_band ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.083' )
+      act = lt_uom_band[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-unit_unrestricted_qty ).
+    DATA(lt_uom_source) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-SOURCE-UOM' material = 'MAT-1'
+          plant = '1000' unit = 'BOX' as_of_date = '20261018'
+          through_date = '20261030'
+          filter_mfg_date_source = abap_true
+          mfg_date_source = 'G' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G' act = lt_uom_source[ 1 ]-mfg_date_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'FUTURE'
+      act = lt_uom_source[ 1 ]-batches[ 1 ]-base_row-batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom_source[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+
+    DATA(lo_mfg_span_repository) = NEW lcl_stock_repository_double( ).
+    lo_mfg_span_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location          = '0001'
+          batch                     = 'MFG-SPAN-1'
+          batch_managed             = abap_true
+          expiration_date           = '20261026'
+          manufacturing_date        = '20261020'
+          manufacturing_date_source = 'G'
+          unrestricted_quantity     = 1
+          available_quantity        = '0.500' )
+        ( storage_location          = '0001'
+          batch                     = 'MFG-SPAN-2'
+          batch_managed             = abap_true
+          expiration_date           = '20261027'
+          manufacturing_date        = '20261021'
+          manufacturing_date_source = 'G'
+          unrestricted_quantity     = 1
+          available_quantity        = 0 )
+        ( storage_location      = '0001'
+          batch                 = 'MFG-SPAN-O'
+          batch_managed         = abap_true
+          expiration_date       = '20261028'
+          manufacturing_date    = '20261019'
+          unrestricted_quantity = 1
+          available_quantity    = '0.250' )
+        ( storage_location          = '0001'
+          batch                     = 'MFG-SPAN-0'
+          batch_managed             = abap_true
+          expiration_date           = '20261029'
+          manufacturing_date        = '20261021'
+          manufacturing_date_source = 'P'
+          unrestricted_quantity     = 1
+          available_quantity        = '0.750' ) ) ).
+    DATA(lo_mfg_span_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_mfg_span_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_mfg_span) = lo_mfg_span_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-SOURCE-SPAN' material = 'MAT-1'
+          plant = '1000' as_of_date = '20261018'
+          through_date = '20261030' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-quality_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-1'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-2'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-last_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-last_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-manufacturing_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-source_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-source_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '33.33' )
+      act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261019'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-O'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-0'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_mfg_span[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-manufacturing_date_span_days ).
+    DATA(lt_mfg_span_uom) = lo_mfg_span_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id = 'MFG-SOURCE-SPAN-UOM' material = 'MAT-1'
+          plant = '1000' unit = 'BOX' as_of_date = '20261018'
+          through_date = '20261030' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-2'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-last_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261019'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-O'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacturing_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-0'
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-manufacturing_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-manufacturing_date_span_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[
+        source_group = 'G' age_band = 'F' ]-band_unrestricted_share_pct ).
+
+    DATA(lt_mfg_span_page) =
+      lo_mfg_span_cut->get_batch_expiry_exposure_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'MFG-SOURCE-SPAN-PAGE' material = 'MAT-1'
+            plant = '1000' as_of_date = '20261018'
+            through_date = '20261030' maximum_batch_rows = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 21
+      act = lines(
+        lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-1'
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_last_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-band_unrestricted_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-band_available_share_pct ).
+    DATA(lt_mfg_span_page_uom) =
+      lo_mfg_span_cut->get_expiry_exposure_uom_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'MFG-SOURCE-SPAN-PAGE-UOM' material = 'MAT-1'
+            plant = '1000' unit = 'BOX' as_of_date = '20261018'
+            through_date = '20261030' maximum_batch_rows = 2 ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '100.00' )
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-band_available_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV decfloat34( '50.00' )
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-available_row_share_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-SPAN-1'
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-first_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[
+        source_group = 'G' age_band = 'F' ]-days_since_last_manufacture ).
+
+    DATA(lo_mfg_endpoint_tie_repository) = NEW lcl_stock_repository_double( ).
+    lo_mfg_endpoint_tie_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location          = '0002'
+          batch                     = 'MFG-TIE'
+          valuation_type            = 'A'
+          batch_managed             = abap_true
+          expiration_date           = '20261026'
+          manufacturing_date        = '20261021'
+          manufacturing_date_source = 'P'
+          unrestricted_quantity     = 1 )
+        ( storage_location          = '0001'
+          batch                     = 'MFG-TIE'
+          valuation_type            = 'Z'
+          batch_managed             = abap_true
+          expiration_date           = '20261027'
+          manufacturing_date        = '20261021'
+          manufacturing_date_source = 'G'
+          unrestricted_quantity     = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'MFG-TIE'
+          valuation_type        = 'A'
+          batch_managed         = abap_true
+          expiration_date       = '20261028'
+          manufacturing_date    = '20261021'
+          unrestricted_quantity = 1 ) ) ).
+    DATA(lo_mfg_endpoint_tie_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_mfg_endpoint_tie_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lt_mfg_endpoint_ties) =
+      lo_mfg_endpoint_tie_cut->get_batch_expiry_exposure_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'MFG-ENDPOINT-TIES' material = 'MAT-1'
+            plant = '1000' as_of_date = '20261018'
+            through_date = '20261030' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-TIE'
+      act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacturing_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacturing_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-TIE'
+      act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_last_manufacture ).
+    DATA(lt_mfg_endpoint_ties_uom) =
+      lo_mfg_endpoint_tie_cut->get_expiry_exposure_uom_bulk(
+        it_requests = VALUE #(
+          ( request_id = 'MFG-ENDPOINT-TIES-UOM' material = 'MAT-1'
+            plant = '1000' unit = 'BOX' as_of_date = '20261018'
+            through_date = '20261030' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-TIE'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacture_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacturing_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacturing_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MFG-TIE'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_date_src ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-first_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'O'
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-last_manufacture_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_first_manufacture ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -3
+      act = lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands[
+        age_band = 'F' ]-days_since_last_manufacture ).
 
     DATA(lv_inverted_rejected) = abap_false.
     DATA(lv_inactive_rejected) = abap_false.
     DATA(lv_uom_inactive_rejected) = abap_false.
+    DATA(lv_bad_age_band_rejected) = abap_false.
+    DATA(lv_inactive_age_band_rejected) = abap_false.
+    DATA(lv_bad_mfg_source_rejected) = abap_false.
+    DATA(lv_inactive_mfg_src_rejected) = abap_false.
     TRY.
         lo_cut->get_batch_expiry_exposure_bulk(
           it_requests = VALUE #(
@@ -31574,12 +32818,60 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       CATCH zcx_invalid_stock_request.
         lv_uom_inactive_rejected = abap_true.
     ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-AGE-BAD-BAND' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030'
+              filter_manufacturing_age_band = abap_true
+              manufacturing_age_band = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_age_band_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-AGE-INACTIVE-BAND' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030' manufacturing_age_band = 'U' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_age_band_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-SOURCE-BAD' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030'
+              filter_mfg_date_source = abap_true
+              mfg_date_source = 'X' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_mfg_source_rejected = abap_true.
+    ENDTRY.
+    TRY.
+        lo_cut->get_batch_expiry_exposure_bulk(
+          it_requests = VALUE #(
+            ( request_id = 'MFG-SOURCE-INACTIVE' material = 'MAT-1'
+              plant = '1000' as_of_date = '20261018'
+              through_date = '20261030' mfg_date_source = 'G' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_inactive_mfg_src_rejected = abap_true.
+    ENDTRY.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true act = lv_inverted_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true act = lv_inactive_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true act = lv_uom_inactive_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_age_band_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_age_band_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_bad_mfg_source_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true act = lv_inactive_mfg_src_rejected ).
   ENDMETHOD.
 
   METHOD filters_expiry_status.
@@ -35736,7 +37028,14 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           material     = 'MAT-1'
           plant        = '1000'
           as_of_date   = '20261018'
-          through_date = '20261025' ) ) ).
+          through_date = '20261025' )
+        ( request_id           = 'EXPIRY-SPANS-AFTER'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' ) ) ).
     DATA(ls_base_expired_status) =
       lt_base_results[ 1 ]-expiry_src_statuses[ 1 ].
     DATA(ls_base_upcoming_status) =
@@ -35751,6 +37050,74 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       lt_base_results[ 1 ]-upcoming_src_bands[ 1 ].
     DATA(ls_base_after_window) =
       lt_base_results[ 1 ]-after_window_src_bands[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'U' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'U' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 1 ]-expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-expiry_sources[
+        source_group = 'G' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-expiry_sources[
+        source_group = 'G' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 2 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_base_results[ 1 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_base_results[ 2 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 2 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-page_expiry_sources[
+        source_group = 'G' ]-days_to_first_expiration ).
     cl_abap_unit_assert=>assert_equals(
       exp = 6
       act = ls_base_expired_status-expiration_date_span_days ).
@@ -35773,6 +37140,100 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 6
       act = ls_base_after_window-expiration_date_span_days ).
     cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = ls_base_expired_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = ls_base_expired_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_upcoming_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = ls_base_upcoming_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = ls_base_after_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = ls_base_after_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = ls_base_expiry_age-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = ls_base_expiry_age-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_base_empty_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_base_empty_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_base_results[ 1 ]-page_expiry_src_age_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_base_results[ 1 ]-page_expiry_src_age_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_base_upcoming_window-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = ls_base_upcoming_window-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = ls_base_after_window-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = ls_base_after_window-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_base_results[ 1 ]-page_upcoming_src_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_base_results[ 1 ]-page_upcoming_src_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_base_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_base_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-upcoming_src_bands[
+        source_group = 'O' through_band = '4' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_base_results[ 1 ]-upcoming_src_bands[
+        source_group = 'O' through_band = '4' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV decfloat34( '100.00' )
       act = ls_base_expiry_age-row_share_pct ).
     cl_abap_unit_assert=>assert_equals(
@@ -35789,7 +37250,15 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           plant        = '1000'
           unit         = 'BOX'
           as_of_date   = '20261018'
-          through_date = '20261025' ) ) ).
+          through_date = '20261025' )
+        ( request_id           = 'EXPIRY-SPANS-UOM-AFTER'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' ) ) ).
     DATA(ls_unit_expired_status) =
       lt_unit_results[ 1 ]-expiry_src_statuses[ 1 ].
     DATA(ls_unit_upcoming_status) =
@@ -35804,6 +37273,46 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       lt_unit_results[ 1 ]-upcoming_src_bands[ 1 ].
     DATA(ls_unit_after_window) =
       lt_unit_results[ 1 ]-after_window_src_bands[ 1 ].
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-expiry_statuses[
+        expiry_status = 'E' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 1 ]-expiry_statuses[
+        expiry_status = 'A' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 1 ]-expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'E' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 2 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_unit_results[ 1 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_unit_results[ 2 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 2 ]-page_expiry_sources[
+        source_group = 'P' ]-days_to_last_expiration ).
     cl_abap_unit_assert=>assert_equals(
       exp = 6
       act = ls_unit_expired_status-expiration_date_span_days ).
@@ -35826,6 +37335,100 @@ CLASS ltcl_stock_service IMPLEMENTATION.
       exp = 6
       act = ls_unit_after_window-expiration_date_span_days ).
     cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = ls_unit_expired_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = ls_unit_expired_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unit_upcoming_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = ls_unit_upcoming_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = ls_unit_after_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = ls_unit_after_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = ls_unit_expiry_age-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = ls_unit_expiry_age-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_unit_empty_status-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = ls_unit_empty_status-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-page_expiry_src_statuses[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_unit_results[ 1 ]-page_expiry_src_statuses[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unit_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_unit_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_unit_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -7
+      act = lt_unit_results[ 1 ]-page_expiry_src_age_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_unit_results[ 1 ]-page_expiry_src_age_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_unit_results[ 1 ]-expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_unit_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'O' age_band = '4' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = ls_unit_upcoming_window-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = ls_unit_upcoming_window-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = ls_unit_after_window-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = ls_unit_after_window-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_unit_results[ 1 ]-page_upcoming_src_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_unit_results[ 1 ]-page_upcoming_src_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 8
+      act = lt_unit_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 14
+      act = lt_unit_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_unit_results[ 1 ]-upcoming_src_bands[
+        source_group = 'O' through_band = '4' ]-days_to_first_expiration ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_unit_results[ 1 ]-upcoming_src_bands[
+        source_group = 'O' through_band = '4' ]-days_to_last_expiration ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV decfloat34( '100.00' )
       act = ls_unit_expiry_age-row_share_pct ).
     cl_abap_unit_assert=>assert_equals(
@@ -35834,6 +37437,788 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV decfloat34( '100.00' )
       act = ls_unit_after_window-row_share_pct ).
+  ENDMETHOD.
+
+  METHOD reports_page_expiry_ids.
+    TYPES:
+      BEGIN OF ty_endpoint_identity,
+        first_expiration_batch       TYPE mchb-charg,
+        first_expiration_storage_loc TYPE mard-lgort,
+        first_expiration_val_type    TYPE mcha-bwtar,
+        first_expiration_source      TYPE c LENGTH 1,
+        last_expiration_batch        TYPE mchb-charg,
+        last_expiration_storage_loc  TYPE mard-lgort,
+        last_expiration_val_type     TYPE mcha-bwtar,
+        last_expiration_source       TYPE c LENGTH 1,
+      END OF ty_endpoint_identity.
+    TYPES ty_endpoint_identities TYPE STANDARD TABLE OF
+      ty_endpoint_identity WITH EMPTY KEY.
+    DATA(lo_repository) = NEW lcl_stock_repository_double( ).
+    DATA(lo_uom_repository) = NEW lcl_stock_uom_repo_double( ).
+    lo_uom_repository->set_conversion(
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'BOX'
+      iv_numerator        = 12
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_cut) = NEW zcl_stock_service(
+      io_stock_repository = lo_repository
+      io_uom_converter    = lo_converter ).
+    lo_repository->set_batch_stock_status(
+      it_status = VALUE #(
+        ( storage_location       = '0001'
+          batch                  = 'A-FIRST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'A-FIRST'
+          valuation_type         = 'Z'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0002'
+          batch                  = 'A-FIRST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'B-FIRST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261017'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'A-LAST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'G'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'A-LAST'
+          valuation_type         = 'Z'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0002'
+          batch                  = 'A-LAST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'B-LAST'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261025'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'A-OTHER'
+          valuation_type        = 'B'
+          batch_managed         = abap_true
+          expiration_date       = '20261022'
+          unrestricted_quantity = 1 )
+        ( storage_location      = '0001'
+          batch                 = 'Z-OTHER'
+          valuation_type        = 'B'
+          batch_managed         = abap_true
+          expiration_date       = '20261025'
+          unrestricted_quantity = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'A-AFTER'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'A-AFTER'
+          valuation_type         = 'Z'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0002'
+          batch                  = 'A-AFTER'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 )
+        ( storage_location       = '0001'
+          batch                  = 'B-AFTER'
+          valuation_type         = 'A'
+          batch_managed          = abap_true
+          expiration_date        = '20261026'
+          expiration_date_source = 'P'
+          unrestricted_quantity  = 1 ) ) ).
+
+    DATA(lt_base_results) = lo_cut->get_batch_expiry_exposure_bulk(
+      it_requests = VALUE #(
+        ( request_id         = 'PAGE-ENDPOINTS'
+          material           = 'MAT-1'
+          plant              = '1000'
+          as_of_date         = '20261018'
+          through_date       = '20261025'
+          expiration_date_to = '20261025' )
+        ( request_id           = 'PAGE-ENDPOINTS-EMPTY'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' )
+        ( request_id                    = 'PAGE-ENDPOINTS-AFTER-EMPTY'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_expiry_status          = abap_true
+          expiry_status                 = 'A'
+          maximum_batch_rows            = 1
+          filter_batch_cursor           = abap_true
+          batch_cursor_status           = 'A'
+          batch_cursor_expiration_date  = '20261026'
+          batch_cursor_batch            = 'B-AFTER'
+          batch_cursor_storage_location = '0001'
+          batch_cursor_valuation_type   = 'A' )
+        ( request_id           = 'PAGE-ENDPOINTS-O'
+          material             = 'MAT-1'
+          plant                = '1000'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          expiration_date_to   = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'O' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_base_results[ 1 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 1 ]-page_earliest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 1 ]-page_earliest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_base_results[ 1 ]-page_earliest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-LAST'
+      act = lt_base_results[ 1 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 1 ]-page_latest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 1 ]-page_latest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_base_results[ 1 ]-page_latest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-LAST'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_base_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-LAST'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-page_earliest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-page_earliest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 2 ]-page_earliest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-page_latest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-page_latest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 2 ]-page_latest_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_earliest_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_latest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_base_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+
+    DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
+      it_requests = VALUE #(
+        ( request_id         = 'PAGE-ENDPOINTS-UOM'
+          material           = 'MAT-1'
+          plant              = '1000'
+          unit               = 'BOX'
+          as_of_date         = '20261018'
+          through_date       = '20261025'
+          expiration_date_to = '20261025' )
+        ( request_id           = 'PAGE-ENDPOINTS-UOM-EMPTY'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          filter_expiry_status = abap_true
+          expiry_status        = 'A' )
+        ( request_id                    = 'PAGE-ENDPOINTS-UOM-AFTER-EMPTY'
+          material                      = 'MAT-1'
+          plant                         = '1000'
+          unit                          = 'BOX'
+          as_of_date                    = '20261018'
+          through_date                  = '20261025'
+          filter_expiry_status          = abap_true
+          expiry_status                 = 'A'
+          maximum_batch_rows            = 1
+          filter_batch_cursor           = abap_true
+          batch_cursor_status           = 'A'
+          batch_cursor_expiration_date  = '20261026'
+          batch_cursor_batch            = 'B-AFTER'
+          batch_cursor_storage_location = '0001'
+          batch_cursor_valuation_type   = 'A' )
+        ( request_id           = 'PAGE-ENDPOINTS-UOM-O'
+          material             = 'MAT-1'
+          plant                = '1000'
+          unit                 = 'BOX'
+          as_of_date           = '20261018'
+          through_date         = '20261025'
+          expiration_date_to   = '20261025'
+          filter_expiry_source = abap_true
+          expiry_source        = 'O' ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_uom_results[ 1 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 1 ]-page_earliest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 1 ]-page_earliest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom_results[ 1 ]-page_earliest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-LAST'
+      act = lt_uom_results[ 1 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 1 ]-page_latest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 1 ]-page_latest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'G'
+      act = lt_uom_results[ 1 ]-page_latest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-LAST'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 1 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'U' ]-last_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-FIRST'
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Z'
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'E' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_uom_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 2 ]-expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 1 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_uom_results[ 2 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 2 ]-page_earliest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 2 ]-page_earliest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 2 ]-page_earliest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_uom_results[ 2 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 2 ]-page_latest_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 2 ]-page_latest_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 2 ]-page_latest_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_val_type ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_source ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A-AFTER'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_batch ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_storage_loc ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'A'
+      act = lt_uom_results[ 2 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-last_expiration_val_type ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_earliest_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_latest_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_expiry_src_statuses[
+        source_group = 'P' expiry_status = 'A' ]-first_expiration_batch ).
+
+    DATA(ls_status_expired_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-FIRST'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'A'
+      first_expiration_source      = 'G'
+      last_expiration_batch        = 'A-FIRST'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'A'
+      last_expiration_source       = 'G' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_status_expired_identity ) ( ls_status_expired_identity )
+        ( ls_status_expired_identity ) ( ls_status_expired_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-expiry_statuses[ expiry_status = 'E' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_expiry_statuses[
+              expiry_status = 'E' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-expiry_statuses[ expiry_status = 'E' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_expiry_statuses[
+              expiry_status = 'E' ] ) ) ) ).
+    DATA(ls_status_upcoming_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-OTHER'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'B'
+      last_expiration_batch        = 'A-LAST'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'A'
+      last_expiration_source       = 'G' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_status_upcoming_identity ) ( ls_status_upcoming_identity )
+        ( ls_status_upcoming_identity ) ( ls_status_upcoming_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-expiry_statuses[ expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_expiry_statuses[
+              expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-expiry_statuses[ expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_expiry_statuses[
+              expiry_status = 'U' ] ) ) ) ).
+    DATA(ls_status_after_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-AFTER'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'A'
+      first_expiration_source      = 'P'
+      last_expiration_batch        = 'A-AFTER'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'A'
+      last_expiration_source       = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_status_after_identity ) ( ls_status_after_identity )
+        ( ls_status_after_identity ) ( ls_status_after_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 2 ]-expiry_statuses[ expiry_status = 'A' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 2 ]-page_expiry_statuses[
+              expiry_status = 'A' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 2 ]-expiry_statuses[ expiry_status = 'A' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 2 ]-page_expiry_statuses[
+              expiry_status = 'A' ] ) ) ) ).
+    DATA(ls_status_other_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-OTHER'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'B'
+      last_expiration_batch        = 'Z-OTHER'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'B' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_status_other_identity ) ( ls_status_other_identity )
+        ( ls_status_other_identity ) ( ls_status_other_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 4 ]-expiry_statuses[ expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 4 ]-page_expiry_statuses[
+              expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 4 ]-expiry_statuses[ expiry_status = 'U' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 4 ]-page_expiry_statuses[
+              expiry_status = 'U' ] ) ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 1 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_expiry_statuses[
+        expiry_status = 'A' ]-first_expiration_source ).
+
+    DATA(ls_expired_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-FIRST'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'Z'
+      first_expiration_source      = 'P'
+      last_expiration_batch        = 'A-FIRST'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'Z'
+      last_expiration_source       = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_expired_identity ) ( ls_expired_identity )
+        ( ls_expired_identity ) ( ls_expired_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-expiry_src_age_bands[
+              source_group = 'P' age_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_expiry_src_age_bands[
+              source_group = 'P' age_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-expiry_src_age_bands[
+              source_group = 'P' age_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_expiry_src_age_bands[
+              source_group = 'P' age_band = '1' ] ) ) ) ).
+    DATA(ls_upcoming_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-LAST'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'Z'
+      first_expiration_source      = 'P'
+      last_expiration_batch        = 'A-LAST'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'Z'
+      last_expiration_source       = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_upcoming_identity ) ( ls_upcoming_identity )
+        ( ls_upcoming_identity ) ( ls_upcoming_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-upcoming_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_upcoming_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-upcoming_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_upcoming_src_bands[
+              source_group = 'P' through_band = '1' ] ) ) ) ).
+    DATA(ls_other_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-OTHER'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'B'
+      last_expiration_batch        = 'Z-OTHER'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'B' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_other_identity ) ( ls_other_identity )
+        ( ls_other_identity ) ( ls_other_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-upcoming_src_bands[
+              source_group = 'O' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_upcoming_src_bands[
+              source_group = 'O' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-upcoming_src_bands[
+              source_group = 'O' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_upcoming_src_bands[
+              source_group = 'O' through_band = '1' ] ) ) ) ).
+    DATA(ls_source_summary_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-FIRST'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'Z'
+      first_expiration_source      = 'P'
+      last_expiration_batch        = 'A-LAST'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'Z'
+      last_expiration_source       = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_source_summary_identity ) ( ls_source_summary_identity )
+        ( ls_source_summary_identity ) ( ls_source_summary_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-expiry_sources[ source_group = 'P' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_expiry_sources[
+              source_group = 'P' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-expiry_sources[ source_group = 'P' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_expiry_sources[
+              source_group = 'P' ] ) ) ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_other_identity ) ( ls_other_identity )
+        ( ls_other_identity ) ( ls_other_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-expiry_sources[ source_group = 'O' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 1 ]-page_expiry_sources[
+              source_group = 'O' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-expiry_sources[ source_group = 'O' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 1 ]-page_expiry_sources[
+              source_group = 'O' ] ) ) ) ).
+    DATA(ls_after_window_identity) = VALUE ty_endpoint_identity(
+      first_expiration_batch       = 'A-AFTER'
+      first_expiration_storage_loc = '0001'
+      first_expiration_val_type    = 'A'
+      first_expiration_source      = 'P'
+      last_expiration_batch        = 'A-AFTER'
+      last_expiration_storage_loc  = '0001'
+      last_expiration_val_type     = 'A'
+      last_expiration_source       = 'P' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = VALUE ty_endpoint_identities(
+        ( ls_after_window_identity ) ( ls_after_window_identity )
+        ( ls_after_window_identity ) ( ls_after_window_identity ) )
+      act = VALUE ty_endpoint_identities(
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 2 ]-after_window_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_base_results[ 2 ]-page_after_window_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 2 ]-after_window_src_bands[
+              source_group = 'P' through_band = '1' ] ) )
+        ( CORRESPONDING ty_endpoint_identity(
+            lt_uom_results[ 2 ]-page_after_window_src_bands[
+              source_group = 'P' through_band = '1' ] ) ) ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 1 ]-page_expiry_src_age_bands[
+        source_group = 'P' age_band = '4' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_expiry_sources[
+        source_group = 'P' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_base_results[ 3 ]-page_expiry_sources[
+        source_group = 'O' ]-first_expiration_source ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_upcoming_src_bands[
+        source_group = 'P' through_band = '1' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_expiry_sources[
+        source_group = 'P' ]-first_expiration_batch ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_uom_results[ 3 ]-page_expiry_sources[
+        source_group = 'O' ]-first_expiration_source ).
   ENDMETHOD.
 
   METHOD reports_expiry_risk_buckets.
@@ -35977,6 +38362,19 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 18
       act = lt_results[ 1 ]-upcoming_blocked_quantity ).
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_upcoming_bands_without_ids) = lt_results[ 1 ]-upcoming_src_bands.
+    LOOP AT lt_upcoming_bands_without_ids
+        ASSIGNING FIELD-SYMBOL(<ls_upcoming_band_without_ids>).
+      CLEAR: <ls_upcoming_band_without_ids>-first_expiration_batch,
+        <ls_upcoming_band_without_ids>-first_expiration_storage_loc,
+        <ls_upcoming_band_without_ids>-first_expiration_val_type,
+        <ls_upcoming_band_without_ids>-first_expiration_source,
+        <ls_upcoming_band_without_ids>-last_expiration_batch,
+        <ls_upcoming_band_without_ids>-last_expiration_storage_loc,
+        <ls_upcoming_band_without_ids>-last_expiration_val_type,
+        <ls_upcoming_band_without_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
         ( source_group = 'P' through_band = '1' row_count = 1
@@ -35998,6 +38396,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '5.88' )
           blocked_qty_share_pct         = CONV decfloat34( '5.56' )
           first_expiration_date = '20261025' last_expiration_date = '20261025'
+          days_to_first_expiration = 7 days_to_last_expiration = 7
           unrestricted_qty           = 1 available_qty = 1
           quality_qty                = 1 blocked_qty = 1 )
         ( source_group = 'P' through_band = '2' row_count = 2
@@ -36019,6 +38418,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '35.29' )
           blocked_qty_share_pct         = CONV decfloat34( '44.44' )
           first_expiration_date = '20261026' last_expiration_date = '20261117'
+          days_to_first_expiration = 8 days_to_last_expiration = 30
           expiration_date_span_days = 22
           unrestricted_qty           = 7 available_qty = 5
           quality_qty                = 6 blocked_qty = 8 )
@@ -36041,6 +38441,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '11.76' )
           blocked_qty_share_pct         = CONV decfloat34( '5.56' )
           first_expiration_date = '20261118' last_expiration_date = '20261118'
+          days_to_first_expiration = 31 days_to_last_expiration = 31
           unrestricted_qty           = 10 available_qty = 8
           quality_qty                = 2 blocked_qty = 1 )
         ( source_group = 'P' through_band = '4' row_count = 0
@@ -36122,6 +38523,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '17.65' )
           blocked_qty_share_pct         = CONV decfloat34( '11.11' )
           first_expiration_date = '20270116' last_expiration_date = '20270116'
+          days_to_first_expiration = 90 days_to_last_expiration = 90
           unrestricted_qty           = 11 available_qty = 9
           quality_qty                = 3 blocked_qty = 2 )
         ( source_group = 'G' through_band = '4' row_count = 0
@@ -36223,10 +38625,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '29.41' )
           blocked_qty_share_pct         = CONV decfloat34( '33.33' )
           first_expiration_date = '20270117' last_expiration_date = '20270117'
+          days_to_first_expiration = 91 days_to_last_expiration = 91
           unrestricted_qty           = 13 available_qty = 10
           quality_qty                = 5 blocked_qty = 6 )
       )
-      act = lt_results[ 1 ]-upcoming_src_bands ).
+      act = lt_upcoming_bands_without_ids ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 3 act = lt_results[ 1 ]-within_30d_batch_row_count ).
@@ -36522,6 +38925,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mchb-cspem( 4 )
       act = lt_results[ 1 ]-after_next_blocked_qty ).
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_after_win_bands_no_ids) =
+      lt_results[ 1 ]-after_window_src_bands.
+    LOOP AT lt_after_win_bands_no_ids
+        ASSIGNING FIELD-SYMBOL(<ls_after_win_band_no_ids>).
+      CLEAR: <ls_after_win_band_no_ids>-first_expiration_batch,
+        <ls_after_win_band_no_ids>-first_expiration_storage_loc,
+        <ls_after_win_band_no_ids>-first_expiration_val_type,
+        <ls_after_win_band_no_ids>-first_expiration_source,
+        <ls_after_win_band_no_ids>-last_expiration_batch,
+        <ls_after_win_band_no_ids>-last_expiration_storage_loc,
+        <ls_after_win_band_no_ids>-last_expiration_val_type,
+        <ls_after_win_band_no_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_windows(
         ( source_group = 'P' through_band = '1' row_count = 0
@@ -36563,6 +38980,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '14.29' )
           blocked_qty_share_pct         = CONV decfloat34( '14.29' )
           first_expiration_date = '20261117' last_expiration_date = '20261117'
+          days_to_first_expiration = 30 days_to_last_expiration = 30
           unrestricted_qty           = 4 available_qty = 5
           quality_qty                = 6 blocked_qty = 7 )
         ( source_group = 'P' through_band = '3' row_count = 0
@@ -36604,6 +39022,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '21.43' )
           blocked_qty_share_pct         = CONV decfloat34( '20.41' )
           first_expiration_date = '20270117' last_expiration_date = '20270117'
+          days_to_first_expiration = 91 days_to_last_expiration = 91
           unrestricted_qty           = 7 available_qty = 8
           quality_qty                = 9 blocked_qty = 10 )
         ( source_group = 'G' through_band = '1' row_count = 2
@@ -36625,6 +39044,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '16.67' )
           blocked_qty_share_pct         = CONV decfloat34( '18.37' )
           first_expiration_date = '20261019' last_expiration_date = '20261025'
+          days_to_first_expiration = 1 days_to_last_expiration = 7
           expiration_date_span_days = 6
           unrestricted_qty           = 3 available_qty = 5
           quality_qty                = 7 blocked_qty = 9 )
@@ -36667,6 +39087,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '16.67' )
           blocked_qty_share_pct         = CONV decfloat34( '16.33' )
           first_expiration_date = '20261118' last_expiration_date = '20261118'
+          days_to_first_expiration = 31 days_to_last_expiration = 31
           unrestricted_qty           = 5 available_qty = 6
           quality_qty                = 7 blocked_qty = 8 )
         ( source_group = 'G' through_band = '4' row_count = 0
@@ -36728,6 +39149,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '11.90' )
           blocked_qty_share_pct         = CONV decfloat34( '12.24' )
           first_expiration_date = '20261026' last_expiration_date = '20261026'
+          days_to_first_expiration = 8 days_to_last_expiration = 8
           unrestricted_qty           = 3 available_qty = 4
           quality_qty                = 5 blocked_qty = 6 )
         ( source_group = 'O' through_band = '3' row_count = 1
@@ -36749,6 +39171,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '19.05' )
           blocked_qty_share_pct         = CONV decfloat34( '18.37' )
           first_expiration_date = '20270116' last_expiration_date = '20270116'
+          days_to_first_expiration = 90 days_to_last_expiration = 90
           unrestricted_qty           = 6 available_qty = 7
           quality_qty                = 8 blocked_qty = 9 )
         ( source_group = 'O' through_band = '4' row_count = 0
@@ -36772,7 +39195,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
       )
-      act = lt_results[ 1 ]-after_window_src_bands ).
+      act = lt_after_win_bands_no_ids ).
 
     DATA(lt_uom_results) = lo_cut->get_expiry_exposure_uom_bulk(
       it_requests = VALUE #(
@@ -37019,6 +39442,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_results[ 1 ]-upcoming_batch_row_count ).
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_exp_src_ages_no_ids) =
+      lt_results[ 1 ]-expiry_src_age_bands.
+    LOOP AT lt_exp_src_ages_no_ids
+        ASSIGNING FIELD-SYMBOL(<ls_exp_src_age_no_ids>).
+      CLEAR: <ls_exp_src_age_no_ids>-first_expiration_batch,
+        <ls_exp_src_age_no_ids>-first_expiration_storage_loc,
+        <ls_exp_src_age_no_ids>-first_expiration_val_type,
+        <ls_exp_src_age_no_ids>-first_expiration_source,
+        <ls_exp_src_age_no_ids>-last_expiration_batch,
+        <ls_exp_src_age_no_ids>-last_expiration_storage_loc,
+        <ls_exp_src_age_no_ids>-last_expiration_val_type,
+        <ls_exp_src_age_no_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_ages(
         ( source_group = 'P' age_band = '1' row_count = 2
@@ -37040,6 +39477,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '7.34' )
           blocked_qty_share_pct         = CONV decfloat34( '12.70' )
           first_expiration_date = '20261011' last_expiration_date = '20261017'
+        days_to_first_expiration = -7 days_to_last_expiration = -1
           expiration_date_span_days = 6
           unrestricted_qty           = 8 available_qty = 8
           quality_qty                = 8 blocked_qty = 8 )
@@ -37062,6 +39500,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '9.17' )
           blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date = '20260918' last_expiration_date = '20260918'
+          days_to_first_expiration = -30 days_to_last_expiration = -30
           unrestricted_qty           = 30 available_qty = 20
           quality_qty                = 10 blocked_qty = 5 )
         ( source_group = 'P' age_band = '3' row_count = 0
@@ -37103,6 +39542,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '32.11' )
           blocked_qty_share_pct         = CONV decfloat34( '31.75' )
           first_expiration_date = '20260719' last_expiration_date = '20260719'
+          days_to_first_expiration = -91 days_to_last_expiration = -91
           unrestricted_qty           = 91 available_qty = 70
           quality_qty                = 35 blocked_qty = 20 )
         ( source_group = 'G' age_band = '1' row_count = 0
@@ -37164,6 +39604,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '18.35' )
           blocked_qty_share_pct         = CONV decfloat34( '15.87' )
           first_expiration_date = '20260917' last_expiration_date = '20260917'
+          days_to_first_expiration = -31 days_to_last_expiration = -31
           unrestricted_qty           = 31 available_qty = 30
           quality_qty                = 20 blocked_qty = 10 )
         ( source_group = 'G' age_band = '4' row_count = 0
@@ -37225,6 +39666,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '5.50' )
           blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date = '20261010' last_expiration_date = '20261010'
+          days_to_first_expiration = -8 days_to_last_expiration = -8
           unrestricted_qty           = 8 available_qty = 7
           quality_qty                = 6 blocked_qty = 5 )
         ( source_group = 'O' age_band = '3' row_count = 1
@@ -37246,6 +39688,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           quality_qty_share_pct         = CONV decfloat34( '27.52' )
           blocked_qty_share_pct         = CONV decfloat34( '23.81' )
           first_expiration_date = '20260720' last_expiration_date = '20260720'
+          days_to_first_expiration = -90 days_to_last_expiration = -90
           unrestricted_qty           = 90 available_qty = 60
           quality_qty                = 30 blocked_qty = 15 )
         ( source_group = 'O' age_band = '4' row_count = 0
@@ -37269,7 +39712,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           unrestricted_qty           = 0 available_qty = 0
           quality_qty                = 0 blocked_qty = 0 )
       )
-      act = lt_results[ 1 ]-expiry_src_age_bands ).
+      act = lt_exp_src_ages_no_ids ).
   ENDMETHOD.
 
   METHOD reports_expired_age_uom.
@@ -37564,6 +40007,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( 20 )
       act = lt_results[ 1 ]-src_ov90_blocked_qty ).
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_exp_src_age_uoms_no_ids) =
+      lt_results[ 1 ]-expiry_src_age_bands.
+    LOOP AT lt_exp_src_age_uoms_no_ids
+        ASSIGNING FIELD-SYMBOL(<ls_exp_src_age_uom_no_ids>).
+      CLEAR: <ls_exp_src_age_uom_no_ids>-first_expiration_batch,
+        <ls_exp_src_age_uom_no_ids>-first_expiration_storage_loc,
+        <ls_exp_src_age_uom_no_ids>-first_expiration_val_type,
+        <ls_exp_src_age_uom_no_ids>-first_expiration_source,
+        <ls_exp_src_age_uom_no_ids>-last_expiration_batch,
+        <ls_exp_src_age_uom_no_ids>-last_expiration_storage_loc,
+        <ls_exp_src_age_uom_no_ids>-last_expiration_val_type,
+        <ls_exp_src_age_uom_no_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_age_uoms(
         ( source_group = 'P' age_band = '1' row_count = 2
@@ -37587,6 +40044,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '12.70' )
           first_expiration_date      = '20261011'
           last_expiration_date       = '20261017'
+        days_to_first_expiration = -7 days_to_last_expiration = -1
           expiration_date_span_days = 6
           base_unrestricted_qty      = CONV mchb-clabs( 96 )
           unit_unrestricted_qty      = CONV mard-labst( '8' )
@@ -37617,6 +40075,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date      = '20260918'
           last_expiration_date       = '20260918'
+          days_to_first_expiration = -30 days_to_last_expiration = -30
           base_unrestricted_qty      = CONV mchb-clabs( 360 )
           unit_unrestricted_qty      = CONV mard-labst( '30' )
           base_available_qty         = CONV mchb-clabs( 240 )
@@ -37673,6 +40132,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '31.75' )
           first_expiration_date      = '20260719'
           last_expiration_date       = '20260719'
+          days_to_first_expiration = -91 days_to_last_expiration = -91
           base_unrestricted_qty      = CONV mchb-clabs( 1092 )
           unit_unrestricted_qty      = CONV mard-labst( '91' )
           base_available_qty         = CONV mchb-clabs( 840 )
@@ -37756,6 +40216,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '15.87' )
           first_expiration_date      = '20260917'
           last_expiration_date       = '20260917'
+          days_to_first_expiration = -31 days_to_last_expiration = -31
           base_unrestricted_qty      = CONV mchb-clabs( 372 )
           unit_unrestricted_qty      = CONV mard-labst( '31' )
           base_available_qty         = CONV mchb-clabs( 360 )
@@ -37839,6 +40300,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '7.94' )
           first_expiration_date      = '20261010'
           last_expiration_date       = '20261010'
+          days_to_first_expiration = -8 days_to_last_expiration = -8
           base_unrestricted_qty      = CONV mchb-clabs( 96 )
           unit_unrestricted_qty      = CONV mard-labst( '8' )
           base_available_qty         = CONV mchb-clabs( 84 )
@@ -37868,6 +40330,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '23.81' )
           first_expiration_date      = '20260720'
           last_expiration_date       = '20260720'
+          days_to_first_expiration = -90 days_to_last_expiration = -90
           base_unrestricted_qty      = CONV mchb-clabs( 1080 )
           unit_unrestricted_qty      = CONV mard-labst( '90' )
           base_available_qty         = CONV mchb-clabs( 720 )
@@ -37904,7 +40367,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           base_blocked_qty           = CONV mchb-cspem( 0 )
           unit_blocked_qty           = CONV mard-labst( '0' ) )
       )
-      act = lt_results[ 1 ]-expiry_src_age_bands ).
+      act = lt_exp_src_age_uoms_no_ids ).
   ENDMETHOD.
 
   METHOD groups_expiry_exclusions.
@@ -38571,6 +41034,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261017'
           last_expiration_date      = '20261017'
+          first_expiration_batch    = 'EXPIRED'
+          first_expiration_storage_loc = '0001'
+          first_expiration_source   = 'P'
+          last_expiration_batch     = 'EXPIRED'
+          last_expiration_storage_loc = '0001'
+          last_expiration_source    = 'P'
+        days_to_first_expiration = -1 days_to_last_expiration = -1
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 24 )
           unit_unrestricted_qty     = CONV mard-labst( '2' )
@@ -38586,6 +41056,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261020'
           last_expiration_date      = '20261020'
+          first_expiration_batch    = 'UPCOMING'
+          first_expiration_storage_loc = '0002'
+          first_expiration_source   = 'P'
+          last_expiration_batch     = 'UPCOMING'
+          last_expiration_storage_loc = '0002'
+          last_expiration_source    = 'P'
+        days_to_first_expiration = 2 days_to_last_expiration = 2
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 12 )
           unit_unrestricted_qty     = CONV mard-labst( '1' )
@@ -38601,6 +41078,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261028'
           last_expiration_date      = '20261028'
+          first_expiration_batch    = 'AFTER'
+          first_expiration_storage_loc = '0001'
+          first_expiration_source   = 'P'
+          last_expiration_batch     = 'AFTER'
+          last_expiration_storage_loc = '0001'
+          last_expiration_source    = 'P'
+        days_to_first_expiration = 10 days_to_last_expiration = 10
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 24 )
           unit_unrestricted_qty     = CONV mard-labst( '2' )
@@ -38616,6 +41100,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261017'
           last_expiration_date      = '20261017'
+          first_expiration_batch    = 'EXPIRED-2'
+          first_expiration_storage_loc = '0002'
+          first_expiration_source   = 'G'
+          last_expiration_batch     = 'EXPIRED-2'
+          last_expiration_storage_loc = '0002'
+          last_expiration_source    = 'G'
+        days_to_first_expiration = -1 days_to_last_expiration = -1
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 12 )
           unit_unrestricted_qty     = CONV mard-labst( '1' )
@@ -38631,6 +41122,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261020'
           last_expiration_date      = '20261020'
+          first_expiration_batch    = 'UPCOMING-2'
+          first_expiration_storage_loc = '0003'
+          first_expiration_source   = 'G'
+          last_expiration_batch     = 'UPCOMING-2'
+          last_expiration_storage_loc = '0003'
+          last_expiration_source    = 'G'
+        days_to_first_expiration = 2 days_to_last_expiration = 2
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 24 )
           unit_unrestricted_qty     = CONV mard-labst( '2' )
@@ -38646,6 +41144,13 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261028'
           last_expiration_date      = '20261028'
+          first_expiration_batch    = 'AFTER-2'
+          first_expiration_storage_loc = '0002'
+          first_expiration_source   = 'G'
+          last_expiration_batch     = 'AFTER-2'
+          last_expiration_storage_loc = '0002'
+          last_expiration_source    = 'G'
+        days_to_first_expiration = 10 days_to_last_expiration = 10
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 12 )
           unit_unrestricted_qty     = CONV mard-labst( '1' )
@@ -38661,6 +41166,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 0
           first_expiration_date     = '00000000'
           last_expiration_date      = '00000000'
+        days_to_first_expiration = 0 days_to_last_expiration = 0
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 0 )
           unit_unrestricted_qty     = CONV mard-labst( '0' )
@@ -38676,6 +41182,11 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 1
           first_expiration_date     = '20261026'
           last_expiration_date      = '20261026'
+          first_expiration_batch    = 'DAY-8'
+          first_expiration_storage_loc = '0003'
+          last_expiration_batch     = 'DAY-8'
+          last_expiration_storage_loc = '0003'
+        days_to_first_expiration = 8 days_to_last_expiration = 8
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 24 )
           unit_unrestricted_qty     = CONV mard-labst( '2' )
@@ -38691,6 +41202,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           row_count                 = 0
           first_expiration_date     = '00000000'
           last_expiration_date      = '00000000'
+        days_to_first_expiration = 0 days_to_last_expiration = 0
           expiration_date_span_days = 0
           base_unrestricted_qty     = CONV mchb-clabs( 0 )
           unit_unrestricted_qty     = CONV mard-labst( '0' )
@@ -38768,6 +41280,20 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           ls_base_status-reservation_deduction_qty / 12 )
         act = ls_uom_status-unit_reservation_deduction_qty ).
     ENDLOOP.
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_upc_win_uoms_no_ids) =
+      lt_results[ 1 ]-upcoming_src_bands.
+    LOOP AT lt_upc_win_uoms_no_ids
+        ASSIGNING FIELD-SYMBOL(<ls_upc_win_uom_no_ids>).
+      CLEAR: <ls_upc_win_uom_no_ids>-first_expiration_batch,
+        <ls_upc_win_uom_no_ids>-first_expiration_storage_loc,
+        <ls_upc_win_uom_no_ids>-first_expiration_val_type,
+        <ls_upc_win_uom_no_ids>-first_expiration_source,
+        <ls_upc_win_uom_no_ids>-last_expiration_batch,
+        <ls_upc_win_uom_no_ids>-last_expiration_storage_loc,
+        <ls_upc_win_uom_no_ids>-last_expiration_val_type,
+        <ls_upc_win_uom_no_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
         ( source_group = 'P' through_band = '1' row_count = 1
@@ -38791,6 +41317,7 @@ CLASS ltcl_stock_service IMPLEMENTATION.
           blocked_qty_share_pct         = CONV decfloat34( '0.00' )
 first_expiration_date      = '20261020'
           last_expiration_date       = '20261020'
+          days_to_first_expiration = 2 days_to_last_expiration = 2
           base_unrestricted_qty = CONV mchb-clabs( 12 )
           unit_unrestricted_qty = CONV mard-labst( '1' )
           base_available_qty  = CONV mchb-clabs( 12 )
@@ -38901,6 +41428,7 @@ first_expiration_date      = '20261020'
           blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261020'
           last_expiration_date       = '20261020'
+          days_to_first_expiration = 2 days_to_last_expiration = 2
           base_unrestricted_qty = CONV mchb-clabs( 24 )
           unit_unrestricted_qty = CONV mard-labst( '2' )
           base_available_qty  = CONV mchb-clabs( 24 )
@@ -39038,6 +41566,7 @@ first_expiration_date      = '20261020'
           blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261026'
           last_expiration_date       = '20261026'
+          days_to_first_expiration = 8 days_to_last_expiration = 8
           base_unrestricted_qty = CONV mchb-clabs( 24 )
           unit_unrestricted_qty = CONV mard-labst( '2' )
           base_available_qty  = CONV mchb-clabs( 12 )
@@ -39101,7 +41630,21 @@ first_expiration_date      = '20261026'
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
       )
-      act = lt_results[ 1 ]-upcoming_src_bands ).
+      act = lt_upc_win_uoms_no_ids ).
+    " Endpoint identities are covered by reports_page_expiry_ids.
+    DATA(lt_after_win_uoms_no_ids) =
+      lt_results[ 1 ]-after_window_src_bands.
+    LOOP AT lt_after_win_uoms_no_ids
+        ASSIGNING FIELD-SYMBOL(<ls_after_win_uom_no_ids>).
+      CLEAR: <ls_after_win_uom_no_ids>-first_expiration_batch,
+        <ls_after_win_uom_no_ids>-first_expiration_storage_loc,
+        <ls_after_win_uom_no_ids>-first_expiration_val_type,
+        <ls_after_win_uom_no_ids>-first_expiration_source,
+        <ls_after_win_uom_no_ids>-last_expiration_batch,
+        <ls_after_win_uom_no_ids>-last_expiration_storage_loc,
+        <ls_after_win_uom_no_ids>-last_expiration_val_type,
+        <ls_after_win_uom_no_ids>-last_expiration_source.
+    ENDLOOP.
     cl_abap_unit_assert=>assert_equals(
       exp = VALUE zcl_stock_service=>ty_batch_exp_src_window_uoms(
         ( source_group = 'P' through_band = '1' row_count = 1
@@ -39125,6 +41668,7 @@ first_expiration_date      = '20261026'
           blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261028'
           last_expiration_date       = '20261028'
+          days_to_first_expiration = 10 days_to_last_expiration = 10
           base_unrestricted_qty = CONV mchb-clabs( 24 )
           unit_unrestricted_qty = CONV mard-labst( '2' )
           base_available_qty  = CONV mchb-clabs( 12 )
@@ -39235,6 +41779,7 @@ first_expiration_date      = '20261028'
           blocked_qty_share_pct         = CONV decfloat34( '50.00' )
 first_expiration_date      = '20261028'
           last_expiration_date       = '20261028'
+          days_to_first_expiration = 10 days_to_last_expiration = 10
           base_unrestricted_qty = CONV mchb-clabs( 12 )
           unit_unrestricted_qty = CONV mard-labst( '1' )
           base_available_qty  = CONV mchb-clabs( 12 )
@@ -39433,7 +41978,7 @@ first_expiration_date      = '20261028'
           base_blocked_qty    = CONV mchb-cspem( 0 )
           unit_blocked_qty    = CONV mard-labst( '0' ) )
       )
-      act = lt_results[ 1 ]-after_window_src_bands ).
+      act = lt_after_win_uoms_no_ids ).
   ENDMETHOD.
 
   METHOD reports_undated_expiry_uom.

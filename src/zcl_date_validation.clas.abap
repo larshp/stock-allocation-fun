@@ -9,6 +9,12 @@ CLASS zcl_date_validation DEFINITION
         iv_date            TYPE d
       RETURNING
         VALUE(rv_is_valid) TYPE abap_bool.
+    CLASS-METHODS add_days
+      IMPORTING
+        iv_date        TYPE d
+        iv_days        TYPE i
+      RETURNING
+        VALUE(rv_date) TYPE d.
     CLASS-METHODS is_valid_time
       IMPORTING
         iv_time            TYPE t
@@ -17,6 +23,29 @@ CLASS zcl_date_validation DEFINITION
 ENDCLASS.
 
 CLASS zcl_date_validation IMPLEMENTATION.
+
+  METHOD add_days.
+    CONSTANTS lc_min_date TYPE d VALUE '00010101'.
+    CONSTANTS lc_max_date TYPE d VALUE '99991231'.
+
+    IF is_valid_gregorian_date( iv_date ) <> abap_true.
+      RETURN.
+    ENDIF.
+
+    IF iv_days > 0.
+      DATA(lv_days_to_max) = CONV i( lc_max_date - iv_date ).
+      IF iv_days > lv_days_to_max.
+        RETURN.
+      ENDIF.
+    ELSEIF iv_days < 0.
+      DATA(lv_days_to_min) = CONV i( lc_min_date - iv_date ).
+      IF iv_days < lv_days_to_min.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    rv_date = iv_date + iv_days.
+  ENDMETHOD.
 
   METHOD is_valid_gregorian_date.
     IF iv_date IS INITIAL

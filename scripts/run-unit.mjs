@@ -229,7 +229,8 @@ await database.execute([
     enmng DECIMAL(13,3), charg NCHAR(10), bwart NCHAR(3), kdauf NCHAR(10),
     kdpos NCHAR(6), kdein NCHAR(4), bdter NCHAR(8), aufnr NCHAR(12),
     rsnum NCHAR(10), rspos NCHAR(4), meins NCHAR(3), pspel NCHAR(8),
-    erfme NCHAR(3), bwtar NCHAR(10), PRIMARY KEY(mandt, rsnum, rspos)
+    erfme NCHAR(3), bwtar NCHAR(10), plnum NCHAR(10),
+    PRIMARY KEY(mandt, rsnum, rspos)
   );`,
   `CREATE TABLE 'rkpf' (
     mandt NCHAR(3), rsnum NCHAR(10), kostl NCHAR(10),

@@ -68,6 +68,10 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_age_days_from   TYPE i,
         filter_manufacturing_age_to   TYPE abap_bool,
         manufacturing_age_days_to     TYPE i,
+        filter_manufacturing_age_band TYPE abap_bool,
+        manufacturing_age_band        TYPE c LENGTH 1,
+        filter_mfg_date_source        TYPE abap_bool,
+        mfg_date_source               TYPE c LENGTH 1,
         filter_expiry_status          TYPE abap_bool,
         expiry_status                 TYPE c LENGTH 1,
         filter_expiry_source          TYPE abap_bool,
@@ -284,6 +288,7 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_date            TYPE mcha-hsdat,
         manufacturing_date_source     TYPE c LENGTH 1,
         days_since_manufacture        TYPE i,
+        manufacturing_age_band        TYPE c LENGTH 1,
         unrestricted_quantity         TYPE mchb-clabs,
         available_quantity            TYPE mchb-clabs,
         available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
@@ -306,6 +311,16 @@ CLASS zcl_stock_service DEFINITION
         reservation_deduction_qty     TYPE mchb-clabs,
         first_expiration_date         TYPE mcha-vfdat,
         last_expiration_date          TYPE mcha-vfdat,
+        first_expiration_batch        TYPE mchb-charg,
+        first_expiration_storage_loc  TYPE mard-lgort,
+        first_expiration_val_type     TYPE mcha-bwtar,
+        first_expiration_source       TYPE c LENGTH 1,
+        last_expiration_batch         TYPE mchb-charg,
+        last_expiration_storage_loc   TYPE mard-lgort,
+        last_expiration_val_type      TYPE mcha-bwtar,
+        last_expiration_source        TYPE c LENGTH 1,
+        days_to_first_expiration      TYPE i,
+        days_to_last_expiration       TYPE i,
         expiration_date_span_days     TYPE i,
         unrestricted_qty              TYPE mchb-clabs,
         available_qty                 TYPE mchb-clabs,
@@ -329,6 +344,16 @@ CLASS zcl_stock_service DEFINITION
         reservation_deduction_qty      TYPE mchb-clabs,
         first_expiration_date          TYPE mcha-vfdat,
         last_expiration_date           TYPE mcha-vfdat,
+        first_expiration_batch         TYPE mchb-charg,
+        first_expiration_storage_loc   TYPE mard-lgort,
+        first_expiration_val_type      TYPE mcha-bwtar,
+        first_expiration_source        TYPE c LENGTH 1,
+        last_expiration_batch          TYPE mchb-charg,
+        last_expiration_storage_loc    TYPE mard-lgort,
+        last_expiration_val_type       TYPE mcha-bwtar,
+        last_expiration_source         TYPE c LENGTH 1,
+        days_to_first_expiration       TYPE i,
+        days_to_last_expiration        TYPE i,
         expiration_date_span_days      TYPE i,
         base_unrestricted_qty          TYPE mchb-clabs,
         unit_unrestricted_qty          TYPE mard-labst,
@@ -365,6 +390,16 @@ CLASS zcl_stock_service DEFINITION
         reservation_deduction_qty     TYPE mchb-clabs,
         first_expiration_date         TYPE mcha-vfdat,
         last_expiration_date          TYPE mcha-vfdat,
+        first_expiration_batch        TYPE mchb-charg,
+        first_expiration_storage_loc  TYPE mard-lgort,
+        first_expiration_val_type     TYPE mcha-bwtar,
+        first_expiration_source       TYPE c LENGTH 1,
+        last_expiration_batch         TYPE mchb-charg,
+        last_expiration_storage_loc   TYPE mard-lgort,
+        last_expiration_val_type      TYPE mcha-bwtar,
+        last_expiration_source        TYPE c LENGTH 1,
+        days_to_first_expiration      TYPE i,
+        days_to_last_expiration       TYPE i,
         expiration_date_span_days     TYPE i,
         unrestricted_qty              TYPE mchb-clabs,
         available_qty                 TYPE mchb-clabs,
@@ -386,6 +421,16 @@ CLASS zcl_stock_service DEFINITION
         reservation_deduction_qty     TYPE mchb-clabs,
         first_expiration_date         TYPE mcha-vfdat,
         last_expiration_date          TYPE mcha-vfdat,
+        first_expiration_batch        TYPE mchb-charg,
+        first_expiration_storage_loc  TYPE mard-lgort,
+        first_expiration_val_type     TYPE mcha-bwtar,
+        first_expiration_source       TYPE c LENGTH 1,
+        last_expiration_batch         TYPE mchb-charg,
+        last_expiration_storage_loc   TYPE mard-lgort,
+        last_expiration_val_type      TYPE mcha-bwtar,
+        last_expiration_source        TYPE c LENGTH 1,
+        days_to_first_expiration      TYPE i,
+        days_to_last_expiration       TYPE i,
         expiration_date_span_days     TYPE i,
         unrestricted_qty              TYPE mchb-clabs,
         available_qty                 TYPE mchb-clabs,
@@ -418,6 +463,16 @@ CLASS zcl_stock_service DEFINITION
         blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
         first_expiration_date         TYPE mcha-vfdat,
         last_expiration_date          TYPE mcha-vfdat,
+        first_expiration_batch        TYPE mchb-charg,
+        first_expiration_storage_loc  TYPE mard-lgort,
+        first_expiration_val_type     TYPE mcha-bwtar,
+        first_expiration_source       TYPE c LENGTH 1,
+        last_expiration_batch         TYPE mchb-charg,
+        last_expiration_storage_loc   TYPE mard-lgort,
+        last_expiration_val_type      TYPE mcha-bwtar,
+        last_expiration_source        TYPE c LENGTH 1,
+        days_to_first_expiration      TYPE i,
+        days_to_last_expiration       TYPE i,
         expiration_date_span_days     TYPE i,
         unrestricted_qty              TYPE mchb-clabs,
         available_qty                 TYPE mchb-clabs,
@@ -450,6 +505,16 @@ CLASS zcl_stock_service DEFINITION
         blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
         first_expiration_date         TYPE mcha-vfdat,
         last_expiration_date          TYPE mcha-vfdat,
+        first_expiration_batch        TYPE mchb-charg,
+        first_expiration_storage_loc  TYPE mard-lgort,
+        first_expiration_val_type     TYPE mcha-bwtar,
+        first_expiration_source       TYPE c LENGTH 1,
+        last_expiration_batch         TYPE mchb-charg,
+        last_expiration_storage_loc   TYPE mard-lgort,
+        last_expiration_val_type      TYPE mcha-bwtar,
+        last_expiration_source        TYPE c LENGTH 1,
+        days_to_first_expiration      TYPE i,
+        days_to_last_expiration       TYPE i,
         expiration_date_span_days     TYPE i,
         unrestricted_qty              TYPE mchb-clabs,
         available_qty                 TYPE mchb-clabs,
@@ -483,6 +548,16 @@ CLASS zcl_stock_service DEFINITION
         unit_reservation_deduction_qty TYPE mard-labst,
         first_expiration_date          TYPE mcha-vfdat,
         last_expiration_date           TYPE mcha-vfdat,
+        first_expiration_batch         TYPE mchb-charg,
+        first_expiration_storage_loc   TYPE mard-lgort,
+        first_expiration_val_type      TYPE mcha-bwtar,
+        first_expiration_source        TYPE c LENGTH 1,
+        last_expiration_batch          TYPE mchb-charg,
+        last_expiration_storage_loc    TYPE mard-lgort,
+        last_expiration_val_type       TYPE mcha-bwtar,
+        last_expiration_source         TYPE c LENGTH 1,
+        days_to_first_expiration       TYPE i,
+        days_to_last_expiration        TYPE i,
         expiration_date_span_days      TYPE i,
         base_unrestricted_qty          TYPE mchb-clabs,
         unit_unrestricted_qty          TYPE mard-labst,
@@ -510,6 +585,16 @@ CLASS zcl_stock_service DEFINITION
         reservation_deduction_qty      TYPE mchb-clabs,
         first_expiration_date          TYPE mcha-vfdat,
         last_expiration_date           TYPE mcha-vfdat,
+        first_expiration_batch         TYPE mchb-charg,
+        first_expiration_storage_loc   TYPE mard-lgort,
+        first_expiration_val_type      TYPE mcha-bwtar,
+        first_expiration_source        TYPE c LENGTH 1,
+        last_expiration_batch          TYPE mchb-charg,
+        last_expiration_storage_loc    TYPE mard-lgort,
+        last_expiration_val_type       TYPE mcha-bwtar,
+        last_expiration_source         TYPE c LENGTH 1,
+        days_to_first_expiration       TYPE i,
+        days_to_last_expiration        TYPE i,
         expiration_date_span_days      TYPE i,
         base_unrestricted_qty          TYPE mchb-clabs,
         unit_unrestricted_qty          TYPE mard-labst,
@@ -547,6 +632,16 @@ CLASS zcl_stock_service DEFINITION
         blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
         first_expiration_date          TYPE mcha-vfdat,
         last_expiration_date           TYPE mcha-vfdat,
+        first_expiration_batch         TYPE mchb-charg,
+        first_expiration_storage_loc   TYPE mard-lgort,
+        first_expiration_val_type      TYPE mcha-bwtar,
+        first_expiration_source        TYPE c LENGTH 1,
+        last_expiration_batch          TYPE mchb-charg,
+        last_expiration_storage_loc    TYPE mard-lgort,
+        last_expiration_val_type       TYPE mcha-bwtar,
+        last_expiration_source         TYPE c LENGTH 1,
+        days_to_first_expiration       TYPE i,
+        days_to_last_expiration        TYPE i,
         expiration_date_span_days      TYPE i,
         base_unrestricted_qty          TYPE mchb-clabs,
         unit_unrestricted_qty          TYPE mard-labst,
@@ -559,6 +654,174 @@ CLASS zcl_stock_service DEFINITION
       END OF ty_batch_exp_src_age_uom.
     TYPES ty_batch_exp_src_age_uoms TYPE STANDARD TABLE OF
       ty_batch_exp_src_age_uom WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_mfg_age_band,
+        age_band                      TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        first_manufacturing_date      TYPE mcha-hsdat,
+        first_manufacture_source      TYPE c LENGTH 1,
+        days_since_first_manufacture  TYPE i,
+        first_manufacture_batch       TYPE mchb-charg,
+        first_manufacture_storage_loc TYPE mard-lgort,
+        first_manufacture_val_type    TYPE mcha-bwtar,
+        last_manufacturing_date       TYPE mcha-hsdat,
+        last_manufacture_source       TYPE c LENGTH 1,
+        days_since_last_manufacture   TYPE i,
+        last_manufacture_batch        TYPE mchb-charg,
+        last_manufacture_storage_loc  TYPE mard-lgort,
+        last_manufacture_val_type     TYPE mcha-bwtar,
+        manufacturing_date_span_days  TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
+      END OF ty_batch_mfg_age_band.
+    TYPES ty_batch_mfg_age_bands TYPE STANDARD TABLE OF
+      ty_batch_mfg_age_band WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_mfg_age_band_uom,
+        age_band                       TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        first_manufacturing_date       TYPE mcha-hsdat,
+        first_manufacture_source       TYPE c LENGTH 1,
+        days_since_first_manufacture   TYPE i,
+        first_manufacture_batch        TYPE mchb-charg,
+        first_manufacture_storage_loc  TYPE mard-lgort,
+        first_manufacture_val_type     TYPE mcha-bwtar,
+        last_manufacturing_date        TYPE mcha-hsdat,
+        last_manufacture_source        TYPE c LENGTH 1,
+        days_since_last_manufacture    TYPE i,
+        last_manufacture_batch         TYPE mchb-charg,
+        last_manufacture_storage_loc   TYPE mard-lgort,
+        last_manufacture_val_type      TYPE mcha-bwtar,
+        manufacturing_date_span_days   TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
+      END OF ty_batch_mfg_age_band_uom.
+    TYPES ty_batch_mfg_age_band_uoms TYPE STANDARD TABLE OF
+      ty_batch_mfg_age_band_uom WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_mfg_age_source_band,
+        source_group                  TYPE c LENGTH 1,
+        age_band                      TYPE c LENGTH 1,
+        row_count                     TYPE i,
+        unrestricted_row_count        TYPE i,
+        available_row_count           TYPE i,
+        quality_row_count             TYPE i,
+        blocked_row_count             TYPE i,
+        unrestricted_row_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_row_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_row_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_row_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        row_share_pct                 TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        age_band_row_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct   TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct      TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
+        reservation_deduction_qty     TYPE mchb-clabs,
+        unrestricted_qty_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        first_manufacturing_date      TYPE mcha-hsdat,
+        days_since_first_manufacture  TYPE i,
+        first_manufacture_batch       TYPE mchb-charg,
+        first_manufacture_storage_loc TYPE mard-lgort,
+        first_manufacture_val_type    TYPE mcha-bwtar,
+        last_manufacturing_date       TYPE mcha-hsdat,
+        days_since_last_manufacture   TYPE i,
+        last_manufacture_batch        TYPE mchb-charg,
+        last_manufacture_storage_loc  TYPE mard-lgort,
+        last_manufacture_val_type     TYPE mcha-bwtar,
+        manufacturing_date_span_days  TYPE i,
+        unrestricted_qty              TYPE mchb-clabs,
+        available_qty                 TYPE mchb-clabs,
+        quality_qty                   TYPE mchb-cinsm,
+        blocked_qty                   TYPE mchb-cspem,
+      END OF ty_batch_mfg_age_source_band.
+    TYPES ty_batch_mfg_age_source_bands TYPE STANDARD TABLE OF
+      ty_batch_mfg_age_source_band WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_batch_mfg_age_source_band_uom,
+        source_group                   TYPE c LENGTH 1,
+        age_band                       TYPE c LENGTH 1,
+        row_count                      TYPE i,
+        unrestricted_row_count         TYPE i,
+        available_row_count            TYPE i,
+        quality_row_count              TYPE i,
+        blocked_row_count              TYPE i,
+        unrestricted_row_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_row_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_row_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        row_share_pct                  TYPE p LENGTH 5 DECIMALS 2,
+        source_row_share_pct           TYPE p LENGTH 5 DECIMALS 2,
+        age_band_row_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        source_unrestricted_share_pct  TYPE p LENGTH 5 DECIMALS 2,
+        source_available_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        source_quality_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        source_blocked_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_unrestricted_share_pct    TYPE p LENGTH 5 DECIMALS 2,
+        band_available_share_pct       TYPE p LENGTH 5 DECIMALS 2,
+        band_quality_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        band_blocked_share_pct         TYPE p LENGTH 5 DECIMALS 2,
+        available_pct_of_unrestricted  TYPE p LENGTH 5 DECIMALS 2,
+        base_reservation_deduction_qty TYPE mchb-clabs,
+        unit_reservation_deduction_qty TYPE mard-labst,
+        unrestricted_qty_share_pct     TYPE p LENGTH 5 DECIMALS 2,
+        available_qty_share_pct        TYPE p LENGTH 5 DECIMALS 2,
+        quality_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
+        first_manufacturing_date       TYPE mcha-hsdat,
+        days_since_first_manufacture   TYPE i,
+        first_manufacture_batch        TYPE mchb-charg,
+        first_manufacture_storage_loc  TYPE mard-lgort,
+        first_manufacture_val_type     TYPE mcha-bwtar,
+        last_manufacturing_date        TYPE mcha-hsdat,
+        days_since_last_manufacture    TYPE i,
+        last_manufacture_batch         TYPE mchb-charg,
+        last_manufacture_storage_loc   TYPE mard-lgort,
+        last_manufacture_val_type      TYPE mcha-bwtar,
+        manufacturing_date_span_days   TYPE i,
+        base_unrestricted_qty          TYPE mchb-clabs,
+        unit_unrestricted_qty          TYPE mard-labst,
+        base_available_qty             TYPE mchb-clabs,
+        unit_available_qty             TYPE mard-labst,
+        base_quality_qty               TYPE mchb-cinsm,
+        unit_quality_qty               TYPE mard-labst,
+        base_blocked_qty               TYPE mchb-cspem,
+        unit_blocked_qty               TYPE mard-labst,
+      END OF ty_batch_mfg_age_source_band_uom.
+    TYPES ty_batch_mfg_age_source_band_uoms TYPE STANDARD TABLE OF
+      ty_batch_mfg_age_source_band_uom WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_batch_exp_src_window_uom,
         source_group                   TYPE c LENGTH 1,
@@ -584,6 +847,16 @@ CLASS zcl_stock_service DEFINITION
         blocked_qty_share_pct          TYPE p LENGTH 5 DECIMALS 2,
         first_expiration_date          TYPE mcha-vfdat,
         last_expiration_date           TYPE mcha-vfdat,
+        first_expiration_batch         TYPE mchb-charg,
+        first_expiration_storage_loc   TYPE mard-lgort,
+        first_expiration_val_type      TYPE mcha-bwtar,
+        first_expiration_source        TYPE c LENGTH 1,
+        last_expiration_batch          TYPE mchb-charg,
+        last_expiration_storage_loc    TYPE mard-lgort,
+        last_expiration_val_type       TYPE mcha-bwtar,
+        last_expiration_source         TYPE c LENGTH 1,
+        days_to_first_expiration       TYPE i,
+        days_to_last_expiration        TYPE i,
         expiration_date_span_days      TYPE i,
         base_unrestricted_qty          TYPE mchb-clabs,
         unit_unrestricted_qty          TYPE mard-labst,
@@ -605,6 +878,7 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_date            TYPE mcha-hsdat,
         manufacturing_date_source     TYPE c LENGTH 1,
         days_since_manufacture        TYPE i,
+        manufacturing_age_band        TYPE c LENGTH 1,
         unrestricted_quantity         TYPE mchb-clabs,
         available_quantity            TYPE mchb-clabs,
         available_pct_of_unrestricted TYPE p LENGTH 5 DECIMALS 2,
@@ -1274,6 +1548,10 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_age_days_from    TYPE i,
         filter_manufacturing_age_to    TYPE abap_bool,
         manufacturing_age_days_to      TYPE i,
+        filter_manufacturing_age_band  TYPE abap_bool,
+        manufacturing_age_band         TYPE c LENGTH 1,
+        filter_mfg_date_source         TYPE abap_bool,
+        mfg_date_source                TYPE c LENGTH 1,
         filter_expiry_status           TYPE abap_bool,
         expiry_status                  TYPE c LENGTH 1,
         filter_expiry_source           TYPE abap_bool,
@@ -1548,10 +1826,22 @@ CLASS zcl_stock_service DEFINITION
         expiry_sources                 TYPE ty_batch_exp_sources,
         page_expiry_src_statuses       TYPE ty_batch_exp_src_statuses,
         page_expiry_src_age_bands      TYPE ty_batch_exp_src_ages,
+        page_mfg_src_age_bands         TYPE
+          ty_batch_mfg_age_source_bands,
         page_upcoming_src_bands        TYPE ty_batch_exp_src_windows,
         page_after_window_src_bands    TYPE ty_batch_exp_src_windows,
         page_earliest_expiration_date  TYPE mcha-vfdat,
         page_latest_expiration_date    TYPE mcha-vfdat,
+        page_earliest_batch            TYPE mchb-charg,
+        page_earliest_storage_loc      TYPE mard-lgort,
+        page_earliest_val_type         TYPE mcha-bwtar,
+        page_earliest_source           TYPE c LENGTH 1,
+        page_latest_batch              TYPE mchb-charg,
+        page_latest_storage_loc        TYPE mard-lgort,
+        page_latest_val_type           TYPE mcha-bwtar,
+        page_latest_source             TYPE c LENGTH 1,
+        days_to_page_earliest_exp      TYPE i,
+        days_to_page_latest_exp        TYPE i,
         page_expiration_date_span_days TYPE i,
         page_unrestricted_qty          TYPE mchb-clabs,
         page_available_qty             TYPE mchb-clabs,
@@ -1591,6 +1881,12 @@ CLASS zcl_stock_service DEFINITION
         oldest_manufacturing_date      TYPE mcha-hsdat,
         oldest_manufacturing_date_src  TYPE c LENGTH 1,
         days_since_oldest_manufacture  TYPE i,
+        youngest_mfg_storage_loc       TYPE mard-lgort,
+        youngest_mfg_batch             TYPE mchb-charg,
+        youngest_mfg_val_type          TYPE mcha-bwtar,
+        youngest_mfg_date              TYPE mcha-hsdat,
+        youngest_mfg_date_src          TYPE c LENGTH 1,
+        days_since_youngest_mfg        TYPE i,
         first_expired_storage_location TYPE mard-lgort,
         first_expired_batch            TYPE mchb-charg,
         first_expired_valuation_type   TYPE mcha-bwtar,
@@ -1704,6 +2000,9 @@ CLASS zcl_stock_service DEFINITION
         other_expiry_source_row_count  TYPE i,
         expiry_src_statuses            TYPE ty_batch_exp_src_statuses,
         expiry_src_age_bands           TYPE ty_batch_exp_src_ages,
+        manufacturing_age_bands        TYPE ty_batch_mfg_age_bands,
+        manufacturing_age_source_bands TYPE
+          ty_batch_mfg_age_source_bands,
         upcoming_src_bands             TYPE ty_batch_exp_src_windows,
         after_window_src_bands         TYPE ty_batch_exp_src_windows,
         expired_plant_src_count        TYPE i,
@@ -1882,6 +2181,10 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_age_days_from   TYPE i,
         filter_manufacturing_age_to   TYPE abap_bool,
         manufacturing_age_days_to     TYPE i,
+        filter_manufacturing_age_band TYPE abap_bool,
+        manufacturing_age_band        TYPE c LENGTH 1,
+        filter_mfg_date_source        TYPE abap_bool,
+        mfg_date_source               TYPE c LENGTH 1,
         filter_expiry_status          TYPE abap_bool,
         expiry_status                 TYPE c LENGTH 1,
         filter_expiry_source          TYPE abap_bool,
@@ -2139,6 +2442,10 @@ CLASS zcl_stock_service DEFINITION
         manufacturing_age_days_from    TYPE i,
         filter_manufacturing_age_to    TYPE abap_bool,
         manufacturing_age_days_to      TYPE i,
+        filter_manufacturing_age_band  TYPE abap_bool,
+        manufacturing_age_band         TYPE c LENGTH 1,
+        filter_mfg_date_source         TYPE abap_bool,
+        mfg_date_source                TYPE c LENGTH 1,
         filter_expiry_status           TYPE abap_bool,
         expiry_status                  TYPE c LENGTH 1,
         filter_expiry_source           TYPE abap_bool,
@@ -2428,10 +2735,22 @@ CLASS zcl_stock_service DEFINITION
         expiry_sources                 TYPE ty_batch_exp_source_uoms,
         page_expiry_src_statuses       TYPE ty_batch_exp_src_status_uoms,
         page_expiry_src_age_bands      TYPE ty_batch_exp_src_age_uoms,
+        page_mfg_src_age_bands         TYPE
+          ty_batch_mfg_age_source_band_uoms,
         page_upcoming_src_bands        TYPE ty_batch_exp_src_window_uoms,
         page_after_window_src_bands    TYPE ty_batch_exp_src_window_uoms,
         page_earliest_expiration_date  TYPE mcha-vfdat,
         page_latest_expiration_date    TYPE mcha-vfdat,
+        page_earliest_batch            TYPE mchb-charg,
+        page_earliest_storage_loc      TYPE mard-lgort,
+        page_earliest_val_type         TYPE mcha-bwtar,
+        page_earliest_source           TYPE c LENGTH 1,
+        page_latest_batch              TYPE mchb-charg,
+        page_latest_storage_loc        TYPE mard-lgort,
+        page_latest_val_type           TYPE mcha-bwtar,
+        page_latest_source             TYPE c LENGTH 1,
+        days_to_page_earliest_exp      TYPE i,
+        days_to_page_latest_exp        TYPE i,
         page_expiration_date_span_days TYPE i,
         base_page_unrestricted_qty     TYPE mchb-clabs,
         src_page_unrestricted_qty      TYPE mard-labst,
@@ -2481,6 +2800,12 @@ CLASS zcl_stock_service DEFINITION
         oldest_manufacturing_date      TYPE mcha-hsdat,
         oldest_manufacturing_date_src  TYPE c LENGTH 1,
         days_since_oldest_manufacture  TYPE i,
+        youngest_mfg_storage_loc       TYPE mard-lgort,
+        youngest_mfg_batch             TYPE mchb-charg,
+        youngest_mfg_val_type          TYPE mcha-bwtar,
+        youngest_mfg_date              TYPE mcha-hsdat,
+        youngest_mfg_date_src          TYPE c LENGTH 1,
+        days_since_youngest_mfg        TYPE i,
         first_expired_storage_location TYPE mard-lgort,
         first_expired_batch            TYPE mchb-charg,
         first_expired_valuation_type   TYPE mcha-bwtar,
@@ -2640,6 +2965,9 @@ CLASS zcl_stock_service DEFINITION
         other_expiry_source_row_count  TYPE i,
         expiry_src_statuses            TYPE ty_batch_exp_src_status_uoms,
         expiry_src_age_bands           TYPE ty_batch_exp_src_age_uoms,
+        manufacturing_age_bands        TYPE ty_batch_mfg_age_band_uoms,
+        manufacturing_age_source_bands TYPE
+          ty_batch_mfg_age_source_band_uoms,
         upcoming_src_bands             TYPE ty_batch_exp_src_window_uoms,
         after_window_src_bands         TYPE ty_batch_exp_src_window_uoms,
         expired_plant_src_count        TYPE i,
@@ -7841,6 +8169,15 @@ CLASS zcl_stock_service DEFINITION
       RAISING
         zcx_invalid_stock_request.
 
+    METHODS sum_signed_stock_quantities
+      IMPORTING
+        iv_left_quantity   TYPE mard-labst
+        iv_right_quantity  TYPE mard-labst
+      RETURNING
+        VALUE(rv_quantity) TYPE mard-labst
+      RAISING
+        zcx_invalid_stock_request.
+
     METHODS get_stock_unit_ratio
       IMPORTING
         iv_material     TYPE mard-matnr
@@ -9617,6 +9954,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+  METHOD sum_signed_stock_quantities.
+    DATA lv_total TYPE decfloat34.
+
+    lv_total = CONV decfloat34( iv_left_quantity )
+      + CONV decfloat34( iv_right_quantity ).
+    TRY.
+        rv_quantity = CONV mard-labst( lv_total ).
+      CATCH cx_sy_conversion_overflow.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDTRY.
+  ENDMETHOD.
+
   METHOD validate_batch_receipt_id.
     IF ( iv_allow_identity <> abap_true
           AND iv_allow_identity <> abap_false )
@@ -9984,6 +10333,9 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA ls_result TYPE ty_batch_expiry_result.
     DATA lv_expired TYPE abap_bool.
     DATA lv_manufacturing_age_days TYPE i.
+    DATA lv_manufacturing_age_band TYPE c LENGTH 1.
+    DATA lv_page_manufacturing_age_band TYPE c LENGTH 1.
+    DATA lv_page_mfg_source_group TYPE c LENGTH 1.
     DATA lv_expiry_source_group TYPE c LENGTH 1.
     DATA lv_expiry_source_status TYPE c LENGTH 1.
     DATA lv_expiry_age_band TYPE c LENGTH 1.
@@ -10003,6 +10355,8 @@ CLASS zcl_stock_service IMPLEMENTATION.
     DATA lt_returned_batch_page TYPE ty_batch_expiry_rows.
     DATA ls_batch_page_row TYPE ty_batch_expiry_row.
     FIELD-SYMBOLS <ls_page_exp_window> TYPE ty_batch_exp_src_window.
+    FIELD-SYMBOLS <ls_page_mfg_source_band>
+      TYPE ty_batch_mfg_age_source_band.
     DATA ls_last_returned_batch TYPE ty_batch_expiry_row.
     DATA lv_batch_row_after_cursor TYPE abap_bool.
     DATA lv_batch_page_has_more TYPE abap_bool.
@@ -10170,6 +10524,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_manufacturing_age_from <> abap_false )
           OR ( ls_request-filter_manufacturing_age_to <> abap_true
             AND ls_request-filter_manufacturing_age_to <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_band <> abap_true
+            AND ls_request-filter_manufacturing_age_band <> abap_false )
+          OR ( ls_request-filter_mfg_date_source <> abap_true
+            AND ls_request-filter_mfg_date_source <> abap_false )
           OR ( ls_request-expiry_source IS NOT INITIAL
             AND ls_request-expiry_source <>
               zif_stock_repository=>c_expiry_source_plant
@@ -10201,6 +10559,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
       ELSEIF ls_request-expiry_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_band = abap_true.
+        IF ls_request-manufacturing_age_band <> 'F'
+            AND ls_request-manufacturing_age_band <> 'T'
+            AND ls_request-manufacturing_age_band <> '1'
+            AND ls_request-manufacturing_age_band <> '2'
+            AND ls_request-manufacturing_age_band <> '3'
+            AND ls_request-manufacturing_age_band <> '4'
+            AND ls_request-manufacturing_age_band <> 'U'.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF ls_request-manufacturing_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_mfg_date_source = abap_true.
+        IF ls_request-mfg_date_source IS NOT INITIAL
+            AND ls_request-mfg_date_source <> 'P'
+            AND ls_request-mfg_date_source <> 'G'.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF ls_request-mfg_date_source IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_expiry_upcoming_band = abap_true.
@@ -10318,6 +10698,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-filter_manufacturing_age_to = abap_false
           AND ls_request-manufacturing_age_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_band = abap_false
+          AND ls_request-manufacturing_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_mfg_date_source = abap_false
+          AND ls_request-mfg_date_source IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_manufacturing_age_from = abap_true
@@ -11515,6 +11903,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_request-filter_manufacturing_age_to.
       ls_result-manufacturing_age_days_to =
         ls_request-manufacturing_age_days_to.
+      ls_result-filter_manufacturing_age_band =
+        ls_request-filter_manufacturing_age_band.
+      ls_result-manufacturing_age_band =
+        ls_request-manufacturing_age_band.
+      ls_result-filter_mfg_date_source =
+        ls_request-filter_mfg_date_source.
+      ls_result-mfg_date_source =
+        ls_request-mfg_date_source.
       ls_result-as_of_date = ls_request-as_of_date.
       ls_result-through_date = ls_request-through_date.
       ls_result-expiration_date_from =
@@ -11932,6 +12328,57 @@ CLASS zcl_stock_service IMPLEMENTATION.
           age_band     = c_exp_age_band_over_90 ) ).
       ls_result-page_expiry_src_age_bands =
         ls_result-expiry_src_age_bands.
+      ls_result-manufacturing_age_bands = VALUE #(
+        ( age_band = 'F' )
+        ( age_band = 'T' )
+        ( age_band = '1' )
+        ( age_band = '2' )
+        ( age_band = '3' )
+        ( age_band = '4' )
+        ( age_band = 'U' ) ).
+      ls_result-manufacturing_age_source_bands = VALUE #(
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = 'F' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = 'T' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = '1' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = '2' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = '3' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = '4' )
+        ( source_group = zif_stock_repository=>c_expiry_source_plant
+          age_band     = 'U' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = 'F' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = 'T' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = '1' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = '2' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = '3' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = '4' )
+        ( source_group = zif_stock_repository=>c_expiry_source_global
+          age_band     = 'U' )
+        ( source_group = c_expiry_source_other age_band = 'F' )
+        ( source_group = c_expiry_source_other age_band = 'T' )
+        ( source_group = c_expiry_source_other age_band = '1' )
+        ( source_group = c_expiry_source_other age_band = '2' )
+        ( source_group = c_expiry_source_other age_band = '3' )
+        ( source_group = c_expiry_source_other age_band = '4' )
+        ( source_group = c_expiry_source_other age_band = 'U' ) ).
+      LOOP AT ls_result-manufacturing_age_source_bands
+          INTO DATA(ls_page_mfg_band_template).
+        APPEND VALUE ty_batch_mfg_age_source_band(
+          source_group = ls_page_mfg_band_template-source_group
+          age_band     = ls_page_mfg_band_template-age_band )
+          TO ls_result-page_mfg_src_age_bands.
+      ENDLOOP.
       ls_result-upcoming_src_bands = VALUE #(
         ( source_group = zif_stock_repository=>c_expiry_source_plant
           through_band = c_upcoming_band_0_7 )
@@ -12467,6 +12914,32 @@ CLASS zcl_stock_service IMPLEMENTATION.
             CONTINUE.
           ENDIF.
         ENDIF.
+        CLEAR lv_manufacturing_age_band.
+        IF ls_batch-manufacturing_date IS INITIAL.
+          lv_manufacturing_age_band = 'U'.
+        ELSEIF lv_manufacturing_age_days < 0.
+          lv_manufacturing_age_band = 'F'.
+        ELSEIF lv_manufacturing_age_days = 0.
+          lv_manufacturing_age_band = 'T'.
+        ELSEIF lv_manufacturing_age_days <= 7.
+          lv_manufacturing_age_band = '1'.
+        ELSEIF lv_manufacturing_age_days <= 30.
+          lv_manufacturing_age_band = '2'.
+        ELSEIF lv_manufacturing_age_days <= 90.
+          lv_manufacturing_age_band = '3'.
+        ELSE.
+          lv_manufacturing_age_band = '4'.
+        ENDIF.
+        IF ls_request-filter_manufacturing_age_band = abap_true
+            AND lv_manufacturing_age_band <>
+              ls_request-manufacturing_age_band.
+          CONTINUE.
+        ENDIF.
+        IF ls_request-filter_mfg_date_source = abap_true
+            AND ls_batch-manufacturing_date_source <>
+              ls_request-mfg_date_source.
+          CONTINUE.
+        ENDIF.
         IF ls_request-filter_expiry_status = abap_true.
           IF ls_batch-expiration_date IS INITIAL.
             CONTINUE.
@@ -12577,6 +13050,152 @@ CLASS zcl_stock_service IMPLEMENTATION.
               ENDIF.
           ENDCASE.
         ENDIF.
+        IF ls_batch-unrestricted_quantity > 0
+            OR ls_batch-available_quantity > 0
+            OR ls_batch-quality_inspection_quantity > 0
+            OR ls_batch-blocked_quantity > 0.
+          READ TABLE ls_result-manufacturing_age_bands
+            ASSIGNING FIELD-SYMBOL(<ls_manufacturing_age_band>)
+            WITH KEY age_band = lv_manufacturing_age_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          ADD 1 TO <ls_manufacturing_age_band>-row_count.
+          IF ls_batch-unrestricted_quantity > 0.
+            <ls_manufacturing_age_band>-unrestricted_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_manufacturing_age_band>-unrestricted_qty
+                iv_right_quantity = ls_batch-unrestricted_quantity ).
+          ENDIF.
+          IF ls_batch-available_quantity > 0.
+            <ls_manufacturing_age_band>-available_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_manufacturing_age_band>-available_qty
+                iv_right_quantity = ls_batch-available_quantity ).
+          ENDIF.
+          IF ls_batch-quality_inspection_quantity > 0.
+            <ls_manufacturing_age_band>-quality_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_manufacturing_age_band>-quality_qty
+                iv_right_quantity =
+                  ls_batch-quality_inspection_quantity ).
+          ENDIF.
+          IF ls_batch-blocked_quantity > 0.
+            <ls_manufacturing_age_band>-blocked_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_manufacturing_age_band>-blocked_qty
+                iv_right_quantity = ls_batch-blocked_quantity ).
+          ENDIF.
+          DATA(lv_mfg_src_group) =
+            c_expiry_source_other.
+          IF ls_batch-manufacturing_date_source =
+              zif_stock_repository=>c_expiry_source_plant.
+            lv_mfg_src_group =
+              zif_stock_repository=>c_expiry_source_plant.
+          ELSEIF ls_batch-manufacturing_date_source =
+              zif_stock_repository=>c_expiry_source_global.
+            lv_mfg_src_group =
+              zif_stock_repository=>c_expiry_source_global.
+          ENDIF.
+          READ TABLE ls_result-manufacturing_age_source_bands
+            ASSIGNING FIELD-SYMBOL(<ls_mfg_src_band>)
+            WITH KEY source_group = lv_mfg_src_group
+              age_band = lv_manufacturing_age_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          ADD 1 TO <ls_mfg_src_band>-row_count.
+          IF ls_batch-manufacturing_date IS NOT INITIAL.
+            IF <ls_mfg_src_band>-first_manufacturing_date IS INITIAL
+                OR ls_batch-manufacturing_date <
+                  <ls_mfg_src_band>-first_manufacturing_date
+                OR ( ls_batch-manufacturing_date =
+                     <ls_mfg_src_band>-first_manufacturing_date
+                  AND ( ls_batch-batch <
+                        <ls_mfg_src_band>-first_manufacture_batch
+                    OR ( ls_batch-batch =
+                         <ls_mfg_src_band>-first_manufacture_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_mfg_src_band>-first_manufacture_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_mfg_src_band>-first_manufacture_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_mfg_src_band>-first_manufacture_val_type ) ) ) ) ).
+              <ls_mfg_src_band>-first_manufacturing_date =
+                ls_batch-manufacturing_date.
+              <ls_mfg_src_band>-first_manufacture_batch =
+                ls_batch-batch.
+              <ls_mfg_src_band>-first_manufacture_storage_loc =
+                ls_batch-storage_location.
+              <ls_mfg_src_band>-first_manufacture_val_type =
+                ls_batch-valuation_type.
+            ENDIF.
+            IF <ls_mfg_src_band>-last_manufacturing_date IS INITIAL
+                OR ls_batch-manufacturing_date >
+                  <ls_mfg_src_band>-last_manufacturing_date
+                OR ( ls_batch-manufacturing_date =
+                     <ls_mfg_src_band>-last_manufacturing_date
+                  AND ( ls_batch-batch <
+                        <ls_mfg_src_band>-last_manufacture_batch
+                    OR ( ls_batch-batch =
+                         <ls_mfg_src_band>-last_manufacture_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_mfg_src_band>-last_manufacture_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_mfg_src_band>-last_manufacture_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_mfg_src_band>-last_manufacture_val_type ) ) ) ) ).
+              <ls_mfg_src_band>-last_manufacturing_date =
+                ls_batch-manufacturing_date.
+              <ls_mfg_src_band>-last_manufacture_batch =
+                ls_batch-batch.
+              <ls_mfg_src_band>-last_manufacture_storage_loc =
+                ls_batch-storage_location.
+              <ls_mfg_src_band>-last_manufacture_val_type =
+                ls_batch-valuation_type.
+            ENDIF.
+            <ls_mfg_src_band>-manufacturing_date_span_days =
+              <ls_mfg_src_band>-last_manufacturing_date -
+              <ls_mfg_src_band>-first_manufacturing_date.
+          ENDIF.
+          IF ls_batch-unrestricted_quantity > 0.
+            ADD 1 TO <ls_mfg_src_band>-unrestricted_row_count.
+            <ls_mfg_src_band>-unrestricted_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_mfg_src_band>-unrestricted_qty
+                iv_right_quantity = ls_batch-unrestricted_quantity ).
+          ENDIF.
+          IF ls_batch-available_quantity > 0.
+            ADD 1 TO <ls_mfg_src_band>-available_row_count.
+            <ls_mfg_src_band>-available_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_mfg_src_band>-available_qty
+                iv_right_quantity = ls_batch-available_quantity ).
+          ENDIF.
+          IF ls_batch-quality_inspection_quantity > 0.
+            ADD 1 TO <ls_mfg_src_band>-quality_row_count.
+            <ls_mfg_src_band>-quality_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_mfg_src_band>-quality_qty
+                iv_right_quantity =
+                  ls_batch-quality_inspection_quantity ).
+          ENDIF.
+          IF ls_batch-blocked_quantity > 0.
+            ADD 1 TO <ls_mfg_src_band>-blocked_row_count.
+            <ls_mfg_src_band>-blocked_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_mfg_src_band>-blocked_qty
+                iv_right_quantity = ls_batch-blocked_quantity ).
+          ENDIF.
+        ENDIF.
         IF ls_batch-manufacturing_date IS NOT INITIAL
             AND ( ls_batch-unrestricted_quantity > 0
               OR ls_batch-available_quantity > 0
@@ -12610,6 +13229,44 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_result-oldest_manufacturing_date_src =
             ls_batch-manufacturing_date_source.
           ls_result-days_since_oldest_manufacture =
+            lv_manufacturing_age_days.
+        ENDIF.
+        IF ls_batch-manufacturing_date IS NOT INITIAL
+            AND ( ls_batch-unrestricted_quantity > 0
+              OR ls_batch-available_quantity > 0
+              OR ls_batch-quality_inspection_quantity > 0
+              OR ls_batch-blocked_quantity > 0 )
+            AND ( ls_result-youngest_mfg_date IS INITIAL
+              OR ls_batch-manufacturing_date >
+                ls_result-youngest_mfg_date
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-youngest_mfg_date
+                AND ls_batch-batch <
+                  ls_result-youngest_mfg_batch )
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-youngest_mfg_date
+                AND ls_batch-batch =
+                  ls_result-youngest_mfg_batch
+                AND ls_batch-storage_location <
+                  ls_result-youngest_mfg_storage_loc )
+              OR ( ls_batch-manufacturing_date =
+                    ls_result-youngest_mfg_date
+                AND ls_batch-batch =
+                  ls_result-youngest_mfg_batch
+                AND ls_batch-storage_location =
+                  ls_result-youngest_mfg_storage_loc
+                AND ls_batch-valuation_type <
+                  ls_result-youngest_mfg_val_type ) ).
+          ls_result-youngest_mfg_storage_loc =
+            ls_batch-storage_location.
+          ls_result-youngest_mfg_batch = ls_batch-batch.
+          ls_result-youngest_mfg_val_type =
+            ls_batch-valuation_type.
+          ls_result-youngest_mfg_date =
+            ls_batch-manufacturing_date.
+          ls_result-youngest_mfg_date_src =
+            ls_batch-manufacturing_date_source.
+          ls_result-days_since_youngest_mfg =
             lv_manufacturing_age_days.
         ENDIF.
         IF ls_batch-expiration_date IS INITIAL.
@@ -12696,6 +13353,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                   manufacturing_date_source   =
                     ls_batch-manufacturing_date_source
                   days_since_manufacture      = lv_manufacturing_age_days
+                  manufacturing_age_band      = lv_manufacturing_age_band
                   unrestricted_quantity       =
                     ls_batch-unrestricted_quantity
                   available_quantity          = ls_batch-available_quantity
@@ -12766,6 +13424,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
                   manufacturing_date_source   =
                     ls_batch-manufacturing_date_source
                   days_since_manufacture      = lv_manufacturing_age_days
+                  manufacturing_age_band      = lv_manufacturing_age_band
                   unrestricted_quantity       =
                     ls_batch-unrestricted_quantity
                   available_quantity          = ls_batch-available_quantity
@@ -12869,19 +13528,65 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ADD 1 TO <ls_expiry_source_status>-row_count.
             IF <ls_expiry_source_status>-first_expiration_date IS INITIAL
                 OR ls_batch-expiration_date <
-                  <ls_expiry_source_status>-first_expiration_date.
+                  <ls_expiry_source_status>-first_expiration_date
+                OR ( ls_batch-expiration_date =
+                     <ls_expiry_source_status>-first_expiration_date
+                  AND ( ls_batch-batch <
+                        <ls_expiry_source_status>-first_expiration_batch
+                    OR ( ls_batch-batch =
+                         <ls_expiry_source_status>-first_expiration_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_expiry_source_status>-first_expiration_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_expiry_source_status>-first_expiration_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_expiry_source_status>-first_expiration_val_type ) ) ) ) ).
               <ls_expiry_source_status>-first_expiration_date =
                 ls_batch-expiration_date.
+              <ls_expiry_source_status>-first_expiration_batch =
+                ls_batch-batch.
+              <ls_expiry_source_status>-first_expiration_storage_loc =
+                ls_batch-storage_location.
+              <ls_expiry_source_status>-first_expiration_val_type =
+                ls_batch-valuation_type.
+              <ls_expiry_source_status>-first_expiration_source =
+                ls_batch-expiration_date_source.
             ENDIF.
             IF <ls_expiry_source_status>-last_expiration_date IS INITIAL
                 OR ls_batch-expiration_date >
-                  <ls_expiry_source_status>-last_expiration_date.
+                  <ls_expiry_source_status>-last_expiration_date
+                OR ( ls_batch-expiration_date =
+                     <ls_expiry_source_status>-last_expiration_date
+                  AND ( ls_batch-batch <
+                        <ls_expiry_source_status>-last_expiration_batch
+                    OR ( ls_batch-batch =
+                         <ls_expiry_source_status>-last_expiration_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_expiry_source_status>-last_expiration_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_expiry_source_status>-last_expiration_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_expiry_source_status>-last_expiration_val_type ) ) ) ) ).
               <ls_expiry_source_status>-last_expiration_date =
                 ls_batch-expiration_date.
+              <ls_expiry_source_status>-last_expiration_batch =
+                ls_batch-batch.
+              <ls_expiry_source_status>-last_expiration_storage_loc =
+                ls_batch-storage_location.
+              <ls_expiry_source_status>-last_expiration_val_type =
+                ls_batch-valuation_type.
+              <ls_expiry_source_status>-last_expiration_source =
+                ls_batch-expiration_date_source.
             ENDIF.
             <ls_expiry_source_status>-expiration_date_span_days =
               <ls_expiry_source_status>-last_expiration_date -
               <ls_expiry_source_status>-first_expiration_date.
+            <ls_expiry_source_status>-days_to_first_expiration =
+              <ls_expiry_source_status>-first_expiration_date -
+              ls_result-as_of_date.
+            <ls_expiry_source_status>-days_to_last_expiration =
+              <ls_expiry_source_status>-last_expiration_date -
+              ls_result-as_of_date.
             IF ls_batch-unrestricted_quantity > 0.
               <ls_expiry_source_status>-unrestricted_qty =
                 sum_stock_quantities(
@@ -12930,19 +13635,65 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ADD 1 TO <ls_after_window_source_band>-row_count.
             IF <ls_after_window_source_band>-first_expiration_date IS INITIAL
                 OR ls_batch-expiration_date <
-                  <ls_after_window_source_band>-first_expiration_date.
+                  <ls_after_window_source_band>-first_expiration_date
+                OR ( ls_batch-expiration_date =
+                     <ls_after_window_source_band>-first_expiration_date
+                  AND ( ls_batch-batch <
+                        <ls_after_window_source_band>-first_expiration_batch
+                    OR ( ls_batch-batch =
+                         <ls_after_window_source_band>-first_expiration_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_after_window_source_band>-first_expiration_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_after_window_source_band>-first_expiration_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_after_window_source_band>-first_expiration_val_type ) ) ) ) ).
               <ls_after_window_source_band>-first_expiration_date =
                 ls_batch-expiration_date.
+              <ls_after_window_source_band>-first_expiration_batch =
+                ls_batch-batch.
+              <ls_after_window_source_band>-first_expiration_storage_loc =
+                ls_batch-storage_location.
+              <ls_after_window_source_band>-first_expiration_val_type =
+                ls_batch-valuation_type.
+              <ls_after_window_source_band>-first_expiration_source =
+                ls_batch-expiration_date_source.
             ENDIF.
             IF <ls_after_window_source_band>-last_expiration_date IS INITIAL
                 OR ls_batch-expiration_date >
-                  <ls_after_window_source_band>-last_expiration_date.
+                  <ls_after_window_source_band>-last_expiration_date
+                OR ( ls_batch-expiration_date =
+                     <ls_after_window_source_band>-last_expiration_date
+                  AND ( ls_batch-batch <
+                        <ls_after_window_source_band>-last_expiration_batch
+                    OR ( ls_batch-batch =
+                         <ls_after_window_source_band>-last_expiration_batch
+                      AND ( ls_batch-storage_location <
+                            <ls_after_window_source_band>-last_expiration_storage_loc
+                        OR ( ls_batch-storage_location =
+                             <ls_after_window_source_band>-last_expiration_storage_loc
+                          AND ls_batch-valuation_type <
+                            <ls_after_window_source_band>-last_expiration_val_type ) ) ) ) ).
               <ls_after_window_source_band>-last_expiration_date =
                 ls_batch-expiration_date.
+              <ls_after_window_source_band>-last_expiration_batch =
+                ls_batch-batch.
+              <ls_after_window_source_band>-last_expiration_storage_loc =
+                ls_batch-storage_location.
+              <ls_after_window_source_band>-last_expiration_val_type =
+                ls_batch-valuation_type.
+              <ls_after_window_source_band>-last_expiration_source =
+                ls_batch-expiration_date_source.
             ENDIF.
             <ls_after_window_source_band>-expiration_date_span_days =
               <ls_after_window_source_band>-last_expiration_date -
               <ls_after_window_source_band>-first_expiration_date.
+            <ls_after_window_source_band>-days_to_first_expiration =
+              <ls_after_window_source_band>-first_expiration_date -
+              ls_result-as_of_date.
+            <ls_after_window_source_band>-days_to_last_expiration =
+              <ls_after_window_source_band>-last_expiration_date -
+              ls_result-as_of_date.
             IF ls_batch-unrestricted_quantity > 0.
               <ls_after_window_source_band>-unrestricted_qty =
                 sum_stock_quantities(
@@ -13212,19 +13963,63 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ADD 1 TO <ls_expiry_source_status>-row_count.
         IF <ls_expiry_source_status>-first_expiration_date IS INITIAL
             OR ls_batch-expiration_date <
-              <ls_expiry_source_status>-first_expiration_date.
+              <ls_expiry_source_status>-first_expiration_date
+            OR ( ls_batch-expiration_date =
+                 <ls_expiry_source_status>-first_expiration_date
+              AND ( ls_batch-batch <
+                    <ls_expiry_source_status>-first_expiration_batch
+                OR ( ls_batch-batch =
+                     <ls_expiry_source_status>-first_expiration_batch
+                  AND ( ls_batch-storage_location <
+                        <ls_expiry_source_status>-first_expiration_storage_loc
+                    OR ( ls_batch-storage_location =
+                         <ls_expiry_source_status>-first_expiration_storage_loc
+                      AND ls_batch-valuation_type <
+                        <ls_expiry_source_status>-first_expiration_val_type ) ) ) ) ).
           <ls_expiry_source_status>-first_expiration_date =
             ls_batch-expiration_date.
+          <ls_expiry_source_status>-first_expiration_batch = ls_batch-batch.
+          <ls_expiry_source_status>-first_expiration_storage_loc =
+            ls_batch-storage_location.
+          <ls_expiry_source_status>-first_expiration_val_type =
+            ls_batch-valuation_type.
+          <ls_expiry_source_status>-first_expiration_source =
+            ls_batch-expiration_date_source.
         ENDIF.
         IF <ls_expiry_source_status>-last_expiration_date IS INITIAL
             OR ls_batch-expiration_date >
-              <ls_expiry_source_status>-last_expiration_date.
+              <ls_expiry_source_status>-last_expiration_date
+            OR ( ls_batch-expiration_date =
+                 <ls_expiry_source_status>-last_expiration_date
+              AND ( ls_batch-batch <
+                    <ls_expiry_source_status>-last_expiration_batch
+                OR ( ls_batch-batch =
+                     <ls_expiry_source_status>-last_expiration_batch
+                  AND ( ls_batch-storage_location <
+                        <ls_expiry_source_status>-last_expiration_storage_loc
+                    OR ( ls_batch-storage_location =
+                         <ls_expiry_source_status>-last_expiration_storage_loc
+                      AND ls_batch-valuation_type <
+                        <ls_expiry_source_status>-last_expiration_val_type ) ) ) ) ).
           <ls_expiry_source_status>-last_expiration_date =
             ls_batch-expiration_date.
+          <ls_expiry_source_status>-last_expiration_batch = ls_batch-batch.
+          <ls_expiry_source_status>-last_expiration_storage_loc =
+            ls_batch-storage_location.
+          <ls_expiry_source_status>-last_expiration_val_type =
+            ls_batch-valuation_type.
+          <ls_expiry_source_status>-last_expiration_source =
+            ls_batch-expiration_date_source.
         ENDIF.
         <ls_expiry_source_status>-expiration_date_span_days =
           <ls_expiry_source_status>-last_expiration_date -
           <ls_expiry_source_status>-first_expiration_date.
+        <ls_expiry_source_status>-days_to_first_expiration =
+          <ls_expiry_source_status>-first_expiration_date -
+          ls_result-as_of_date.
+        <ls_expiry_source_status>-days_to_last_expiration =
+          <ls_expiry_source_status>-last_expiration_date -
+          ls_result-as_of_date.
         IF ls_batch-unrestricted_quantity > 0.
           <ls_expiry_source_status>-unrestricted_qty = sum_stock_quantities(
             iv_left_quantity  =
@@ -13261,6 +14056,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
           manufacturing_date_source   =
             ls_batch-manufacturing_date_source
           days_since_manufacture      = lv_manufacturing_age_days
+          manufacturing_age_band      = lv_manufacturing_age_band
           unrestricted_quantity       = ls_batch-unrestricted_quantity
           available_quantity          = ls_batch-available_quantity
           reservation_deduction_qty   =
@@ -13434,19 +14230,63 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ADD 1 TO <ls_expiry_source_age>-row_count.
           IF <ls_expiry_source_age>-first_expiration_date IS INITIAL
               OR ls_batch-expiration_date <
-                <ls_expiry_source_age>-first_expiration_date.
+                <ls_expiry_source_age>-first_expiration_date
+              OR ( ls_batch-expiration_date =
+                   <ls_expiry_source_age>-first_expiration_date
+                AND ( ls_batch-batch <
+                      <ls_expiry_source_age>-first_expiration_batch
+                  OR ( ls_batch-batch =
+                       <ls_expiry_source_age>-first_expiration_batch
+                    AND ( ls_batch-storage_location <
+                          <ls_expiry_source_age>-first_expiration_storage_loc
+                      OR ( ls_batch-storage_location =
+                           <ls_expiry_source_age>-first_expiration_storage_loc
+                        AND ls_batch-valuation_type <
+                          <ls_expiry_source_age>-first_expiration_val_type ) ) ) ) ).
             <ls_expiry_source_age>-first_expiration_date =
               ls_batch-expiration_date.
+            <ls_expiry_source_age>-first_expiration_batch = ls_batch-batch.
+            <ls_expiry_source_age>-first_expiration_storage_loc =
+              ls_batch-storage_location.
+            <ls_expiry_source_age>-first_expiration_val_type =
+              ls_batch-valuation_type.
+            <ls_expiry_source_age>-first_expiration_source =
+              ls_batch-expiration_date_source.
           ENDIF.
           IF <ls_expiry_source_age>-last_expiration_date IS INITIAL
               OR ls_batch-expiration_date >
-                <ls_expiry_source_age>-last_expiration_date.
+                <ls_expiry_source_age>-last_expiration_date
+              OR ( ls_batch-expiration_date =
+                   <ls_expiry_source_age>-last_expiration_date
+                AND ( ls_batch-batch <
+                      <ls_expiry_source_age>-last_expiration_batch
+                  OR ( ls_batch-batch =
+                       <ls_expiry_source_age>-last_expiration_batch
+                    AND ( ls_batch-storage_location <
+                          <ls_expiry_source_age>-last_expiration_storage_loc
+                      OR ( ls_batch-storage_location =
+                           <ls_expiry_source_age>-last_expiration_storage_loc
+                        AND ls_batch-valuation_type <
+                          <ls_expiry_source_age>-last_expiration_val_type ) ) ) ) ).
             <ls_expiry_source_age>-last_expiration_date =
               ls_batch-expiration_date.
+            <ls_expiry_source_age>-last_expiration_batch = ls_batch-batch.
+            <ls_expiry_source_age>-last_expiration_storage_loc =
+              ls_batch-storage_location.
+            <ls_expiry_source_age>-last_expiration_val_type =
+              ls_batch-valuation_type.
+            <ls_expiry_source_age>-last_expiration_source =
+              ls_batch-expiration_date_source.
           ENDIF.
           <ls_expiry_source_age>-expiration_date_span_days =
             <ls_expiry_source_age>-last_expiration_date -
             <ls_expiry_source_age>-first_expiration_date.
+          <ls_expiry_source_age>-days_to_first_expiration =
+            <ls_expiry_source_age>-first_expiration_date -
+            ls_result-as_of_date.
+          <ls_expiry_source_age>-days_to_last_expiration =
+            <ls_expiry_source_age>-last_expiration_date -
+            ls_result-as_of_date.
           IF ls_batch-unrestricted_quantity > 0.
             <ls_expiry_source_age>-unrestricted_qty = sum_stock_quantities(
               iv_left_quantity  =
@@ -13663,19 +14503,65 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ADD 1 TO <ls_expiry_source_window>-row_count.
           IF <ls_expiry_source_window>-first_expiration_date IS INITIAL
               OR ls_batch-expiration_date <
-                <ls_expiry_source_window>-first_expiration_date.
+                <ls_expiry_source_window>-first_expiration_date
+              OR ( ls_batch-expiration_date =
+                   <ls_expiry_source_window>-first_expiration_date
+                AND ( ls_batch-batch <
+                      <ls_expiry_source_window>-first_expiration_batch
+                  OR ( ls_batch-batch =
+                       <ls_expiry_source_window>-first_expiration_batch
+                    AND ( ls_batch-storage_location <
+                          <ls_expiry_source_window>-first_expiration_storage_loc
+                      OR ( ls_batch-storage_location =
+                           <ls_expiry_source_window>-first_expiration_storage_loc
+                        AND ls_batch-valuation_type <
+                          <ls_expiry_source_window>-first_expiration_val_type ) ) ) ) ).
             <ls_expiry_source_window>-first_expiration_date =
               ls_batch-expiration_date.
+            <ls_expiry_source_window>-first_expiration_batch =
+              ls_batch-batch.
+            <ls_expiry_source_window>-first_expiration_storage_loc =
+              ls_batch-storage_location.
+            <ls_expiry_source_window>-first_expiration_val_type =
+              ls_batch-valuation_type.
+            <ls_expiry_source_window>-first_expiration_source =
+              ls_batch-expiration_date_source.
           ENDIF.
           IF <ls_expiry_source_window>-last_expiration_date IS INITIAL
               OR ls_batch-expiration_date >
-                <ls_expiry_source_window>-last_expiration_date.
+                <ls_expiry_source_window>-last_expiration_date
+              OR ( ls_batch-expiration_date =
+                   <ls_expiry_source_window>-last_expiration_date
+                AND ( ls_batch-batch <
+                      <ls_expiry_source_window>-last_expiration_batch
+                  OR ( ls_batch-batch =
+                       <ls_expiry_source_window>-last_expiration_batch
+                    AND ( ls_batch-storage_location <
+                          <ls_expiry_source_window>-last_expiration_storage_loc
+                      OR ( ls_batch-storage_location =
+                           <ls_expiry_source_window>-last_expiration_storage_loc
+                        AND ls_batch-valuation_type <
+                          <ls_expiry_source_window>-last_expiration_val_type ) ) ) ) ).
             <ls_expiry_source_window>-last_expiration_date =
               ls_batch-expiration_date.
+            <ls_expiry_source_window>-last_expiration_batch =
+              ls_batch-batch.
+            <ls_expiry_source_window>-last_expiration_storage_loc =
+              ls_batch-storage_location.
+            <ls_expiry_source_window>-last_expiration_val_type =
+              ls_batch-valuation_type.
+            <ls_expiry_source_window>-last_expiration_source =
+              ls_batch-expiration_date_source.
           ENDIF.
           <ls_expiry_source_window>-expiration_date_span_days =
             <ls_expiry_source_window>-last_expiration_date -
             <ls_expiry_source_window>-first_expiration_date.
+          <ls_expiry_source_window>-days_to_first_expiration =
+            <ls_expiry_source_window>-first_expiration_date -
+            ls_result-as_of_date.
+          <ls_expiry_source_window>-days_to_last_expiration =
+            <ls_expiry_source_window>-last_expiration_date -
+            ls_result-as_of_date.
           IF ls_batch-unrestricted_quantity > 0.
             <ls_expiry_source_window>-unrestricted_qty =
               sum_stock_quantities(
@@ -14013,14 +14899,55 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ( <ls_full_expiry_status>-first_expiration_date
                   IS INITIAL
               OR ls_full_expiry_source_status-first_expiration_date
-                < <ls_full_expiry_status>-first_expiration_date ).
+                < <ls_full_expiry_status>-first_expiration_date
+              OR ( ls_full_expiry_source_status-first_expiration_date =
+                   <ls_full_expiry_status>-first_expiration_date
+                AND ( ls_full_expiry_source_status-first_expiration_batch <
+                      <ls_full_expiry_status>-first_expiration_batch
+                  OR ( ls_full_expiry_source_status-first_expiration_batch =
+                       <ls_full_expiry_status>-first_expiration_batch
+                    AND ( ls_full_expiry_source_status-first_expiration_storage_loc <
+                          <ls_full_expiry_status>-first_expiration_storage_loc
+                      OR ( ls_full_expiry_source_status-first_expiration_storage_loc =
+                           <ls_full_expiry_status>-first_expiration_storage_loc
+                        AND ls_full_expiry_source_status-first_expiration_val_type <
+                          <ls_full_expiry_status>-first_expiration_val_type ) ) ) ) ) ).
           <ls_full_expiry_status>-first_expiration_date =
             ls_full_expiry_source_status-first_expiration_date.
+          <ls_full_expiry_status>-first_expiration_batch =
+            ls_full_expiry_source_status-first_expiration_batch.
+          <ls_full_expiry_status>-first_expiration_storage_loc =
+            ls_full_expiry_source_status-first_expiration_storage_loc.
+          <ls_full_expiry_status>-first_expiration_val_type =
+            ls_full_expiry_source_status-first_expiration_val_type.
+          <ls_full_expiry_status>-first_expiration_source =
+            ls_full_expiry_source_status-first_expiration_source.
         ENDIF.
-        IF ls_full_expiry_source_status-last_expiration_date
-              > <ls_full_expiry_status>-last_expiration_date.
+        IF <ls_full_expiry_status>-last_expiration_date IS INITIAL
+            OR ls_full_expiry_source_status-last_expiration_date
+              > <ls_full_expiry_status>-last_expiration_date
+            OR ( ls_full_expiry_source_status-last_expiration_date =
+                 <ls_full_expiry_status>-last_expiration_date
+              AND ( ls_full_expiry_source_status-last_expiration_batch <
+                    <ls_full_expiry_status>-last_expiration_batch
+                OR ( ls_full_expiry_source_status-last_expiration_batch =
+                     <ls_full_expiry_status>-last_expiration_batch
+                  AND ( ls_full_expiry_source_status-last_expiration_storage_loc <
+                        <ls_full_expiry_status>-last_expiration_storage_loc
+                    OR ( ls_full_expiry_source_status-last_expiration_storage_loc =
+                         <ls_full_expiry_status>-last_expiration_storage_loc
+                      AND ls_full_expiry_source_status-last_expiration_val_type <
+                        <ls_full_expiry_status>-last_expiration_val_type ) ) ) ) ).
           <ls_full_expiry_status>-last_expiration_date =
             ls_full_expiry_source_status-last_expiration_date.
+          <ls_full_expiry_status>-last_expiration_batch =
+            ls_full_expiry_source_status-last_expiration_batch.
+          <ls_full_expiry_status>-last_expiration_storage_loc =
+            ls_full_expiry_source_status-last_expiration_storage_loc.
+          <ls_full_expiry_status>-last_expiration_val_type =
+            ls_full_expiry_source_status-last_expiration_val_type.
+          <ls_full_expiry_status>-last_expiration_source =
+            ls_full_expiry_source_status-last_expiration_source.
         ENDIF.
         READ TABLE ls_result-expiry_sources
           ASSIGNING FIELD-SYMBOL(<ls_full_expiry_source>)
@@ -14057,14 +14984,55 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ( <ls_full_expiry_source>-first_expiration_date
                   IS INITIAL
               OR ls_full_expiry_source_status-first_expiration_date
-                < <ls_full_expiry_source>-first_expiration_date ).
+                < <ls_full_expiry_source>-first_expiration_date
+              OR ( ls_full_expiry_source_status-first_expiration_date =
+                   <ls_full_expiry_source>-first_expiration_date
+                AND ( ls_full_expiry_source_status-first_expiration_batch <
+                      <ls_full_expiry_source>-first_expiration_batch
+                  OR ( ls_full_expiry_source_status-first_expiration_batch =
+                       <ls_full_expiry_source>-first_expiration_batch
+                    AND ( ls_full_expiry_source_status-first_expiration_storage_loc <
+                          <ls_full_expiry_source>-first_expiration_storage_loc
+                      OR ( ls_full_expiry_source_status-first_expiration_storage_loc =
+                           <ls_full_expiry_source>-first_expiration_storage_loc
+                        AND ls_full_expiry_source_status-first_expiration_val_type <
+                          <ls_full_expiry_source>-first_expiration_val_type ) ) ) ) ) ).
           <ls_full_expiry_source>-first_expiration_date =
             ls_full_expiry_source_status-first_expiration_date.
+          <ls_full_expiry_source>-first_expiration_batch =
+            ls_full_expiry_source_status-first_expiration_batch.
+          <ls_full_expiry_source>-first_expiration_storage_loc =
+            ls_full_expiry_source_status-first_expiration_storage_loc.
+          <ls_full_expiry_source>-first_expiration_val_type =
+            ls_full_expiry_source_status-first_expiration_val_type.
+          <ls_full_expiry_source>-first_expiration_source =
+            ls_full_expiry_source_status-first_expiration_source.
         ENDIF.
-        IF ls_full_expiry_source_status-last_expiration_date
-              > <ls_full_expiry_source>-last_expiration_date.
+        IF <ls_full_expiry_source>-last_expiration_date IS INITIAL
+            OR ls_full_expiry_source_status-last_expiration_date
+              > <ls_full_expiry_source>-last_expiration_date
+            OR ( ls_full_expiry_source_status-last_expiration_date =
+                 <ls_full_expiry_source>-last_expiration_date
+              AND ( ls_full_expiry_source_status-last_expiration_batch <
+                    <ls_full_expiry_source>-last_expiration_batch
+                OR ( ls_full_expiry_source_status-last_expiration_batch =
+                     <ls_full_expiry_source>-last_expiration_batch
+                  AND ( ls_full_expiry_source_status-last_expiration_storage_loc <
+                        <ls_full_expiry_source>-last_expiration_storage_loc
+                    OR ( ls_full_expiry_source_status-last_expiration_storage_loc =
+                         <ls_full_expiry_source>-last_expiration_storage_loc
+                      AND ls_full_expiry_source_status-last_expiration_val_type <
+                          <ls_full_expiry_source>-last_expiration_val_type ) ) ) ) ).
           <ls_full_expiry_source>-last_expiration_date =
             ls_full_expiry_source_status-last_expiration_date.
+          <ls_full_expiry_source>-last_expiration_batch =
+            ls_full_expiry_source_status-last_expiration_batch.
+          <ls_full_expiry_source>-last_expiration_storage_loc =
+            ls_full_expiry_source_status-last_expiration_storage_loc.
+          <ls_full_expiry_source>-last_expiration_val_type =
+            ls_full_expiry_source_status-last_expiration_val_type.
+          <ls_full_expiry_source>-last_expiration_source =
+            ls_full_expiry_source_status-last_expiration_source.
         ENDIF.
       ENDLOOP.
       LOOP AT ls_result-expiry_statuses
@@ -14075,6 +15043,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
           <ls_full_expiry_status>-expiration_date_span_days =
             <ls_full_expiry_status>-last_expiration_date
             - <ls_full_expiry_status>-first_expiration_date.
+          <ls_full_expiry_status>-days_to_first_expiration =
+            <ls_full_expiry_status>-first_expiration_date
+            - ls_result-as_of_date.
+          <ls_full_expiry_status>-days_to_last_expiration =
+            <ls_full_expiry_status>-last_expiration_date
+            - ls_result-as_of_date.
         ENDIF.
         IF <ls_full_expiry_status>-unrestricted_qty > 0.
           <ls_full_expiry_status>-available_pct_of_unrestricted =
@@ -14124,6 +15098,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
           <ls_full_expiry_source>-expiration_date_span_days =
             <ls_full_expiry_source>-last_expiration_date
             - <ls_full_expiry_source>-first_expiration_date.
+          <ls_full_expiry_source>-days_to_first_expiration =
+            <ls_full_expiry_source>-first_expiration_date
+            - ls_result-as_of_date.
+          <ls_full_expiry_source>-days_to_last_expiration =
+            <ls_full_expiry_source>-last_expiration_date
+            - ls_result-as_of_date.
         ENDIF.
         IF <ls_full_expiry_source>-unrestricted_qty > 0.
           <ls_full_expiry_source>-available_pct_of_unrestricted =
@@ -14241,6 +15221,314 @@ CLASS zcl_stock_service IMPLEMENTATION.
               <ls_full_src_status_share>-blocked_qty ) * 100
             / CONV decfloat34(
               ls_full_src_for_status-blocked_qty ).
+        ENDIF.
+      ENDLOOP.
+      DATA lv_mfg_age_total_rows TYPE i.
+      DATA lv_mfg_age_total_unrestricted TYPE decfloat34.
+      DATA lv_mfg_age_total_available TYPE decfloat34.
+      DATA lv_mfg_age_total_quality TYPE decfloat34.
+      DATA lv_mfg_age_total_blocked TYPE decfloat34.
+      LOOP AT ls_result-manufacturing_age_bands
+          INTO DATA(ls_mfg_age_total).
+        lv_mfg_age_total_rows = lv_mfg_age_total_rows +
+          ls_mfg_age_total-row_count.
+        lv_mfg_age_total_unrestricted = lv_mfg_age_total_unrestricted +
+          CONV decfloat34( ls_mfg_age_total-unrestricted_qty ).
+        lv_mfg_age_total_available = lv_mfg_age_total_available +
+          CONV decfloat34( ls_mfg_age_total-available_qty ).
+        lv_mfg_age_total_quality = lv_mfg_age_total_quality +
+          CONV decfloat34( ls_mfg_age_total-quality_qty ).
+        lv_mfg_age_total_blocked = lv_mfg_age_total_blocked +
+          CONV decfloat34( ls_mfg_age_total-blocked_qty ).
+      ENDLOOP.
+      LOOP AT ls_result-manufacturing_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_mfg_age_share>).
+        IF lv_mfg_age_total_rows > 0.
+          <ls_mfg_age_share>-row_share_pct =
+            CONV decfloat34( <ls_mfg_age_share>-row_count ) * 100
+            / CONV decfloat34( lv_mfg_age_total_rows ).
+        ENDIF.
+        IF lv_mfg_age_total_unrestricted > 0.
+          <ls_mfg_age_share>-unrestricted_qty_share_pct =
+            CONV decfloat34( <ls_mfg_age_share>-unrestricted_qty ) * 100
+            / lv_mfg_age_total_unrestricted.
+        ENDIF.
+        IF lv_mfg_age_total_available > 0.
+          <ls_mfg_age_share>-available_qty_share_pct =
+            CONV decfloat34( <ls_mfg_age_share>-available_qty ) * 100
+            / lv_mfg_age_total_available.
+        ENDIF.
+        IF lv_mfg_age_total_quality > 0.
+          <ls_mfg_age_share>-quality_qty_share_pct =
+            CONV decfloat34( <ls_mfg_age_share>-quality_qty ) * 100
+            / lv_mfg_age_total_quality.
+        ENDIF.
+        IF lv_mfg_age_total_blocked > 0.
+          <ls_mfg_age_share>-blocked_qty_share_pct =
+            CONV decfloat34( <ls_mfg_age_share>-blocked_qty ) * 100
+            / lv_mfg_age_total_blocked.
+        ENDIF.
+        IF <ls_mfg_age_share>-unrestricted_qty > 0.
+          <ls_mfg_age_share>-available_pct_of_unrestricted =
+            CONV decfloat34( <ls_mfg_age_share>-available_qty ) * 100
+            / CONV decfloat34( <ls_mfg_age_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_mfg_age_share>-reservation_deduction_qty =
+          CONV decfloat34( <ls_mfg_age_share>-unrestricted_qty ) -
+          CONV decfloat34( <ls_mfg_age_share>-available_qty ).
+      ENDLOOP.
+      DATA(lt_mfg_age_source_share_rows) =
+        ls_result-manufacturing_age_source_bands.
+      LOOP AT ls_result-manufacturing_age_source_bands
+          ASSIGNING FIELD-SYMBOL(<ls_mfg_age_source_share>).
+        IF <ls_mfg_age_source_share>-first_manufacturing_date IS NOT INITIAL.
+          <ls_mfg_age_source_share>-days_since_first_manufacture =
+            ls_result-as_of_date -
+            <ls_mfg_age_source_share>-first_manufacturing_date.
+        ENDIF.
+        IF <ls_mfg_age_source_share>-last_manufacturing_date IS NOT INITIAL.
+          <ls_mfg_age_source_share>-days_since_last_manufacture =
+            ls_result-as_of_date -
+            <ls_mfg_age_source_share>-last_manufacturing_date.
+        ENDIF.
+        IF lv_mfg_age_total_rows > 0.
+          <ls_mfg_age_source_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ) * 100
+            / CONV decfloat34( lv_mfg_age_total_rows ).
+        ENDIF.
+        IF <ls_mfg_age_source_share>-row_count > 0.
+          <ls_mfg_age_source_share>-unrestricted_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-unrestricted_row_count ) * 100
+            / CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ).
+          <ls_mfg_age_source_share>-available_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-available_row_count ) * 100
+            / CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ).
+          <ls_mfg_age_source_share>-quality_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-quality_row_count ) * 100
+            / CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ).
+          <ls_mfg_age_source_share>-blocked_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-blocked_row_count ) * 100
+            / CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ).
+        ENDIF.
+        DATA(lv_mfg_age_source_rows) = 0.
+        DATA(lv_mfg_age_src_unrestricted) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_src_available) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_src_quality) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_src_blocked) = CONV decfloat34( 0 ).
+        LOOP AT lt_mfg_age_source_share_rows
+            INTO DATA(ls_mfg_age_source_row)
+            WHERE source_group =
+              <ls_mfg_age_source_share>-source_group.
+          lv_mfg_age_source_rows = lv_mfg_age_source_rows +
+            ls_mfg_age_source_row-row_count.
+          lv_mfg_age_src_unrestricted = lv_mfg_age_src_unrestricted +
+            CONV decfloat34( ls_mfg_age_source_row-unrestricted_qty ).
+          lv_mfg_age_src_available = lv_mfg_age_src_available +
+            CONV decfloat34( ls_mfg_age_source_row-available_qty ).
+          lv_mfg_age_src_quality = lv_mfg_age_src_quality +
+            CONV decfloat34( ls_mfg_age_source_row-quality_qty ).
+          lv_mfg_age_src_blocked = lv_mfg_age_src_blocked +
+            CONV decfloat34( ls_mfg_age_source_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_mfg_age_source_rows > 0.
+          <ls_mfg_age_source_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ) * 100
+            / CONV decfloat34( lv_mfg_age_source_rows ).
+        ENDIF.
+        IF lv_mfg_age_src_unrestricted > 0.
+          <ls_mfg_age_source_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-unrestricted_qty ) * 100
+            / lv_mfg_age_src_unrestricted.
+        ENDIF.
+        IF lv_mfg_age_src_available > 0.
+          <ls_mfg_age_source_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-available_qty ) * 100
+            / lv_mfg_age_src_available.
+        ENDIF.
+        IF lv_mfg_age_src_quality > 0.
+          <ls_mfg_age_source_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-quality_qty ) * 100
+            / lv_mfg_age_src_quality.
+        ENDIF.
+        IF lv_mfg_age_src_blocked > 0.
+          <ls_mfg_age_source_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-blocked_qty ) * 100
+            / lv_mfg_age_src_blocked.
+        ENDIF.
+        DATA(lv_mfg_age_band_rows) = 0.
+        DATA(lv_mfg_age_band_unrestricted) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_band_available) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_band_quality) = CONV decfloat34( 0 ).
+        DATA(lv_mfg_age_band_blocked) = CONV decfloat34( 0 ).
+        LOOP AT lt_mfg_age_source_share_rows
+            INTO DATA(ls_mfg_age_band_row)
+            WHERE age_band = <ls_mfg_age_source_share>-age_band.
+          lv_mfg_age_band_rows = lv_mfg_age_band_rows +
+            ls_mfg_age_band_row-row_count.
+          lv_mfg_age_band_unrestricted =
+            lv_mfg_age_band_unrestricted +
+            CONV decfloat34( ls_mfg_age_band_row-unrestricted_qty ).
+          lv_mfg_age_band_available = lv_mfg_age_band_available +
+            CONV decfloat34( ls_mfg_age_band_row-available_qty ).
+          lv_mfg_age_band_quality = lv_mfg_age_band_quality +
+            CONV decfloat34( ls_mfg_age_band_row-quality_qty ).
+          lv_mfg_age_band_blocked = lv_mfg_age_band_blocked +
+            CONV decfloat34( ls_mfg_age_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_mfg_age_band_rows > 0.
+          <ls_mfg_age_source_share>-age_band_row_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-row_count ) * 100
+            / CONV decfloat34( lv_mfg_age_band_rows ).
+        ENDIF.
+        IF lv_mfg_age_band_unrestricted > 0.
+          <ls_mfg_age_source_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-unrestricted_qty ) * 100
+            / lv_mfg_age_band_unrestricted.
+        ENDIF.
+        IF lv_mfg_age_band_available > 0.
+          <ls_mfg_age_source_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-available_qty ) * 100
+            / lv_mfg_age_band_available.
+        ENDIF.
+        IF lv_mfg_age_band_quality > 0.
+          <ls_mfg_age_source_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-quality_qty ) * 100
+            / lv_mfg_age_band_quality.
+        ENDIF.
+        IF lv_mfg_age_band_blocked > 0.
+          <ls_mfg_age_source_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-blocked_qty ) * 100
+            / lv_mfg_age_band_blocked.
+        ENDIF.
+        IF lv_mfg_age_total_unrestricted > 0.
+          <ls_mfg_age_source_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-unrestricted_qty ) * 100
+            / lv_mfg_age_total_unrestricted.
+        ENDIF.
+        IF lv_mfg_age_total_available > 0.
+          <ls_mfg_age_source_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-available_qty ) * 100
+            / lv_mfg_age_total_available.
+        ENDIF.
+        IF lv_mfg_age_total_quality > 0.
+          <ls_mfg_age_source_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-quality_qty ) * 100
+            / lv_mfg_age_total_quality.
+        ENDIF.
+        IF lv_mfg_age_total_blocked > 0.
+          <ls_mfg_age_source_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-blocked_qty ) * 100
+            / lv_mfg_age_total_blocked.
+        ENDIF.
+        IF <ls_mfg_age_source_share>-unrestricted_qty > 0.
+          <ls_mfg_age_source_share>-available_pct_of_unrestricted =
+            CONV decfloat34(
+              <ls_mfg_age_source_share>-available_qty ) * 100
+            / CONV decfloat34(
+              <ls_mfg_age_source_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_mfg_age_source_share>-reservation_deduction_qty =
+          CONV decfloat34(
+            <ls_mfg_age_source_share>-unrestricted_qty ) -
+          CONV decfloat34(
+            <ls_mfg_age_source_share>-available_qty ).
+        IF <ls_mfg_age_source_share>-first_manufacturing_date IS NOT INITIAL.
+          READ TABLE ls_result-manufacturing_age_bands
+            ASSIGNING FIELD-SYMBOL(<ls_mfg_age_summary_span>)
+            WITH KEY age_band = <ls_mfg_age_source_share>-age_band.
+          IF sy-subrc <> 0.
+            RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+          ENDIF.
+          IF <ls_mfg_age_summary_span>-first_manufacturing_date IS INITIAL
+              OR <ls_mfg_age_source_share>-first_manufacturing_date <
+                <ls_mfg_age_summary_span>-first_manufacturing_date
+              OR ( <ls_mfg_age_source_share>-first_manufacturing_date =
+                   <ls_mfg_age_summary_span>-first_manufacturing_date
+                AND ( <ls_mfg_age_source_share>-first_manufacture_batch <
+                      <ls_mfg_age_summary_span>-first_manufacture_batch
+                  OR ( <ls_mfg_age_source_share>-first_manufacture_batch =
+                       <ls_mfg_age_summary_span>-first_manufacture_batch
+                    AND ( <ls_mfg_age_source_share>-first_manufacture_storage_loc <
+                          <ls_mfg_age_summary_span>-first_manufacture_storage_loc
+                      OR ( <ls_mfg_age_source_share>-first_manufacture_storage_loc =
+                           <ls_mfg_age_summary_span>-first_manufacture_storage_loc
+                        AND <ls_mfg_age_source_share>-first_manufacture_val_type <
+                          <ls_mfg_age_summary_span>-first_manufacture_val_type ) ) ) ) ).
+            <ls_mfg_age_summary_span>-first_manufacturing_date =
+              <ls_mfg_age_source_share>-first_manufacturing_date.
+            <ls_mfg_age_summary_span>-first_manufacture_batch =
+              <ls_mfg_age_source_share>-first_manufacture_batch.
+            <ls_mfg_age_summary_span>-first_manufacture_storage_loc =
+              <ls_mfg_age_source_share>-first_manufacture_storage_loc.
+            <ls_mfg_age_summary_span>-first_manufacture_val_type =
+              <ls_mfg_age_source_share>-first_manufacture_val_type.
+            <ls_mfg_age_summary_span>-first_manufacture_source =
+              <ls_mfg_age_source_share>-source_group.
+          ENDIF.
+          IF <ls_mfg_age_summary_span>-last_manufacturing_date IS INITIAL
+              OR <ls_mfg_age_source_share>-last_manufacturing_date >
+                <ls_mfg_age_summary_span>-last_manufacturing_date
+              OR ( <ls_mfg_age_source_share>-last_manufacturing_date =
+                   <ls_mfg_age_summary_span>-last_manufacturing_date
+                AND ( <ls_mfg_age_source_share>-last_manufacture_batch <
+                      <ls_mfg_age_summary_span>-last_manufacture_batch
+                  OR ( <ls_mfg_age_source_share>-last_manufacture_batch =
+                       <ls_mfg_age_summary_span>-last_manufacture_batch
+                    AND ( <ls_mfg_age_source_share>-last_manufacture_storage_loc <
+                          <ls_mfg_age_summary_span>-last_manufacture_storage_loc
+                      OR ( <ls_mfg_age_source_share>-last_manufacture_storage_loc =
+                           <ls_mfg_age_summary_span>-last_manufacture_storage_loc
+                        AND <ls_mfg_age_source_share>-last_manufacture_val_type <
+                          <ls_mfg_age_summary_span>-last_manufacture_val_type ) ) ) ) ).
+            <ls_mfg_age_summary_span>-last_manufacturing_date =
+              <ls_mfg_age_source_share>-last_manufacturing_date.
+            <ls_mfg_age_summary_span>-last_manufacture_batch =
+              <ls_mfg_age_source_share>-last_manufacture_batch.
+            <ls_mfg_age_summary_span>-last_manufacture_storage_loc =
+              <ls_mfg_age_source_share>-last_manufacture_storage_loc.
+            <ls_mfg_age_summary_span>-last_manufacture_val_type =
+              <ls_mfg_age_source_share>-last_manufacture_val_type.
+            <ls_mfg_age_summary_span>-last_manufacture_source =
+              <ls_mfg_age_source_share>-source_group.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT ls_result-manufacturing_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_mfg_age_summary_span_days>).
+        IF <ls_mfg_age_summary_span_days>-first_manufacturing_date IS NOT INITIAL
+            AND <ls_mfg_age_summary_span_days>-last_manufacturing_date IS NOT INITIAL.
+          <ls_mfg_age_summary_span_days>-days_since_first_manufacture =
+            ls_result-as_of_date -
+            <ls_mfg_age_summary_span_days>-first_manufacturing_date.
+          <ls_mfg_age_summary_span_days>-days_since_last_manufacture =
+            ls_result-as_of_date -
+            <ls_mfg_age_summary_span_days>-last_manufacturing_date.
+          <ls_mfg_age_summary_span_days>-manufacturing_date_span_days =
+            <ls_mfg_age_summary_span_days>-last_manufacturing_date -
+            <ls_mfg_age_summary_span_days>-first_manufacturing_date.
         ENDIF.
       ENDLOOP.
       IF ls_result-expired_batch_row_count > 0.
@@ -14870,15 +16158,53 @@ CLASS zcl_stock_service IMPLEMENTATION.
       LOOP AT ls_result-batches INTO ls_batch_page_row.
         IF ls_result-page_earliest_expiration_date IS INITIAL
             OR ls_batch_page_row-expiration_date <
-              ls_result-page_earliest_expiration_date.
+              ls_result-page_earliest_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 ls_result-page_earliest_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    ls_result-page_earliest_batch
+                OR ( ls_batch_page_row-batch =
+                     ls_result-page_earliest_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        ls_result-page_earliest_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         ls_result-page_earliest_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        ls_result-page_earliest_val_type ) ) ) ) ).
           ls_result-page_earliest_expiration_date =
             ls_batch_page_row-expiration_date.
+          ls_result-page_earliest_batch = ls_batch_page_row-batch.
+          ls_result-page_earliest_storage_loc =
+            ls_batch_page_row-storage_location.
+          ls_result-page_earliest_val_type =
+            ls_batch_page_row-valuation_type.
+          ls_result-page_earliest_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         IF ls_result-page_latest_expiration_date IS INITIAL
             OR ls_batch_page_row-expiration_date >
-              ls_result-page_latest_expiration_date.
+              ls_result-page_latest_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 ls_result-page_latest_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    ls_result-page_latest_batch
+                OR ( ls_batch_page_row-batch =
+                     ls_result-page_latest_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        ls_result-page_latest_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         ls_result-page_latest_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        ls_result-page_latest_val_type ) ) ) ) ).
           ls_result-page_latest_expiration_date =
             ls_batch_page_row-expiration_date.
+          ls_result-page_latest_batch = ls_batch_page_row-batch.
+          ls_result-page_latest_storage_loc =
+            ls_batch_page_row-storage_location.
+          ls_result-page_latest_val_type =
+            ls_batch_page_row-valuation_type.
+          ls_result-page_latest_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         CASE ls_batch_page_row-status.
           WHEN c_expiry_status_expired.
@@ -14888,6 +16214,124 @@ CLASS zcl_stock_service IMPLEMENTATION.
           WHEN c_expiry_status_after_window.
             ADD 1 TO ls_result-page_after_window_row_count.
         ENDCASE.
+        CLEAR lv_page_manufacturing_age_band.
+        IF ls_batch_page_row-manufacturing_date IS INITIAL.
+          lv_page_manufacturing_age_band = 'U'.
+        ELSEIF ls_batch_page_row-days_since_manufacture < 0.
+          lv_page_manufacturing_age_band = 'F'.
+        ELSEIF ls_batch_page_row-days_since_manufacture = 0.
+          lv_page_manufacturing_age_band = 'T'.
+        ELSEIF ls_batch_page_row-days_since_manufacture <= 7.
+          lv_page_manufacturing_age_band = '1'.
+        ELSEIF ls_batch_page_row-days_since_manufacture <= 30.
+          lv_page_manufacturing_age_band = '2'.
+        ELSEIF ls_batch_page_row-days_since_manufacture <= 90.
+          lv_page_manufacturing_age_band = '3'.
+        ELSE.
+          lv_page_manufacturing_age_band = '4'.
+        ENDIF.
+        CASE ls_batch_page_row-manufacturing_date_source.
+          WHEN zif_stock_repository=>c_expiry_source_plant.
+            lv_page_mfg_source_group =
+              zif_stock_repository=>c_expiry_source_plant.
+          WHEN zif_stock_repository=>c_expiry_source_global.
+            lv_page_mfg_source_group =
+              zif_stock_repository=>c_expiry_source_global.
+          WHEN OTHERS.
+            lv_page_mfg_source_group = c_expiry_source_other.
+        ENDCASE.
+        READ TABLE ls_result-page_mfg_src_age_bands
+          ASSIGNING <ls_page_mfg_source_band>
+          WITH KEY source_group = lv_page_mfg_source_group
+            age_band = lv_page_manufacturing_age_band.
+        IF sy-subrc <> 0.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+        ADD 1 TO <ls_page_mfg_source_band>-row_count.
+        IF ls_batch_page_row-manufacturing_date IS NOT INITIAL.
+          IF <ls_page_mfg_source_band>-first_manufacturing_date
+              IS INITIAL
+              OR ls_batch_page_row-manufacturing_date <
+                <ls_page_mfg_source_band>-first_manufacturing_date
+              OR ( ls_batch_page_row-manufacturing_date =
+                   <ls_page_mfg_source_band>-first_manufacturing_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_mfg_source_band>-first_manufacture_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_mfg_source_band>-first_manufacture_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_mfg_source_band>-first_manufacture_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_mfg_source_band>-first_manufacture_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_mfg_source_band>-first_manufacture_val_type ) ) ) ) ).
+            <ls_page_mfg_source_band>-first_manufacturing_date =
+              ls_batch_page_row-manufacturing_date.
+            <ls_page_mfg_source_band>-first_manufacture_batch =
+              ls_batch_page_row-batch.
+            <ls_page_mfg_source_band>-first_manufacture_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_mfg_source_band>-first_manufacture_val_type =
+              ls_batch_page_row-valuation_type.
+          ENDIF.
+          IF <ls_page_mfg_source_band>-last_manufacturing_date IS INITIAL
+              OR ls_batch_page_row-manufacturing_date >
+                <ls_page_mfg_source_band>-last_manufacturing_date
+              OR ( ls_batch_page_row-manufacturing_date =
+                   <ls_page_mfg_source_band>-last_manufacturing_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_mfg_source_band>-last_manufacture_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_mfg_source_band>-last_manufacture_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_mfg_source_band>-last_manufacture_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_mfg_source_band>-last_manufacture_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_mfg_source_band>-last_manufacture_val_type ) ) ) ) ).
+            <ls_page_mfg_source_band>-last_manufacturing_date =
+              ls_batch_page_row-manufacturing_date.
+            <ls_page_mfg_source_band>-last_manufacture_batch =
+              ls_batch_page_row-batch.
+            <ls_page_mfg_source_band>-last_manufacture_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_mfg_source_band>-last_manufacture_val_type =
+              ls_batch_page_row-valuation_type.
+          ENDIF.
+          <ls_page_mfg_source_band>-manufacturing_date_span_days =
+            <ls_page_mfg_source_band>-last_manufacturing_date -
+            <ls_page_mfg_source_band>-first_manufacturing_date.
+        ENDIF.
+        IF ls_batch_page_row-unrestricted_quantity > 0.
+          ADD 1 TO <ls_page_mfg_source_band>-unrestricted_row_count.
+        ENDIF.
+        IF ls_batch_page_row-available_quantity > 0.
+          ADD 1 TO <ls_page_mfg_source_band>-available_row_count.
+        ENDIF.
+        IF ls_batch_page_row-quality_inspection_quantity > 0.
+          ADD 1 TO <ls_page_mfg_source_band>-quality_row_count.
+        ENDIF.
+        IF ls_batch_page_row-blocked_quantity > 0.
+          ADD 1 TO <ls_page_mfg_source_band>-blocked_row_count.
+        ENDIF.
+        <ls_page_mfg_source_band>-unrestricted_qty =
+          sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_page_mfg_source_band>-unrestricted_qty
+            iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
+        <ls_page_mfg_source_band>-available_qty =
+          sum_signed_stock_quantities(
+            iv_left_quantity  = <ls_page_mfg_source_band>-available_qty
+            iv_right_quantity = ls_batch_page_row-available_quantity ).
+        <ls_page_mfg_source_band>-quality_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_mfg_source_band>-quality_qty
+            iv_right_quantity =
+              ls_batch_page_row-quality_inspection_quantity ).
+        <ls_page_mfg_source_band>-blocked_qty =
+          sum_stock_quantities(
+            iv_left_quantity  = <ls_page_mfg_source_band>-blocked_qty
+            iv_right_quantity = ls_batch_page_row-blocked_quantity ).
         READ TABLE ls_result-page_expiry_statuses
           ASSIGNING <ls_page_expiry_status>
           WITH KEY expiry_status = ls_batch_page_row-status.
@@ -14897,19 +16341,65 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ADD 1 TO <ls_page_expiry_status>-row_count.
         IF <ls_page_expiry_status>-first_expiration_date IS INITIAL
             OR ls_batch_page_row-expiration_date <
-              <ls_page_expiry_status>-first_expiration_date.
+              <ls_page_expiry_status>-first_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 <ls_page_expiry_status>-first_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    <ls_page_expiry_status>-first_expiration_batch
+                OR ( ls_batch_page_row-batch =
+                     <ls_page_expiry_status>-first_expiration_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        <ls_page_expiry_status>-first_expiration_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         <ls_page_expiry_status>-first_expiration_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        <ls_page_expiry_status>-first_expiration_val_type ) ) ) ) ).
           <ls_page_expiry_status>-first_expiration_date =
             ls_batch_page_row-expiration_date.
+          <ls_page_expiry_status>-first_expiration_batch =
+            ls_batch_page_row-batch.
+          <ls_page_expiry_status>-first_expiration_storage_loc =
+            ls_batch_page_row-storage_location.
+          <ls_page_expiry_status>-first_expiration_val_type =
+            ls_batch_page_row-valuation_type.
+          <ls_page_expiry_status>-first_expiration_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         IF <ls_page_expiry_status>-last_expiration_date IS INITIAL
             OR ls_batch_page_row-expiration_date >
-              <ls_page_expiry_status>-last_expiration_date.
+              <ls_page_expiry_status>-last_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 <ls_page_expiry_status>-last_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    <ls_page_expiry_status>-last_expiration_batch
+                OR ( ls_batch_page_row-batch =
+                     <ls_page_expiry_status>-last_expiration_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        <ls_page_expiry_status>-last_expiration_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         <ls_page_expiry_status>-last_expiration_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        <ls_page_expiry_status>-last_expiration_val_type ) ) ) ) ).
           <ls_page_expiry_status>-last_expiration_date =
             ls_batch_page_row-expiration_date.
+          <ls_page_expiry_status>-last_expiration_batch =
+            ls_batch_page_row-batch.
+          <ls_page_expiry_status>-last_expiration_storage_loc =
+            ls_batch_page_row-storage_location.
+          <ls_page_expiry_status>-last_expiration_val_type =
+            ls_batch_page_row-valuation_type.
+          <ls_page_expiry_status>-last_expiration_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         <ls_page_expiry_status>-expiration_date_span_days =
           <ls_page_expiry_status>-last_expiration_date -
           <ls_page_expiry_status>-first_expiration_date.
+        <ls_page_expiry_status>-days_to_first_expiration =
+          <ls_page_expiry_status>-first_expiration_date -
+          ls_result-as_of_date.
+        <ls_page_expiry_status>-days_to_last_expiration =
+          <ls_page_expiry_status>-last_expiration_date -
+          ls_result-as_of_date.
         <ls_page_expiry_status>-unrestricted_qty =
           sum_stock_quantities(
             iv_left_quantity  =
@@ -14917,7 +16407,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_right_quantity =
               ls_batch_page_row-unrestricted_quantity ).
         <ls_page_expiry_status>-available_qty =
-          sum_stock_quantities(
+          sum_signed_stock_quantities(
             iv_left_quantity  =
               <ls_page_expiry_status>-available_qty
             iv_right_quantity =
@@ -14955,20 +16445,66 @@ CLASS zcl_stock_service IMPLEMENTATION.
         IF <ls_page_expiry_source_status>-first_expiration_date
             IS INITIAL
             OR ls_batch_page_row-expiration_date <
-              <ls_page_expiry_source_status>-first_expiration_date.
+              <ls_page_expiry_source_status>-first_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 <ls_page_expiry_source_status>-first_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    <ls_page_expiry_source_status>-first_expiration_batch
+                OR ( ls_batch_page_row-batch =
+                     <ls_page_expiry_source_status>-first_expiration_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        <ls_page_expiry_source_status>-first_expiration_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         <ls_page_expiry_source_status>-first_expiration_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        <ls_page_expiry_source_status>-first_expiration_val_type ) ) ) ) ).
           <ls_page_expiry_source_status>-first_expiration_date =
             ls_batch_page_row-expiration_date.
+          <ls_page_expiry_source_status>-first_expiration_batch =
+            ls_batch_page_row-batch.
+          <ls_page_expiry_source_status>-first_expiration_storage_loc =
+            ls_batch_page_row-storage_location.
+          <ls_page_expiry_source_status>-first_expiration_val_type =
+            ls_batch_page_row-valuation_type.
+          <ls_page_expiry_source_status>-first_expiration_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         IF <ls_page_expiry_source_status>-last_expiration_date
             IS INITIAL
             OR ls_batch_page_row-expiration_date >
-              <ls_page_expiry_source_status>-last_expiration_date.
+              <ls_page_expiry_source_status>-last_expiration_date
+            OR ( ls_batch_page_row-expiration_date =
+                 <ls_page_expiry_source_status>-last_expiration_date
+              AND ( ls_batch_page_row-batch <
+                    <ls_page_expiry_source_status>-last_expiration_batch
+                OR ( ls_batch_page_row-batch =
+                     <ls_page_expiry_source_status>-last_expiration_batch
+                  AND ( ls_batch_page_row-storage_location <
+                        <ls_page_expiry_source_status>-last_expiration_storage_loc
+                    OR ( ls_batch_page_row-storage_location =
+                         <ls_page_expiry_source_status>-last_expiration_storage_loc
+                      AND ls_batch_page_row-valuation_type <
+                        <ls_page_expiry_source_status>-last_expiration_val_type ) ) ) ) ).
           <ls_page_expiry_source_status>-last_expiration_date =
             ls_batch_page_row-expiration_date.
+          <ls_page_expiry_source_status>-last_expiration_batch =
+            ls_batch_page_row-batch.
+          <ls_page_expiry_source_status>-last_expiration_storage_loc =
+            ls_batch_page_row-storage_location.
+          <ls_page_expiry_source_status>-last_expiration_val_type =
+            ls_batch_page_row-valuation_type.
+          <ls_page_expiry_source_status>-last_expiration_source =
+            ls_batch_page_row-expiration_date_source.
         ENDIF.
         <ls_page_expiry_source_status>-expiration_date_span_days =
           <ls_page_expiry_source_status>-last_expiration_date -
           <ls_page_expiry_source_status>-first_expiration_date.
+        <ls_page_expiry_source_status>-days_to_first_expiration =
+          <ls_page_expiry_source_status>-first_expiration_date -
+          ls_result-as_of_date.
+        <ls_page_expiry_source_status>-days_to_last_expiration =
+          <ls_page_expiry_source_status>-last_expiration_date -
+          ls_result-as_of_date.
         <ls_page_expiry_source_status>-unrestricted_qty =
           sum_stock_quantities(
             iv_left_quantity  =
@@ -14976,7 +16512,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_right_quantity =
               ls_batch_page_row-unrestricted_quantity ).
         <ls_page_expiry_source_status>-available_qty =
-          sum_stock_quantities(
+          sum_signed_stock_quantities(
             iv_left_quantity  =
               <ls_page_expiry_source_status>-available_qty
             iv_right_quantity =
@@ -15015,26 +16551,72 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ADD 1 TO <ls_page_expiry_source_age>-row_count.
           IF <ls_page_expiry_source_age>-first_expiration_date IS INITIAL
               OR ls_batch_page_row-expiration_date <
-                <ls_page_expiry_source_age>-first_expiration_date.
+                <ls_page_expiry_source_age>-first_expiration_date
+              OR ( ls_batch_page_row-expiration_date =
+                   <ls_page_expiry_source_age>-first_expiration_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_expiry_source_age>-first_expiration_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_expiry_source_age>-first_expiration_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_expiry_source_age>-first_expiration_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_expiry_source_age>-first_expiration_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_expiry_source_age>-first_expiration_val_type ) ) ) ) ).
             <ls_page_expiry_source_age>-first_expiration_date =
               ls_batch_page_row-expiration_date.
+            <ls_page_expiry_source_age>-first_expiration_batch =
+              ls_batch_page_row-batch.
+            <ls_page_expiry_source_age>-first_expiration_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_expiry_source_age>-first_expiration_val_type =
+              ls_batch_page_row-valuation_type.
+            <ls_page_expiry_source_age>-first_expiration_source =
+              ls_batch_page_row-expiration_date_source.
           ENDIF.
           IF <ls_page_expiry_source_age>-last_expiration_date IS INITIAL
               OR ls_batch_page_row-expiration_date >
-                <ls_page_expiry_source_age>-last_expiration_date.
+                <ls_page_expiry_source_age>-last_expiration_date
+              OR ( ls_batch_page_row-expiration_date =
+                   <ls_page_expiry_source_age>-last_expiration_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_expiry_source_age>-last_expiration_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_expiry_source_age>-last_expiration_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_expiry_source_age>-last_expiration_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_expiry_source_age>-last_expiration_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_expiry_source_age>-last_expiration_val_type ) ) ) ) ).
             <ls_page_expiry_source_age>-last_expiration_date =
               ls_batch_page_row-expiration_date.
+            <ls_page_expiry_source_age>-last_expiration_batch =
+              ls_batch_page_row-batch.
+            <ls_page_expiry_source_age>-last_expiration_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_expiry_source_age>-last_expiration_val_type =
+              ls_batch_page_row-valuation_type.
+            <ls_page_expiry_source_age>-last_expiration_source =
+              ls_batch_page_row-expiration_date_source.
           ENDIF.
           <ls_page_expiry_source_age>-expiration_date_span_days =
             <ls_page_expiry_source_age>-last_expiration_date -
             <ls_page_expiry_source_age>-first_expiration_date.
+          <ls_page_expiry_source_age>-days_to_first_expiration =
+            <ls_page_expiry_source_age>-first_expiration_date -
+            ls_result-as_of_date.
+          <ls_page_expiry_source_age>-days_to_last_expiration =
+            <ls_page_expiry_source_age>-last_expiration_date -
+            ls_result-as_of_date.
           <ls_page_expiry_source_age>-unrestricted_qty =
             sum_stock_quantities(
               iv_left_quantity  =
                 <ls_page_expiry_source_age>-unrestricted_qty
               iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
           <ls_page_expiry_source_age>-available_qty =
-            sum_stock_quantities(
+            sum_signed_stock_quantities(
               iv_left_quantity  =
                 <ls_page_expiry_source_age>-available_qty
               iv_right_quantity = ls_batch_page_row-available_quantity ).
@@ -15090,23 +16672,70 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ADD 1 TO <ls_page_exp_window>-row_count.
           IF <ls_page_exp_window>-first_expiration_date IS INITIAL
               OR ls_batch_page_row-expiration_date <
-                <ls_page_exp_window>-first_expiration_date.
+                <ls_page_exp_window>-first_expiration_date
+              OR ( ls_batch_page_row-expiration_date =
+                   <ls_page_exp_window>-first_expiration_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_exp_window>-first_expiration_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_exp_window>-first_expiration_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_exp_window>-first_expiration_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_exp_window>-first_expiration_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_exp_window>-first_expiration_val_type ) ) ) ) ).
             <ls_page_exp_window>-first_expiration_date =
               ls_batch_page_row-expiration_date.
+            <ls_page_exp_window>-first_expiration_batch =
+              ls_batch_page_row-batch.
+            <ls_page_exp_window>-first_expiration_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_exp_window>-first_expiration_val_type =
+              ls_batch_page_row-valuation_type.
+            <ls_page_exp_window>-first_expiration_source =
+              ls_batch_page_row-expiration_date_source.
           ENDIF.
           IF <ls_page_exp_window>-last_expiration_date IS INITIAL
               OR ls_batch_page_row-expiration_date >
-                <ls_page_exp_window>-last_expiration_date.
+                <ls_page_exp_window>-last_expiration_date
+              OR ( ls_batch_page_row-expiration_date =
+                   <ls_page_exp_window>-last_expiration_date
+                AND ( ls_batch_page_row-batch <
+                      <ls_page_exp_window>-last_expiration_batch
+                  OR ( ls_batch_page_row-batch =
+                       <ls_page_exp_window>-last_expiration_batch
+                    AND ( ls_batch_page_row-storage_location <
+                          <ls_page_exp_window>-last_expiration_storage_loc
+                      OR ( ls_batch_page_row-storage_location =
+                           <ls_page_exp_window>-last_expiration_storage_loc
+                        AND ls_batch_page_row-valuation_type <
+                          <ls_page_exp_window>-last_expiration_val_type ) ) ) ) ).
             <ls_page_exp_window>-last_expiration_date =
               ls_batch_page_row-expiration_date.
+            <ls_page_exp_window>-last_expiration_batch =
+              ls_batch_page_row-batch.
+            <ls_page_exp_window>-last_expiration_storage_loc =
+              ls_batch_page_row-storage_location.
+            <ls_page_exp_window>-last_expiration_val_type =
+              ls_batch_page_row-valuation_type.
+            <ls_page_exp_window>-last_expiration_source =
+              ls_batch_page_row-expiration_date_source.
           ENDIF.
           <ls_page_exp_window>-expiration_date_span_days =
             <ls_page_exp_window>-last_expiration_date -
             <ls_page_exp_window>-first_expiration_date.
+          <ls_page_exp_window>-days_to_first_expiration =
+            <ls_page_exp_window>-first_expiration_date -
+            ls_result-as_of_date.
+          <ls_page_exp_window>-days_to_last_expiration =
+            <ls_page_exp_window>-last_expiration_date -
+            ls_result-as_of_date.
           <ls_page_exp_window>-unrestricted_qty = sum_stock_quantities(
             iv_left_quantity  = <ls_page_exp_window>-unrestricted_qty
             iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
-          <ls_page_exp_window>-available_qty = sum_stock_quantities(
+          <ls_page_exp_window>-available_qty =
+            sum_signed_stock_quantities(
             iv_left_quantity  = <ls_page_exp_window>-available_qty
             iv_right_quantity = ls_batch_page_row-available_quantity ).
           <ls_page_exp_window>-quality_qty = sum_stock_quantities(
@@ -15120,7 +16749,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_result-page_unrestricted_qty = sum_stock_quantities(
           iv_left_quantity  = ls_result-page_unrestricted_qty
           iv_right_quantity = ls_batch_page_row-unrestricted_quantity ).
-        ls_result-page_available_qty = sum_stock_quantities(
+        ls_result-page_available_qty = sum_signed_stock_quantities(
           iv_left_quantity  = ls_result-page_available_qty
           iv_right_quantity = ls_batch_page_row-available_quantity ).
         ls_result-page_quality_qty = sum_stock_quantities(
@@ -15130,6 +16759,185 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_result-page_blocked_qty = sum_stock_quantities(
           iv_left_quantity  = ls_result-page_blocked_qty
           iv_right_quantity = ls_batch_page_row-blocked_quantity ).
+      ENDLOOP.
+      DATA(lt_page_mfg_source_band_rows) =
+        ls_result-page_mfg_src_age_bands.
+      LOOP AT ls_result-page_mfg_src_age_bands
+          ASSIGNING FIELD-SYMBOL(<ls_page_mfg_source_share>).
+        IF <ls_page_mfg_source_share>-first_manufacturing_date IS NOT INITIAL.
+          <ls_page_mfg_source_share>-days_since_first_manufacture =
+            ls_result-as_of_date -
+            <ls_page_mfg_source_share>-first_manufacturing_date.
+        ENDIF.
+        IF <ls_page_mfg_source_share>-last_manufacturing_date IS NOT INITIAL.
+          <ls_page_mfg_source_share>-days_since_last_manufacture =
+            ls_result-as_of_date -
+            <ls_page_mfg_source_share>-last_manufacturing_date.
+        ENDIF.
+        IF ls_result-returned_batch_row_count > 0.
+          <ls_page_mfg_source_share>-row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ) * 100
+            / CONV decfloat34( ls_result-returned_batch_row_count ).
+        ENDIF.
+        IF <ls_page_mfg_source_share>-row_count > 0.
+          <ls_page_mfg_source_share>-unrestricted_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-unrestricted_row_count ) * 100
+            / CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ).
+          <ls_page_mfg_source_share>-available_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-available_row_count ) * 100
+            / CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ).
+          <ls_page_mfg_source_share>-quality_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-quality_row_count ) * 100
+            / CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ).
+          <ls_page_mfg_source_share>-blocked_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-blocked_row_count ) * 100
+            / CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ).
+        ENDIF.
+        DATA(lv_page_mfg_source_rows) = 0.
+        DATA(lv_page_mfg_src_unr) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_src_avl) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_src_qual) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_src_blk) = CONV decfloat34( 0 ).
+        LOOP AT lt_page_mfg_source_band_rows
+            INTO DATA(ls_page_mfg_source_row)
+            WHERE source_group =
+              <ls_page_mfg_source_share>-source_group.
+          lv_page_mfg_source_rows = lv_page_mfg_source_rows +
+            ls_page_mfg_source_row-row_count.
+          lv_page_mfg_src_unr =
+            lv_page_mfg_src_unr +
+            CONV decfloat34( ls_page_mfg_source_row-unrestricted_qty ).
+          lv_page_mfg_src_avl = lv_page_mfg_src_avl +
+            CONV decfloat34( ls_page_mfg_source_row-available_qty ).
+          lv_page_mfg_src_qual = lv_page_mfg_src_qual +
+            CONV decfloat34( ls_page_mfg_source_row-quality_qty ).
+          lv_page_mfg_src_blk = lv_page_mfg_src_blk +
+            CONV decfloat34( ls_page_mfg_source_row-blocked_qty ).
+        ENDLOOP.
+        DATA(lv_page_mfg_band_rows) = 0.
+        DATA(lv_page_mfg_band_unr) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_band_avl) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_band_qual) = CONV decfloat34( 0 ).
+        DATA(lv_page_mfg_band_blk) = CONV decfloat34( 0 ).
+        LOOP AT lt_page_mfg_source_band_rows
+            INTO DATA(ls_page_mfg_band_row)
+            WHERE age_band = <ls_page_mfg_source_share>-age_band.
+          lv_page_mfg_band_rows = lv_page_mfg_band_rows +
+            ls_page_mfg_band_row-row_count.
+          lv_page_mfg_band_unr = lv_page_mfg_band_unr +
+            CONV decfloat34( ls_page_mfg_band_row-unrestricted_qty ).
+          lv_page_mfg_band_avl = lv_page_mfg_band_avl +
+            CONV decfloat34( ls_page_mfg_band_row-available_qty ).
+          lv_page_mfg_band_qual = lv_page_mfg_band_qual +
+            CONV decfloat34( ls_page_mfg_band_row-quality_qty ).
+          lv_page_mfg_band_blk = lv_page_mfg_band_blk +
+            CONV decfloat34( ls_page_mfg_band_row-blocked_qty ).
+        ENDLOOP.
+        IF lv_page_mfg_source_rows > 0.
+          <ls_page_mfg_source_share>-source_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_mfg_source_rows ).
+        ENDIF.
+        IF lv_page_mfg_band_rows > 0.
+          <ls_page_mfg_source_share>-age_band_row_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-row_count ) * 100
+            / CONV decfloat34( lv_page_mfg_band_rows ).
+        ENDIF.
+        IF lv_page_mfg_src_unr > 0.
+          <ls_page_mfg_source_share>-source_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-unrestricted_qty ) * 100
+            / lv_page_mfg_src_unr.
+        ENDIF.
+        IF lv_page_mfg_src_avl > 0.
+          <ls_page_mfg_source_share>-source_available_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-available_qty ) * 100
+            / lv_page_mfg_src_avl.
+        ENDIF.
+        IF lv_page_mfg_src_qual > 0.
+          <ls_page_mfg_source_share>-source_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-quality_qty ) * 100
+            / lv_page_mfg_src_qual.
+        ENDIF.
+        IF lv_page_mfg_src_blk > 0.
+          <ls_page_mfg_source_share>-source_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-blocked_qty ) * 100
+            / lv_page_mfg_src_blk.
+        ENDIF.
+        IF lv_page_mfg_band_unr > 0.
+          <ls_page_mfg_source_share>-band_unrestricted_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-unrestricted_qty ) * 100
+            / lv_page_mfg_band_unr.
+        ENDIF.
+        IF lv_page_mfg_band_avl > 0.
+          <ls_page_mfg_source_share>-band_available_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-available_qty ) * 100
+            / lv_page_mfg_band_avl.
+        ENDIF.
+        IF lv_page_mfg_band_qual > 0.
+          <ls_page_mfg_source_share>-band_quality_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-quality_qty ) * 100
+            / lv_page_mfg_band_qual.
+        ENDIF.
+        IF lv_page_mfg_band_blk > 0.
+          <ls_page_mfg_source_share>-band_blocked_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-blocked_qty ) * 100
+            / lv_page_mfg_band_blk.
+        ENDIF.
+        IF ls_result-page_unrestricted_qty > 0.
+          <ls_page_mfg_source_share>-unrestricted_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-unrestricted_qty ) * 100
+            / CONV decfloat34( ls_result-page_unrestricted_qty ).
+        ENDIF.
+        IF ls_result-page_available_qty > 0.
+          <ls_page_mfg_source_share>-available_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-available_qty ) * 100
+            / CONV decfloat34( ls_result-page_available_qty ).
+        ENDIF.
+        IF ls_result-page_quality_qty > 0.
+          <ls_page_mfg_source_share>-quality_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-quality_qty ) * 100
+            / CONV decfloat34( ls_result-page_quality_qty ).
+        ENDIF.
+        IF ls_result-page_blocked_qty > 0.
+          <ls_page_mfg_source_share>-blocked_qty_share_pct =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-blocked_qty ) * 100
+            / CONV decfloat34( ls_result-page_blocked_qty ).
+        ENDIF.
+        IF <ls_page_mfg_source_share>-unrestricted_qty > 0.
+          <ls_page_mfg_source_share>-available_pct_of_unrestricted =
+            CONV decfloat34(
+              <ls_page_mfg_source_share>-available_qty ) * 100
+            / CONV decfloat34(
+              <ls_page_mfg_source_share>-unrestricted_qty ).
+        ENDIF.
+        <ls_page_mfg_source_share>-reservation_deduction_qty =
+          CONV decfloat34(
+            <ls_page_mfg_source_share>-unrestricted_qty ) -
+          CONV decfloat34(
+            <ls_page_mfg_source_share>-available_qty ).
       ENDLOOP.
       IF ls_result-returned_batch_row_count > 0.
         LOOP AT ls_result-page_expiry_statuses
@@ -15213,7 +17021,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_right_quantity =
               ls_page_expiry_source_status-unrestricted_qty ).
         <ls_page_expiry_source>-available_qty =
-          sum_stock_quantities(
+          sum_signed_stock_quantities(
             iv_left_quantity  = <ls_page_expiry_source>-available_qty
             iv_right_quantity =
               ls_page_expiry_source_status-available_qty ).
@@ -15232,14 +17040,55 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ( <ls_page_expiry_source>-first_expiration_date
                   IS INITIAL
               OR ls_page_expiry_source_status-first_expiration_date
-                < <ls_page_expiry_source>-first_expiration_date ).
+                < <ls_page_expiry_source>-first_expiration_date
+              OR ( ls_page_expiry_source_status-first_expiration_date =
+                   <ls_page_expiry_source>-first_expiration_date
+                AND ( ls_page_expiry_source_status-first_expiration_batch <
+                      <ls_page_expiry_source>-first_expiration_batch
+                  OR ( ls_page_expiry_source_status-first_expiration_batch =
+                       <ls_page_expiry_source>-first_expiration_batch
+                    AND ( ls_page_expiry_source_status-first_expiration_storage_loc <
+                          <ls_page_expiry_source>-first_expiration_storage_loc
+                      OR ( ls_page_expiry_source_status-first_expiration_storage_loc =
+                           <ls_page_expiry_source>-first_expiration_storage_loc
+                        AND ls_page_expiry_source_status-first_expiration_val_type <
+                          <ls_page_expiry_source>-first_expiration_val_type ) ) ) ) ) ).
           <ls_page_expiry_source>-first_expiration_date =
             ls_page_expiry_source_status-first_expiration_date.
+          <ls_page_expiry_source>-first_expiration_batch =
+            ls_page_expiry_source_status-first_expiration_batch.
+          <ls_page_expiry_source>-first_expiration_storage_loc =
+            ls_page_expiry_source_status-first_expiration_storage_loc.
+          <ls_page_expiry_source>-first_expiration_val_type =
+            ls_page_expiry_source_status-first_expiration_val_type.
+          <ls_page_expiry_source>-first_expiration_source =
+            ls_page_expiry_source_status-first_expiration_source.
         ENDIF.
-        IF ls_page_expiry_source_status-last_expiration_date
-              > <ls_page_expiry_source>-last_expiration_date.
+        IF <ls_page_expiry_source>-last_expiration_date IS INITIAL
+            OR ls_page_expiry_source_status-last_expiration_date
+              > <ls_page_expiry_source>-last_expiration_date
+            OR ( ls_page_expiry_source_status-last_expiration_date =
+                 <ls_page_expiry_source>-last_expiration_date
+              AND ( ls_page_expiry_source_status-last_expiration_batch <
+                    <ls_page_expiry_source>-last_expiration_batch
+                OR ( ls_page_expiry_source_status-last_expiration_batch =
+                     <ls_page_expiry_source>-last_expiration_batch
+                  AND ( ls_page_expiry_source_status-last_expiration_storage_loc <
+                        <ls_page_expiry_source>-last_expiration_storage_loc
+                    OR ( ls_page_expiry_source_status-last_expiration_storage_loc =
+                         <ls_page_expiry_source>-last_expiration_storage_loc
+                      AND ls_page_expiry_source_status-last_expiration_val_type <
+                          <ls_page_expiry_source>-last_expiration_val_type ) ) ) ) ).
           <ls_page_expiry_source>-last_expiration_date =
             ls_page_expiry_source_status-last_expiration_date.
+          <ls_page_expiry_source>-last_expiration_batch =
+            ls_page_expiry_source_status-last_expiration_batch.
+          <ls_page_expiry_source>-last_expiration_storage_loc =
+            ls_page_expiry_source_status-last_expiration_storage_loc.
+          <ls_page_expiry_source>-last_expiration_val_type =
+            ls_page_expiry_source_status-last_expiration_val_type.
+          <ls_page_expiry_source>-last_expiration_source =
+            ls_page_expiry_source_status-last_expiration_source.
         ENDIF.
       ENDLOOP.
       LOOP AT ls_result-page_expiry_sources
@@ -15250,6 +17099,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
           <ls_page_expiry_source>-expiration_date_span_days =
             <ls_page_expiry_source>-last_expiration_date
             - <ls_page_expiry_source>-first_expiration_date.
+          <ls_page_expiry_source>-days_to_first_expiration =
+            <ls_page_expiry_source>-first_expiration_date
+            - ls_result-as_of_date.
+          <ls_page_expiry_source>-days_to_last_expiration =
+            <ls_page_expiry_source>-last_expiration_date
+            - ls_result-as_of_date.
         ENDIF.
         IF <ls_page_expiry_source>-unrestricted_qty > 0.
           <ls_page_expiry_source>-available_pct_of_unrestricted =
@@ -15947,6 +17802,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_result-page_expiration_date_span_days =
           ls_result-page_latest_expiration_date -
           ls_result-page_earliest_expiration_date.
+        ls_result-days_to_page_earliest_exp =
+          ls_result-page_earliest_expiration_date - ls_result-as_of_date.
+        ls_result-days_to_page_latest_exp =
+          ls_result-page_latest_expiration_date - ls_result-as_of_date.
       ENDIF.
       IF ls_request-omit_undated_batch_rows = abap_true.
         ls_result-total_undated_batch_row_count =
@@ -16025,7 +17884,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_right_quantity =
               ls_undated_page_row-unrestricted_quantity ).
         ls_result-undated_page_available_qty =
-          sum_stock_quantities(
+          sum_signed_stock_quantities(
             iv_left_quantity  =
               ls_result-undated_page_available_qty
             iv_right_quantity =
@@ -16066,7 +17925,7 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_right_quantity =
               ls_undated_page_row-unrestricted_quantity ).
         <ls_undated_page_source>-available_qty =
-          sum_stock_quantities(
+          sum_signed_stock_quantities(
             iv_left_quantity  =
               <ls_undated_page_source>-available_qty
             iv_right_quantity =
@@ -19272,6 +21131,10 @@ CLASS zcl_stock_service IMPLEMENTATION.
             AND ls_request-filter_manufacturing_age_from <> abap_false )
           OR ( ls_request-filter_manufacturing_age_to <> abap_true
             AND ls_request-filter_manufacturing_age_to <> abap_false )
+          OR ( ls_request-filter_manufacturing_age_band <> abap_true
+            AND ls_request-filter_manufacturing_age_band <> abap_false )
+          OR ( ls_request-filter_mfg_date_source <> abap_true
+            AND ls_request-filter_mfg_date_source <> abap_false )
           OR ( ls_request-expiry_source IS NOT INITIAL
             AND ls_request-expiry_source <>
               zif_stock_repository=>c_expiry_source_plant
@@ -19303,6 +21166,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
       ELSEIF ls_request-expiry_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_band = abap_true.
+        IF ls_request-manufacturing_age_band <> 'F'
+            AND ls_request-manufacturing_age_band <> 'T'
+            AND ls_request-manufacturing_age_band <> '1'
+            AND ls_request-manufacturing_age_band <> '2'
+            AND ls_request-manufacturing_age_band <> '3'
+            AND ls_request-manufacturing_age_band <> '4'
+            AND ls_request-manufacturing_age_band <> 'U'.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF ls_request-manufacturing_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_mfg_date_source = abap_true.
+        IF ls_request-mfg_date_source IS NOT INITIAL
+            AND ls_request-mfg_date_source <> 'P'
+            AND ls_request-mfg_date_source <> 'G'.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF ls_request-mfg_date_source IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_expiry_upcoming_band = abap_true.
@@ -19420,6 +21305,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
       ENDIF.
       IF ls_request-filter_manufacturing_age_to = abap_false
           AND ls_request-manufacturing_age_days_to IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_manufacturing_age_band = abap_false
+          AND ls_request-manufacturing_age_band IS NOT INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      IF ls_request-filter_mfg_date_source = abap_false
+          AND ls_request-mfg_date_source IS NOT INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       IF ls_request-filter_manufacturing_age_from = abap_true
@@ -20769,6 +22662,12 @@ CLASS zcl_stock_service IMPLEMENTATION.
           ls_request-filter_manufacturing_age_to
         manufacturing_age_days_to     =
           ls_request-manufacturing_age_days_to
+        filter_manufacturing_age_band =
+          ls_request-filter_manufacturing_age_band
+        manufacturing_age_band        = ls_request-manufacturing_age_band
+        filter_mfg_date_source        =
+          ls_request-filter_mfg_date_source
+        mfg_date_source               = ls_request-mfg_date_source
         positive_available_only       =
           ls_request-positive_available_only
         filter_available_from         =
@@ -20933,6 +22832,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_request-filter_manufacturing_age_to
           OR ls_base_result-manufacturing_age_days_to <>
             ls_request-manufacturing_age_days_to
+          OR ls_base_result-filter_manufacturing_age_band <>
+            ls_request-filter_manufacturing_age_band
+          OR ls_base_result-manufacturing_age_band <>
+            ls_request-manufacturing_age_band
+          OR ls_base_result-filter_mfg_date_source <>
+            ls_request-filter_mfg_date_source
+          OR ls_base_result-mfg_date_source <>
+            ls_request-mfg_date_source
           OR ls_base_result-maximum_batch_rows <>
             ls_request-maximum_batch_rows
           OR ls_base_result-omit_dated_batch_rows <>
@@ -21298,6 +23205,14 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_request-filter_manufacturing_age_to.
       ls_result-manufacturing_age_days_to =
         ls_request-manufacturing_age_days_to.
+      ls_result-filter_manufacturing_age_band =
+        ls_request-filter_manufacturing_age_band.
+      ls_result-manufacturing_age_band =
+        ls_request-manufacturing_age_band.
+      ls_result-filter_mfg_date_source =
+        ls_request-filter_mfg_date_source.
+      ls_result-mfg_date_source =
+        ls_request-mfg_date_source.
       ls_result-as_of_date = ls_request-as_of_date.
       ls_result-through_date = ls_request-through_date.
       ls_result-expiration_date_from =
@@ -22154,6 +24069,24 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_result-page_earliest_expiration_date.
       ls_result-page_latest_expiration_date =
         ls_base_result-page_latest_expiration_date.
+      ls_result-page_earliest_batch =
+        ls_base_result-page_earliest_batch.
+      ls_result-page_earliest_storage_loc =
+        ls_base_result-page_earliest_storage_loc.
+      ls_result-page_earliest_val_type =
+        ls_base_result-page_earliest_val_type.
+      ls_result-page_earliest_source =
+        ls_base_result-page_earliest_source.
+      ls_result-page_latest_batch = ls_base_result-page_latest_batch.
+      ls_result-page_latest_storage_loc =
+        ls_base_result-page_latest_storage_loc.
+      ls_result-page_latest_val_type =
+        ls_base_result-page_latest_val_type.
+      ls_result-page_latest_source = ls_base_result-page_latest_source.
+      ls_result-days_to_page_earliest_exp =
+        ls_base_result-days_to_page_earliest_exp.
+      ls_result-days_to_page_latest_exp =
+        ls_base_result-days_to_page_latest_exp.
       ls_result-page_expiration_date_span_days =
         ls_base_result-page_expiration_date_span_days.
       ls_result-base_page_unrestricted_qty =
@@ -22354,8 +24287,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_denominator   = ls_ratio_cache-ratio-denominator )
           first_expiration_date          =
             ls_base_expiry_source-first_expiration_date
+          first_expiration_batch         =
+            ls_base_expiry_source-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_expiry_source-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_expiry_source-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_expiry_source-first_expiration_source
           last_expiration_date           =
             ls_base_expiry_source-last_expiration_date
+          last_expiration_batch          =
+            ls_base_expiry_source-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_expiry_source-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_expiry_source-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_expiry_source-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_expiry_source-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_expiry_source-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_expiry_source-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22406,8 +24359,28 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_denominator   = ls_ratio_cache-ratio-denominator )
           first_expiration_date          =
             ls_base_page_expiry_source-first_expiration_date
+          first_expiration_batch         =
+            ls_base_page_expiry_source-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_expiry_source-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_expiry_source-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_expiry_source-first_expiration_source
           last_expiration_date           =
             ls_base_page_expiry_source-last_expiration_date
+          last_expiration_batch          =
+            ls_base_page_expiry_source-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_expiry_source-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_expiry_source-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_expiry_source-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_expiry_source-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_expiry_source-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_expiry_source-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22459,6 +24432,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_expiry_status-first_expiration_date
           last_expiration_date           =
             ls_base_expiry_status-last_expiration_date
+          first_expiration_batch         =
+            ls_base_expiry_status-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_expiry_status-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_expiry_status-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_expiry_status-first_expiration_source
+          last_expiration_batch          =
+            ls_base_expiry_status-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_expiry_status-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_expiry_status-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_expiry_status-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_expiry_status-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_expiry_status-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_expiry_status-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22514,6 +24507,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_page_expiry_status-first_expiration_date
           last_expiration_date           =
             ls_base_page_expiry_status-last_expiration_date
+          first_expiration_batch         =
+            ls_base_page_expiry_status-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_expiry_status-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_expiry_status-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_expiry_status-first_expiration_source
+          last_expiration_batch          =
+            ls_base_page_expiry_status-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_expiry_status-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_expiry_status-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_expiry_status-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_expiry_status-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_expiry_status-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_expiry_status-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22595,6 +24608,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_page_exp_src_status-first_expiration_date
           last_expiration_date           =
             ls_base_page_exp_src_status-last_expiration_date
+          first_expiration_batch         =
+            ls_base_page_exp_src_status-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_exp_src_status-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_exp_src_status-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_exp_src_status-first_expiration_source
+          last_expiration_batch          =
+            ls_base_page_exp_src_status-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_exp_src_status-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_exp_src_status-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_exp_src_status-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_exp_src_status-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_exp_src_status-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_exp_src_status-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22674,6 +24707,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_page_exp_src_age-first_expiration_date
           last_expiration_date           =
             ls_base_page_exp_src_age-last_expiration_date
+          first_expiration_batch         =
+            ls_base_page_exp_src_age-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_exp_src_age-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_exp_src_age-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_exp_src_age-first_expiration_source
+          last_expiration_batch          =
+            ls_base_page_exp_src_age-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_exp_src_age-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_exp_src_age-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_exp_src_age-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_exp_src_age-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_exp_src_age-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_exp_src_age-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22701,6 +24754,114 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
           TO ls_result-page_expiry_src_age_bands.
+      ENDLOOP.
+      LOOP AT ls_base_result-page_mfg_src_age_bands
+          INTO DATA(ls_base_page_mfg_source_band).
+        APPEND VALUE ty_batch_mfg_age_source_band_uom(
+          source_group                   = ls_base_page_mfg_source_band-source_group
+          age_band                       = ls_base_page_mfg_source_band-age_band
+          row_count                      = ls_base_page_mfg_source_band-row_count
+          unrestricted_row_count         =
+            ls_base_page_mfg_source_band-unrestricted_row_count
+          available_row_count            =
+            ls_base_page_mfg_source_band-available_row_count
+          quality_row_count              =
+            ls_base_page_mfg_source_band-quality_row_count
+          blocked_row_count              =
+            ls_base_page_mfg_source_band-blocked_row_count
+          unrestricted_row_share_pct     =
+            ls_base_page_mfg_source_band-unrestricted_row_share_pct
+          available_row_share_pct        =
+            ls_base_page_mfg_source_band-available_row_share_pct
+          quality_row_share_pct          =
+            ls_base_page_mfg_source_band-quality_row_share_pct
+          blocked_row_share_pct          =
+            ls_base_page_mfg_source_band-blocked_row_share_pct
+          row_share_pct                  = ls_base_page_mfg_source_band-row_share_pct
+          source_row_share_pct           =
+            ls_base_page_mfg_source_band-source_row_share_pct
+          age_band_row_share_pct         =
+            ls_base_page_mfg_source_band-age_band_row_share_pct
+          source_unrestricted_share_pct  =
+            ls_base_page_mfg_source_band-source_unrestricted_share_pct
+          source_available_share_pct     =
+            ls_base_page_mfg_source_band-source_available_share_pct
+          source_quality_share_pct       =
+            ls_base_page_mfg_source_band-source_quality_share_pct
+          source_blocked_share_pct       =
+            ls_base_page_mfg_source_band-source_blocked_share_pct
+          band_unrestricted_share_pct    =
+            ls_base_page_mfg_source_band-band_unrestricted_share_pct
+          band_available_share_pct       =
+            ls_base_page_mfg_source_band-band_available_share_pct
+          band_quality_share_pct         =
+            ls_base_page_mfg_source_band-band_quality_share_pct
+          band_blocked_share_pct         =
+            ls_base_page_mfg_source_band-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_page_mfg_source_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_page_mfg_source_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_mfg_source_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_page_mfg_source_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_page_mfg_source_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_page_mfg_source_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_page_mfg_source_band-blocked_qty_share_pct
+          first_manufacturing_date       =
+            ls_base_page_mfg_source_band-first_manufacturing_date
+          days_since_first_manufacture   =
+            ls_base_page_mfg_source_band-days_since_first_manufacture
+          first_manufacture_batch        =
+            ls_base_page_mfg_source_band-first_manufacture_batch
+          first_manufacture_storage_loc  =
+            ls_base_page_mfg_source_band-first_manufacture_storage_loc
+          first_manufacture_val_type     =
+            ls_base_page_mfg_source_band-first_manufacture_val_type
+          last_manufacturing_date        =
+            ls_base_page_mfg_source_band-last_manufacturing_date
+          days_since_last_manufacture    =
+            ls_base_page_mfg_source_band-days_since_last_manufacture
+          last_manufacture_batch         =
+            ls_base_page_mfg_source_band-last_manufacture_batch
+          last_manufacture_storage_loc   =
+            ls_base_page_mfg_source_band-last_manufacture_storage_loc
+          last_manufacture_val_type      =
+            ls_base_page_mfg_source_band-last_manufacture_val_type
+          manufacturing_date_span_days   =
+            ls_base_page_mfg_source_band-manufacturing_date_span_days
+          base_unrestricted_qty          =
+            ls_base_page_mfg_source_band-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_mfg_source_band-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_page_mfg_source_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_page_mfg_source_band-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               = ls_base_page_mfg_source_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_mfg_source_band-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               = ls_base_page_mfg_source_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_page_mfg_source_band-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-page_mfg_src_age_bands.
       ENDLOOP.
       LOOP AT ls_base_result-page_upcoming_src_bands
           INTO DATA(ls_base_page_upcoming_band).
@@ -22749,6 +24910,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_page_upcoming_band-first_expiration_date
           last_expiration_date           =
             ls_base_page_upcoming_band-last_expiration_date
+          first_expiration_batch         =
+            ls_base_page_upcoming_band-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_upcoming_band-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_upcoming_band-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_upcoming_band-first_expiration_source
+          last_expiration_batch          =
+            ls_base_page_upcoming_band-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_upcoming_band-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_upcoming_band-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_upcoming_band-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_upcoming_band-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_upcoming_band-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_upcoming_band-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22824,6 +25005,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_page_after_window_band-first_expiration_date
           last_expiration_date           =
             ls_base_page_after_window_band-last_expiration_date
+          first_expiration_batch         =
+            ls_base_page_after_window_band-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_page_after_window_band-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_page_after_window_band-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_page_after_window_band-first_expiration_source
+          last_expiration_batch          =
+            ls_base_page_after_window_band-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_page_after_window_band-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_page_after_window_band-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_page_after_window_band-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_page_after_window_band-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_page_after_window_band-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_page_after_window_band-expiration_date_span_days
           base_unrestricted_qty          =
@@ -22875,6 +25076,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
         ls_base_result-oldest_manufacturing_date_src.
       ls_result-days_since_oldest_manufacture =
         ls_base_result-days_since_oldest_manufacture.
+      ls_result-youngest_mfg_storage_loc =
+        ls_base_result-youngest_mfg_storage_loc.
+      ls_result-youngest_mfg_batch =
+        ls_base_result-youngest_mfg_batch.
+      ls_result-youngest_mfg_val_type =
+        ls_base_result-youngest_mfg_val_type.
+      ls_result-youngest_mfg_date =
+        ls_base_result-youngest_mfg_date.
+      ls_result-youngest_mfg_date_src =
+        ls_base_result-youngest_mfg_date_src.
+      ls_result-days_since_youngest_mfg =
+        ls_base_result-days_since_youngest_mfg.
       ls_result-first_expired_storage_location =
         ls_base_result-first_expired_storage_location.
       ls_result-first_expired_batch = ls_base_result-first_expired_batch.
@@ -23558,6 +25771,26 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_source_status-first_expiration_date
           last_expiration_date           =
             ls_base_source_status-last_expiration_date
+          first_expiration_batch         =
+            ls_base_source_status-first_expiration_batch
+          first_expiration_storage_loc   =
+            ls_base_source_status-first_expiration_storage_loc
+          first_expiration_val_type      =
+            ls_base_source_status-first_expiration_val_type
+          first_expiration_source        =
+            ls_base_source_status-first_expiration_source
+          last_expiration_batch          =
+            ls_base_source_status-last_expiration_batch
+          last_expiration_storage_loc    =
+            ls_base_source_status-last_expiration_storage_loc
+          last_expiration_val_type       =
+            ls_base_source_status-last_expiration_val_type
+          last_expiration_source         =
+            ls_base_source_status-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_source_status-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_source_status-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_source_status-expiration_date_span_days
           base_unrestricted_qty          =
@@ -23628,6 +25861,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_source_window-blocked_qty_share_pct
           first_expiration_date          = ls_base_source_window-first_expiration_date
           last_expiration_date           = ls_base_source_window-last_expiration_date
+          first_expiration_batch         = ls_base_source_window-first_expiration_batch
+          first_expiration_storage_loc   = ls_base_source_window-first_expiration_storage_loc
+          first_expiration_val_type      = ls_base_source_window-first_expiration_val_type
+          first_expiration_source        = ls_base_source_window-first_expiration_source
+          last_expiration_batch          = ls_base_source_window-last_expiration_batch
+          last_expiration_storage_loc    = ls_base_source_window-last_expiration_storage_loc
+          last_expiration_val_type       = ls_base_source_window-last_expiration_val_type
+          last_expiration_source         = ls_base_source_window-last_expiration_source
+          days_to_first_expiration       = ls_base_source_window-days_to_first_expiration
+          days_to_last_expiration        = ls_base_source_window-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_source_window-expiration_date_span_days
           base_unrestricted_qty          = ls_base_source_window-unrestricted_qty
@@ -23697,6 +25940,16 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_after_window_band-blocked_qty_share_pct
           first_expiration_date          = ls_base_after_window_band-first_expiration_date
           last_expiration_date           = ls_base_after_window_band-last_expiration_date
+          first_expiration_batch         = ls_base_after_window_band-first_expiration_batch
+          first_expiration_storage_loc   = ls_base_after_window_band-first_expiration_storage_loc
+          first_expiration_val_type      = ls_base_after_window_band-first_expiration_val_type
+          first_expiration_source        = ls_base_after_window_band-first_expiration_source
+          last_expiration_batch          = ls_base_after_window_band-last_expiration_batch
+          last_expiration_storage_loc    = ls_base_after_window_band-last_expiration_storage_loc
+          last_expiration_val_type       = ls_base_after_window_band-last_expiration_val_type
+          last_expiration_source         = ls_base_after_window_band-last_expiration_source
+          days_to_first_expiration       = ls_base_after_window_band-days_to_first_expiration
+          days_to_last_expiration        = ls_base_after_window_band-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_after_window_band-expiration_date_span_days
           base_unrestricted_qty          =
@@ -23768,6 +26021,18 @@ CLASS zcl_stock_service IMPLEMENTATION.
             ls_base_source_age-blocked_qty_share_pct
           first_expiration_date          = ls_base_source_age-first_expiration_date
           last_expiration_date           = ls_base_source_age-last_expiration_date
+          first_expiration_batch         = ls_base_source_age-first_expiration_batch
+          first_expiration_storage_loc   = ls_base_source_age-first_expiration_storage_loc
+          first_expiration_val_type      = ls_base_source_age-first_expiration_val_type
+          first_expiration_source        = ls_base_source_age-first_expiration_source
+          last_expiration_batch          = ls_base_source_age-last_expiration_batch
+          last_expiration_storage_loc    = ls_base_source_age-last_expiration_storage_loc
+          last_expiration_val_type       = ls_base_source_age-last_expiration_val_type
+          last_expiration_source         = ls_base_source_age-last_expiration_source
+          days_to_first_expiration       =
+            ls_base_source_age-days_to_first_expiration
+          days_to_last_expiration        =
+            ls_base_source_age-days_to_last_expiration
           expiration_date_span_days      =
             ls_base_source_age-expiration_date_span_days
           base_unrestricted_qty          = ls_base_source_age-unrestricted_qty
@@ -23791,6 +26056,168 @@ CLASS zcl_stock_service IMPLEMENTATION.
             iv_numerator     = ls_ratio_cache-ratio-numerator
             iv_denominator   = ls_ratio_cache-ratio-denominator ) )
           TO ls_result-expiry_src_age_bands.
+      ENDLOOP.
+      LOOP AT ls_base_result-manufacturing_age_bands
+          INTO DATA(ls_base_mfg_age_band).
+        APPEND VALUE ty_batch_mfg_age_band_uom(
+          age_band                       = ls_base_mfg_age_band-age_band
+          row_count                      = ls_base_mfg_age_band-row_count
+          row_share_pct                  = ls_base_mfg_age_band-row_share_pct
+          unrestricted_qty_share_pct     =
+            ls_base_mfg_age_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_mfg_age_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_mfg_age_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_mfg_age_band-blocked_qty_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_mfg_age_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_mfg_age_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          first_manufacturing_date       =
+            ls_base_mfg_age_band-first_manufacturing_date
+          first_manufacture_batch        =
+            ls_base_mfg_age_band-first_manufacture_batch
+          first_manufacture_storage_loc  =
+            ls_base_mfg_age_band-first_manufacture_storage_loc
+          first_manufacture_val_type     =
+            ls_base_mfg_age_band-first_manufacture_val_type
+          first_manufacture_source       =
+            ls_base_mfg_age_band-first_manufacture_source
+          days_since_first_manufacture   =
+            ls_base_mfg_age_band-days_since_first_manufacture
+          last_manufacturing_date        =
+            ls_base_mfg_age_band-last_manufacturing_date
+          last_manufacture_batch         =
+            ls_base_mfg_age_band-last_manufacture_batch
+          last_manufacture_storage_loc   =
+            ls_base_mfg_age_band-last_manufacture_storage_loc
+          last_manufacture_val_type      =
+            ls_base_mfg_age_band-last_manufacture_val_type
+          last_manufacture_source        =
+            ls_base_mfg_age_band-last_manufacture_source
+          days_since_last_manufacture    =
+            ls_base_mfg_age_band-days_since_last_manufacture
+          manufacturing_date_span_days   =
+            ls_base_mfg_age_band-manufacturing_date_span_days
+          base_unrestricted_qty          =
+            ls_base_mfg_age_band-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_band-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             = ls_base_mfg_age_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_band-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               = ls_base_mfg_age_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_band-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               = ls_base_mfg_age_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_band-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-manufacturing_age_bands.
+      ENDLOOP.
+      LOOP AT ls_base_result-manufacturing_age_source_bands
+          INTO DATA(ls_base_mfg_age_source_band).
+        APPEND VALUE ty_batch_mfg_age_source_band_uom(
+          source_group                   = ls_base_mfg_age_source_band-source_group
+          age_band                       = ls_base_mfg_age_source_band-age_band
+          row_count                      = ls_base_mfg_age_source_band-row_count
+          unrestricted_row_count         =
+            ls_base_mfg_age_source_band-unrestricted_row_count
+          available_row_count            =
+            ls_base_mfg_age_source_band-available_row_count
+          quality_row_count              =
+            ls_base_mfg_age_source_band-quality_row_count
+          blocked_row_count              =
+            ls_base_mfg_age_source_band-blocked_row_count
+          unrestricted_row_share_pct     =
+            ls_base_mfg_age_source_band-unrestricted_row_share_pct
+          available_row_share_pct        =
+            ls_base_mfg_age_source_band-available_row_share_pct
+          quality_row_share_pct          =
+            ls_base_mfg_age_source_band-quality_row_share_pct
+          blocked_row_share_pct          =
+            ls_base_mfg_age_source_band-blocked_row_share_pct
+          row_share_pct                  =
+            ls_base_mfg_age_source_band-row_share_pct
+          source_row_share_pct           =
+            ls_base_mfg_age_source_band-source_row_share_pct
+          age_band_row_share_pct         =
+            ls_base_mfg_age_source_band-age_band_row_share_pct
+          source_unrestricted_share_pct  = ls_base_mfg_age_source_band-source_unrestricted_share_pct
+          source_available_share_pct     = ls_base_mfg_age_source_band-source_available_share_pct
+          source_quality_share_pct       = ls_base_mfg_age_source_band-source_quality_share_pct
+          source_blocked_share_pct       = ls_base_mfg_age_source_band-source_blocked_share_pct
+          band_unrestricted_share_pct    = ls_base_mfg_age_source_band-band_unrestricted_share_pct
+          band_available_share_pct       = ls_base_mfg_age_source_band-band_available_share_pct
+          band_quality_share_pct         = ls_base_mfg_age_source_band-band_quality_share_pct
+          band_blocked_share_pct         = ls_base_mfg_age_source_band-band_blocked_share_pct
+          available_pct_of_unrestricted  =
+            ls_base_mfg_age_source_band-available_pct_of_unrestricted
+          base_reservation_deduction_qty =
+            ls_base_mfg_age_source_band-reservation_deduction_qty
+          unit_reservation_deduction_qty = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_mfg_age_source_band-reservation_deduction_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          unrestricted_qty_share_pct     =
+            ls_base_mfg_age_source_band-unrestricted_qty_share_pct
+          available_qty_share_pct        =
+            ls_base_mfg_age_source_band-available_qty_share_pct
+          quality_qty_share_pct          =
+            ls_base_mfg_age_source_band-quality_qty_share_pct
+          blocked_qty_share_pct          =
+            ls_base_mfg_age_source_band-blocked_qty_share_pct
+          first_manufacturing_date       = ls_base_mfg_age_source_band-first_manufacturing_date
+          days_since_first_manufacture   = ls_base_mfg_age_source_band-days_since_first_manufacture
+          first_manufacture_batch        = ls_base_mfg_age_source_band-first_manufacture_batch
+          first_manufacture_storage_loc  = ls_base_mfg_age_source_band-first_manufacture_storage_loc
+          first_manufacture_val_type     = ls_base_mfg_age_source_band-first_manufacture_val_type
+          last_manufacturing_date        = ls_base_mfg_age_source_band-last_manufacturing_date
+          days_since_last_manufacture    = ls_base_mfg_age_source_band-days_since_last_manufacture
+          last_manufacture_batch         = ls_base_mfg_age_source_band-last_manufacture_batch
+          last_manufacture_storage_loc   = ls_base_mfg_age_source_band-last_manufacture_storage_loc
+          last_manufacture_val_type      = ls_base_mfg_age_source_band-last_manufacture_val_type
+          manufacturing_date_span_days   = ls_base_mfg_age_source_band-manufacturing_date_span_days
+          base_unrestricted_qty          =
+            ls_base_mfg_age_source_band-unrestricted_qty
+          unit_unrestricted_qty          = convert_stock_quantity(
+            iv_base_quantity =
+              ls_base_mfg_age_source_band-unrestricted_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_available_qty             =
+            ls_base_mfg_age_source_band-available_qty
+          unit_available_qty             = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_source_band-available_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_quality_qty               =
+            ls_base_mfg_age_source_band-quality_qty
+          unit_quality_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_source_band-quality_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator )
+          base_blocked_qty               =
+            ls_base_mfg_age_source_band-blocked_qty
+          unit_blocked_qty               = convert_stock_quantity(
+            iv_base_quantity = ls_base_mfg_age_source_band-blocked_qty
+            iv_numerator     = ls_ratio_cache-ratio-numerator
+            iv_denominator   = ls_ratio_cache-ratio-denominator ) )
+          TO ls_result-manufacturing_age_source_bands.
       ENDLOOP.
       ls_result-base_plant_exp_unrestr_qty =
         ls_base_result-plant_exp_unrestr_qty.

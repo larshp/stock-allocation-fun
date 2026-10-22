@@ -79,6 +79,7 @@ INTERFACE zif_prod_order_read_repo PUBLIC.
       after_order                    TYPE ty_order_number,
       order_category                 TYPE aufk-autyp,
       order_type                     TYPE aufk-auart,
+      filter_order_type              TYPE abap_bool,
       filter_order_description       TYPE abap_bool,
       order_description              TYPE aufk-ktext,
       order_created_by               TYPE aufk-ernam,

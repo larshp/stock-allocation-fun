@@ -244,7 +244,8 @@ CLASS lcl_prod_order_read_repo IMPLEMENTATION.
           OR ( is_selection-order_category IS NOT INITIAL
             AND ls_order_item-order_category <>
               is_selection-order_category )
-          OR ( is_selection-order_type IS NOT INITIAL
+          OR ( ( is_selection-filter_order_type = abap_true
+              OR is_selection-order_type IS NOT INITIAL )
             AND ls_order_item-order_type <> is_selection-order_type )
           OR ( ( is_selection-filter_order_description = abap_true
                 OR is_selection-order_description IS NOT INITIAL )
@@ -404,6 +405,25 @@ CLASS lcl_prod_order_read_repo IMPLEMENTATION.
               OR ls_order_item-order_quantity -
                 ls_order_item-received_quantity >
                   is_selection-unreceived_qty_to ) )
+          OR ( is_selection-filter_unreceived_pct_from = abap_true
+            AND ( ls_order_item-order_quantity <= 0
+              OR ls_order_item-received_quantity < 0
+              OR ( is_selection-unreceived_pct_from > 0
+                AND ( ls_order_item-order_quantity <=
+                    ls_order_item-received_quantity
+                  OR ( ls_order_item-order_quantity -
+                      ls_order_item-received_quantity ) * 100 <
+                    is_selection-unreceived_pct_from *
+                      ls_order_item-order_quantity ) ) ) )
+          OR ( is_selection-filter_unreceived_pct_to = abap_true
+            AND ( ls_order_item-order_quantity <= 0
+              OR ls_order_item-received_quantity < 0
+              OR ( ls_order_item-order_quantity >
+                  ls_order_item-received_quantity
+                AND ( ls_order_item-order_quantity -
+                    ls_order_item-received_quantity ) * 100 >
+                  is_selection-unreceived_pct_to *
+                    ls_order_item-order_quantity ) ) )
           OR ls_order_item-basic_finish_date <
             is_selection-finish_date_from
           OR ls_order_item-basic_finish_date > is_selection-finish_date_to
@@ -1191,7 +1211,11 @@ CLASS ltcl_prod_order_read DEFINITION FINAL
       RAISING cx_static_check.
     METHODS filters_finish_receipt_state FOR TESTING
       RAISING cx_static_check.
+    METHODS filters_finish_order_type FOR TESTING
+      RAISING cx_static_check.
     METHODS filters_finish_rcvd_qty FOR TESTING
+      RAISING cx_static_check.
+    METHODS filters_finish_unreceived_pct FOR TESTING
       RAISING cx_static_check.
     METHODS filters_finish_start_window FOR TESTING
       RAISING cx_static_check.
@@ -1512,6 +1536,9 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-orders[ 2 ]-items[ 3 ]-over_receipt_qty_order_unit
       exp = CONV decfloat34( '0.500' ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_result-orders[ 2 ]-items[ 3 ]-over_receipt_pct_of_order_qty
+      exp = CONV decfloat34( '25.00' ) ).
     cl_abap_unit_assert=>assert_equals(
       act = ls_result-orders[ 2 ]-items[ 3 ]-received_pct_of_order_qty
       exp = CONV decfloat34( '125.00' ) ).
@@ -4022,7 +4049,7 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
         order_unit                = 'EA'
         base_unit                 = 'EA'
         order_quantity            = '10.000'
-        received_quantity         = '11.000'
+        received_quantity         = '35.000'
         order_to_base_numerator   = 1
         order_to_base_denominator = 1 )
       ( production_order          = '0000000005'
@@ -4108,6 +4135,9 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       act = ls_over_received-orders[ 1 ]-production_order
       exp = '0000000004' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_over_received-orders[ 1 ]-items[ 1 ]-over_receipt_pct_of_order_qty
+      exp = CONV decfloat34( '250.00' ) ).
 
     CLEAR ls_selection-receipt_progress_status.
     DATA(ls_invalid_quantity) = lo_cut->read_orders_by_finish_window(
@@ -4239,6 +4269,127 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
     TRY.
         lo_invalid_cut->read_orders_by_finish_window(
           is_selection = ls_selection ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_invalid_repository->finish_window_read_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD filters_finish_order_type.
+    DATA(lo_repository) = NEW lcl_prod_order_read_repo( ).
+    lo_repository->order_items = VALUE #(
+      ( production_order          = '0000000001'
+        production_item           = '0001'
+        order_category            = '10'
+        order_type                = 'PP01'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '0.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000002'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '0.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000003'
+        production_item           = '0001'
+        order_category            = '10'
+        order_type                = 'PP02'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '0.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 ) ).
+    DATA(lo_cut) = NEW zcl_prod_order_read_service( lo_repository ).
+
+    DATA(ls_blank_result) = lo_cut->read_orders_by_finish_window(
+      is_selection = VALUE #(
+        material          = 'MAT-1'
+        plant             = '1000'
+        finish_date_from  = '20261101'
+        finish_date_to    = '20261130'
+        filter_order_type = abap_true
+        maximum_results   = 10 ) ).
+    cl_abap_unit_assert=>assert_true( ls_blank_result-is_successful ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_blank_result-found_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_blank_result-orders[ 1 ]-production_order
+      exp = '0000000002' ).
+    cl_abap_unit_assert=>assert_true(
+      ls_blank_result-orders[ 1 ]-items[ 1 ]-matches_finish_selection ).
+
+    DATA(ls_nonblank_result) = lo_cut->read_orders_by_finish_window(
+      is_selection = VALUE #(
+        material         = 'MAT-1'
+        plant            = '1000'
+        finish_date_from = '20261101'
+        finish_date_to   = '20261130'
+        order_type       = 'PP01'
+        maximum_results  = 10 ) ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_nonblank_result-found_count
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_nonblank_result-orders[ 1 ]-production_order
+      exp = '0000000001' ).
+
+    lo_repository->use_finish_window_override = abap_true.
+    lo_repository->finish_window_override = VALUE #(
+      ( production_order      = '0000000002'
+        basic_finish_date     = '20261110'
+        scheduled_start_date  = '00000000'
+        scheduled_finish_date = '00000000' ) ).
+    LOOP AT lo_repository->order_items ASSIGNING FIELD-SYMBOL(<ls_drift_item>)
+        WHERE production_order = '0000000002'.
+      <ls_drift_item>-order_type = 'PP02'.
+    ENDLOOP.
+    DATA(ls_drift_result) = lo_cut->read_orders_by_finish_window(
+      is_selection = VALUE #(
+        material          = 'MAT-1'
+        plant             = '1000'
+        finish_date_from  = '20261101'
+        finish_date_to    = '20261130'
+        filter_order_type = abap_true
+        maximum_results   = 10 ) ).
+    cl_abap_unit_assert=>assert_false(
+      ls_drift_result-orders[ 1 ]-items[ 1 ]-matches_finish_selection ).
+    cl_abap_unit_assert=>assert_true(
+      ls_drift_result-orders[ 1 ]-finish_filter_lost ).
+
+    DATA(lo_invalid_repository) = NEW lcl_prod_order_read_repo( ).
+    DATA(lo_invalid_cut) = NEW zcl_prod_order_read_service(
+      lo_invalid_repository ).
+    DATA lv_raised TYPE abap_bool.
+    TRY.
+        lo_invalid_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material          = 'MAT-1'
+            plant             = '1000'
+            finish_date_from  = '20261101'
+            finish_date_to    = '20261130'
+            filter_order_type = 'Y'
+            maximum_results   = 10 ) ).
       CATCH zcx_invalid_stock_request.
         lv_raised = abap_true.
     ENDTRY.
@@ -4437,6 +4588,268 @@ CLASS ltcl_prod_order_read IMPLEMENTATION.
     TRY.
         lo_invalid_cut->read_orders_by_finish_window(
           is_selection = ls_selection ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lo_invalid_repository->finish_window_read_calls
+      exp = 0 ).
+  ENDMETHOD.
+
+  METHOD filters_finish_unreceived_pct.
+    DATA(lo_repository) = NEW lcl_prod_order_read_repo( ).
+    lo_repository->order_items = VALUE #(
+      ( production_order          = '0000000001'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '0.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000002'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '5.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000003'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '10.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000004'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '12.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000005'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '0.000'
+        received_quantity         = '0.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 )
+      ( production_order          = '0000000006'
+        production_item           = '0001'
+        order_category            = '10'
+        material                  = 'MAT-1'
+        plant                     = '1000'
+        basic_finish_date         = '20261110'
+        order_unit                = 'EA'
+        base_unit                 = 'EA'
+        order_quantity            = '10.000'
+        received_quantity         = '-1.000'
+        order_to_base_numerator   = 1
+        order_to_base_denominator = 1 ) ).
+    DATA(lo_cut) = NEW zcl_prod_order_read_service( lo_repository ).
+    DATA(ls_selection) = VALUE
+      zif_prod_order_read_repo=>ty_order_selection(
+        material                   = 'MAT-1'
+        plant                      = '1000'
+        finish_date_from           = '20261101'
+        finish_date_to             = '20261130'
+        filter_unreceived_pct_from = abap_true
+        unreceived_pct_from        = '50.00'
+        filter_unreceived_pct_to   = abap_true
+        unreceived_pct_to          = '100.00'
+        maximum_results            = 1 ).
+
+    DATA(ls_first_page) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_true( ls_first_page-is_successful ).
+    cl_abap_unit_assert=>assert_true( ls_first_page-is_truncated ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_first_page-orders )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_first_page-orders[ 1 ]-production_order
+      exp = '0000000001' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_first_page-orders[ 1 ]-items[ 1 ]-open_pct_of_order_qty
+      exp = CONV decfloat34( '100.00' ) ).
+    cl_abap_unit_assert=>assert_true(
+      ls_first_page-orders[ 1 ]-items[ 1 ]-matches_finish_selection ).
+
+    ls_selection-unreceived_pct_from = '50.00'.
+    ls_selection-unreceived_pct_to = '50.00'.
+    ls_selection-maximum_results = 10.
+    DATA(ls_exact_half) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_exact_half-orders )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_exact_half-orders[ 1 ]-production_order
+      exp = '0000000002' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_exact_half-orders[ 1 ]-items[ 1 ]-open_pct_of_order_qty
+      exp = CONV decfloat34( '50.00' ) ).
+
+    ls_selection-unreceived_pct_from = 0.
+    ls_selection-unreceived_pct_to = 0.
+    DATA(ls_zero_open) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_zero_open-orders )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_zero_open-orders[ 1 ]-production_order
+      exp = '0000000003' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_zero_open-orders[ 2 ]-production_order
+      exp = '0000000004' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_zero_open-orders[ 1 ]-items[ 1 ]-open_pct_of_order_qty
+      exp = CONV decfloat34( 0 ) ).
+
+    ls_selection-filter_unreceived_pct_to = abap_false.
+    CLEAR ls_selection-unreceived_pct_to.
+    ls_selection-unreceived_pct_from = '100.00'.
+    DATA(ls_lower_only) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_lower_only-orders )
+      exp = 1 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_lower_only-orders[ 1 ]-production_order
+      exp = '0000000001' ).
+
+    ls_selection-filter_unreceived_pct_from = abap_false.
+    CLEAR ls_selection-unreceived_pct_from.
+    ls_selection-filter_unreceived_pct_to = abap_true.
+    ls_selection-unreceived_pct_to = 0.
+    DATA(ls_upper_only) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_upper_only-orders )
+      exp = 2 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_upper_only-orders[ 1 ]-production_order
+      exp = '0000000003' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_upper_only-orders[ 2 ]-production_order
+      exp = '0000000004' ).
+
+    ls_selection-filter_unreceived_pct_from = abap_true.
+    ls_selection-unreceived_pct_from = 0.
+    CLEAR ls_selection-filter_unreceived_pct_to.
+    CLEAR ls_selection-unreceived_pct_to.
+    DATA(ls_zero_lower_only) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lines( ls_zero_lower_only-orders )
+      exp = 4 ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_zero_lower_only-receipt_progress_counts-total_item_count
+      exp = 4 ).
+
+    lo_repository->use_finish_window_override = abap_true.
+    lo_repository->finish_window_override = VALUE #(
+      ( production_order      = '0000000002'
+        basic_finish_date     = '20261110'
+        scheduled_start_date  = '00000000'
+        scheduled_finish_date = '00000000' ) ).
+    LOOP AT lo_repository->order_items ASSIGNING FIELD-SYMBOL(<ls_drift_item>)
+        WHERE production_order = '0000000002'.
+      <ls_drift_item>-received_quantity = '4.000'.
+    ENDLOOP.
+    ls_selection-unreceived_pct_from = '50.00'.
+    ls_selection-unreceived_pct_to = '50.00'.
+    ls_selection-filter_unreceived_pct_to = abap_true.
+    ls_selection-maximum_results = 1.
+    DATA(ls_drift) = lo_cut->read_orders_by_finish_window(
+      is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        ls_drift-orders[ 1 ]-items[ 1 ]-matches_finish_selection = abap_false ) ).
+    cl_abap_unit_assert=>assert_true(
+      act = ls_drift-orders[ 1 ]-finish_filter_lost ).
+    cl_abap_unit_assert=>assert_equals(
+      act = ls_drift-finish_filter_lost_count
+      exp = 1 ).
+
+    DATA(lo_invalid_repository) = NEW lcl_prod_order_read_repo( ).
+    DATA(lo_invalid_cut) = NEW zcl_prod_order_read_service(
+      lo_invalid_repository ).
+    DATA lv_raised TYPE abap_bool.
+    TRY.
+        lo_invalid_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material = 'MAT-1' plant = '1000'
+            finish_date_from = '20261101' finish_date_to = '20261130'
+            maximum_results = 10
+            filter_unreceived_pct_from = abap_true
+            unreceived_pct_from = '60.00'
+            filter_unreceived_pct_to = abap_true
+            unreceived_pct_to = '50.00' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_invalid_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material = 'MAT-1' plant = '1000'
+            finish_date_from = '20261101' finish_date_to = '20261130'
+            maximum_results = 10
+            filter_unreceived_pct_from = abap_true
+            unreceived_pct_from = '100.01' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_invalid_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material = 'MAT-1' plant = '1000'
+            finish_date_from = '20261101' finish_date_to = '20261130'
+            maximum_results = 10
+            unreceived_pct_to = '1.00' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_raised = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_raised ).
+    CLEAR lv_raised.
+    TRY.
+        lo_invalid_cut->read_orders_by_finish_window(
+          is_selection = VALUE #(
+            material = 'MAT-1' plant = '1000'
+            finish_date_from = '20261101' finish_date_to = '20261130'
+            maximum_results = 10
+            filter_unreceived_pct_to = 'Y' ) ).
       CATCH zcx_invalid_stock_request.
         lv_raised = abap_true.
     ENDTRY.

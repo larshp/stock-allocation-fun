@@ -7,6 +7,7 @@ CLASS lcl_prod_comp_repo DEFINITION FINAL.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    DATA return_all_planned TYPE abap_bool.
   PRIVATE SECTION.
     DATA mt_components TYPE zif_prod_comp_repo=>ty_reservation_items.
     DATA mv_read_count TYPE i.
@@ -26,7 +27,8 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
 
     APPEND iv_production_order TO lt_production_orders.
     rt_items = zif_prod_comp_repo~get_components_bulk(
-      it_production_orders = lt_production_orders ).
+      it_production_orders   = lt_production_orders
+      is_required_date_range = is_required_date_range ).
   ENDMETHOD.
 
   METHOD zif_prod_comp_repo~get_components_bulk.
@@ -36,6 +38,145 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
         table_line = ls_component-production_order
         TRANSPORTING NO FIELDS.
       IF sy-subrc = 0.
+        IF is_required_date_range-filter_from = abap_true
+            AND ( ls_component-required_date IS INITIAL
+              OR ls_component-required_date
+                < is_required_date_range-required_date_from ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_through = abap_true
+            AND ( ls_component-required_date IS INITIAL
+              OR ls_component-required_date
+                > is_required_date_range-required_date_through ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_bucket = abap_true.
+          CASE is_required_date_range-required_date_bucket.
+            WHEN 'O'.
+              IF ls_component-required_date IS INITIAL
+                  OR ls_component-required_date >=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'T'.
+              IF ls_component-required_date <>
+                  is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'F'.
+              IF ls_component-required_date IS INITIAL
+                  OR ls_component-required_date <=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'N'.
+              DATA(lv_horizon_to) = zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days = is_required_date_range-required_date_horizon_days ).
+              IF ls_component-required_date <=
+                    is_required_date_range-as_of_date
+                  OR ls_component-required_date > lv_horizon_to.
+                CONTINUE.
+              ENDIF.
+            WHEN 'R'.
+              DATA(lv_horizon_past_days) =
+                0 - is_required_date_range-required_date_horizon_days.
+              DATA(lv_horizon_from) = zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days = lv_horizon_past_days ).
+              IF ls_component-required_date < lv_horizon_from
+                  OR ls_component-required_date >=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'U'.
+              IF ls_component-required_date IS NOT INITIAL.
+                CONTINUE.
+              ENDIF.
+          ENDCASE.
+        ENDIF.
+        APPEND ls_component TO rt_items.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD zif_prod_comp_repo~get_planned_comp.
+    DATA lt_planned_orders TYPE zif_prod_comp_repo=>ty_planned_orders.
+
+    APPEND iv_planned_order TO lt_planned_orders.
+    rt_items = zif_prod_comp_repo~get_planned_comp_bulk(
+      it_planned_orders      = lt_planned_orders
+      is_required_date_range = is_required_date_range ).
+  ENDMETHOD.
+
+  METHOD zif_prod_comp_repo~get_planned_comp_bulk.
+    ADD 1 TO mv_read_count.
+    IF return_all_planned = abap_true.
+      rt_items = mt_components.
+      RETURN.
+    ENDIF.
+    LOOP AT mt_components INTO DATA(ls_component).
+      READ TABLE it_planned_orders WITH KEY
+        table_line = ls_component-planned_order
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        IF is_required_date_range-filter_from = abap_true
+            AND ( ls_component-required_date IS INITIAL
+              OR ls_component-required_date
+                < is_required_date_range-required_date_from ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_through = abap_true
+            AND ( ls_component-required_date IS INITIAL
+              OR ls_component-required_date
+                > is_required_date_range-required_date_through ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_bucket = abap_true.
+          CASE is_required_date_range-required_date_bucket.
+            WHEN 'O'.
+              IF ls_component-required_date IS INITIAL
+                  OR ls_component-required_date >=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'T'.
+              IF ls_component-required_date <>
+                  is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'F'.
+              IF ls_component-required_date IS INITIAL
+                  OR ls_component-required_date <=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'N'.
+              DATA(lv_horizon_to) = zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days = is_required_date_range-required_date_horizon_days ).
+              IF ls_component-required_date <=
+                    is_required_date_range-as_of_date
+                  OR ls_component-required_date > lv_horizon_to.
+                CONTINUE.
+              ENDIF.
+            WHEN 'R'.
+              DATA(lv_horizon_past_days) =
+                0 - is_required_date_range-required_date_horizon_days.
+              DATA(lv_horizon_from) = zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days = lv_horizon_past_days ).
+              IF ls_component-required_date < lv_horizon_from
+                  OR ls_component-required_date >=
+                    is_required_date_range-as_of_date.
+                CONTINUE.
+              ENDIF.
+            WHEN 'U'.
+              IF ls_component-required_date IS NOT INITIAL.
+                CONTINUE.
+              ENDIF.
+          ENDCASE.
+        ENDIF.
         APPEND ls_component TO rt_items.
       ENDIF.
     ENDLOOP.
@@ -928,6 +1069,18 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
   RISK LEVEL HARMLESS.
   PRIVATE SECTION.
     METHODS reads_open_components FOR TESTING.
+    METHODS reads_open_planned_components FOR TESTING
+      RAISING cx_static_check.
+    METHODS previews_planned_comp_atp FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_bad_planned_comp_rows FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_bad_planned_order_list FOR TESTING
+      RAISING cx_static_check.
+    METHODS filters_required_date_range FOR TESTING
+      RAISING cx_static_check.
+    METHODS rejects_bad_date_range FOR TESTING
+      RAISING cx_static_check.
     METHODS rejects_blank_order FOR TESTING.
     METHODS issues_selected_components FOR TESTING.
     METHODS previews_remaining_components FOR TESTING.
@@ -981,8 +1134,25 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
     METHODS rejects_component_atp_rule FOR TESTING.
     METHODS rejects_component_atp_date FOR TESTING.
     METHODS summarizes_component_readiness FOR TESTING.
+    METHODS shortage_endpoint_ids FOR TESTING.
+    METHODS summarizes_plan_mat_readiness FOR TESTING
+      RAISING cx_static_check.
+    METHODS summarizes_due_horizons FOR TESTING.
+    METHODS due_horizon_endpoint_ids FOR TESTING.
+    METHODS readiness_outcome_endpoints FOR TESTING.
+    METHODS readiness_mixed_base_units FOR TESTING.
+    METHODS readiness_missing_base_unit FOR TESTING.
+    METHODS readiness_unit_overflow_skip FOR TESTING.
     METHODS summarizes_component_shortages FOR TESTING.
+    METHODS summarizes_shortage_offsets FOR TESTING.
+    METHODS summarizes_largest_short_ties FOR TESTING.
+    METHODS plans_planned_order_shortage FOR TESTING
+      RAISING cx_static_check.
     METHODS summarizes_order_atp FOR TESTING.
+    METHODS summarizes_atp_date_offsets FOR TESTING.
+    METHODS summarizes_atp_horizon_ends FOR TESTING.
+    METHODS summarizes_atp_overdue_ages FOR TESTING.
+    METHODS summarizes_atp_endpoint_ids FOR TESTING.
     METHODS rejects_atp_summary_overflow FOR TESTING.
     METHODS rejects_atp_date_overflow FOR TESTING.
     METHODS rejects_month_qty_overflow FOR TESTING.
@@ -1010,6 +1180,444 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
 ENDCLASS.
 
 CLASS ltcl_prod_comp_service IMPLEMENTATION.
+  METHOD reads_open_planned_components.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( planned_order      = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item   = '0002'
+          material           = 'COMP-2'
+          plant              = '1000'
+          required_quantity  = '10.000'
+          withdrawn_quantity = '3.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item   = '0005'
+          material           = 'COMP-1'
+          plant              = '1000'
+          required_quantity  = '3.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item   = '0001'
+          material           = 'COMP-CLOSED'
+          required_quantity  = '5.000'
+          withdrawn_quantity = '5.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item   = '0003'
+          material           = 'COMP-DELETED'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '0.000'
+          is_deleted         = 'X'
+          unit               = 'EA' )
+        ( planned_order      = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item   = '0004'
+          material           = 'COMP-FINAL'
+          required_quantity  = '8.000'
+          withdrawn_quantity = '2.000'
+          is_final_issue     = 'X'
+          unit               = 'EA' )
+        ( planned_order      = '0000001002'
+          reservation_number = '0000000002'
+          reservation_item   = '0001'
+          material           = 'OTHER-ORDER'
+          required_quantity  = '9.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+
+    DATA(lt_components) = lo_cut->get_open_planned_comp(
+      iv_planned_order = '0000001001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_components ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000001001'
+      act = lt_components[ 1 ]-planned_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_components[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'COMP-2'
+      act = lt_components[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '7.000' )
+      act = lt_components[ 1 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_components[ 2 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '3.000' )
+      act = lt_components[ 2 ]-open_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+
+  ENDMETHOD.
+
+  METHOD filters_required_date_range.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order = '0000004711'
+          planned_order = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item = '0001'
+          required_date = '20261020'
+          required_quantity = '5.000' unit = 'EA' )
+        ( production_order = '0000004711'
+          planned_order = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item = '0002'
+          required_date = '20261021'
+          required_quantity = '5.000' unit = 'EA' )
+        ( production_order = '0000004711'
+          planned_order = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item = '0003'
+          required_date = '20261022'
+          required_quantity = '5.000' unit = 'EA' )
+        ( production_order = '0000004711'
+          planned_order = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item = '0004'
+          required_date = '20261023'
+          required_quantity = '5.000' unit = 'EA' )
+        ( production_order = '0000004711'
+          planned_order = '0000001001'
+          reservation_number = '0000000001'
+          reservation_item = '0005'
+          required_quantity = '5.000' unit = 'EA' ) ) ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA(ls_range) = VALUE zif_prod_comp_repo=>ty_required_date_range(
+      filter_from           = abap_true
+      required_date_from    = '20261021'
+      filter_through        = abap_true
+      required_date_through = '20261022' ).
+
+    DATA(lt_production) = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_production[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_production[ 2 ]-required_date ).
+
+    DATA(lt_planned) = lo_cut->get_open_planned_comp(
+      iv_planned_order       = '0000001001'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #( filter_from = abap_true
+      required_date_from            = '20261022' ).
+    lt_production = lo_cut->get_open_components(
+      iv_production_order    = '0000004711'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'O'
+      as_of_date                      = '20261021' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_production[ 1 ]-required_date ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'T'
+      as_of_date                      = '20261021' ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261021'
+      act = lt_planned[ 1 ]-required_date ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'F'
+      as_of_date                      = '20261021' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'U'
+      as_of_date                      = '20261021' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-required_date ).
+
+    ls_range = VALUE #( filter_through = abap_true
+      required_date_through            = '20261022'
+      filter_bucket                    = abap_true
+      required_date_bucket             = 'F'
+      as_of_date                       = '20261021' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_production[ 1 ]-required_date ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'N'
+      required_date_horizon_days      = 2
+      as_of_date                      = '20261021' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_production[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261023'
+      act = lt_production[ 2 ]-required_date ).
+
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range-filter_through = abap_true.
+    ls_range-required_date_through = '20261022'.
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261022'
+      act = lt_production[ 1 ]-required_date ).
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'R'
+      required_date_horizon_days      = 1
+      as_of_date                      = '20261021' ).
+    lt_production = lo_cut->get_open_components(
+      iv_production_order    = '0000004711'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_production[ 1 ]-required_date ).
+    lt_planned = lo_cut->get_open_planned_comp(
+      iv_planned_order       = '0000001001'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_planned[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 13
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_date_range.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lt_ranges TYPE STANDARD TABLE OF
+      zif_prod_comp_repo=>ty_required_date_range WITH EMPTY KEY.
+    APPEND VALUE #( filter_from = 'Y'
+      required_date_from        = '20261001' ) TO lt_ranges.
+    APPEND VALUE #( filter_through = 'Y'
+      required_date_through        = '20261001' ) TO lt_ranges.
+    APPEND VALUE #( filter_from = abap_true
+      required_date_from        = '20260230' ) TO lt_ranges.
+    APPEND VALUE #( required_date_from = '20261001' ) TO lt_ranges.
+    APPEND VALUE #( filter_from = abap_true
+      required_date_from        = '20261022'
+      filter_through            = abap_true
+      required_date_through     = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'X'
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'O'
+      as_of_date                  = '20260230' ) TO lt_ranges.
+    APPEND VALUE #( required_date_bucket = 'O' ) TO lt_ranges.
+    APPEND VALUE #( as_of_date = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = 'Y'
+      required_date_bucket        = 'O'
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'N'
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'N'
+      required_date_horizon_days  = -1
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'N'
+      required_date_horizon_days  = 1
+      as_of_date                  = '99991231' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'R'
+      required_date_horizon_days  = 1
+      as_of_date                  = '00010101' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'T'
+      required_date_horizon_days  = 1
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( required_date_horizon_days = 1 ) TO lt_ranges.
+
+    LOOP AT lt_ranges INTO DATA(ls_range).
+      DATA(lv_rejected) = abap_false.
+      TRY.
+          lo_cut->get_open_components_bulk(
+            it_production_orders   = VALUE #( ( '0000004711' ) )
+            is_required_date_range = ls_range ).
+        CATCH zcx_invalid_production_order.
+          lv_rejected = abap_true.
+      ENDTRY.
+      cl_abap_unit_assert=>assert_true( lv_rejected ).
+    ENDLOOP.
+
+    DATA(lv_planned_rejected) = abap_false.
+    TRY.
+        lo_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #( filter_through = abap_true
+            required_date_through                          = '20260230' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_planned_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_planned_rejected ).
+
+    DATA(lv_preview_rejected) = abap_false.
+    TRY.
+        lo_cut->preview_components_stock_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #( filter_from = 'Y'
+            required_date_from                          = '20261001' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_preview_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_preview_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_planned_comp_rows.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    lo_repository->return_all_planned = abap_true.
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( planned_order      = '0000002002'
+          reservation_number = '0000000001'
+          reservation_item   = '0001' ) ) ).
+    TRY.
+        lo_cut->get_open_planned_comp_bulk(
+          VALUE #( ( '0000002001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( planned_order      = '0000002001'
+          reservation_number = '0000000001'
+          reservation_item   = '0001' )
+        ( planned_order      = '0000002001'
+          reservation_number = '0000000001'
+          reservation_item   = '0001' ) ) ).
+    CLEAR lv_rejected.
+    lo_repository->return_all_planned = abap_false.
+    TRY.
+        lo_cut->get_open_planned_comp_bulk(
+          VALUE #( ( '0000002001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+  ENDMETHOD.
+
+  METHOD rejects_bad_planned_order_list.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_repository ).
+    DATA lv_rejected TYPE abap_bool.
+
+    TRY.
+        lo_cut->get_open_planned_comp_bulk( VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_open_planned_comp_bulk(
+          VALUE #( ( space ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+
+    CLEAR lv_rejected.
+    TRY.
+        lo_cut->get_open_planned_comp_bulk(
+          VALUE #( ( '0000002001' ) ( '0000002001' ) ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lo_repository->get_read_count( ) ).
+  ENDMETHOD.
+
   METHOD reads_open_components.
     DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
     lo_repository->set_components(
@@ -3096,6 +3704,229 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
+  METHOD previews_planned_comp_atp.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( planned_order      = '0000009001'
+          reservation_number = '0000009001'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261005'
+          required_quantity  = '7.000'
+          withdrawn_quantity = '3.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000009001'
+          reservation_number = '0000009001'
+          reservation_item   = '0002'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261005'
+          required_quantity  = '2.000'
+          withdrawn_quantity = '2.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000009001'
+          reservation_number = '0000009001'
+          reservation_item   = '0003'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
+          required_date      = '20261006'
+          required_quantity  = '1.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_availability_api) = NEW lcl_prod_availability_api( ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261005'
+      iv_quantity = '10.000' ).
+    lo_stock_repository->set_date_stock(
+      iv_date     = '20261006'
+      iv_quantity = '1.000' ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository          = lo_stock_repository
+      io_uom_converter             = lo_converter
+      io_material_availability_api = lo_availability_api ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(ls_range) = VALUE zif_prod_comp_repo=>ty_required_date_range(
+      filter_from           = abap_true
+      required_date_from    = '20261005'
+      filter_through        = abap_true
+      required_date_through = '20261005' ).
+    DATA(lt_bulk_checks) = lo_cut->preview_planned_comp_atp_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_bulk_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_bulk_checks[ 1 ]-component-planned_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_bulk_checks[ 1 ]-component-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_bulk_checks[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_bulk_checks[ 1 ]-component_confirmed_quantity ).
+    DATA(lt_planned_summaries) = lo_cut->summarize_order_atp(
+      it_checks = lt_bulk_checks ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_planned_summaries[ 1 ]-planned_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_planned_summaries[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_planned_summaries[ 1 ]-component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_planned_summaries[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_planned_summaries[ 1 ]-confirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_planned_summaries[ 1 ]-unconfirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_planned_summaries[ 1 ]-confirmation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_planned_summaries[ 1 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_planned_summaries[ 1 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_planned_summaries[ 1 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_planned_summaries[ 1 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lo_availability_api->get_requests( ) ) ).
+
+    DATA lv_rejected TYPE abap_bool.
+    TRY.
+        lo_cut->preview_planned_comp_atp_bulk(
+          it_planned_orders = VALUE #( ( '0000009001' ) )
+          iv_check_rule     = space ).
+      CATCH zcx_invalid_stock_request.
+        lv_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lo_repository->get_read_count( ) ).
+
+    DATA(lt_single_checks) = lo_cut->preview_planned_comp_atp(
+      iv_planned_order       = '0000009001'
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_single_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_single_checks[ 1 ]-component-planned_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lo_repository->get_read_count( ) ).
+
+    DATA(lt_stock_checks) = lo_cut->preview_planned_stock_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_stock_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_stock_checks[ 1 ]-component-planned_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_stock_checks[ 1 ]-component-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_stock_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+
+    DATA(lt_readiness) = lo_cut->summarize_component_readiness(
+      it_checks = lt_stock_checks ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_readiness ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_readiness[ 1 ]-planned_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-open_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-covered_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_readiness[ 1 ]-is_locally_ready ).
+
+    DATA(lt_single_stock_checks) = lo_cut->preview_planned_stock(
+      iv_planned_order       = '0000009001'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_single_stock_checks[ 1 ]-component-planned_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lo_repository->get_read_count( ) ).
+
+    ls_range = VALUE #( filter_from = abap_true
+      required_date_from            = '20261006'
+      filter_through                = abap_true
+      required_date_through         = '20261006' ).
+    DATA(lt_filtered_atp) = lo_cut->preview_planned_comp_atp_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_filtered_atp ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261006'
+      act = lt_filtered_atp[ 1 ]-component-required_date ).
+
+    DATA(lt_filtered_stock) = lo_cut->preview_planned_stock_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_filtered_stock ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261006'
+      act = lt_filtered_stock[ 1 ]-component-required_date ).
+  ENDMETHOD.
+
   METHOD previews_components_atp.
     DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
     lo_repository->set_components(
@@ -3311,6 +4142,29 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lo_repository->get_read_count( ) ).
+
+    DATA(ls_range) = VALUE zif_prod_comp_repo=>ty_required_date_range(
+      filter_from           = abap_true
+      required_date_from    = '20261015'
+      filter_through        = abap_true
+      required_date_through = '20261015' ).
+    DATA(lt_filtered_checks) = lo_cut->preview_components_atp_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_filtered_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_filtered_checks[ 1 ]-component-required_date ).
+    DATA(lt_filtered_single_checks) = lo_cut->preview_components_atp(
+      iv_production_order    = '0000004711'
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_filtered_single_checks ) ).
   ENDMETHOD.
 
   METHOD rejects_atp_date_overflow.
@@ -3594,6 +4448,13 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     DATA(lt_sched_agreement_checks) = lo_cut->preview_components_stock(
       iv_production_order            = '0000004711'
       iv_include_sched_agmt_receipts = abap_true ).
+    DATA(lt_zero_demand_checks) = lo_cut->preview_scoped_components(
+      iv_production_order    = '0000004711'
+      it_allocation_policies = VALUE #(
+        ( reservation_number     = '0000001234'
+          reservation_item       = '0010'
+          override_open_quantity = abap_true
+          open_quantity          = '0.000' ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
       exp = 1
@@ -3608,8 +4469,38 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = CONV mard-labst( '1.000' )
       act = lt_checks[ 1 ]-component_local_estimate-shortfall_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '66.67' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_checks[ 1 ]-component_local_estimate-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '66.67' )
+      act = lt_checks[ 1 ]-local_estimate-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_checks[ 1 ]-local_estimate-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_zero_demand_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_zero_demand_checks[ 1 ]-component_local_estimate-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_zero_demand_checks[ 1 ]-component_local_estimate-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_zero_demand_checks[ 1 ]-local_estimate-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_zero_demand_checks[ 1 ]-local_estimate-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = lt_bulk_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_bulk_checks[ 1 ]-component_local_estimate-shortage_pct ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '4.000' )
       act = lt_pr_checks[ 1 ]-local_estimate-available_quantity ).
@@ -3640,6 +4531,39 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lines( lo_availability_api->get_requests( ) ) ).
+
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0010'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261005'
+          required_quantity  = '3.000'
+          unit               = 'EA' )
+        ( production_order   = '0000004711'
+          reservation_number = '0000001234'
+          reservation_item   = '0020'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261015'
+          required_quantity  = '2.000'
+          unit               = 'EA' ) ) ).
+    DATA(ls_range) = VALUE zif_prod_comp_repo=>ty_required_date_range(
+      filter_from           = abap_true
+      required_date_from    = '20261015'
+      filter_through        = abap_true
+      required_date_through = '20261015' ).
+    DATA(lt_filtered_checks) = lo_cut->preview_components_stock_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_filtered_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_filtered_checks[ 1 ]-component-required_date ).
   ENDMETHOD.
 
   METHOD excludes_current_reservations.
@@ -5449,6 +6373,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             reservation_number = '0000001234'
             reservation_item   = '0010'
             required_date      = '20261005' )
+          base_unit                = 'EA'
           requested_base_quantity  = '4.000'
           component_local_estimate = VALUE #(
             requested_quantity = '4.000'
@@ -5459,7 +6384,8 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             production_order   = '0000004711'
             reservation_number = '0000001234'
             reservation_item   = '0020'
-            required_date      = '20261015' )
+            required_date      = '20261020' )
+          base_unit                = 'EA'
           requested_base_quantity  = '3.000'
           component_local_estimate = VALUE #(
             requested_quantity = '3.000'
@@ -5467,44 +6393,120 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             allocated_quantity = '1.000'
             shortfall_quantity = '2.000' ) )
         ( component                = VALUE #(
+            production_order   = '0000004711'
+            reservation_number = '0000001234'
+            reservation_item   = '0030'
+            required_date      = '20261015' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '2.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '2.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004711'
+            reservation_number = '0000001234'
+            reservation_item   = '0040'
+            required_date      = '20261012' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '0.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '0.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
             production_order   = '0000004712'
             reservation_number = '0000005678'
             reservation_item   = '0010'
             required_date      = '20261010' )
+          base_unit                = 'EA'
           requested_base_quantity  = '12.000'
           component_local_estimate = VALUE #(
             requested_quantity = '12.000'
             available_quantity = '12.000'
             allocated_quantity = '12.000'
-            shortfall_quantity = '0.000' ) ) ) ).
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004713'
+            reservation_number = '0000009876'
+            reservation_item   = '0010'
+            required_date      = '20261018' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '0.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '0.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009877'
+            reservation_item   = '0010'
+            required_date      = '20261021' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '3.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '3.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '3.000' ) ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 4
       act = lines( lt_readiness ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0000004711'
       act = lt_readiness[ 1 ]-production_order ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 4
       act = lt_readiness[ 1 ]-open_component_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lt_readiness[ 1 ]-covered_component_count ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 1
+      exp = 2
       act = lt_readiness[ 1 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-zero_demand_component_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261005'
       act = lt_readiness[ 1 ]-first_required_date ).
     cl_abap_unit_assert=>assert_equals(
-      exp = '20261015'
+      exp = '20261020'
       act = lt_readiness[ 1 ]-last_required_date ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261015'
       act = lt_readiness[ 1 ]-first_local_shortage_date ).
     cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_readiness[ 1 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = lt_readiness[ 1 ]-is_locally_ready ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '55.56' )
+      act = lt_readiness[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '44.44' )
+      act = lt_readiness[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_readiness[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '66.67' )
+      act = lt_readiness[ 1 ]-short_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '25.00' )
+      act = lt_readiness[ 1 ]-zero_demand_component_pct ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0000004712'
       act = lt_readiness[ 2 ]-production_order ).
@@ -5512,14 +6514,1945 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = abap_true
       act = lt_readiness[ 2 ]-is_locally_ready ).
     cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_readiness[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lt_readiness[ 2 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 2 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 2 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 2 ]-first_local_shortage_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 2 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 2 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 2 ]-short_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 2 ]-zero_demand_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004713'
+      act = lt_readiness[ 3 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 3 ]-zero_demand_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 3 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 3 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 3 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 3 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 3 ]-short_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 3 ]-zero_demand_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_readiness[ 3 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004714'
+      act = lt_readiness[ 4 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = lt_readiness[ 4 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_readiness[ 4 ]-is_locally_ready ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 4 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 4 ]-shortage_pct ).
+  ENDMETHOD.
+
+  METHOD shortage_endpoint_ids.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004811'
+          reservation_number = '0000009000'
+          reservation_item   = '0030'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261012' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004811'
+          reservation_number = '0000009000'
+          reservation_item   = '0010'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261012' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '2.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004811'
+          reservation_number = '0000009001'
+          reservation_item   = '0010'
+          material           = 'MAT-8'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '0.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004811'
+          reservation_number = '0000009000'
+          reservation_item   = '0005'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261012' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '0.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '0.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '0.000' ) ) ).
+    DATA(lt_order_readiness) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    DATA(lt_material_readiness) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_readiness ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_order_readiness[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_order_readiness[ 1 ]-first_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_readiness[ 1 ]-first_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_order_readiness[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_order_readiness[ 1 ]-last_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_order_readiness[ 1 ]-last_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_order_readiness[ 1 ]-first_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_order_readiness[ 1 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_order_readiness[ 1 ]-first_shortage_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_readiness[ 1 ]-first_shortage_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_order_readiness[ 1 ]-last_shortage_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_readiness[ 1 ]-last_shortage_res_item ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_material_readiness ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-8'
+      act = lt_material_readiness[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_readiness[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_material_readiness[ 1 ]-first_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_readiness[ 1 ]-first_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_readiness[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_material_readiness[ 1 ]-last_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_readiness[ 1 ]-last_required_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-first_local_shortage_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-first_shortage_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-first_shortage_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-last_shortage_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_readiness[ 1 ]-last_shortage_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-9'
+      act = lt_material_readiness[ 2 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_material_readiness[ 2 ]-component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_material_readiness[ 2 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_material_readiness[ 2 ]-first_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_material_readiness[ 2 ]-first_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_material_readiness[ 2 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_material_readiness[ 2 ]-last_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_material_readiness[ 2 ]-last_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_material_readiness[ 2 ]-first_shortage_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_readiness[ 2 ]-first_shortage_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_material_readiness[ 2 ]-last_shortage_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_readiness[ 2 ]-last_shortage_res_item ).
+  ENDMETHOD.
+
+  METHOD summarizes_plan_mat_readiness.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_readiness) = lo_cut->summarize_comp_material_ready(
+      it_checks = VALUE #(
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0010'
+            material           = 'MAT-1'
+            plant              = '1000'
+            required_date      = '20261005' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '4.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '4.000'
+            available_quantity = '4.000'
+            allocated_quantity = '4.000'
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0020'
+            material           = 'MAT-2'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                = 'KG'
+          requested_base_quantity  = '3.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '3.000'
+            available_quantity = '1.000'
+            allocated_quantity = '1.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0030'
+            material           = 'MAT-2'
+            plant              = '1000'
+            required_date      = '20261015' )
+          base_unit                = 'KG'
+          requested_base_quantity  = '1.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '1.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '1.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0040'
+            material           = 'MAT-2'
+            plant              = '1000'
+            required_date      = '20261012' )
+          base_unit                = 'KG'
+          requested_base_quantity  = '0.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '0.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0050'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261018' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '2.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '2.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '2.000' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_readiness ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_readiness[ 1 ]-planned_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-1'
+      act = lt_readiness[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 1 ]-covered_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 1 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_readiness[ 1 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lt_readiness[ 1 ]-is_locally_ready ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_readiness[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 1 ]-first_local_shortage_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_readiness[ 1 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 1 ]-short_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_readiness[ 1 ]-zero_demand_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_readiness[ 1 ]-is_order_locally_ready ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 1 ]-allocation_coverage_pct ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-2'
+      act = lt_readiness[ 2 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_readiness[ 2 ]-component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_readiness[ 2 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 2 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 2 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_readiness[ 2 ]-zero_demand_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_readiness[ 2 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_readiness[ 2 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '25.00' )
+      act = lt_readiness[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '75.00' )
+      act = lt_readiness[ 2 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_readiness[ 2 ]-short_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_readiness[ 2 ]-zero_demand_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_readiness[ 2 ]-first_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_readiness[ 2 ]-last_local_shortage_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_readiness[ 2 ]-is_locally_ready ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_readiness[ 2 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'MAT-3'
+      act = lt_readiness[ 3 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = lt_readiness[ 3 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_false
+      act = lt_readiness[ 3 ]-is_locally_ready ).
+  ENDMETHOD.
+
+  METHOD due_horizon_endpoint_ids.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0030'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0010'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0050'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261011' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0040'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261011' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0070'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004812'
+          reservation_number = '0000009010'
+          reservation_item   = '0060'
+          material           = 'MAT-9'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) ) ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    DATA(lt_material_ready) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 1 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-first_due_today_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0060'
+      act = lt_order_ready[ 1 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-last_due_today_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0070'
+      act = lt_order_ready[ 1 ]-last_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_order_ready[ 1 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_order_ready[ 1 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-first_overdue_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_ready[ 1 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-last_overdue_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_ready[ 1 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_order_ready[ 1 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_order_ready[ 1 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-first_future_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_order_ready[ 1 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_order_ready[ 1 ]-last_future_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_order_ready[ 1 ]-last_future_res_item ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 1 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-first_due_today_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0060'
+      act = lt_material_ready[ 1 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-last_due_today_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0070'
+      act = lt_material_ready[ 1 ]-last_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_ready[ 1 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_ready[ 1 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-first_overdue_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 1 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-last_overdue_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 1 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_material_ready[ 1 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_material_ready[ 1 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-first_future_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_material_ready[ 1 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009010'
+      act = lt_material_ready[ 1 ]-last_future_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_material_ready[ 1 ]-last_future_res_item ).
+  ENDMETHOD.
+
+  METHOD readiness_mixed_base_units.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0010'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '2.000'
+          allocated_quantity = '2.000'
+          shortfall_quantity = '0.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0020'
+          material           = 'MAT-11'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'KG'
+        requested_base_quantity  = '4.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '4.000'
+          available_quantity = '2.000'
+          allocated_quantity = '2.000'
+          shortfall_quantity = '2.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0030'
+          material           = 'MAT-12'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'L'
+        requested_base_quantity  = '5.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '5.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '5.000' ) ) ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    DATA(lt_material_ready) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = lt_order_ready[ 1 ]-has_single_base_unit ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-quantity_base_unit ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-largest_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-covered_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 1 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_order_ready[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_false(
+      act = lt_order_ready[ 1 ]-is_locally_ready ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_material_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'EA'
+      act = lt_material_ready[ 1 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'KG'
+      act = lt_material_ready[ 2 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_material_ready[ 2 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 2 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'L'
+      act = lt_material_ready[ 3 ]-base_unit ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_material_ready[ 3 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 3 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_material_ready[ 3 ]-shortfall_base_quantity ).
+  ENDMETHOD.
+
+  METHOD readiness_missing_base_unit.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004821'
+          reservation_number = '0000009101'
+          reservation_item   = '0010'
+          material           = 'MAT-20'
+          plant              = '1000'
+          required_date      = '20261010' )
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) ) ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = lt_order_ready[ 1 ]-has_single_base_unit ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-quantity_base_unit ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_order_ready[ 1 ]-allocation_outcome ).
+  ENDMETHOD.
+
+  METHOD readiness_unit_overflow_skip.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004822'
+          reservation_number = '0000009102'
+          reservation_item   = '0010'
+          material           = 'MAT-21'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '9999999999.999'
+        component_local_estimate = VALUE #(
+          requested_quantity = '9999999999.999'
+          available_quantity = '9999999999.999'
+          allocated_quantity = '9999999999.999'
+          shortfall_quantity = '0.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004822'
+          reservation_number = '0000009102'
+          reservation_item   = '0020'
+          material           = 'MAT-21'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '9999999999.999'
+        component_local_estimate = VALUE #(
+          requested_quantity = '9999999999.999'
+          available_quantity = '9999999999.999'
+          allocated_quantity = '9999999999.999'
+          shortfall_quantity = '0.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004822'
+          reservation_number = '0000009102'
+          reservation_item   = '0030'
+          material           = 'MAT-22'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'KG'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) ) ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_false(
+      act = lt_order_ready[ 1 ]-has_single_base_unit ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-requested_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-allocated_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 1 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 1 ]-covered_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_order_ready[ 1 ]-allocation_outcome ).
+  ENDMETHOD.
+
+  METHOD readiness_outcome_endpoints.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0030'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0010'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0050'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261011' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0040'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261011' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0070'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261008' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0060'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261008' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0090'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261012' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004820'
+          reservation_number = '0000009100'
+          reservation_item   = '0080'
+          material           = 'MAT-10'
+          plant              = '1000'
+          required_date      = '20261012' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004821'
+          reservation_number = '0000009101'
+          reservation_item   = '0010'
+          material           = 'MAT-11'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '0.000' ) ) ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    DATA(lt_material_ready) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_material_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_material_ready[ 1 ]-largest_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 1 ]-largest_req_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_material_ready[ 1 ]-largest_alloc_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '12.50' )
+      act = lt_material_ready[ 1 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_material_ready[ 1 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_ready[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_material_ready[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_material_ready[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 1 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'P'
+      act = lt_material_ready[ 1 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 1 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 1 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_material_ready[ 1 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_material_ready[ 1 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 2 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 2 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 2 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 2 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_order_ready[ 1 ]-first_partial_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_order_ready[ 1 ]-first_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_ready[ 1 ]-first_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_order_ready[ 1 ]-last_partial_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_order_ready[ 1 ]-last_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_order_ready[ 1 ]-last_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261008'
+      act = lt_order_ready[ 1 ]-first_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_order_ready[ 1 ]-first_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0060'
+      act = lt_order_ready[ 1 ]-first_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_order_ready[ 1 ]-last_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_order_ready[ 1 ]-first_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-last_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_order_ready[ 1 ]-first_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 1 ]-last_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_order_ready[ 1 ]-last_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0080'
+      act = lt_order_ready[ 1 ]-last_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_partial_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_partial_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_partial_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_partial_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_partial_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_partial_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-first_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 2 ]-first_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 2 ]-last_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 2 ]-first_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 2 ]-last_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 2 ]-last_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_ready[ 1 ]-first_partial_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_material_ready[ 1 ]-first_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 1 ]-first_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_material_ready[ 1 ]-last_partial_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_material_ready[ 1 ]-last_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_material_ready[ 1 ]-last_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261008'
+      act = lt_material_ready[ 1 ]-first_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_material_ready[ 1 ]-first_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0060'
+      act = lt_material_ready[ 1 ]-first_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_material_ready[ 1 ]-last_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_material_ready[ 1 ]-first_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 1 ]-last_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -2
+      act = lt_material_ready[ 1 ]-first_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 1 ]-last_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009100'
+      act = lt_material_ready[ 1 ]-last_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0080'
+      act = lt_material_ready[ 1 ]-last_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_partial_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_partial_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_partial_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_partial_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_partial_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_partial_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-first_unalloc_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_unalloc_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 2 ]-first_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 2 ]-last_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 2 ]-first_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 2 ]-last_unalloc_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_unalloc_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 2 ]-last_unalloc_res_item ).
+  ENDMETHOD.
+
+  METHOD summarizes_due_horizons.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+        ( component                = VALUE #(
+            production_order   = '0000004715'
+            reservation_number = '0000009001'
+            reservation_item   = '0010'
+            material           = 'MAT-1'
+            plant              = '1000'
+            required_date      = '20261009' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '1.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '1.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '1.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004716'
+            reservation_number = '0000009002'
+            reservation_item   = '0010'
+            material           = 'MAT-2'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '2.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '2.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009003'
+            reservation_item   = '0010'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261011' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '3.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '3.000'
+            available_quantity = '1.000'
+            allocated_quantity = '1.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009003'
+            reservation_item   = '0020'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '5.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '5.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '5.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009003'
+            reservation_item   = '0030'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261009' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '2.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '2.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009003'
+            reservation_item   = '0040'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '1.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '1.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '1.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009003'
+            reservation_item   = '0050'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261008' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '1.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '1.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '1.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004718'
+            reservation_number = '0000009004'
+            reservation_item   = '0010'
+            material           = 'MAT-4'
+            plant              = '1000'
+            required_date      = '20261021' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '4.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '4.000'
+            available_quantity = '4.000'
+            allocated_quantity = '4.000'
+            shortfall_quantity = '0.000' ) ) ).
+
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_order_ready[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 1 ]-overdue_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_order_ready[ 1 ]-overdue_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 2 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_order_ready[ 2 ]-due_today_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 3 ]-future_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261008'
+      act = lt_order_ready[ 3 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_order_ready[ 3 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_order_ready[ 3 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_order_ready[ 3 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 3 ]-first_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-last_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-first_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_order_ready[ 3 ]-last_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0050'
+      act = lt_order_ready[ 3 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0030'
+      act = lt_order_ready[ 3 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_ready[ 3 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0020'
+      act = lt_order_ready[ 3 ]-last_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 3 ]-overdue_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 3 ]-overdue_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 3 ]-overdue_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 3 ]-due_today_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-due_today_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-future_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-future_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_order_ready[ 3 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_order_ready[ 3 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '20.00' )
+      act = lt_order_ready[ 3 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '80.00' )
+      act = lt_order_ready[ 3 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_order_ready[ 3 ]-partial_component_pct
+        + lt_order_ready[ 3 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_order_ready[ 3 ]-overdue_short_count
+        + lt_order_ready[ 3 ]-due_today_short_count
+        + lt_order_ready[ 3 ]-future_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 3 ]-overdue_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_order_ready[ 3 ]-overdue_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 3 ]-due_today_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_order_ready[ 3 ]-due_today_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 3 ]-future_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 3 ]-future_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '40.00' )
+      act = lt_order_ready[ 3 ]-overdue_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '20.00' )
+      act = lt_order_ready[ 3 ]-due_today_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '40.00' )
+      act = lt_order_ready[ 3 ]-future_short_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_due_today_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 4 ]-first_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 4 ]-last_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 4 ]-first_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 4 ]-last_future_days_until ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_order_ready[ 4 ]-last_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_order_ready[ 4 ]-overdue_short_count
+        + lt_order_ready[ 4 ]-due_today_short_count
+        + lt_order_ready[ 4 ]-future_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-overdue_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-overdue_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-due_today_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-due_today_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-future_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-future_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-overdue_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-due_today_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_order_ready[ 4 ]-future_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_order_ready[ 4 ]-allocation_outcome ).
+
+    DATA(lt_material_ready) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_material_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_material_ready[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 1 ]-overdue_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 2 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 3 ]-overdue_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 3 ]-overdue_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 3 ]-overdue_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 3 ]-due_today_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-due_today_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-future_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-future_unallocated_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261008'
+      act = lt_material_ready[ 3 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261009'
+      act = lt_material_ready[ 3 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261011'
+      act = lt_material_ready[ 3 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_material_ready[ 3 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 3 ]-first_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-last_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-first_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_material_ready[ 3 ]-last_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0050'
+      act = lt_material_ready[ 3 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0030'
+      act = lt_material_ready[ 3 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 3 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0020'
+      act = lt_material_ready[ 3 ]-last_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_material_ready[ 3 ]-due_today_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_material_ready[ 3 ]-short_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_material_ready[ 3 ]-overdue_short_count
+        + lt_material_ready[ 3 ]-due_today_short_count
+        + lt_material_ready[ 3 ]-future_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 3 ]-overdue_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-overdue_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 3 ]-due_today_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-due_today_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_material_ready[ 3 ]-future_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_material_ready[ 3 ]-future_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '40.00' )
+      act = lt_material_ready[ 3 ]-overdue_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '20.00' )
+      act = lt_material_ready[ 3 ]-due_today_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '40.00' )
+      act = lt_material_ready[ 3 ]-future_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_material_ready[ 3 ]-overdue_shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 3 ]-overdue_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_material_ready[ 3 ]-overdue_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 3 ]-overdue_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-overdue_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_material_ready[ 3 ]-due_today_shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 3 ]-due_today_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_material_ready[ 3 ]-due_today_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 3 ]-due_today_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-due_today_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '7.000' )
+      act = lt_material_ready[ 3 ]-future_shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 3 ]-future_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_material_ready[ 3 ]-future_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '28.57' )
+      act = lt_material_ready[ 3 ]-future_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '71.43' )
+      act = lt_material_ready[ 3 ]-future_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '20.00' )
+      act = lt_material_ready[ 3 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '80.00' )
+      act = lt_material_ready[ 3 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-partial_component_pct
+        + lt_material_ready[ 3 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_material_ready[ 3 ]-largest_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_material_ready[ 3 ]-largest_req_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 3 ]-largest_alloc_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '45.45' )
+      act = lt_material_ready[ 3 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_material_ready[ 3 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_material_ready[ 3 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 10
+      act = lt_material_ready[ 3 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009003'
+      act = lt_material_ready[ 3 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0020'
+      act = lt_material_ready[ 3 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'U'
+      act = lt_material_ready[ 3 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_material_ready[ 3 ]-partial_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '9.000' )
+      act = lt_material_ready[ 3 ]-unalloc_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = lt_material_ready[ 3 ]-partial_shortfall_base_qty
+        + lt_material_ready[ 3 ]-unalloc_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '18.18' )
+      act = lt_material_ready[ 3 ]-partial_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '81.82' )
+      act = lt_material_ready[ 3 ]-unalloc_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_material_ready[ 3 ]-partial_shortfall_base_qty
+      act = lt_material_ready[ 3 ]-overdue_partial_short_qty
+        + lt_material_ready[ 3 ]-due_today_partial_short_qty
+        + lt_material_ready[ 3 ]-future_partial_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_material_ready[ 3 ]-unalloc_shortfall_base_qty
+      act = lt_material_ready[ 3 ]-overdue_unalloc_short_qty
+        + lt_material_ready[ 3 ]-due_today_unalloc_short_qty
+        + lt_material_ready[ 3 ]-future_unalloc_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = lt_material_ready[ 3 ]-overdue_shortfall_qty
+        + lt_material_ready[ 3 ]-due_today_shortfall_qty
+        + lt_material_ready[ 3 ]-future_shortfall_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '27.27' )
+      act = lt_material_ready[ 3 ]-overdue_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '9.09' )
+      act = lt_material_ready[ 3 ]-due_today_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '63.64' )
+      act = lt_material_ready[ 3 ]-future_shortfall_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_due_today_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_overdue_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_overdue_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_future_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_future_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 4 ]-first_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 4 ]-last_overdue_days ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 4 ]-first_future_days_until ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 4 ]-last_future_days_until ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_overdue_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_overdue_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-first_future_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-last_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 4 ]-largest_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 4 ]-largest_req_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 4 ]-largest_alloc_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_material_ready[ 4 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 4 ]-partial_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_material_ready[ 4 ]-unalloc_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-partial_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-unalloc_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_material_ready[ 4 ]-overdue_short_count
+        + lt_material_ready[ 4 ]-due_today_short_count
+        + lt_material_ready[ 4 ]-future_short_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-overdue_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-overdue_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-due_today_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-due_today_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-future_partial_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-future_unallocated_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-overdue_short_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-overdue_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-overdue_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-due_today_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-due_today_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-future_partial_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-future_unalloc_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_material_ready[ 4 ]-future_shortfall_pct ).
   ENDMETHOD.
 
   METHOD rejects_bad_readiness.
     DATA(lo_cut) = NEW zcl_prod_comp_service( ).
     DATA lv_order_rejected TYPE abap_bool.
     DATA lv_quantity_rejected TYPE abap_bool.
+    DATA lv_as_of_date_rejected TYPE abap_bool.
+    DATA lv_atp_as_of_rejected TYPE abap_bool.
 
     TRY.
         lo_cut->summarize_component_readiness(
@@ -5544,12 +8477,34 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
         lv_quantity_rejected = abap_true.
     ENDTRY.
 
+    TRY.
+        lo_cut->summarize_component_readiness(
+          it_checks     = VALUE #( )
+          iv_as_of_date = '20261035' ).
+      CATCH zcx_invalid_stock_request.
+        lv_as_of_date_rejected = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->summarize_order_atp(
+          it_checks     = VALUE #( )
+          iv_as_of_date = '20261035' ).
+      CATCH zcx_invalid_stock_request.
+        lv_atp_as_of_rejected = abap_true.
+    ENDTRY.
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_atp_as_of_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_order_rejected ).
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_quantity_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_as_of_date_rejected ).
   ENDMETHOD.
 
   METHOD summarizes_component_shortages.
@@ -5564,11 +8519,11 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             plant              = '1000'
             required_date      = '20261005' )
           base_unit                = 'EA'
-          requested_base_quantity  = '4.000'
+          requested_base_quantity  = '1.000'
           component_local_estimate = VALUE #(
-            requested_quantity = '4.000'
-            available_quantity = '8.000'
-            allocated_quantity = '4.000'
+            requested_quantity = '1.000'
+            available_quantity = '1.000'
+            allocated_quantity = '1.000'
             shortfall_quantity = '0.000' ) )
         ( component                = VALUE #(
             production_order   = '0000004711'
@@ -5578,11 +8533,11 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             plant              = '1000'
             required_date      = '20261005' )
           base_unit                = 'EA'
-          requested_base_quantity  = '3.000'
+          requested_base_quantity  = '1.000'
           component_local_estimate = VALUE #(
-            requested_quantity = '3.000'
-            available_quantity = '4.000'
-            allocated_quantity = '3.000'
+            requested_quantity = '1.000'
+            available_quantity = '1.000'
+            allocated_quantity = '1.000'
             shortfall_quantity = '0.000' ) )
         ( component                = VALUE #(
             production_order   = '0000004712'
@@ -5592,11 +8547,11 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             plant              = '1000'
             required_date      = '20261005' )
           base_unit                = 'EA'
-          requested_base_quantity  = '12.000'
+          requested_base_quantity  = '17.000'
           component_local_estimate = VALUE #(
-            requested_quantity = '12.000'
-            available_quantity = '1.000'
-            allocated_quantity = '1.000'
+            requested_quantity = '17.000'
+            available_quantity = '6.000'
+            allocated_quantity = '6.000'
             shortfall_quantity = '11.000' ) )
         ( component                = VALUE #(
             production_order   = '0000004712'
@@ -5639,10 +8594,52 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
             requested_quantity = '1.000'
             available_quantity = '1.000'
             allocated_quantity = '1.000'
-            shortfall_quantity = '0.000' ) ) ) ).
+            shortfall_quantity = '0.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004715'
+            reservation_number = '0000003456'
+            reservation_item   = '0020'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '5.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '5.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '5.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009002'
+            reservation_number = '0000002345'
+            reservation_item   = '0002'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '5.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '5.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '5.000' ) )
+        ( component                = VALUE #(
+            production_order   = '0000004716'
+            reservation_number = '0000002345'
+            reservation_item   = '0001'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '5.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '5.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '5.000' ) ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 3
       act = lines( lt_shortages ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-1'
@@ -5661,6 +8658,12 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       act = lt_shortages[ 1 ]-short_component_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
+      act = lt_shortages[ 1 ]-partial_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_shortages[ 1 ]-unallocated_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
       act = lt_shortages[ 1 ]-affected_order_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = 1
@@ -5669,6 +8672,18 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '0000004712'
       act = lt_shortages[ 1 ]-affected_production_orders[ 1 ] ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_shortages[ 1 ]-affected_reservation_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = lt_shortages[ 1 ]-affected_reservation_items[ 1 ]-reservation_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_shortages[ 1 ]-affected_reservation_items[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0020'
+      act = lt_shortages[ 1 ]-affected_reservation_items[ 2 ]-reservation_item ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '20.000' )
       act = lt_shortages[ 1 ]-requested_base_quantity ).
@@ -5679,6 +8694,65 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = CONV mard-labst( '12.000' )
       act = lt_shortages[ 1 ]-shortfall_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = lt_shortages[ 1 ]-largest_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_shortages[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '17.000' )
+      act = lt_shortages[ 1 ]-largest_short_requested_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '6.000' )
+      act = lt_shortages[ 1 ]-largest_short_allocated_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_shortages[ 1 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '91.67' )
+      act = lt_shortages[ 1 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '64.71' )
+      act = lt_shortages[ 1 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004712'
+      act = lt_shortages[ 1 ]-largest_short_prod_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 1 ]-largest_short_plan_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = lt_shortages[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_shortages[ 1 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '11.000' )
+      act = lt_shortages[ 1 ]-partial_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_shortages[ 1 ]-unalloc_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '40.00' )
+      act = lt_shortages[ 1 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '60.00' )
+      act = lt_shortages[ 1 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_shortages[ 1 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_shortages[ 1 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '91.67' )
+      act = lt_shortages[ 1 ]-partial_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '8.33' )
+      act = lt_shortages[ 1 ]-unalloc_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_shortages[ 1 ]-allocation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-2'
       act = lt_shortages[ 2 ]-material ).
     cl_abap_unit_assert=>assert_equals(
@@ -5687,6 +8761,400 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '2.000' )
       act = lt_shortages[ 2 ]-shortfall_base_quantity ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 2 ]-partial_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_shortages[ 2 ]-unalloc_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_shortages[ 2 ]-allocation_coverage_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_shortages[ 2 ]-shortage_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 2 ]-partial_component_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_shortages[ 2 ]-unallocated_component_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 2 ]-partial_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_shortages[ 2 ]-unalloc_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = lt_shortages[ 2 ]-allocation_outcome ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_shortages[ 3 ]-largest_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000004716'
+      act = lt_shortages[ 3 ]-largest_short_prod_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 3 ]-largest_short_plan_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000002345'
+      act = lt_shortages[ 3 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_shortages[ 3 ]-largest_short_res_item ).
+  ENDMETHOD.
+
+
+  METHOD summarizes_shortage_offsets.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004823'
+          reservation_number = '0000009103'
+          reservation_item   = '0010'
+          material           = 'MAT-DATE'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004823'
+          reservation_number = '0000009103'
+          reservation_item   = '0020'
+          material           = 'MAT-DATE'
+          plant              = '1000'
+          required_date      = '20261010' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004823'
+          reservation_number = '0000009103'
+          reservation_item   = '0030'
+          material           = 'MAT-DATE'
+          plant              = '1000'
+          required_date      = '20261011' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '1.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '1.000'
+          available_quantity = '0.000'
+          allocated_quantity = '0.000'
+          shortfall_quantity = '1.000' ) ) ).
+    DATA(lt_shortages) = lo_cut->summarize_component_shortages(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_shortages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_shortages[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_shortages[ 1 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_shortages[ 2 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_shortages[ 2 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_shortages[ 3 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_shortages[ 3 ]-required_date_offset ).
+  ENDMETHOD.
+
+  METHOD summarizes_largest_short_ties.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_checks(
+      ( component                = VALUE #(
+          production_order   = '0000004711'
+          reservation_number = '0000009002'
+          reservation_item   = '0020'
+          material           = 'MAT-TIE'
+          plant              = '1000'
+          required_date      = '20261005' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) )
+      ( component                = VALUE #(
+          production_order   = '0000004711'
+          reservation_number = '0000009001'
+          reservation_item   = '0010'
+          material           = 'MAT-TIE'
+          plant              = '1000'
+          required_date      = '20261020' )
+        base_unit                = 'EA'
+        requested_base_quantity  = '2.000'
+        component_local_estimate = VALUE #(
+          requested_quantity = '2.000'
+          available_quantity = '1.000'
+          allocated_quantity = '1.000'
+          shortfall_quantity = '1.000' ) ) ).
+    DATA(lt_shortages) = lo_cut->summarize_component_shortages(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261001' ).
+    DATA(lt_order_ready) = lo_cut->summarize_component_readiness(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261001' ).
+    DATA(lt_material_ready) = lo_cut->summarize_comp_material_ready(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_shortages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_shortages[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_shortages[ 2 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_material_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_material_ready[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_material_ready[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_material_ready[ 1 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 19
+      act = lt_material_ready[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_ready ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_order_ready[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_order_ready[ 1 ]-largest_shortfall_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_order_ready[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 19
+      act = lt_order_ready[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_order_ready[ 1 ]-largest_req_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_order_ready[ 1 ]-largest_alloc_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_order_ready[ 1 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_order_ready[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_order_ready[ 1 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 1 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_order_ready[ 1 ]-largest_shortfall_req_pct ).
+
+    DATA(lt_suggestions) = lo_cut->suggest_comp_replenishment(
+      it_shortages  = lt_shortages
+      it_policies   = VALUE #(
+        ( material           = 'MAT-TIE'
+          plant              = '1000'
+          base_unit          = 'EA'
+          lot_size_procedure = 'MB'
+          procurement_type   = 'E' ) )
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_suggestions ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_suggestions[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_suggestions[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_suggestions[ 1 ]-largest_short_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_suggestions[ 1 ]-largest_short_date ).
+  ENDMETHOD.
+
+  METHOD plans_planned_order_shortage.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_shortages) = lo_cut->summarize_component_shortages(
+      it_checks = VALUE #(
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0001'
+            material           = 'MAT-PLN'
+            plant              = '1000'
+            required_date      = '20261005' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '2.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '2.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '2.000' ) )
+        ( component                = VALUE #(
+            planned_order      = '0000009001'
+            reservation_number = '0000009001'
+            reservation_item   = '0002'
+            material           = 'MAT-PLN'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                = 'EA'
+          requested_base_quantity  = '3.000'
+          component_local_estimate = VALUE #(
+            requested_quantity = '3.000'
+            available_quantity = '0.000'
+            allocated_quantity = '0.000'
+            shortfall_quantity = '3.000' ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_shortages ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_shortages[ 1 ]-affected_planned_orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_shortages[ 2 ]-affected_planned_orders[ 1 ] ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 1 ]-affected_production_orders ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_shortages[ 1 ]-affected_reservation_items[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_shortages[ 2 ]-affected_reservation_items[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_shortages[ 2 ]-largest_short_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_shortages[ 2 ]-largest_short_prod_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_shortages[ 2 ]-largest_short_plan_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_shortages[ 2 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_shortages[ 2 ]-largest_short_res_item ).
+
+    DATA(lt_suggestions) = lo_cut->suggest_comp_replenishment(
+      it_shortages  = lt_shortages
+      it_policies   = VALUE #(
+        ( material           = 'MAT-PLN'
+          plant              = '1000'
+          base_unit          = 'EA'
+          lot_size_procedure = 'MB'
+          procurement_type   = 'E' ) )
+      iv_as_of_date = '20261001' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_suggestions ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_suggestions[ 1 ]-grouped_shortage_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_suggestions[ 1 ]-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_suggestions[ 1 ]-affected_order_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_suggestions[ 1 ]-affected_planned_orders ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_suggestions[ 1 ]-affected_planned_orders[ 1 ] ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-affected_production_orders ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_suggestions[ 1 ]-affected_reservation_items ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_suggestions[ 1 ]-affected_reservation_items[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_suggestions[ 1 ]-affected_reservation_items[ 2 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_suggestions[ 1 ]-largest_short_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261020'
+      act = lt_suggestions[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 19
+      act = lt_suggestions[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_suggestions[ 1 ]-largest_short_requested_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_allocated_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = lt_suggestions[ 1 ]-largest_short_outcome ).
+
+    DATA(lt_overdue_suggestions) = lo_cut->suggest_comp_replenishment(
+      it_shortages  = lt_shortages
+      it_policies   = VALUE #(
+        ( material           = 'MAT-PLN'
+          plant              = '1000'
+          base_unit          = 'EA'
+          lot_size_procedure = 'MB'
+          procurement_type   = 'E' ) )
+      iv_as_of_date = '20261021' ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_overdue_suggestions[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '60.00' )
+      act = lt_suggestions[ 1 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_suggestions[ 1 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_prod_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_suggestions[ 1 ]-largest_short_plan_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_suggestions[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_suggestions[ 1 ]-largest_short_res_item ).
   ENDMETHOD.
 
   METHOD rejects_atp_summary_overflow.
@@ -5773,6 +9241,21 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
         ( component                      = VALUE #(
             production_order   = '0000004712'
             reservation_number = '0000005678'
+            reservation_item   = '0030'
+            material           = 'MAT-1'
+            plant              = '1000'
+            required_date      = '20261005' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '1.000'
+          cumulative_base_quantity       = '19.000'
+          confirmed_base_quantity        = '5.000'
+          unconfirmed_base_quantity      = '14.000'
+          component_confirmed_quantity   = '0.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004712'
+            reservation_number = '0000005678'
             reservation_item   = '0010'
             material           = 'MAT-1'
             plant              = '1000'
@@ -5797,8 +9280,8 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           cumulative_base_quantity       = '21.000'
           confirmed_base_quantity        = '7.000'
           unconfirmed_base_quantity      = '14.000'
-          component_confirmed_quantity   = '2.000'
-          component_unconfirmed_quantity = '0.000'
+          component_confirmed_quantity   = '1.000'
+          component_unconfirmed_quantity = '1.000'
           atp_result                     = VALUE #( is_check_relevant = abap_true ) )
         ( component                      = VALUE #(
             production_order   = '0000004711'
@@ -5814,10 +9297,25 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           unconfirmed_base_quantity      = '2.000'
           component_confirmed_quantity   = '0.000'
           component_unconfirmed_quantity = '2.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004713'
+            reservation_number = '0000006789'
+            reservation_item   = '0010'
+            material           = 'MAT-3'
+            plant              = '1000'
+            required_date      = '20261020' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '0.000'
+          cumulative_base_quantity       = '0.000'
+          confirmed_base_quantity        = '0.000'
+          unconfirmed_base_quantity      = '0.000'
+          component_confirmed_quantity   = '0.000'
+          component_unconfirmed_quantity = '0.000'
           atp_result                     = VALUE #( is_check_relevant = abap_true ) ) ) ).
 
     cl_abap_unit_assert=>assert_equals(
-      exp = 3
+      exp = 4
       act = lines( lt_summaries ) ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-1'
@@ -5835,6 +9333,15 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = 1
       act = lt_summaries[ 1 ]-partially_confirmed_count ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_summaries[ 1 ]-fully_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_summaries[ 1 ]-partially_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 1 ]-unconfirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '7.000' )
       act = lt_summaries[ 1 ]-requested_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -5844,8 +9351,32 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = CONV mard-labst( '2.000' )
       act = lt_summaries[ 1 ]-unconfirmed_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-last_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '71.43' )
+      act = lt_summaries[ 1 ]-confirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '28.57' )
+      act = lt_summaries[ 1 ]-unconfirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
       exp = abap_false
       act = lt_summaries[ 1 ]-is_split_fully_confirmed ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_summaries[ 1 ]-confirmation_outcome ).
     cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-2'
       act = lt_summaries[ 2 ]-material ).
@@ -5856,17 +9387,991 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = CONV mard-labst( '2.000' )
       act = lt_summaries[ 2 ]-unconfirmed_base_quantity ).
     cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 2 ]-fully_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 2 ]-partially_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_summaries[ 2 ]-unconfirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_summaries[ 2 ]-last_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 2 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 2 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 2 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 2 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 2 ]-confirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_summaries[ 2 ]-unconfirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_none
+      act = lt_summaries[ 2 ]-confirmation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-1'
       act = lt_summaries[ 3 ]-material ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 2
+      exp = 3
       act = lt_summaries[ 3 ]-component_count ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261005'
       act = lt_summaries[ 3 ]-first_unconfirmed_date ).
     cl_abap_unit_assert=>assert_equals(
       exp = '20261015'
+      act = lt_summaries[ 3 ]-last_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = lt_summaries[ 3 ]-first_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 3 ]-first_unconfirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000005678'
+      act = lt_summaries[ 3 ]-last_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0020'
+      act = lt_summaries[ 3 ]-last_unconfirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_summaries[ 3 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_summaries[ 3 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_summaries[ 3 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_summaries[ 3 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_unconfirmed_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_unconfirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
       act = lt_summaries[ 3 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '6.67' )
+      act = lt_summaries[ 3 ]-confirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '93.33' )
+      act = lt_summaries[ 3 ]-unconfirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 3 ]-fully_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_summaries[ 3 ]-partially_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '66.67' )
+      act = lt_summaries[ 3 ]-unconfirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_partial
+      act = lt_summaries[ 3 ]-confirmation_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 4 ]-confirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 4 ]-unconfirmed_quantity_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_summaries[ 4 ]-fully_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 4 ]-partially_confirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '0.00' )
+      act = lt_summaries[ 4 ]-unconfirmed_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = zif_stock_repository=>c_allocation_outcome_full
+      act = lt_summaries[ 4 ]-confirmation_outcome ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-due_today_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-future_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_partial_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_partial_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_partial_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_partial_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_balance_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_balance_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_balance_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_balance_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_partial_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_partial_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_partial_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_partial_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_qty_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_qty_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_qty_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_qty_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_1_7_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_8_30_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_31_90_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_over_90_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-balance_component_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-due_today_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-future_balance_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_balance_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-due_today_balance_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-future_balance_count_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-due_today_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-future_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-overdue_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-due_today_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-future_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-oldest_overdue_balance_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-oldest_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-oldest_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 4 ]-oldest_overdue_balance_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-next_future_balance_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-next_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-next_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 4 ]-next_future_balance_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-latest_overdue_balance_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-latest_overdue_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-latest_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 4 ]-latest_overdue_balance_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_future_balance_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_future_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 4 ]-last_future_balance_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_due_today_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_summaries[ 4 ]-last_due_today_res_item ).
+  ENDMETHOD.
+
+  METHOD summarizes_atp_date_offsets.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_summaries) = lo_cut->summarize_order_atp(
+      it_checks     = VALUE #(
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0010'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261001' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '1.000'
+          cumulative_base_quantity       = '1.000'
+          confirmed_base_quantity        = '0.500'
+          unconfirmed_base_quantity      = '0.500'
+          component_confirmed_quantity   = '0.500'
+          component_unconfirmed_quantity = '0.500'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0020'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '2.000'
+          confirmed_base_quantity        = '1.000'
+          unconfirmed_base_quantity      = '1.000'
+          component_confirmed_quantity   = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0030'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261015' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '3.000'
+          cumulative_base_quantity       = '3.000'
+          confirmed_base_quantity        = '0.000'
+          unconfirmed_base_quantity      = '3.000'
+          component_confirmed_quantity   = '0.000'
+          component_unconfirmed_quantity = '3.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) ) )
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261010'
+      act = lt_summaries[ 1 ]-as_of_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -9
+      act = lt_summaries[ 1 ]-first_required_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_summaries[ 1 ]-last_required_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -9
+      act = lt_summaries[ 1 ]-first_confirmed_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 1 ]-last_confirmed_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -9
+      act = lt_summaries[ 1 ]-first_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_summaries[ 1 ]-last_partial_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -9
+      act = lt_summaries[ 1 ]-first_unconfirmed_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_summaries[ 1 ]-last_unconfirmed_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.500' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '1.000' )
+      act = lt_summaries[ 1 ]-due_today_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '3.000' )
+      act = lt_summaries[ 1 ]-future_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.500' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_base_qty
+        + lt_summaries[ 1 ]-due_today_unconfirmed_base_qty
+        + lt_summaries[ 1 ]-future_unconfirmed_base_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lt_summaries[ 1 ]-balance_component_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-overdue_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-due_today_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-future_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_summaries[ 1 ]-balance_component_count
+      act = lt_summaries[ 1 ]-overdue_balance_count
+        + lt_summaries[ 1 ]-due_today_balance_count
+        + lt_summaries[ 1 ]-future_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_summaries[ 1 ]-overdue_balance_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_summaries[ 1 ]-due_today_balance_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '33.33' )
+      act = lt_summaries[ 1 ]-future_balance_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '99.99' )
+      act = lt_summaries[ 1 ]-overdue_balance_count_pct
+        + lt_summaries[ 1 ]-due_today_balance_count_pct
+        + lt_summaries[ 1 ]-future_balance_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '11.11' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '22.22' )
+      act = lt_summaries[ 1 ]-due_today_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '66.67' )
+      act = lt_summaries[ 1 ]-future_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_pct
+        + lt_summaries[ 1 ]-due_today_unconfirmed_pct
+        + lt_summaries[ 1 ]-future_unconfirmed_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '8.33' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '16.67' )
+      act = lt_summaries[ 1 ]-due_today_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '50.00' )
+      act = lt_summaries[ 1 ]-future_unconfirmed_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_summaries[ 1 ]-unconfirmed_quantity_pct
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_req_pct
+        + lt_summaries[ 1 ]-due_today_unconfirmed_req_pct
+        + lt_summaries[ 1 ]-future_unconfirmed_req_pct ).
+  ENDMETHOD.
+
+  METHOD summarizes_atp_horizon_ends.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_summaries) = lo_cut->summarize_order_atp(
+      it_checks     = VALUE #(
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0020'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261001' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '1.000'
+          cumulative_base_quantity       = '1.000'
+          unconfirmed_base_quantity      = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0010'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261001' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '2.000'
+          unconfirmed_base_quantity      = '2.000'
+          component_unconfirmed_quantity = '2.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0030'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261005' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '1.000'
+          cumulative_base_quantity       = '1.000'
+          unconfirmed_base_quantity      = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0080'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '2.000'
+          unconfirmed_base_quantity      = '2.000'
+          component_unconfirmed_quantity = '2.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0005'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261010' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '1.000'
+          cumulative_base_quantity       = '1.000'
+          unconfirmed_base_quantity      = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0050'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261012' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '3.000'
+          cumulative_base_quantity       = '3.000'
+          unconfirmed_base_quantity      = '3.000'
+          component_unconfirmed_quantity = '3.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0040'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261012' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '4.000'
+          cumulative_base_quantity       = '4.000'
+          unconfirmed_base_quantity      = '4.000'
+          component_unconfirmed_quantity = '4.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004717'
+            reservation_number = '0000009200'
+            reservation_item   = '0060'
+            material           = 'MAT-OFFSET'
+            plant              = '1000'
+            required_date      = '20261015' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '5.000'
+          cumulative_base_quantity       = '5.000'
+          unconfirmed_base_quantity      = '5.000'
+          component_unconfirmed_quantity = '5.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) ) )
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_summaries[ 1 ]-oldest_overdue_balance_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -9
+      act = lt_summaries[ 1 ]-oldest_overdue_balance_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009200'
+      act = lt_summaries[ 1 ]-oldest_overdue_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-oldest_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261005'
+      act = lt_summaries[ 1 ]-latest_overdue_balance_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -5
+      act = lt_summaries[ 1 ]-latest_overdue_balance_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0030'
+      act = lt_summaries[ 1 ]-latest_overdue_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_summaries[ 1 ]-first_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0080'
+      act = lt_summaries[ 1 ]-last_due_today_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261012'
+      act = lt_summaries[ 1 ]-next_future_balance_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_summaries[ 1 ]-next_future_balance_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009200'
+      act = lt_summaries[ 1 ]-next_future_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0040'
+      act = lt_summaries[ 1 ]-next_future_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261015'
+      act = lt_summaries[ 1 ]-last_future_balance_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_summaries[ 1 ]-last_future_balance_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0060'
+      act = lt_summaries[ 1 ]-last_future_res_item ).
+  ENDMETHOD.
+
+  METHOD summarizes_atp_overdue_ages.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_checks) = VALUE zcl_prod_comp_service=>ty_component_atp_checks(
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0001'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20261009' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '1.000'
+        cumulative_base_quantity       = '1.000'
+        confirmed_base_quantity        = '0.250'
+        unconfirmed_base_quantity      = '0.750'
+        component_confirmed_quantity   = '0.250'
+        component_unconfirmed_quantity = '0.750'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0002'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20261003' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '2.000'
+        cumulative_base_quantity       = '2.000'
+        unconfirmed_base_quantity      = '2.000'
+        component_unconfirmed_quantity = '2.000'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0003'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20261002' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '3.000'
+        cumulative_base_quantity       = '3.000'
+        confirmed_base_quantity        = '1.000'
+        unconfirmed_base_quantity      = '2.000'
+        component_confirmed_quantity   = '1.000'
+        component_unconfirmed_quantity = '2.000'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0004'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20260910' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '4.000'
+        cumulative_base_quantity       = '4.000'
+        confirmed_base_quantity        = '0.500'
+        unconfirmed_base_quantity      = '3.500'
+        component_confirmed_quantity   = '0.500'
+        component_unconfirmed_quantity = '3.500'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0005'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20260909' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '5.000'
+        cumulative_base_quantity       = '5.000'
+        confirmed_base_quantity        = '1.000'
+        unconfirmed_base_quantity      = '4.000'
+        component_confirmed_quantity   = '1.000'
+        component_unconfirmed_quantity = '4.000'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0006'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20260712' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '6.000'
+        cumulative_base_quantity       = '6.000'
+        unconfirmed_base_quantity      = '6.000'
+        component_unconfirmed_quantity = '6.000'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+      ( component                      = VALUE #(
+          production_order   = '0000004717'
+          reservation_number = '0000009200'
+          reservation_item   = '0007'
+          material           = 'MAT-AGE'
+          plant              = '1000'
+          required_date      = '20260711' )
+        base_unit                      = 'EA'
+        requested_base_quantity        = '7.000'
+        cumulative_base_quantity       = '7.000'
+        confirmed_base_quantity        = '2.000'
+        unconfirmed_base_quantity      = '5.000'
+        component_confirmed_quantity   = '2.000'
+        component_unconfirmed_quantity = '5.000'
+        atp_result                     = VALUE #( is_check_relevant = abap_true ) ) ).
+    DATA(lt_summaries) = lo_cut->summarize_order_atp(
+      it_checks     = lt_checks
+      iv_as_of_date = '20261010' ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 7
+      act = lt_summaries[ 1 ]-overdue_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_summaries[ 1 ]-overdue_1_7_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.750' )
+      act = lt_summaries[ 1 ]-overdue_1_7_balance_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_summaries[ 1 ]-overdue_8_30_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.500' )
+      act = lt_summaries[ 1 ]-overdue_8_30_balance_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_summaries[ 1 ]-overdue_31_90_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '10.000' )
+      act = lt_summaries[ 1 ]-overdue_31_90_balance_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-overdue_over_90_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_summaries[ 1 ]-overdue_over_90_balance_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-overdue_1_7_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lt_summaries[ 1 ]-overdue_8_30_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-overdue_31_90_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_summaries[ 1 ]-overdue_over_90_partial_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.750' )
+      act = lt_summaries[ 1 ]-overdue_1_7_partial_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.500' )
+      act = lt_summaries[ 1 ]-overdue_8_30_partial_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '4.000' )
+      act = lt_summaries[ 1 ]-overdue_31_90_partial_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '5.000' )
+      act = lt_summaries[ 1 ]-overdue_over_90_partial_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_summaries[ 1 ]-overdue_balance_count
+      act = lt_summaries[ 1 ]-overdue_1_7_balance_count
+        + lt_summaries[ 1 ]-overdue_8_30_balance_count
+        + lt_summaries[ 1 ]-overdue_31_90_balance_count
+        + lt_summaries[ 1 ]-overdue_over_90_balance_count ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = lt_summaries[ 1 ]-overdue_unconfirmed_base_qty
+      act = lt_summaries[ 1 ]-overdue_1_7_balance_qty
+        + lt_summaries[ 1 ]-overdue_8_30_balance_qty
+        + lt_summaries[ 1 ]-overdue_31_90_balance_qty
+        + lt_summaries[ 1 ]-overdue_over_90_balance_qty ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '28.57' )
+      act = lt_summaries[ 1 ]-overdue_1_7_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '28.57' )
+      act = lt_summaries[ 1 ]-overdue_8_30_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '28.57' )
+      act = lt_summaries[ 1 ]-overdue_31_90_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '14.29' )
+      act = lt_summaries[ 1 ]-overdue_over_90_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.00' )
+      act = lt_summaries[ 1 ]-overdue_1_7_count_pct
+        + lt_summaries[ 1 ]-overdue_8_30_count_pct
+        + lt_summaries[ 1 ]-overdue_31_90_count_pct
+        + lt_summaries[ 1 ]-overdue_over_90_count_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '11.83' )
+      act = lt_summaries[ 1 ]-overdue_1_7_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '23.66' )
+      act = lt_summaries[ 1 ]-overdue_8_30_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '43.01' )
+      act = lt_summaries[ 1 ]-overdue_31_90_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '21.51' )
+      act = lt_summaries[ 1 ]-overdue_over_90_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '100.01' )
+      act = lt_summaries[ 1 ]-overdue_1_7_qty_pct
+        + lt_summaries[ 1 ]-overdue_8_30_qty_pct
+        + lt_summaries[ 1 ]-overdue_31_90_qty_pct
+        + lt_summaries[ 1 ]-overdue_over_90_qty_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '9.82' )
+      act = lt_summaries[ 1 ]-overdue_1_7_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '19.64' )
+      act = lt_summaries[ 1 ]-overdue_8_30_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '35.71' )
+      act = lt_summaries[ 1 ]-overdue_31_90_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '17.86' )
+      act = lt_summaries[ 1 ]-overdue_over_90_req_pct ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV zcl_stock_service=>ty_allocation_coverage_pct( '83.04' )
+      act = lt_summaries[ 1 ]-overdue_unconfirmed_req_pct ).
+    DATA lv_overdue_req_pct_sum TYPE decfloat34.
+    lv_overdue_req_pct_sum =
+      lt_summaries[ 1 ]-overdue_1_7_req_pct
+      + lt_summaries[ 1 ]-overdue_8_30_req_pct
+      + lt_summaries[ 1 ]-overdue_31_90_req_pct
+      + lt_summaries[ 1 ]-overdue_over_90_req_pct.
+    cl_abap_unit_assert=>assert_true(
+      act = xsdbool(
+        lv_overdue_req_pct_sum >=
+          lt_summaries[ 1 ]-overdue_unconfirmed_req_pct
+          - CONV decfloat34( '0.03' )
+        AND lv_overdue_req_pct_sum <=
+          lt_summaries[ 1 ]-overdue_unconfirmed_req_pct
+          + CONV decfloat34( '0.03' ) ) ).
+  ENDMETHOD.
+
+  METHOD summarizes_atp_endpoint_ids.
+    DATA(lo_cut) = NEW zcl_prod_comp_service( ).
+    DATA(lt_summaries) = lo_cut->summarize_order_atp(
+      it_checks = VALUE #(
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009000'
+            reservation_item   = '0030'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261001' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '4.000'
+          unconfirmed_base_quantity      = '0.000'
+          component_confirmed_quantity   = '2.000'
+          component_unconfirmed_quantity = '0.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009000'
+            reservation_item   = '0010'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261001' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '4.000'
+          unconfirmed_base_quantity      = '0.000'
+          component_confirmed_quantity   = '2.000'
+          component_unconfirmed_quantity = '0.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009001'
+            reservation_item   = '0030'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261002' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '2.000'
+          unconfirmed_base_quantity      = '2.000'
+          component_confirmed_quantity   = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009001'
+            reservation_item   = '0010'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261002' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '2.000'
+          unconfirmed_base_quantity      = '2.000'
+          component_confirmed_quantity   = '1.000'
+          component_unconfirmed_quantity = '1.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009002'
+            reservation_item   = '0030'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261003' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '0.000'
+          unconfirmed_base_quantity      = '4.000'
+          component_confirmed_quantity   = '0.000'
+          component_unconfirmed_quantity = '2.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) )
+        ( component                      = VALUE #(
+            production_order   = '0000004714'
+            reservation_number = '0000009002'
+            reservation_item   = '0010'
+            material           = 'MAT-9'
+            plant              = '1000'
+            required_date      = '20261003' )
+          base_unit                      = 'EA'
+          requested_base_quantity        = '2.000'
+          cumulative_base_quantity       = '4.000'
+          confirmed_base_quantity        = '0.000'
+          unconfirmed_base_quantity      = '4.000'
+          component_confirmed_quantity   = '0.000'
+          component_unconfirmed_quantity = '2.000'
+          atp_result                     = VALUE #( is_check_relevant = abap_true ) ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_summaries ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_summaries[ 1 ]-first_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_summaries[ 1 ]-first_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-first_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261003'
+      act = lt_summaries[ 1 ]-last_required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009002'
+      act = lt_summaries[ 1 ]-last_required_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-last_required_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261001'
+      act = lt_summaries[ 1 ]-first_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009000'
+      act = lt_summaries[ 1 ]-first_confirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-first_confirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261002'
+      act = lt_summaries[ 1 ]-last_confirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_summaries[ 1 ]-last_confirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-last_confirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261002'
+      act = lt_summaries[ 1 ]-first_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_summaries[ 1 ]-first_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-first_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261002'
+      act = lt_summaries[ 1 ]-last_partial_confirm_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_summaries[ 1 ]-last_partial_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-last_partial_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261002'
+      act = lt_summaries[ 1 ]-first_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009001'
+      act = lt_summaries[ 1 ]-first_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-first_unconfirmed_res_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '20261003'
+      act = lt_summaries[ 1 ]-last_unconfirmed_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000009002'
+      act = lt_summaries[ 1 ]-last_unconfirmed_res_number ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0010'
+      act = lt_summaries[ 1 ]-last_unconfirmed_res_item ).
   ENDMETHOD.
 
   METHOD suggests_comp_replenishment.
@@ -6550,16 +11055,21 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     DATA(lo_cut) = NEW zcl_prod_comp_service( ).
     DATA(lt_suggestions) = lo_cut->suggest_comp_replenishment(
       it_shortages          = VALUE #(
-        ( material                   = 'MAT-MB'
-          plant                      = '1000'
-          base_unit                  = 'EA'
-          required_date              = '20280205'
-          component_count            = 2
-          affected_order_count       = 1
-          affected_production_orders = VALUE #(
+        ( material                    = 'MAT-MB'
+          plant                       = '1000'
+          base_unit                   = 'EA'
+          required_date               = '20280205'
+          component_count             = 2
+          affected_order_count        = 1
+          affected_production_orders  = VALUE #(
             ( CONV resb-aufnr( '0000004711' ) ) )
-          requested_base_quantity    = '3.000'
-          shortfall_base_quantity    = '3.000' )
+          largest_short_qty           = '3.000'
+          largest_short_requested_qty = '3.000'
+          largest_short_prod_order    = '0000004711'
+          largest_short_res_number    = '0000001234'
+          largest_short_res_item      = '0001'
+          requested_base_quantity     = '3.000'
+          shortfall_base_quantity     = '3.000' )
         ( material                   = 'MAT-MB'
           plant                      = '1000'
           base_unit                  = 'EA'
@@ -6601,6 +11111,32 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( lt_suggestions ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_tie_count ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_shortfall_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_shortfall_req_pct ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_requested_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_allocated_qty ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_outcome ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_date ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_date_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_prod_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_plan_order ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_res_number ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-largest_short_res_item ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV d( '20280205' )
       act = lt_suggestions[ 1 ]-required_date ).
@@ -7436,17 +11972,79 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = 4
       act = lines( lt_suggestions ) ).
     cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_suggestions[ 1 ]-pr_release_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_suggestions[ 2 ]-pr_release_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 3 ]-pr_release_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_suggestions[ 4 ]-pr_release_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_suggestions[ 1 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 0
+      act = lt_suggestions[ 2 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 3 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 4 ]-required_date_offset ).
+    cl_abap_unit_assert=>assert_equals(
       exp = zcl_prod_comp_service=>c_pr_urgency_overdue
       act = lt_suggestions[ 1 ]-pr_release_urgency ).
     cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_suggestions[ 1 ]-latest_po_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = -1
+      act = lt_suggestions[ 1 ]-estimated_delivery_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lt_suggestions[ 1 ]-pr_release_days_overdue ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 1 ]-pr_release_days_until ).
+    cl_abap_unit_assert=>assert_equals(
       exp = zcl_prod_comp_service=>c_pr_urgency_due_today
       act = lt_suggestions[ 2 ]-pr_release_urgency ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 2 ]-latest_po_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 2 ]-estimated_delivery_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 2 ]-pr_release_days_overdue ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 2 ]-pr_release_days_until ).
     cl_abap_unit_assert=>assert_equals(
       exp = zcl_prod_comp_service=>c_pr_urgency_upcoming
       act = lt_suggestions[ 3 ]-pr_release_urgency ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 3 ]-latest_po_day_offset ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 3 ]-estimated_delivery_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 3 ]-pr_release_days_overdue ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lt_suggestions[ 3 ]-pr_release_days_until ).
+    cl_abap_unit_assert=>assert_equals(
       exp = zcl_prod_comp_service=>c_pr_urgency_no_estimate
       act = lt_suggestions[ 4 ]-pr_release_urgency ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 4 ]-latest_po_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 4 ]-estimated_delivery_day_offset ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 4 ]-pr_release_days_overdue ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_suggestions[ 4 ]-pr_release_days_until ).
   ENDMETHOD.
 
   METHOD suggests_comp_repl_from_stock.
@@ -8073,6 +12671,11 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     DATA lv_bad_week_start_rejected TYPE abap_bool.
     DATA lv_duplicate_policy_rejected TYPE abap_bool.
     DATA lv_bad_shortage_rejected TYPE abap_bool.
+    DATA lv_bad_resv_identity_rejected TYPE abap_bool.
+    DATA lv_bad_largest_outcome TYPE abap_bool.
+    DATA lv_mismatch_largest_outcome TYPE abap_bool.
+    DATA lv_bad_largest_date TYPE abap_bool.
+    DATA lv_bad_largest_tie_count TYPE abap_bool.
     DATA lv_bad_source_rejected TYPE abap_bool.
     DATA lv_partial_agreement_rejected TYPE abap_bool.
     DATA lv_mixed_source_rejected TYPE abap_bool.
@@ -8221,6 +12824,121 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
         lv_bad_shortage_rejected = abap_true.
     ENDTRY.
 
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages = VALUE #(
+            ( material                   = 'MAT-1'
+              plant                      = '1000'
+              base_unit                  = 'EA'
+              required_date              = '20261005'
+              component_count            = 1
+              short_component_count      = 1
+              requested_base_quantity    = '1.000'
+              allocated_base_quantity    = '0.000'
+              shortfall_base_quantity    = '1.000'
+              affected_reservation_items = VALUE #(
+                ( production_order   = '0000004711'
+                  reservation_number = space
+                  reservation_item   = '0010' ) ) ) )
+          it_policies  = VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_resv_identity_rejected = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261005'
+              component_count             = 1
+              short_component_count       = 1
+              requested_base_quantity     = '2.000'
+              allocated_base_quantity     = '0.000'
+              shortfall_base_quantity     = '2.000'
+              largest_short_qty           = '1.000'
+              largest_short_requested_qty = '2.000'
+              largest_short_outcome       = 'X'
+              largest_short_prod_order    = '0000004711'
+              largest_short_res_number    = '0000001234'
+              largest_short_res_item      = '0010' ) )
+          it_policies  = VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_largest_outcome = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261005'
+              component_count             = 1
+              short_component_count       = 1
+              requested_base_quantity     = '2.000'
+              allocated_base_quantity     = '0.000'
+              shortfall_base_quantity     = '2.000'
+              largest_short_qty           = '1.000'
+              largest_short_requested_qty = '2.000'
+              largest_short_outcome       = zif_stock_repository=>c_allocation_outcome_none
+              largest_short_prod_order    = '0000004711'
+              largest_short_res_number    = '0000001234'
+              largest_short_res_item      = '0010' ) )
+          it_policies  = VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_mismatch_largest_outcome = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261005'
+              component_count             = 1
+              short_component_count       = 1
+              requested_base_quantity     = '2.000'
+              allocated_base_quantity     = '1.000'
+              shortfall_base_quantity     = '1.000'
+              largest_short_qty           = '1.000'
+              largest_short_tie_count     = 2
+              largest_short_requested_qty = '2.000'
+              largest_short_allocated_qty = '1.000'
+              largest_short_outcome       = zif_stock_repository=>c_allocation_outcome_partial
+              largest_short_prod_order    = '0000004711'
+              largest_short_res_number    = '0000001234'
+              largest_short_res_item      = '0010' ) )
+          it_policies  = VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_largest_tie_count = abap_true.
+    ENDTRY.
+
+    TRY.
+        lo_cut->suggest_comp_replenishment(
+          it_shortages = VALUE #(
+            ( material                    = 'MAT-1'
+              plant                       = '1000'
+              base_unit                   = 'EA'
+              required_date               = '20261005'
+              component_count             = 1
+              short_component_count       = 1
+              requested_base_quantity     = '2.000'
+              allocated_base_quantity     = '1.000'
+              shortfall_base_quantity     = '1.000'
+              largest_short_qty           = '1.000'
+              largest_short_requested_qty = '2.000'
+              largest_short_date          = '20261340'
+              largest_short_prod_order    = '0000004711'
+              largest_short_res_number    = '0000001234'
+              largest_short_res_item      = '0010' ) )
+          it_policies  = VALUE #( ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_bad_largest_date = abap_true.
+    ENDTRY.
+
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_bad_policy_rejected ).
@@ -8251,6 +12969,21 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = abap_true
       act = lv_bad_shortage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_resv_identity_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_largest_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_mismatch_largest_outcome ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_largest_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = abap_true
+      act = lv_bad_largest_tie_count ).
   ENDMETHOD.
 
   METHOD suggests_po_conf_repl_stock.

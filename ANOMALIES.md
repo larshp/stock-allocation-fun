@@ -12,10 +12,10 @@ across cursors and page limits, including when detail rows are omitted, and both
 buckets report row-share percentages. The first-undated identity also echoes the raw expiry
 source marker.
 Regression cases cover P, G, unknown-to-O,
-continuation stability, empty pages, and UOM conversion. They have not been
-executed in this WSL 1 environment: the workspace Node shim cannot start, and
-direct `node.exe --version` fails with `UtilBindVsockAnyPort`. ABAP lint,
-transpilation, and ABAP Unit status remain unverified.
+continuation stability, empty pages, and UOM conversion. They passed in the
+2026-10-21 `npm test` run, which also passed PLAN validation, abaplint (0 issues
+across 252 files), transpilation, and ABAP Unit. The run used the Windows
+Node/npm installation from this WSL workspace.
 
 Planned-order finish-window reads are bounded to at most 500 returned orders
 and expose `is_truncated` when another matching row exists. The continuation
@@ -6594,7 +6594,9 @@ row coverage in the target release.
 Batch expiry exposure classifies the local batch-status snapshot using MCHB
 quantities and MCHA/MCH1 expiry resolution, with open RESB deductions applied
 to available unrestricted stock. It is an inventory report, not SAP ATP or a
-posting validation. Results include counts of returned batch/location/valuation
+posting validation. Dated and undated detail rows also carry
+`manufacturing_age_band` (`F`, `T`, `1`–`4`, or `U`) using the same keys as the
+summary; UOM nested base rows preserve it unchanged. Results include counts of returned batch/location/valuation
 rows with positive stock, split into expired and upcoming exposure, plus
 `undated_batch_row_count` for positive-stock batch rows with no resolved expiry
 date. Base-unit category totals expose the unrestricted, available, QI, and
@@ -6609,7 +6611,69 @@ positive-stock rows matching the exposure filters through
 `oldest_manufacture_val_type`, `oldest_manufacturing_date`,
 `oldest_manufacturing_date_src`, and signed `days_since_oldest_manufacture`.
 Unknown manufacture dates are skipped; ties sort by batch, location, and
-valuation type. UOM results echo the identity and date fields unchanged.
+valuation type. UOM results echo the identity and date fields unchanged. The
+report also identifies the chronologically latest recorded manufacture date
+among positive-stock rows matching the exposure filters through
+`youngest_mfg_storage_loc`, `youngest_mfg_batch`,
+`youngest_mfg_val_type`, `youngest_mfg_date`,
+`youngest_mfg_date_src`, and signed
+`days_since_youngest_mfg`. Unknown manufacture dates are skipped;
+ties use the same batch, location, and valuation ordering, and UOM results
+echo the youngest identity and date fields unchanged.
+The report also provides `manufacturing_age_bands`, a fixed seven-row
+positive-stock summary over rows matching the exposure filters. Its keys cover
+future dates (`F`), age zero (`T`), 1–7 (`1`), 8–30 (`2`), 31–90 (`3`),
+over 90 days (`4`), and unknown dates (`U`). Each row carries the count,
+row share, four stock-category quantities, and category shares. Each row also
+reports available percentage of unrestricted quantity and the reservation
+deduction (`unrestricted - available`). UOM rows preserve that percentage and
+provide the deduction in base/requested units. Active age bounds exclude
+unknown manufacture dates. Each age-band row also reports the earliest and
+latest known manufacture dates and their elapsed-day span. Each endpoint also reports its source group (`P` plant, `G` global
+fallback, or `O` other/blank), along with its batch, storage location, and
+valuation type; equal-date rows use ascending batch, location, and
+valuation type as a stable tie break. `days_since_first_manufacture` and
+`days_since_last_manufacture` report signed ages as `as_of_date - endpoint
+date`. Tests cover positive past dates, zero-age dates, negative future dates,
+and UOM echoes. Empty or unknown-date bands retain initial dates, zero age
+offsets, and a zero span; UOM rows echo the endpoints and age values unchanged.
+UOM results preserve the original values and add
+base/requested-unit quantities.
+Callers can also set `filter_manufacturing_age_band = abap_true` and choose
+`manufacturing_age_band` `F`, `T`, `1`, `2`, `3`, `4`, or `U`; `U` selects
+rows without a manufacture date. The selector composes with signed age bounds
+and the other exposure filters before summaries and paging. Invalid active
+codes and noninitial disabled values are rejected, and UOM results echo both
+selector fields.
+`filter_mfg_date_source` with `mfg_date_source` set to `P` can select a
+plant-level date, `G` selects the global fallback, and blank selects a blank
+source marker; it composes with age
+bands and signed age bounds. Base and UOM results echo the selector. The
+`manufacturing_age_source_bands` result is a fixed 21-row matrix crossing `P`
+(plant), `G` (global fallback), and `O` (blank or other source) with every
+manufacturing-age band. It reports counts, overall, within-source, and
+within-band row shares, four stock-category quantities and their shares of the
+filtered totals and their shares within the source and age band, per-category
+positive-stock row counts and shares within each matrix cell, available
+percentage of unrestricted quantity, and reservation deduction
+(`unrestricted - available`). UOM rows preserve all counts and shares,
+availability percentage, and report base/requested-unit quantities, including
+the reservation deduction. It uses the same filtered scope as the age-band
+summary, independent of detail pagination. Each source/band cell also reports
+the earliest and latest recorded manufacture dates and elapsed-day span. Each
+endpoint includes its batch, storage location, and valuation type; equal-date
+rows use ascending batch, location, and valuation type as a stable tie break.
+Each endpoint reports its signed age as `as_of_date - endpoint date`. Empty or
+unknown-date cells retain initial dates, zero age offsets, and zero span. UOM
+results echo dates, identities, and age offsets unchanged.
+The `page_mfg_src_age_bands` result is a page-scoped fixed 21-row
+matrix calculated after cursor and page-size selection. Its counts, quantities,
+shares, availability, reservation deductions, per-category positive-stock row
+counts and shares within each matrix cell, and manufacture-date spans use only
+returned page rows. It identifies each date endpoint by batch, storage location,
+and valuation type and reports signed age offsets from `as_of_date`. Empty or
+unknown-date cells retain zero offsets. UOM results preserve shares, dates,
+identities, and offsets and convert the quantities.
 Positive-stock batch/location/valuation rows with valid expiry dates after the requested window have a
 separate count and category
 totals; they remain out of the dated detail and expired/upcoming totals. The
@@ -7236,6 +7300,23 @@ so comparisons assigned rows to the wrong band. The service now stores the
 subtraction in an explicitly typed integer local; the 1, 7, 8, 30, 31, 90, and
 91 day regression boundaries pass in the full transpiled ABAP Unit run.
 
+
+## Expiry source/window endpoint offsets (2026-10-21)
+
+Full upcoming and after-window source-band rows and their dated page matrices
+now include endpoint offsets: `days_to_first_expiration` and `days_to_last_expiration` report
+each endpoint as `expiration_date - as_of_date`. Empty matrix cells retain
+zero offsets, and UOM rows echo the endpoint values. Regression coverage
+checks both endpoints in full, page, and UOM output, plus empty-cell zeros.
+
+## Expiry source status/age endpoint offsets (2026-10-21)
+
+Full and dated-page source/status and expired source/age matrices now include
+`days_to_first_expiration` and `days_to_last_expiration`, calculated as
+`expiration_date - as_of_date`. Expired endpoints are negative, upcoming and
+after-window endpoints are positive, empty cells retain zero, and UOM rows echo
+the offsets. Regression coverage checks -7/-1, 1/7, and 8/14 day endpoints
+across full, page, and UOM results, plus empty-cell zeros.
 
 ## Confirmation quantity range validation (2026-10-20)
 
@@ -8139,3 +8220,15 @@ the report horizon. The double projection and UOM adapter are fixed; tests now
 follow the established priority and expiry ordering and include the relevant
 expiry window. PLAN validation, abaplint, transpilation, and ABAP Unit all pass.
 The regular WSL 1 npm launcher still fails before Node startup.
+Direct full and page expiry status/source rows now expose signed endpoint day offsets, calculated as expiration date minus as-of date. Regression assertions cover expired, upcoming, after-window, empty source groups, and UOM output; the PLAN validator guards the calculations, mappings, tests, and documentation. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Page-wide expiry endpoints now include concise signed day offsets from `as_of_date`, with zero values for empty pages and direct propagation through UOM results. Regressions and PLAN validator guards cover the date calculation, empty-page behavior, and UOM echo. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Page-wide expiry endpoint identities now return batch, storage location, valuation type, and raw date source; equal-date ties choose ascending batch, location, then valuation type. Regressions and PLAN guards cover both endpoints, UOM echo, and empty pages; Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Full and page expiry source/status cells now expose batch, storage location, valuation type, and raw expiry source for each date endpoint. Tie coverage exercises all three identity keys; UOM rows and empty cells are included. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Full and page expiry source-band cells now expose batch, storage location, valuation type, and raw expiry source for first and last dates. Equal-date ties use ascending batch, location, then valuation type; UOM matrices echo the selected keys, including blank markers in `O` rows. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Full and page expiry source-only summary rows now expose batch, storage location, valuation type, and raw expiry source. Their endpoints use the same date and ascending-key tie order as source/status cells; base and UOM tests cover plant endpoints, blank-source `O` rows, and empty pages. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+Full and page expiry status summary rows now expose batch, storage location, valuation type, and raw expiry source for both dates; equal-date ties use ascending batch, location, and valuation type. UOM rows echo the keys, and regression coverage includes cross-source ties, multi-date blank-source `O` endpoint selection, and empty page statuses. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+Planned-order component reads added RESB-PLNUM to the stub table, while the ABAP Unit runner has a separately maintained SQLite RESB schema. The first full test run therefore failed during existing reservation-test setup; adding PLNUM to the runner schema and guarding the schema in PLAN validation fixed the failure. Full npm test passes through the Windows Node path.
+
+
+Production-order finish-window reads can now select an exact blank AUFK-AUART order type with `filter_order_type`, while nonblank values retain their default exact-match behavior. The selector applies before pagination and is checked after detail reads; SQLite, service, and scope-drift regressions cover both blank and nonblank values.

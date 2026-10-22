@@ -3559,6 +3559,8 @@ CLASS zcl_prod_order_read_service IMPLEMENTATION.
           AND is_selection-filter_wbs_element <> abap_false )
         OR ( is_selection-filter_order_description <> abap_true
           AND is_selection-filter_order_description <> abap_false )
+        OR ( is_selection-filter_order_type <> abap_true
+          AND is_selection-filter_order_type <> abap_false )
         OR ( is_selection-filter_order_created_by <> abap_true
           AND is_selection-filter_order_created_by <> abap_false )
         OR ( is_selection-filter_order_changed_by <> abap_true
@@ -9002,7 +9004,8 @@ CLASS zcl_prod_order_read_service IMPLEMENTATION.
             AND ( is_selection-order_category IS INITIAL
               OR ls_finish_item-order_item-order_category =
                 is_selection-order_category )
-            AND ( is_selection-order_type IS INITIAL
+            AND ( ( is_selection-filter_order_type = abap_false
+                  AND is_selection-order_type IS INITIAL )
               OR ls_finish_item-order_item-order_type =
                 is_selection-order_type )
             AND ( ( is_selection-filter_order_description = abap_false

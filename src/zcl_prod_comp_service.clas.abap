@@ -55,6 +55,7 @@ CLASS zcl_prod_comp_service DEFINITION
     TYPES:
       BEGIN OF ty_component,
         production_order   TYPE resb-aufnr,
+        planned_order      TYPE resb-plnum,
         reservation_number TYPE resb-rsnum,
         reservation_item   TYPE resb-rspos,
         material           TYPE resb-matnr,
@@ -151,6 +152,7 @@ CLASS zcl_prod_comp_service DEFINITION
         minimum_coverage_rejected TYPE abap_bool,
         allocation_outcome        TYPE c LENGTH 1,
         allocation_coverage_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        shortage_pct              TYPE zcl_stock_service=>ty_allocation_coverage_pct,
       END OF ty_component_local_estimate.
     TYPES:
       BEGIN OF ty_component_check,
@@ -185,35 +187,289 @@ CLASS zcl_prod_comp_service DEFINITION
     TYPES:
       BEGIN OF ty_component_order_readiness,
         production_order            TYPE resb-aufnr,
+        planned_order               TYPE resb-plnum,
         open_component_count        TYPE i,
         covered_component_count     TYPE i,
         short_component_count       TYPE i,
+        partial_component_count     TYPE i,
+        unallocated_component_count TYPE i,
         zero_demand_component_count TYPE i,
+        quantity_base_unit          TYPE mara-meins,
+        has_single_base_unit        TYPE abap_bool,
         requested_base_quantity     TYPE mard-labst,
         allocated_base_quantity     TYPE mard-labst,
         shortfall_base_quantity     TYPE mard-labst,
+        largest_shortfall_base_qty  TYPE mard-labst,
+        largest_short_tie_count     TYPE i,
+        largest_req_base_qty        TYPE mard-labst,
+        largest_alloc_base_qty      TYPE mard-labst,
+        largest_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_req_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_short_date          TYPE resb-bdter,
+        largest_short_date_offset   TYPE i,
+        largest_short_res_number    TYPE resb-rsnum,
+        largest_short_res_item      TYPE resb-rspos,
+        largest_short_outcome       TYPE c LENGTH 1,
+        allocation_coverage_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        shortage_pct                TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        short_component_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partial_component_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_component_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        zero_demand_component_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        allocation_outcome          TYPE c LENGTH 1,
+        as_of_date                  TYPE d,
+        overdue_short_count         TYPE i,
+        overdue_partial_count       TYPE i,
+        overdue_unallocated_count   TYPE i,
+        due_today_short_count       TYPE i,
+        due_today_partial_count     TYPE i,
+        due_today_unallocated_count TYPE i,
+        first_due_today_res_number  TYPE resb-rsnum,
+        first_due_today_res_item    TYPE resb-rspos,
+        last_due_today_res_number   TYPE resb-rsnum,
+        last_due_today_res_item     TYPE resb-rspos,
+        future_short_count          TYPE i,
+        future_partial_count        TYPE i,
+        future_unallocated_count    TYPE i,
+        overdue_short_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_short_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_short_pct            TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_partial_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_unallocated_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_partial_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_unallocated_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_partial_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_unallocated_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_overdue_short_date    TYPE resb-bdter,
+        first_overdue_res_number    TYPE resb-rsnum,
+        first_overdue_res_item      TYPE resb-rspos,
+        last_overdue_short_date     TYPE resb-bdter,
+        last_overdue_res_number     TYPE resb-rsnum,
+        last_overdue_res_item       TYPE resb-rspos,
+        first_future_short_date     TYPE resb-bdter,
+        first_future_res_number     TYPE resb-rsnum,
+        first_future_res_item       TYPE resb-rspos,
+        last_future_short_date      TYPE resb-bdter,
+        last_future_res_number      TYPE resb-rsnum,
+        last_future_res_item        TYPE resb-rspos,
+        first_overdue_days          TYPE i,
+        last_overdue_days           TYPE i,
+        first_future_days_until     TYPE i,
+        last_future_days_until      TYPE i,
         first_required_date         TYPE resb-bdter,
+        first_required_res_number   TYPE resb-rsnum,
+        first_required_res_item     TYPE resb-rspos,
         last_required_date          TYPE resb-bdter,
+        last_required_res_number    TYPE resb-rsnum,
+        last_required_res_item      TYPE resb-rspos,
         first_local_shortage_date   TYPE resb-bdter,
+        first_shortage_res_number   TYPE resb-rsnum,
+        first_shortage_res_item     TYPE resb-rspos,
+        last_local_shortage_date    TYPE resb-bdter,
+        last_shortage_res_number    TYPE resb-rsnum,
+        last_shortage_res_item      TYPE resb-rspos,
+        first_partial_short_date    TYPE resb-bdter,
+        first_partial_res_number    TYPE resb-rsnum,
+        first_partial_res_item      TYPE resb-rspos,
+        last_partial_short_date     TYPE resb-bdter,
+        last_partial_res_number     TYPE resb-rsnum,
+        last_partial_res_item       TYPE resb-rspos,
+        first_unalloc_short_date    TYPE resb-bdter,
+        first_unalloc_res_number    TYPE resb-rsnum,
+        first_unalloc_res_item      TYPE resb-rspos,
+        last_unalloc_short_date     TYPE resb-bdter,
+        last_unalloc_res_number     TYPE resb-rsnum,
+        last_unalloc_res_item       TYPE resb-rspos,
+        first_partial_day_offset    TYPE i,
+        last_partial_day_offset     TYPE i,
+        first_unalloc_day_offset    TYPE i,
+        last_unalloc_day_offset     TYPE i,
         is_locally_ready            TYPE abap_bool,
       END OF ty_component_order_readiness.
     TYPES ty_component_order_readinesses TYPE STANDARD TABLE OF
       ty_component_order_readiness WITH EMPTY KEY.
+    TYPES:
+      BEGIN OF ty_comp_material_readiness,
+        production_order            TYPE resb-aufnr,
+        planned_order               TYPE resb-plnum,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        base_unit                   TYPE mara-meins,
+        component_count             TYPE i,
+        covered_component_count     TYPE i,
+        short_component_count       TYPE i,
+        partial_component_count     TYPE i,
+        unallocated_component_count TYPE i,
+        zero_demand_component_count TYPE i,
+        requested_base_quantity     TYPE mard-labst,
+        allocated_base_quantity     TYPE mard-labst,
+        shortfall_base_quantity     TYPE mard-labst,
+        partial_shortfall_base_qty  TYPE mard-labst,
+        unalloc_shortfall_base_qty  TYPE mard-labst,
+        largest_shortfall_base_qty  TYPE mard-labst,
+        largest_short_tie_count     TYPE i,
+        largest_req_base_qty        TYPE mard-labst,
+        largest_alloc_base_qty      TYPE mard-labst,
+        allocation_coverage_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        shortage_pct                TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partial_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unalloc_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_req_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_short_date          TYPE resb-bdter,
+        largest_short_date_offset   TYPE i,
+        largest_short_res_number    TYPE resb-rsnum,
+        largest_short_res_item      TYPE resb-rspos,
+        largest_short_outcome       TYPE c LENGTH 1,
+        short_component_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partial_component_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_component_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        zero_demand_component_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        allocation_outcome          TYPE c LENGTH 1,
+        as_of_date                  TYPE d,
+        overdue_short_count         TYPE i,
+        overdue_partial_count       TYPE i,
+        overdue_unallocated_count   TYPE i,
+        due_today_short_count       TYPE i,
+        due_today_partial_count     TYPE i,
+        due_today_unallocated_count TYPE i,
+        first_due_today_res_number  TYPE resb-rsnum,
+        first_due_today_res_item    TYPE resb-rspos,
+        last_due_today_res_number   TYPE resb-rsnum,
+        last_due_today_res_item     TYPE resb-rspos,
+        future_short_count          TYPE i,
+        future_partial_count        TYPE i,
+        future_unallocated_count    TYPE i,
+        overdue_short_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_short_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_short_pct            TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_partial_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_unallocated_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_partial_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_unallocated_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_partial_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_unallocated_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_overdue_short_date    TYPE resb-bdter,
+        first_overdue_res_number    TYPE resb-rsnum,
+        first_overdue_res_item      TYPE resb-rspos,
+        last_overdue_short_date     TYPE resb-bdter,
+        last_overdue_res_number     TYPE resb-rsnum,
+        last_overdue_res_item       TYPE resb-rspos,
+        first_future_short_date     TYPE resb-bdter,
+        first_future_res_number     TYPE resb-rsnum,
+        first_future_res_item       TYPE resb-rspos,
+        last_future_short_date      TYPE resb-bdter,
+        last_future_res_number      TYPE resb-rsnum,
+        last_future_res_item        TYPE resb-rspos,
+        first_overdue_days          TYPE i,
+        last_overdue_days           TYPE i,
+        first_future_days_until     TYPE i,
+        last_future_days_until      TYPE i,
+        overdue_shortfall_qty       TYPE mard-labst,
+        overdue_partial_short_qty   TYPE mard-labst,
+        overdue_unalloc_short_qty   TYPE mard-labst,
+        due_today_shortfall_qty     TYPE mard-labst,
+        due_today_partial_short_qty TYPE mard-labst,
+        due_today_unalloc_short_qty TYPE mard-labst,
+        future_shortfall_qty        TYPE mard-labst,
+        future_partial_short_qty    TYPE mard-labst,
+        future_unalloc_short_qty    TYPE mard-labst,
+        overdue_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_shortfall_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_shortfall_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_partial_qty_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_unalloc_qty_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_partial_qty_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_unalloc_qty_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_partial_qty_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_unalloc_qty_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_required_date         TYPE resb-bdter,
+        first_required_res_number   TYPE resb-rsnum,
+        first_required_res_item     TYPE resb-rspos,
+        last_required_date          TYPE resb-bdter,
+        last_required_res_number    TYPE resb-rsnum,
+        last_required_res_item      TYPE resb-rspos,
+        first_local_shortage_date   TYPE resb-bdter,
+        first_shortage_res_number   TYPE resb-rsnum,
+        first_shortage_res_item     TYPE resb-rspos,
+        last_local_shortage_date    TYPE resb-bdter,
+        last_shortage_res_number    TYPE resb-rsnum,
+        last_shortage_res_item      TYPE resb-rspos,
+        first_partial_short_date    TYPE resb-bdter,
+        first_partial_res_number    TYPE resb-rsnum,
+        first_partial_res_item      TYPE resb-rspos,
+        last_partial_short_date     TYPE resb-bdter,
+        last_partial_res_number     TYPE resb-rsnum,
+        last_partial_res_item       TYPE resb-rspos,
+        first_unalloc_short_date    TYPE resb-bdter,
+        first_unalloc_res_number    TYPE resb-rsnum,
+        first_unalloc_res_item      TYPE resb-rspos,
+        last_unalloc_short_date     TYPE resb-bdter,
+        last_unalloc_res_number     TYPE resb-rsnum,
+        last_unalloc_res_item       TYPE resb-rspos,
+        first_partial_day_offset    TYPE i,
+        last_partial_day_offset     TYPE i,
+        first_unalloc_day_offset    TYPE i,
+        last_unalloc_day_offset     TYPE i,
+        is_locally_ready            TYPE abap_bool,
+        is_order_locally_ready      TYPE abap_bool,
+      END OF ty_comp_material_readiness.
+    TYPES ty_comp_material_readinesses TYPE STANDARD TABLE OF
+      ty_comp_material_readiness WITH EMPTY KEY.
     TYPES ty_component_order_numbers TYPE SORTED TABLE OF resb-aufnr
       WITH UNIQUE KEY table_line.
+    TYPES ty_planned_order_numbers TYPE SORTED TABLE OF resb-plnum
+      WITH UNIQUE KEY table_line.
+    TYPES:
+      BEGIN OF ty_shortage_reservation_item,
+        production_order   TYPE resb-aufnr,
+        planned_order      TYPE resb-plnum,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+      END OF ty_shortage_reservation_item.
+    TYPES ty_shortage_reservation_items TYPE SORTED TABLE OF
+      ty_shortage_reservation_item WITH UNIQUE KEY production_order
+        planned_order reservation_number reservation_item.
     TYPES:
       BEGIN OF ty_component_shortage,
-        material                   TYPE mard-matnr,
-        plant                      TYPE mard-werks,
-        base_unit                  TYPE mara-meins,
-        required_date              TYPE resb-bdter,
-        component_count            TYPE i,
-        short_component_count      TYPE i,
-        affected_order_count       TYPE i,
-        affected_production_orders TYPE ty_component_order_numbers,
-        requested_base_quantity    TYPE mard-labst,
-        allocated_base_quantity    TYPE mard-labst,
-        shortfall_base_quantity    TYPE mard-labst,
+        material                    TYPE mard-matnr,
+        plant                       TYPE mard-werks,
+        base_unit                   TYPE mara-meins,
+        required_date               TYPE resb-bdter,
+        as_of_date                  TYPE d,
+        required_date_offset        TYPE i,
+        component_count             TYPE i,
+        short_component_count       TYPE i,
+        partial_component_count     TYPE i,
+        unallocated_component_count TYPE i,
+        affected_order_count        TYPE i,
+        affected_production_orders  TYPE ty_component_order_numbers,
+        affected_planned_orders     TYPE ty_planned_order_numbers,
+        affected_reservation_items  TYPE ty_shortage_reservation_items,
+        largest_short_qty           TYPE mard-labst,
+        largest_short_tie_count     TYPE i,
+        largest_short_requested_qty TYPE mard-labst,
+        largest_short_allocated_qty TYPE mard-labst,
+        largest_short_outcome       TYPE c LENGTH 1,
+        largest_short_date          TYPE resb-bdter,
+        largest_short_prod_order    TYPE resb-aufnr,
+        largest_short_plan_order    TYPE resb-plnum,
+        largest_short_res_number    TYPE resb-rsnum,
+        largest_short_res_item      TYPE resb-rspos,
+        requested_base_quantity     TYPE mard-labst,
+        allocated_base_quantity     TYPE mard-labst,
+        shortfall_base_quantity     TYPE mard-labst,
+        partial_shortfall_base_qty  TYPE mard-labst,
+        unalloc_shortfall_base_qty  TYPE mard-labst,
+        allocation_coverage_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        shortage_pct                TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partial_component_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unallocated_component_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partial_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unalloc_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_req_pct   TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        allocation_outcome          TYPE c LENGTH 1,
       END OF ty_component_shortage.
     TYPES ty_component_shortages TYPE STANDARD TABLE OF
       ty_component_shortage WITH EMPTY KEY.
@@ -297,12 +553,28 @@ CLASS zcl_prod_comp_service DEFINITION
         plant                          TYPE mard-werks,
         base_unit                      TYPE mara-meins,
         required_date                  TYPE resb-bdter,
+        required_date_offset           TYPE i,
         lot_size_period_start          TYPE d,
         lot_size_period_end            TYPE d,
         grouped_shortage_count         TYPE i,
         component_count                TYPE i,
         affected_order_count           TYPE i,
         affected_production_orders     TYPE ty_component_order_numbers,
+        affected_planned_orders        TYPE ty_planned_order_numbers,
+        affected_reservation_items     TYPE ty_shortage_reservation_items,
+        largest_short_qty              TYPE mard-labst,
+        largest_short_tie_count        TYPE i,
+        largest_short_requested_qty    TYPE mard-labst,
+        largest_short_allocated_qty    TYPE mard-labst,
+        largest_short_outcome          TYPE c LENGTH 1,
+        largest_short_date             TYPE resb-bdter,
+        largest_short_date_offset      TYPE i,
+        largest_short_prod_order       TYPE resb-aufnr,
+        largest_short_plan_order       TYPE resb-plnum,
+        largest_short_res_number       TYPE resb-rsnum,
+        largest_short_res_item         TYPE resb-rspos,
+        largest_shortfall_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        largest_shortfall_req_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
         lot_size_procedure             TYPE marc-disls,
         planning_calendar_id           TYPE marc-mrppp,
         rounding_profile               TYPE marc-rdprf,
@@ -322,11 +594,15 @@ CLASS zcl_prod_comp_service DEFINITION
         goods_receipt_processing_days  TYPE marc-webaz,
         purchasing_processing_days     TYPE t399d-bzteK,
         estimated_delivery_date        TYPE d,
+        estimated_delivery_day_offset  TYPE i,
         latest_purchase_order_date     TYPE d,
+        latest_po_day_offset           TYPE i,
         latest_pr_release_date         TYPE d,
+        pr_release_day_offset          TYPE i,
         as_of_date                     TYPE d,
         pr_release_is_overdue          TYPE abap_bool,
         pr_release_days_overdue        TYPE i,
+        pr_release_days_until          TYPE i,
         pr_release_urgency             TYPE ty_pr_release_urgency,
         lead_time_status               TYPE ty_lead_time_status,
         shortfall_base_quantity        TYPE mard-labst,
@@ -348,21 +624,122 @@ CLASS zcl_prod_comp_service DEFINITION
       ty_comp_replenishment WITH EMPTY KEY.
     TYPES:
       BEGIN OF ty_component_order_atp_summary,
-        production_order          TYPE resb-aufnr,
-        material                  TYPE mard-matnr,
-        plant                     TYPE mard-werks,
-        base_unit                 TYPE mara-meins,
-        component_count           TYPE i,
-        fully_confirmed_count     TYPE i,
-        partially_confirmed_count TYPE i,
-        unconfirmed_count         TYPE i,
-        first_required_date       TYPE resb-bdter,
-        last_required_date        TYPE resb-bdter,
-        first_unconfirmed_date    TYPE resb-bdter,
-        requested_base_quantity   TYPE mard-labst,
-        confirmed_base_quantity   TYPE mard-labst,
-        unconfirmed_base_quantity TYPE mard-labst,
-        is_split_fully_confirmed  TYPE abap_bool,
+        production_order               TYPE resb-aufnr,
+        planned_order                  TYPE resb-plnum,
+        material                       TYPE mard-matnr,
+        plant                          TYPE mard-werks,
+        base_unit                      TYPE mara-meins,
+        as_of_date                     TYPE d,
+        component_count                TYPE i,
+        fully_confirmed_count          TYPE i,
+        partially_confirmed_count      TYPE i,
+        unconfirmed_count              TYPE i,
+        confirmation_outcome           TYPE c LENGTH 1,
+        fully_confirmed_count_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        partially_confirmed_count_pct  TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unconfirmed_count_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        first_required_date            TYPE resb-bdter,
+        first_required_day_offset      TYPE i,
+        first_required_res_number      TYPE resb-rsnum,
+        first_required_res_item        TYPE resb-rspos,
+        last_required_date             TYPE resb-bdter,
+        last_required_day_offset       TYPE i,
+        last_required_res_number       TYPE resb-rsnum,
+        last_required_res_item         TYPE resb-rspos,
+        first_confirmed_date           TYPE resb-bdter,
+        first_confirmed_day_offset     TYPE i,
+        first_confirmed_res_number     TYPE resb-rsnum,
+        first_confirmed_res_item       TYPE resb-rspos,
+        last_confirmed_date            TYPE resb-bdter,
+        last_confirmed_day_offset      TYPE i,
+        last_confirmed_res_number      TYPE resb-rsnum,
+        last_confirmed_res_item        TYPE resb-rspos,
+        first_partial_confirm_date     TYPE resb-bdter,
+        first_partial_day_offset       TYPE i,
+        first_partial_res_number       TYPE resb-rsnum,
+        first_partial_res_item         TYPE resb-rspos,
+        last_partial_confirm_date      TYPE resb-bdter,
+        last_partial_day_offset        TYPE i,
+        last_partial_res_number        TYPE resb-rsnum,
+        last_partial_res_item          TYPE resb-rspos,
+        first_unconfirmed_date         TYPE resb-bdter,
+        first_unconfirmed_day_offset   TYPE i,
+        first_unconfirmed_res_number   TYPE resb-rsnum,
+        first_unconfirmed_res_item     TYPE resb-rspos,
+        last_unconfirmed_date          TYPE resb-bdter,
+        last_unconfirmed_day_offset    TYPE i,
+        last_unconfirmed_res_number    TYPE resb-rsnum,
+        last_unconfirmed_res_item      TYPE resb-rspos,
+        oldest_overdue_balance_date    TYPE resb-bdter,
+        oldest_overdue_balance_offset  TYPE i,
+        oldest_overdue_res_number      TYPE resb-rsnum,
+        oldest_overdue_res_item        TYPE resb-rspos,
+        latest_overdue_balance_date    TYPE resb-bdter,
+        latest_overdue_balance_offset  TYPE i,
+        latest_overdue_res_number      TYPE resb-rsnum,
+        latest_overdue_res_item        TYPE resb-rspos,
+        first_due_today_res_number     TYPE resb-rsnum,
+        first_due_today_res_item       TYPE resb-rspos,
+        last_due_today_res_number      TYPE resb-rsnum,
+        last_due_today_res_item        TYPE resb-rspos,
+        next_future_balance_date       TYPE resb-bdter,
+        next_future_balance_offset     TYPE i,
+        next_future_res_number         TYPE resb-rsnum,
+        next_future_res_item           TYPE resb-rspos,
+        last_future_balance_date       TYPE resb-bdter,
+        last_future_balance_offset     TYPE i,
+        last_future_res_number         TYPE resb-rsnum,
+        last_future_res_item           TYPE resb-rspos,
+        requested_base_quantity        TYPE mard-labst,
+        confirmed_base_quantity        TYPE mard-labst,
+        unconfirmed_base_quantity      TYPE mard-labst,
+        overdue_unconfirmed_base_qty   TYPE mard-labst,
+        due_today_unconfirmed_base_qty TYPE mard-labst,
+        future_unconfirmed_base_qty    TYPE mard-labst,
+        balance_component_count        TYPE i,
+        overdue_balance_count          TYPE i,
+        overdue_1_7_balance_count      TYPE i,
+        overdue_8_30_balance_count     TYPE i,
+        overdue_31_90_balance_count    TYPE i,
+        overdue_over_90_balance_count  TYPE i,
+        overdue_1_7_partial_count      TYPE i,
+        overdue_8_30_partial_count     TYPE i,
+        overdue_31_90_partial_count    TYPE i,
+        overdue_over_90_partial_count  TYPE i,
+        overdue_1_7_balance_qty        TYPE mard-labst,
+        overdue_8_30_balance_qty       TYPE mard-labst,
+        overdue_31_90_balance_qty      TYPE mard-labst,
+        overdue_over_90_balance_qty    TYPE mard-labst,
+        overdue_1_7_partial_qty        TYPE mard-labst,
+        overdue_8_30_partial_qty       TYPE mard-labst,
+        overdue_31_90_partial_qty      TYPE mard-labst,
+        overdue_over_90_partial_qty    TYPE mard-labst,
+        due_today_balance_count        TYPE i,
+        future_balance_count           TYPE i,
+        overdue_1_7_count_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_8_30_count_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_31_90_count_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_over_90_count_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_1_7_qty_pct            TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_8_30_qty_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_31_90_qty_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_over_90_qty_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_1_7_req_pct            TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_8_30_req_pct           TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_31_90_req_pct          TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_over_90_req_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_balance_count_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_balance_count_pct    TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_balance_count_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_unconfirmed_pct        TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_unconfirmed_pct      TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_unconfirmed_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        overdue_unconfirmed_req_pct    TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        due_today_unconfirmed_req_pct  TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        future_unconfirmed_req_pct     TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        confirmed_quantity_pct         TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        unconfirmed_quantity_pct       TYPE zcl_stock_service=>ty_allocation_coverage_pct,
+        is_split_fully_confirmed       TYPE abap_bool,
       END OF ty_component_order_atp_summary.
     TYPES ty_component_order_atp_summaries TYPE STANDARD TABLE OF
       ty_component_order_atp_summary WITH EMPTY KEY.
@@ -483,19 +860,169 @@ CLASS zcl_prod_comp_service DEFINITION
 
     METHODS get_open_components
       IMPORTING
-        iv_production_order  TYPE resb-aufnr
+        iv_production_order    TYPE resb-aufnr
+        is_required_date_range TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
-        VALUE(rt_components) TYPE ty_components
+        VALUE(rt_components)   TYPE ty_components
       RAISING
         zcx_invalid_production_order.
 
     METHODS get_open_components_bulk
       IMPORTING
-        it_production_orders TYPE zif_prod_comp_repo=>ty_production_orders
+        it_production_orders   TYPE zif_prod_comp_repo=>ty_production_orders
+        is_required_date_range TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
-        VALUE(rt_components) TYPE ty_components
+        VALUE(rt_components)   TYPE ty_components
       RAISING
         zcx_invalid_production_order.
+
+    METHODS get_open_planned_comp
+      IMPORTING
+        iv_planned_order       TYPE resb-plnum
+        is_required_date_range TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_components)   TYPE ty_components
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS get_open_planned_comp_bulk
+      IMPORTING
+        it_planned_orders      TYPE zif_prod_comp_repo=>ty_planned_orders
+        is_required_date_range TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_components)   TYPE ty_components
+      RAISING
+        zcx_invalid_stock_request.
+
+    METHODS preview_planned_comp_atp_bulk
+      IMPORTING
+        it_planned_orders              TYPE zif_prod_comp_repo=>ty_planned_orders
+        it_excluded_reservations       TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+        iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        it_allocation_policies         TYPE ty_component_allocation_policies OPTIONAL
+        it_storage_location_priority   TYPE zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_comp_location_priorities    TYPE ty_comp_location_priorities OPTIONAL
+        it_comp_location_candidates    TYPE ty_comp_location_candidates OPTIONAL
+        it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
+        it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_atp_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
+    METHODS preview_planned_comp_atp
+      IMPORTING
+        iv_planned_order               TYPE resb-plnum
+        it_excluded_reservations       TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+        iv_check_rule                  TYPE zif_material_availability_api=>ty_check_rule
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        it_allocation_policies         TYPE ty_component_allocation_policies OPTIONAL
+        it_storage_location_priority   TYPE zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_comp_location_priorities    TYPE ty_comp_location_priorities OPTIONAL
+        it_comp_location_candidates    TYPE ty_comp_location_candidates OPTIONAL
+        it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
+        it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_atp_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
+    METHODS preview_planned_stock_bulk
+      IMPORTING
+        it_planned_orders              TYPE zif_prod_comp_repo=>ty_planned_orders
+        it_excluded_reservations       TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        it_allocation_policies         TYPE ty_component_allocation_policies OPTIONAL
+        it_storage_location_priority   TYPE zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_comp_location_priorities    TYPE ty_comp_location_priorities OPTIONAL
+        it_comp_location_candidates    TYPE ty_comp_location_candidates OPTIONAL
+        it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
+        it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
+    METHODS preview_planned_stock
+      IMPORTING
+        iv_planned_order               TYPE resb-plnum
+        it_excluded_reservations       TYPE
+          zif_stock_repository=>ty_reservation_keys OPTIONAL
+        it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
+        it_projected_location_receipts TYPE zcl_stock_service=>ty_dated_location_receipts OPTIONAL
+        it_allocation_policies         TYPE ty_component_allocation_policies OPTIONAL
+        it_storage_location_priority   TYPE zcl_stock_service=>ty_storage_locations OPTIONAL
+        it_comp_location_priorities    TYPE ty_comp_location_priorities OPTIONAL
+        it_comp_location_candidates    TYPE ty_comp_location_candidates OPTIONAL
+        it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
+        it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
+        iv_include_po_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_po_confirmations    TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_in_transit      TYPE abap_bool DEFAULT abap_false
+        iv_include_unissued_sto        TYPE abap_bool DEFAULT abap_false
+        iv_subtract_unissued_sto       TYPE abap_bool DEFAULT abap_false
+        iv_include_prod_receipts       TYPE abap_bool DEFAULT abap_false
+        iv_include_pr_receipts         TYPE abap_bool DEFAULT abap_false
+        iv_include_sto_pr_receipts     TYPE abap_bool DEFAULT abap_false
+        iv_include_planned_receipts    TYPE abap_bool DEFAULT abap_false
+        iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
+        iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
+        iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
+      RETURNING
+        VALUE(rt_checks)               TYPE ty_component_checks
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
 
     METHODS preview_components_atp_bulk
       IMPORTING
@@ -525,6 +1052,7 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_atp_checks
       RAISING
@@ -559,6 +1087,7 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_atp_checks
       RAISING
@@ -592,6 +1121,7 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_checks
       RAISING
@@ -614,6 +1144,7 @@ CLASS zcl_prod_comp_service DEFINITION
         it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
         it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_checks
       RAISING
@@ -636,6 +1167,7 @@ CLASS zcl_prod_comp_service DEFINITION
         it_comp_batch_priorities       TYPE ty_comp_batch_priorities OPTIONAL
         it_comp_batch_candidates       TYPE ty_comp_batch_candidates OPTIONAL
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_checks
       RAISING
@@ -669,6 +1201,7 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_include_fixed_planned       TYPE abap_bool DEFAULT abap_false
         iv_include_sched_agmt_receipts TYPE abap_bool DEFAULT abap_false
         iv_protect_safety_stock        TYPE abap_bool DEFAULT abap_false
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
       RETURNING
         VALUE(rt_checks)               TYPE ty_component_checks
       RAISING
@@ -678,8 +1211,19 @@ CLASS zcl_prod_comp_service DEFINITION
     METHODS summarize_component_readiness
       IMPORTING
         it_checks           TYPE ty_component_checks
+        iv_as_of_date       TYPE d DEFAULT sy-datum
       RETURNING
         VALUE(rt_readiness) TYPE ty_component_order_readinesses
+      RAISING
+        zcx_invalid_production_order
+        zcx_invalid_stock_request.
+
+    METHODS summarize_comp_material_ready
+      IMPORTING
+        it_checks           TYPE ty_component_checks
+        iv_as_of_date       TYPE d DEFAULT sy-datum
+      RETURNING
+        VALUE(rt_readiness) TYPE ty_comp_material_readinesses
       RAISING
         zcx_invalid_production_order
         zcx_invalid_stock_request.
@@ -687,6 +1231,7 @@ CLASS zcl_prod_comp_service DEFINITION
     METHODS summarize_component_shortages
       IMPORTING
         it_checks           TYPE ty_component_checks
+        iv_as_of_date       TYPE d DEFAULT sy-datum
       RETURNING
         VALUE(rt_shortages) TYPE ty_component_shortages
       RAISING
@@ -696,6 +1241,7 @@ CLASS zcl_prod_comp_service DEFINITION
     METHODS summarize_order_atp
       IMPORTING
         it_checks           TYPE ty_component_atp_checks
+        iv_as_of_date       TYPE d DEFAULT sy-datum
       RETURNING
         VALUE(rt_summaries) TYPE ty_component_order_atp_summaries
       RAISING
@@ -936,23 +1482,36 @@ CLASS zcl_prod_comp_service DEFINITION
 
     TYPES:
       BEGIN OF ty_planning_shortage,
-        material                    TYPE mard-matnr,
-        plant                       TYPE mard-werks,
-        base_unit                   TYPE mara-meins,
-        required_date               TYPE resb-bdter,
-        lot_size_period_start       TYPE d,
-        lot_size_period_end         TYPE d,
-        grouped_shortage_count      TYPE i,
-        component_count             TYPE i,
-        short_component_count       TYPE i,
-        affected_order_count        TYPE i,
-        affected_production_orders  TYPE ty_component_order_numbers,
-        requested_base_quantity     TYPE mard-labst,
-        allocated_base_quantity     TYPE mard-labst,
-        shortfall_base_quantity     TYPE mard-labst,
-        has_complete_order_identity TYPE abap_bool,
-        input_index                 TYPE i,
-        pre_receipt_used_milli      TYPE int8,
+        material                      TYPE mard-matnr,
+        plant                         TYPE mard-werks,
+        base_unit                     TYPE mara-meins,
+        required_date                 TYPE resb-bdter,
+        lot_size_period_start         TYPE d,
+        lot_size_period_end           TYPE d,
+        grouped_shortage_count        TYPE i,
+        component_count               TYPE i,
+        short_component_count         TYPE i,
+        affected_order_count          TYPE i,
+        affected_production_orders    TYPE ty_component_order_numbers,
+        affected_planned_orders       TYPE ty_planned_order_numbers,
+        affected_reservation_items    TYPE ty_shortage_reservation_items,
+        largest_short_qty             TYPE mard-labst,
+        largest_short_tie_count       TYPE i,
+        largest_short_requested_qty   TYPE mard-labst,
+        largest_short_outcome         TYPE c LENGTH 1,
+        largest_short_date            TYPE resb-bdter,
+        largest_short_prod_order      TYPE resb-aufnr,
+        largest_short_plan_order      TYPE resb-plnum,
+        largest_short_res_number      TYPE resb-rsnum,
+        largest_short_res_item        TYPE resb-rspos,
+        has_complete_largest_identity TYPE abap_bool,
+        requested_base_quantity       TYPE mard-labst,
+        allocated_base_quantity       TYPE mard-labst,
+        shortfall_base_quantity       TYPE mard-labst,
+        has_complete_order_identity   TYPE abap_bool,
+        has_complete_res_identity     TYPE abap_bool,
+        input_index                   TYPE i,
+        pre_receipt_used_milli        TYPE int8,
       END OF ty_planning_shortage.
     TYPES ty_planning_shortages TYPE STANDARD TABLE OF
       ty_planning_shortage WITH EMPTY KEY.
@@ -988,6 +1547,12 @@ CLASS zcl_prod_comp_service DEFINITION
         iv_week_start_weekday   TYPE i
       RETURNING
         VALUE(rs_period_bounds) TYPE ty_lot_size_period_bounds.
+
+    METHODS is_valid_required_date_range
+      IMPORTING
+        is_required_date_range TYPE zif_prod_comp_repo=>ty_required_date_range
+      RETURNING
+        VALUE(rv_is_valid)     TYPE abap_bool.
 
     METHODS round_replenishment_quantity
       IMPORTING
@@ -1034,6 +1599,8 @@ CLASS zcl_prod_comp_service DEFINITION
     METHODS preview_components_internal
       IMPORTING
         it_production_orders           TYPE zif_prod_comp_repo=>ty_production_orders
+        it_planned_orders              TYPE zif_prod_comp_repo=>ty_planned_orders OPTIONAL
+        is_required_date_range         TYPE zif_prod_comp_repo=>ty_required_date_range OPTIONAL
         it_excluded_reservations       TYPE
           zif_stock_repository=>ty_reservation_keys OPTIONAL
         it_projected_batch_receipts    TYPE zcl_stock_service=>ty_dated_batch_receipts OPTIONAL
@@ -1114,10 +1681,11 @@ CLASS zcl_prod_comp_service DEFINITION
         base_unit        TYPE mara-meins,
         required_date    TYPE resb-bdter,
         production_order TYPE resb-aufnr,
+        planned_order    TYPE resb-plnum,
       END OF ty_component_shortage_order_key.
     TYPES ty_component_shortage_order_keys TYPE HASHED TABLE OF
       ty_component_shortage_order_key WITH UNIQUE KEY material plant
-        base_unit required_date production_order.
+        base_unit required_date production_order planned_order.
     TYPES ty_component_unit_ratios TYPE HASHED TABLE OF
       ty_component_unit_ratio WITH UNIQUE KEY material source_unit.
     TYPES:
@@ -1218,7 +1786,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     DATA lt_production_orders TYPE zif_prod_comp_repo=>ty_production_orders.
     APPEND iv_production_order TO lt_production_orders.
     DATA(lt_all_components) = get_open_components_bulk(
-      it_production_orders = lt_production_orders ).
+      it_production_orders   = lt_production_orders
+      is_required_date_range = is_required_date_range ).
 
     LOOP AT lt_all_components INTO DATA(ls_component)
         WHERE production_order = iv_production_order.
@@ -1235,6 +1804,10 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       RAISE EXCEPTION TYPE zcx_invalid_production_order.
     ENDIF.
 
+    IF is_valid_required_date_range( is_required_date_range ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_production_order.
+    ENDIF.
+
     LOOP AT it_production_orders INTO DATA(lv_production_order).
       IF lv_production_order IS INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_production_order.
@@ -1246,7 +1819,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     ENDLOOP.
 
     DATA(lt_items) = mo_repository->get_components_bulk(
-      it_production_orders = it_production_orders ).
+      it_production_orders   = it_production_orders
+      is_required_date_range = is_required_date_range ).
 
     LOOP AT lt_items INTO DATA(ls_item).
       READ TABLE lt_seen_orders WITH TABLE KEY
@@ -1269,6 +1843,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       APPEND VALUE #(
         production_order   = ls_item-production_order
+        planned_order      = ls_item-planned_order
         reservation_number = ls_item-reservation_number
         reservation_item   = ls_item-reservation_item
         material           = ls_item-material
@@ -1284,6 +1859,184 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     ENDLOOP.
 
     SORT rt_components BY production_order reservation_number reservation_item.
+  ENDMETHOD.
+
+  METHOD get_open_planned_comp.
+    IF iv_planned_order IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA lt_planned_orders TYPE zif_prod_comp_repo=>ty_planned_orders.
+    APPEND iv_planned_order TO lt_planned_orders.
+    rt_components = get_open_planned_comp_bulk(
+      it_planned_orders      = lt_planned_orders
+      is_required_date_range = is_required_date_range ).
+  ENDMETHOD.
+
+  METHOD get_open_planned_comp_bulk.
+    TYPES:
+      BEGIN OF ty_component_key,
+        planned_order      TYPE resb-plnum,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+      END OF ty_component_key.
+    DATA lv_open_quantity TYPE resb-bdmng.
+    DATA lt_seen_orders TYPE HASHED TABLE OF resb-plnum
+      WITH UNIQUE KEY table_line.
+    DATA lt_seen_components TYPE HASHED TABLE OF ty_component_key
+      WITH UNIQUE KEY planned_order reservation_number reservation_item.
+
+    IF it_planned_orders IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    IF is_valid_required_date_range( is_required_date_range ) <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_planned_orders INTO DATA(lv_planned_order).
+      IF lv_planned_order IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      INSERT lv_planned_order INTO TABLE lt_seen_orders.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lt_items) = mo_repository->get_planned_comp_bulk(
+      it_planned_orders      = it_planned_orders
+      is_required_date_range = is_required_date_range ).
+
+    LOOP AT lt_items INTO DATA(ls_item).
+      READ TABLE lt_seen_orders WITH TABLE KEY
+        table_line = ls_item-planned_order
+        TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0
+          OR ls_item-reservation_number IS INITIAL
+          OR ls_item-reservation_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      INSERT VALUE #(
+        planned_order      = ls_item-planned_order
+        reservation_number = ls_item-reservation_number
+        reservation_item   = ls_item-reservation_item )
+        INTO TABLE lt_seen_components.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+
+      IF ls_item-is_deleted <> space
+          OR ls_item-is_final_issue = abap_true.
+        CONTINUE.
+      ENDIF.
+
+      lv_open_quantity = zcl_stock_avail_qty_calc=>calculate_open_res_qty(
+        iv_required_quantity  = ls_item-required_quantity
+        iv_withdrawn_quantity = ls_item-withdrawn_quantity ).
+      IF lv_open_quantity <= 0.
+        CONTINUE.
+      ENDIF.
+
+      APPEND VALUE #(
+        planned_order      = ls_item-planned_order
+        reservation_number = ls_item-reservation_number
+        reservation_item   = ls_item-reservation_item
+        material           = ls_item-material
+        plant              = ls_item-plant
+        storage_location   = ls_item-storage_location
+        batch              = ls_item-batch
+        movement_type      = ls_item-movement_type
+        required_date      = ls_item-required_date
+        required_quantity  = ls_item-required_quantity
+        withdrawn_quantity = ls_item-withdrawn_quantity
+        open_quantity      = lv_open_quantity
+        unit               = ls_item-unit ) TO rt_components.
+    ENDLOOP.
+
+    SORT rt_components BY planned_order reservation_number reservation_item.
+  ENDMETHOD.
+
+  METHOD is_valid_required_date_range.
+    rv_is_valid = abap_false.
+
+    IF is_required_date_range-filter_from <> abap_true
+        AND is_required_date_range-filter_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_through <> abap_true
+        AND is_required_date_range-filter_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_bucket <> abap_true
+        AND is_required_date_range-filter_bucket <> abap_false.
+      RETURN.
+    ENDIF.
+
+    IF is_required_date_range-filter_from = abap_true.
+      IF zcl_date_validation=>is_valid_gregorian_date(
+          is_required_date_range-required_date_from ) <> abap_true.
+        RETURN.
+      ENDIF.
+    ELSEIF is_required_date_range-required_date_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF is_required_date_range-filter_through = abap_true.
+      IF zcl_date_validation=>is_valid_gregorian_date(
+          is_required_date_range-required_date_through ) <> abap_true.
+        RETURN.
+      ENDIF.
+    ELSEIF is_required_date_range-required_date_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF is_required_date_range-filter_bucket = abap_true.
+      CASE is_required_date_range-required_date_bucket.
+        WHEN 'O' OR 'T' OR 'F' OR 'U'.
+          IF is_required_date_range-required_date_horizon_days <> 0.
+            RETURN.
+          ENDIF.
+        WHEN 'N'.
+          IF is_required_date_range-required_date_horizon_days <= 0
+              OR zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days =
+                  is_required_date_range-required_date_horizon_days )
+                IS INITIAL.
+            RETURN.
+          ENDIF.
+        WHEN 'R'.
+          DATA(lv_horizon_past_days) =
+            0 - is_required_date_range-required_date_horizon_days.
+          IF is_required_date_range-required_date_horizon_days <= 0
+              OR zcl_date_validation=>add_days(
+                iv_date = is_required_date_range-as_of_date
+                iv_days = lv_horizon_past_days ) IS INITIAL.
+            RETURN.
+          ENDIF.
+        WHEN OTHERS.
+          RETURN.
+      ENDCASE.
+      IF zcl_date_validation=>is_valid_gregorian_date(
+          is_required_date_range-as_of_date ) <> abap_true.
+        RETURN.
+      ENDIF.
+    ELSEIF is_required_date_range-required_date_bucket IS NOT INITIAL
+        OR is_required_date_range-as_of_date IS NOT INITIAL
+        OR is_required_date_range-required_date_horizon_days <> 0.
+      RETURN.
+    ENDIF.
+
+    IF is_required_date_range-filter_from = abap_true
+        AND is_required_date_range-filter_through = abap_true
+        AND is_required_date_range-required_date_from
+          > is_required_date_range-required_date_through.
+      RETURN.
+    ENDIF.
+
+    rv_is_valid = abap_true.
   ENDMETHOD.
 
   METHOD sum_stock_quantities.
@@ -1445,6 +2198,11 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     FIELD-SYMBOLS <ls_projected_scope_key>
       TYPE ty_component_material_plant.
 
+    IF is_valid_required_date_range( is_required_date_range )
+        <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
     IF iv_include_sto_pr_receipts <> abap_true
         AND iv_include_sto_pr_receipts <> abap_false.
       RAISE EXCEPTION TYPE zcx_invalid_stock_request.
@@ -1563,8 +2321,17 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     lt_scoped_batch_receipts = it_projected_batch_receipts.
     lt_scoped_location_receipts = it_projected_location_receipts.
 
-    lt_components = get_open_components_bulk(
-      it_production_orders = it_production_orders ).
+    IF it_planned_orders IS INITIAL.
+      lt_components = get_open_components_bulk(
+        it_production_orders   = it_production_orders
+        is_required_date_range = is_required_date_range ).
+    ELSEIF it_production_orders IS NOT INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ELSE.
+      lt_components = get_open_planned_comp_bulk(
+        it_planned_orders      = it_planned_orders
+        is_required_date_range = is_required_date_range ).
+    ENDIF.
 
     LOOP AT lt_components INTO DATA(ls_component).
       CLEAR ls_component_allocation_policy.
@@ -2296,6 +3063,13 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           * CONV decfloat34( 100 )
           / CONV decfloat34( ls_component_group_estimate-requested_quantity ) )
         ELSE 0 ).
+      ls_component_group_estimate-shortage_pct = COND #(
+        WHEN ls_component_group_estimate-requested_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_component_group_estimate-shortfall_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_component_group_estimate-requested_quantity ) )
+        ELSE 0 ).
       CLEAR lv_fallback_used.
       IF ls_component_scoped_demand-allow_location_fallback = abap_true.
         LOOP AT lt_component_batch_splits
@@ -2376,11 +3150,153 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
               CONV decfloat34( lv_component_allocated )
               * CONV decfloat34( 100 )
               / CONV decfloat34( lv_component_base_quantity ) )
+            ELSE 0 )
+          shortage_pct              = COND #(
+            WHEN lv_component_base_quantity > 0
+            THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+              CONV decfloat34( lv_component_shortfall )
+              * CONV decfloat34( 100 )
+              / CONV decfloat34( lv_component_base_quantity ) )
             ELSE 0 ) )
         batch_allocations              = lt_component_batch_splits
         location_allocations           = lt_component_location_splits
         atp_result                     = <ls_atp_day>-atp_result ) TO rt_checks.
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD preview_planned_comp_atp_bulk.
+    IF it_planned_orders IS INITIAL OR iv_check_rule IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rt_checks = preview_components_internal(
+      it_production_orders           = VALUE #( )
+      it_planned_orders              = it_planned_orders
+      is_required_date_range         = is_required_date_range
+      it_excluded_reservations       = it_excluded_reservations
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      it_allocation_policies         = it_allocation_policies
+      it_storage_location_priority   = it_storage_location_priority
+      it_comp_location_priorities    = it_comp_location_priorities
+      it_comp_location_candidates    = it_comp_location_candidates
+      it_comp_batch_priorities       = it_comp_batch_priorities
+      it_comp_batch_candidates       = it_comp_batch_candidates
+      iv_check_atp                   = abap_true
+      iv_check_rule                  = iv_check_rule
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       = iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
+  ENDMETHOD.
+
+  METHOD preview_planned_comp_atp.
+    IF iv_planned_order IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA lt_planned_orders TYPE zif_prod_comp_repo=>ty_planned_orders.
+    APPEND iv_planned_order TO lt_planned_orders.
+    rt_checks = preview_planned_comp_atp_bulk(
+      it_planned_orders              = lt_planned_orders
+      is_required_date_range         = is_required_date_range
+      it_excluded_reservations       = it_excluded_reservations
+      iv_check_rule                  = iv_check_rule
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      it_allocation_policies         = it_allocation_policies
+      it_storage_location_priority   = it_storage_location_priority
+      it_comp_location_priorities    = it_comp_location_priorities
+      it_comp_location_candidates    = it_comp_location_candidates
+      it_comp_batch_priorities       = it_comp_batch_priorities
+      it_comp_batch_candidates       = it_comp_batch_candidates
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       = iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
+  ENDMETHOD.
+
+  METHOD preview_planned_stock_bulk.
+    IF it_planned_orders IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    rt_checks = preview_components_internal(
+      it_production_orders           = VALUE #( )
+      it_planned_orders              = it_planned_orders
+      is_required_date_range         = is_required_date_range
+      it_excluded_reservations       = it_excluded_reservations
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      it_allocation_policies         = it_allocation_policies
+      it_storage_location_priority   = it_storage_location_priority
+      it_comp_location_priorities    = it_comp_location_priorities
+      it_comp_location_candidates    = it_comp_location_candidates
+      it_comp_batch_priorities       = it_comp_batch_priorities
+      it_comp_batch_candidates       = it_comp_batch_candidates
+      iv_check_atp                   = abap_false
+      iv_check_rule                  = space
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       = iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
+  ENDMETHOD.
+
+  METHOD preview_planned_stock.
+    IF iv_planned_order IS INITIAL.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    DATA lt_planned_orders TYPE zif_prod_comp_repo=>ty_planned_orders.
+    APPEND iv_planned_order TO lt_planned_orders.
+    rt_checks = preview_planned_stock_bulk(
+      it_planned_orders              = lt_planned_orders
+      is_required_date_range         = is_required_date_range
+      it_excluded_reservations       = it_excluded_reservations
+      it_projected_batch_receipts    = it_projected_batch_receipts
+      it_projected_location_receipts = it_projected_location_receipts
+      it_allocation_policies         = it_allocation_policies
+      it_storage_location_priority   = it_storage_location_priority
+      it_comp_location_priorities    = it_comp_location_priorities
+      it_comp_location_candidates    = it_comp_location_candidates
+      it_comp_batch_priorities       = it_comp_batch_priorities
+      it_comp_batch_candidates       = it_comp_batch_candidates
+      iv_include_po_receipts         = iv_include_po_receipts
+      iv_include_po_confirmations    = iv_include_po_confirmations
+      iv_include_sto_in_transit      = iv_include_sto_in_transit
+      iv_include_unissued_sto        = iv_include_unissued_sto
+      iv_subtract_unissued_sto       = iv_subtract_unissued_sto
+      iv_include_prod_receipts       = iv_include_prod_receipts
+      iv_include_pr_receipts         = iv_include_pr_receipts
+      iv_include_sto_pr_receipts     = iv_include_sto_pr_receipts
+      iv_include_planned_receipts    = iv_include_planned_receipts
+      iv_include_fixed_planned       = iv_include_fixed_planned
+      iv_include_sched_agmt_receipts = iv_include_sched_agmt_receipts
+      iv_protect_safety_stock        = iv_protect_safety_stock ).
   ENDMETHOD.
 
   METHOD preview_components_atp_bulk.
@@ -2390,6 +3306,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     rt_checks = preview_components_internal(
       it_production_orders           = it_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2424,6 +3341,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     APPEND iv_production_order TO lt_production_orders.
     rt_checks = preview_components_atp_bulk(
       it_production_orders           = lt_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2451,6 +3369,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   METHOD preview_components_stock_bulk.
     rt_checks = preview_components_internal(
       it_production_orders           = it_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2479,6 +3398,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   METHOD preview_scoped_components_bulk.
     rt_checks = preview_components_internal(
       it_production_orders           = it_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2514,6 +3434,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     APPEND iv_production_order TO lt_production_orders.
     rt_checks = preview_scoped_components_bulk(
       it_production_orders           = lt_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2535,6 +3456,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     APPEND iv_production_order TO lt_production_orders.
     rt_checks = preview_components_stock_bulk(
       it_production_orders           = lt_production_orders
+      is_required_date_range         = is_required_date_range
       it_excluded_reservations       = it_excluded_reservations
       it_projected_batch_receipts    = it_projected_batch_receipts
       it_projected_location_receipts = it_projected_location_receipts
@@ -2559,18 +3481,68 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD summarize_component_readiness.
-    DATA lt_seen_components TYPE HASHED TABLE OF ty_component_key
-      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    TYPES:
+      BEGIN OF ty_readiness_component_key,
+        production_order   TYPE resb-aufnr,
+        planned_order      TYPE resb-plnum,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+      END OF ty_readiness_component_key.
+    TYPES:
+      BEGIN OF ty_readiness_order_unit,
+        production_order     TYPE resb-aufnr,
+        planned_order        TYPE resb-plnum,
+        quantity_base_unit   TYPE mara-meins,
+        has_single_base_unit TYPE abap_bool,
+      END OF ty_readiness_order_unit.
+    DATA lt_seen_components TYPE HASHED TABLE OF
+      ty_readiness_component_key WITH UNIQUE KEY production_order
+        planned_order reservation_number reservation_item.
+    DATA lt_order_units TYPE HASHED TABLE OF ty_readiness_order_unit
+      WITH UNIQUE KEY production_order planned_order.
     DATA lt_readiness TYPE SORTED TABLE OF ty_component_order_readiness
-      WITH UNIQUE KEY production_order.
+      WITH UNIQUE KEY production_order planned_order.
+    FIELD-SYMBOLS <ls_order_unit> TYPE ty_readiness_order_unit.
     FIELD-SYMBOLS <ls_readiness> TYPE ty_component_order_readiness.
+
+    IF zcl_date_validation=>is_valid_gregorian_date( iv_as_of_date )
+        <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
+
+    LOOP AT it_checks INTO DATA(ls_unit_check).
+      READ TABLE lt_order_units ASSIGNING <ls_order_unit>
+        WITH TABLE KEY production_order =
+                         ls_unit_check-component-production_order
+                       planned_order =
+                         ls_unit_check-component-planned_order.
+      IF sy-subrc <> 0.
+        INSERT VALUE #(
+          production_order     = ls_unit_check-component-production_order
+          planned_order        = ls_unit_check-component-planned_order
+          quantity_base_unit   = ls_unit_check-base_unit
+          has_single_base_unit = COND abap_bool(
+            WHEN ls_unit_check-base_unit IS NOT INITIAL
+            THEN abap_true
+            ELSE abap_false ) ) INTO TABLE lt_order_units.
+      ELSEIF <ls_order_unit>-has_single_base_unit = abap_true
+          AND ( ls_unit_check-base_unit IS INITIAL
+            OR ls_unit_check-base_unit <>
+              <ls_order_unit>-quantity_base_unit ).
+        CLEAR <ls_order_unit>-quantity_base_unit.
+        <ls_order_unit>-has_single_base_unit = abap_false.
+      ENDIF.
+    ENDLOOP.
 
     LOOP AT it_checks INTO DATA(ls_check).
       DATA(lv_effective_required_date) = COND resb-bdter(
         WHEN ls_check-effective_required_date IS INITIAL
         THEN ls_check-component-required_date
         ELSE ls_check-effective_required_date ).
-      IF ls_check-component-production_order IS INITIAL
+      IF ( ls_check-component-production_order IS INITIAL
+            AND ls_check-component-planned_order IS INITIAL )
+          OR ( ls_check-component-production_order IS NOT INITIAL
+            AND ls_check-component-planned_order IS NOT INITIAL )
           OR ls_check-component-reservation_number IS INITIAL
           OR ls_check-component-reservation_item IS INITIAL
           OR zcl_date_validation=>is_valid_gregorian_date(
@@ -2580,6 +3552,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       INSERT VALUE #(
         production_order   = ls_check-component-production_order
+        planned_order      = ls_check-component-planned_order
         reservation_number = ls_check-component-reservation_number
         reservation_item   = ls_check-component-reservation_item )
         INTO TABLE lt_seen_components.
@@ -2608,38 +3581,116 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       READ TABLE lt_readiness ASSIGNING <ls_readiness>
         WITH TABLE KEY production_order =
-          ls_check-component-production_order.
+                         ls_check-component-production_order
+                       planned_order = ls_check-component-planned_order.
       IF sy-subrc <> 0.
+        READ TABLE lt_order_units ASSIGNING <ls_order_unit>
+          WITH TABLE KEY production_order =
+                           ls_check-component-production_order
+                         planned_order =
+                           ls_check-component-planned_order.
         INSERT VALUE #(
-          production_order = ls_check-component-production_order
-          is_locally_ready = abap_true ) INTO TABLE lt_readiness.
+          production_order     = ls_check-component-production_order
+          planned_order        = ls_check-component-planned_order
+          quantity_base_unit   = <ls_order_unit>-quantity_base_unit
+          has_single_base_unit = <ls_order_unit>-has_single_base_unit
+          as_of_date           = iv_as_of_date
+          is_locally_ready     = abap_true ) INTO TABLE lt_readiness.
         READ TABLE lt_readiness ASSIGNING <ls_readiness>
           WITH TABLE KEY production_order =
-            ls_check-component-production_order.
+                           ls_check-component-production_order
+                         planned_order = ls_check-component-planned_order.
       ENDIF.
 
       ADD 1 TO <ls_readiness>-open_component_count.
-      <ls_readiness>-requested_base_quantity = sum_stock_quantities(
-        iv_left_quantity  = <ls_readiness>-requested_base_quantity
-        iv_right_quantity = ls_check-requested_base_quantity ).
-      <ls_readiness>-allocated_base_quantity = sum_stock_quantities(
-        iv_left_quantity  = <ls_readiness>-allocated_base_quantity
-        iv_right_quantity =
-          ls_check-component_local_estimate-allocated_quantity ).
-      <ls_readiness>-shortfall_base_quantity = sum_stock_quantities(
-        iv_left_quantity  = <ls_readiness>-shortfall_base_quantity
-        iv_right_quantity =
-          ls_check-component_local_estimate-shortfall_quantity ).
+      IF <ls_readiness>-has_single_base_unit = abap_true.
+        <ls_readiness>-requested_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_readiness>-requested_base_quantity
+          iv_right_quantity = ls_check-requested_base_quantity ).
+        <ls_readiness>-allocated_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_readiness>-allocated_base_quantity
+          iv_right_quantity =
+            ls_check-component_local_estimate-allocated_quantity ).
+        <ls_readiness>-shortfall_base_quantity = sum_stock_quantities(
+          iv_left_quantity  = <ls_readiness>-shortfall_base_quantity
+          iv_right_quantity =
+            ls_check-component_local_estimate-shortfall_quantity ).
+      ENDIF.
+      IF <ls_readiness>-has_single_base_unit = abap_true.
+        DATA(lv_order_short_candidate) =
+          ls_check-component_local_estimate-shortfall_quantity.
+        DATA(lv_replace_order_largest) = abap_false.
+        IF lv_order_short_candidate >
+            <ls_readiness>-largest_shortfall_base_qty.
+          <ls_readiness>-largest_short_tie_count = 1.
+          lv_replace_order_largest = abap_true.
+        ELSEIF lv_order_short_candidate =
+            <ls_readiness>-largest_shortfall_base_qty
+            AND lv_order_short_candidate > 0.
+          ADD 1 TO <ls_readiness>-largest_short_tie_count.
+          IF ls_check-component-reservation_number <
+              <ls_readiness>-largest_short_res_number
+              OR ( ls_check-component-reservation_number =
+                <ls_readiness>-largest_short_res_number
+                AND ls_check-component-reservation_item <
+                  <ls_readiness>-largest_short_res_item ).
+            lv_replace_order_largest = abap_true.
+          ENDIF.
+        ENDIF.
+        IF lv_replace_order_largest = abap_true.
+          <ls_readiness>-largest_shortfall_base_qty =
+            lv_order_short_candidate.
+          <ls_readiness>-largest_req_base_qty =
+            ls_check-requested_base_quantity.
+          <ls_readiness>-largest_alloc_base_qty =
+            ls_check-component_local_estimate-allocated_quantity.
+          <ls_readiness>-largest_short_date =
+            lv_effective_required_date.
+          <ls_readiness>-largest_short_res_number =
+            ls_check-component-reservation_number.
+          <ls_readiness>-largest_short_res_item =
+            ls_check-component-reservation_item.
+          <ls_readiness>-largest_short_outcome = COND #(
+            WHEN ls_check-component_local_estimate-allocated_quantity > 0
+              THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none ).
+        ENDIF.
+      ENDIF.
+
       IF <ls_readiness>-first_required_date IS INITIAL
           OR lv_effective_required_date <
-            <ls_readiness>-first_required_date.
+            <ls_readiness>-first_required_date
+          OR ( lv_effective_required_date =
+                <ls_readiness>-first_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_readiness>-first_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_readiness>-first_required_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_readiness>-first_required_res_item ) ) ).
         <ls_readiness>-first_required_date =
           lv_effective_required_date.
+        <ls_readiness>-first_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_readiness>-first_required_res_item =
+          ls_check-component-reservation_item.
       ENDIF.
       IF lv_effective_required_date >
-          <ls_readiness>-last_required_date.
+          <ls_readiness>-last_required_date
+          OR ( lv_effective_required_date =
+                <ls_readiness>-last_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_readiness>-last_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_readiness>-last_required_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_readiness>-last_required_res_item ) ) ).
         <ls_readiness>-last_required_date =
           lv_effective_required_date.
+        <ls_readiness>-last_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_readiness>-last_required_res_item =
+          ls_check-component-reservation_item.
       ENDIF.
 
       IF ls_check-requested_base_quantity = 0.
@@ -2648,24 +3699,1115 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         ADD 1 TO <ls_readiness>-covered_component_count.
       ELSE.
         ADD 1 TO <ls_readiness>-short_component_count.
+        IF ls_check-component_local_estimate-allocated_quantity > 0.
+          ADD 1 TO <ls_readiness>-partial_component_count.
+          IF <ls_readiness>-first_partial_short_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_readiness>-first_partial_short_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-first_partial_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-first_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-first_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-first_partial_res_item ) ) ).
+            <ls_readiness>-first_partial_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-first_partial_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-first_partial_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_readiness>-last_partial_short_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-last_partial_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-last_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-last_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-last_partial_res_item ) ) ).
+            <ls_readiness>-last_partial_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-last_partial_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-last_partial_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ELSE.
+          ADD 1 TO <ls_readiness>-unallocated_component_count.
+          IF <ls_readiness>-first_unalloc_short_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_readiness>-first_unalloc_short_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-first_unalloc_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-first_unalloc_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-first_unalloc_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-first_unalloc_res_item ) ) ).
+            <ls_readiness>-first_unalloc_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-first_unalloc_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-first_unalloc_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_readiness>-last_unalloc_short_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-last_unalloc_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-last_unalloc_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-last_unalloc_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-last_unalloc_res_item ) ) ).
+            <ls_readiness>-last_unalloc_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-last_unalloc_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-last_unalloc_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ENDIF.
         <ls_readiness>-is_locally_ready = abap_false.
         IF <ls_readiness>-first_local_shortage_date IS INITIAL
             OR lv_effective_required_date <
-              <ls_readiness>-first_local_shortage_date.
+              <ls_readiness>-first_local_shortage_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-first_local_shortage_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-first_shortage_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-first_shortage_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-first_shortage_res_item ) ) ).
           <ls_readiness>-first_local_shortage_date =
             lv_effective_required_date.
+          <ls_readiness>-first_shortage_res_number =
+            ls_check-component-reservation_number.
+          <ls_readiness>-first_shortage_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date >
+            <ls_readiness>-last_local_shortage_date
+            OR ( lv_effective_required_date =
+                  <ls_readiness>-last_local_shortage_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_readiness>-last_shortage_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_readiness>-last_shortage_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_readiness>-last_shortage_res_item ) ) ).
+          <ls_readiness>-last_local_shortage_date =
+            lv_effective_required_date.
+          <ls_readiness>-last_shortage_res_number =
+            ls_check-component-reservation_number.
+          <ls_readiness>-last_shortage_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date < iv_as_of_date.
+          ADD 1 TO <ls_readiness>-overdue_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_readiness>-overdue_partial_count.
+          ELSE.
+            ADD 1 TO <ls_readiness>-overdue_unallocated_count.
+          ENDIF.
+          IF <ls_readiness>-first_overdue_short_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_readiness>-first_overdue_short_date
+              OR ( lv_effective_required_date =
+                    <ls_readiness>-first_overdue_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_readiness>-first_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_readiness>-first_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_readiness>-first_overdue_res_item ) ) ).
+            <ls_readiness>-first_overdue_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-first_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-first_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_readiness>-last_overdue_short_date
+              OR ( lv_effective_required_date =
+                    <ls_readiness>-last_overdue_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_readiness>-last_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_readiness>-last_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_readiness>-last_overdue_res_item ) ) ).
+            <ls_readiness>-last_overdue_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-last_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-last_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ELSEIF lv_effective_required_date = iv_as_of_date.
+          ADD 1 TO <ls_readiness>-due_today_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_readiness>-due_today_partial_count.
+          ELSE.
+            ADD 1 TO <ls_readiness>-due_today_unallocated_count.
+          ENDIF.
+          IF <ls_readiness>-first_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number <
+                <ls_readiness>-first_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_readiness>-first_due_today_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_readiness>-first_due_today_res_item ).
+            <ls_readiness>-first_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-first_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF <ls_readiness>-last_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number >
+                <ls_readiness>-last_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_readiness>-last_due_today_res_number
+                AND ls_check-component-reservation_item >
+                      <ls_readiness>-last_due_today_res_item ).
+            <ls_readiness>-last_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-last_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ELSE.
+          ADD 1 TO <ls_readiness>-future_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_readiness>-future_partial_count.
+          ELSE.
+            ADD 1 TO <ls_readiness>-future_unallocated_count.
+          ENDIF.
+          IF <ls_readiness>-first_future_short_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_readiness>-first_future_short_date
+              OR ( lv_effective_required_date =
+                    <ls_readiness>-first_future_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_readiness>-first_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_readiness>-first_future_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_readiness>-first_future_res_item ) ) ).
+            <ls_readiness>-first_future_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-first_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-first_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_readiness>-last_future_short_date
+              OR ( lv_effective_required_date =
+                    <ls_readiness>-last_future_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_readiness>-last_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_readiness>-last_future_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_readiness>-last_future_res_item ) ) ).
+            <ls_readiness>-last_future_short_date =
+              lv_effective_required_date.
+            <ls_readiness>-last_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_readiness>-last_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
         ENDIF.
       ENDIF.
     ENDLOOP.
 
     LOOP AT lt_readiness INTO DATA(ls_readiness).
+      ls_readiness-allocation_coverage_pct = COND #(
+        WHEN ls_readiness-has_single_base_unit = abap_true
+          AND ls_readiness-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-allocated_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_readiness-shortage_pct = COND #(
+        WHEN ls_readiness-has_single_base_unit = abap_true
+          AND ls_readiness-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-shortfall_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_readiness-short_component_pct = COND #(
+        WHEN ls_readiness-open_component_count >
+            ls_readiness-zero_demand_component_count
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-short_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34(
+            ls_readiness-open_component_count
+            - ls_readiness-zero_demand_component_count ) )
+        ELSE 0 ).
+      ls_readiness-partial_component_pct = COND #(
+        WHEN ls_readiness-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-partial_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-short_component_count ) )
+        ELSE 0 ).
+      ls_readiness-unallocated_component_pct = COND #(
+        WHEN ls_readiness-short_component_count > 0
+        THEN 100 - ls_readiness-partial_component_pct
+        ELSE 0 ).
+      ls_readiness-zero_demand_component_pct = COND #(
+        WHEN ls_readiness-open_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-zero_demand_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-open_component_count ) )
+        ELSE 0 ).
+      ls_readiness-overdue_short_pct = COND #(
+        WHEN ls_readiness-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-overdue_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-short_component_count ) )
+        ELSE 0 ).
+      ls_readiness-due_today_short_pct = COND #(
+        WHEN ls_readiness-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-due_today_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-short_component_count ) )
+        ELSE 0 ).
+      ls_readiness-future_short_pct = COND #(
+        WHEN ls_readiness-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-future_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-short_component_count ) )
+        ELSE 0 ).
+      ls_readiness-overdue_partial_pct = COND #(
+        WHEN ls_readiness-overdue_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-overdue_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-overdue_short_count ) )
+        ELSE 0 ).
+      ls_readiness-overdue_unallocated_pct = COND #(
+        WHEN ls_readiness-overdue_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-overdue_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-overdue_short_count ) )
+        ELSE 0 ).
+      ls_readiness-due_today_partial_pct = COND #(
+        WHEN ls_readiness-due_today_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-due_today_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-due_today_short_count ) )
+        ELSE 0 ).
+      ls_readiness-due_today_unallocated_pct = COND #(
+        WHEN ls_readiness-due_today_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-due_today_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-due_today_short_count ) )
+        ELSE 0 ).
+      ls_readiness-future_partial_pct = COND #(
+        WHEN ls_readiness-future_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-future_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-future_short_count ) )
+        ELSE 0 ).
+      ls_readiness-future_unallocated_pct = COND #(
+        WHEN ls_readiness-future_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-future_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-future_short_count ) )
+        ELSE 0 ).
+      ls_readiness-largest_shortfall_pct = COND #(
+        WHEN ls_readiness-has_single_base_unit = abap_true
+          AND ls_readiness-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-largest_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-shortfall_base_quantity ) )
+        ELSE 0 ).
+      ls_readiness-largest_shortfall_req_pct = COND #(
+        WHEN ls_readiness-largest_req_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_readiness-largest_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_readiness-largest_req_base_qty ) )
+        ELSE 0 ).
+      ls_readiness-allocation_outcome = COND #(
+        WHEN ls_readiness-short_component_count = 0
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_readiness-covered_component_count > 0
+          OR ls_readiness-partial_component_count > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_readiness-first_overdue_days = COND #(
+        WHEN ls_readiness-first_overdue_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-as_of_date
+          - ls_readiness-first_overdue_short_date )
+        ELSE 0 ).
+      ls_readiness-last_overdue_days = COND #(
+        WHEN ls_readiness-last_overdue_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-as_of_date
+          - ls_readiness-last_overdue_short_date )
+        ELSE 0 ).
+      ls_readiness-first_future_days_until = COND #(
+        WHEN ls_readiness-first_future_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-first_future_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-last_future_days_until = COND #(
+        WHEN ls_readiness-last_future_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-last_future_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-first_partial_day_offset = COND #(
+        WHEN ls_readiness-first_partial_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-first_partial_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-last_partial_day_offset = COND #(
+        WHEN ls_readiness-last_partial_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-last_partial_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-first_unalloc_day_offset = COND #(
+        WHEN ls_readiness-first_unalloc_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-first_unalloc_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-last_unalloc_day_offset = COND #(
+        WHEN ls_readiness-last_unalloc_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-last_unalloc_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
+      ls_readiness-largest_short_date_offset = COND #(
+        WHEN ls_readiness-largest_short_date IS NOT INITIAL
+        THEN CONV i( ls_readiness-largest_short_date
+          - ls_readiness-as_of_date )
+        ELSE 0 ).
       APPEND ls_readiness TO rt_readiness.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD summarize_comp_material_ready.
+    DATA(lt_order_readiness) = summarize_component_readiness(
+      it_checks     = it_checks
+      iv_as_of_date = iv_as_of_date ).
+    DATA lt_summaries TYPE SORTED TABLE OF ty_comp_material_readiness
+      WITH UNIQUE KEY production_order planned_order material plant
+        base_unit.
+    FIELD-SYMBOLS <ls_summary> TYPE ty_comp_material_readiness.
+
+    LOOP AT it_checks INTO DATA(ls_check).
+      IF ls_check-component-material IS INITIAL
+          OR ls_check-component-plant IS INITIAL
+          OR ls_check-base_unit IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      DATA(lv_effective_required_date) = COND resb-bdter(
+        WHEN ls_check-effective_required_date IS INITIAL
+        THEN ls_check-component-required_date
+        ELSE ls_check-effective_required_date ).
+
+      READ TABLE lt_summaries ASSIGNING <ls_summary>
+        WITH TABLE KEY production_order =
+                         ls_check-component-production_order
+                       planned_order = ls_check-component-planned_order
+                       material = ls_check-component-material
+                       plant = ls_check-component-plant
+                       base_unit = ls_check-base_unit.
+      IF sy-subrc <> 0.
+        INSERT VALUE #(
+          production_order = ls_check-component-production_order
+          planned_order    = ls_check-component-planned_order
+          material         = ls_check-component-material
+          plant            = ls_check-component-plant
+          base_unit        = ls_check-base_unit
+          as_of_date       = iv_as_of_date
+          is_locally_ready = abap_true ) INTO TABLE lt_summaries.
+        READ TABLE lt_summaries ASSIGNING <ls_summary>
+          WITH TABLE KEY production_order =
+                           ls_check-component-production_order
+                         planned_order = ls_check-component-planned_order
+                         material = ls_check-component-material
+                         plant = ls_check-component-plant
+                         base_unit = ls_check-base_unit.
+      ENDIF.
+
+      ADD 1 TO <ls_summary>-component_count.
+      <ls_summary>-requested_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-requested_base_quantity
+        iv_right_quantity = ls_check-requested_base_quantity ).
+      <ls_summary>-allocated_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-allocated_base_quantity
+        iv_right_quantity =
+          ls_check-component_local_estimate-allocated_quantity ).
+      <ls_summary>-shortfall_base_quantity = sum_stock_quantities(
+        iv_left_quantity  = <ls_summary>-shortfall_base_quantity
+        iv_right_quantity =
+          ls_check-component_local_estimate-shortfall_quantity ).
+      DATA(lv_mat_shortfall) =
+        ls_check-component_local_estimate-shortfall_quantity.
+      DATA(lv_replace_material_largest) = abap_false.
+      IF lv_mat_shortfall >
+          <ls_summary>-largest_shortfall_base_qty.
+        <ls_summary>-largest_short_tie_count = 1.
+        lv_replace_material_largest = abap_true.
+      ELSEIF lv_mat_shortfall =
+          <ls_summary>-largest_shortfall_base_qty
+          AND lv_mat_shortfall > 0.
+        ADD 1 TO <ls_summary>-largest_short_tie_count.
+        IF ls_check-component-reservation_number <
+            <ls_summary>-largest_short_res_number
+            OR ( ls_check-component-reservation_number =
+              <ls_summary>-largest_short_res_number
+              AND ls_check-component-reservation_item <
+                <ls_summary>-largest_short_res_item ).
+          lv_replace_material_largest = abap_true.
+        ENDIF.
+      ENDIF.
+      IF lv_replace_material_largest = abap_true.
+        <ls_summary>-largest_shortfall_base_qty =
+          lv_mat_shortfall.
+        <ls_summary>-largest_req_base_qty =
+          ls_check-requested_base_quantity.
+        <ls_summary>-largest_alloc_base_qty =
+          ls_check-component_local_estimate-allocated_quantity.
+        <ls_summary>-largest_short_date = lv_effective_required_date.
+        <ls_summary>-largest_short_res_number =
+          ls_check-component-reservation_number.
+        <ls_summary>-largest_short_res_item =
+          ls_check-component-reservation_item.
+        <ls_summary>-largest_short_outcome = COND #(
+          WHEN ls_check-component_local_estimate-allocated_quantity > 0
+            THEN zif_stock_repository=>c_allocation_outcome_partial
+          ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ENDIF.
+
+      IF <ls_summary>-first_required_date IS INITIAL
+          OR lv_effective_required_date <
+            <ls_summary>-first_required_date
+          OR ( lv_effective_required_date =
+                <ls_summary>-first_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_summary>-first_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-first_required_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_summary>-first_required_res_item ) ) ).
+        <ls_summary>-first_required_date = lv_effective_required_date.
+        <ls_summary>-first_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_summary>-first_required_res_item =
+          ls_check-component-reservation_item.
+      ENDIF.
+      IF lv_effective_required_date > <ls_summary>-last_required_date
+          OR ( lv_effective_required_date =
+                <ls_summary>-last_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_summary>-last_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-last_required_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_summary>-last_required_res_item ) ) ).
+        <ls_summary>-last_required_date = lv_effective_required_date.
+        <ls_summary>-last_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_summary>-last_required_res_item =
+          ls_check-component-reservation_item.
+      ENDIF.
+
+      IF ls_check-requested_base_quantity = 0.
+        ADD 1 TO <ls_summary>-zero_demand_component_count.
+      ELSEIF ls_check-component_local_estimate-shortfall_quantity = 0.
+        ADD 1 TO <ls_summary>-covered_component_count.
+      ELSE.
+        ADD 1 TO <ls_summary>-short_component_count.
+        IF ls_check-component_local_estimate-allocated_quantity > 0.
+          ADD 1 TO <ls_summary>-partial_component_count.
+          <ls_summary>-partial_shortfall_base_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_summary>-partial_shortfall_base_qty
+            iv_right_quantity =
+              ls_check-component_local_estimate-shortfall_quantity ).
+          IF <ls_summary>-first_partial_short_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_summary>-first_partial_short_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_partial_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_partial_res_item ) ) ).
+            <ls_summary>-first_partial_short_date =
+              lv_effective_required_date.
+            <ls_summary>-first_partial_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_partial_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_summary>-last_partial_short_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_partial_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_partial_res_item ) ) ).
+            <ls_summary>-last_partial_short_date =
+              lv_effective_required_date.
+            <ls_summary>-last_partial_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_partial_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ELSE.
+          ADD 1 TO <ls_summary>-unallocated_component_count.
+          <ls_summary>-unalloc_shortfall_base_qty = sum_stock_quantities(
+            iv_left_quantity  = <ls_summary>-unalloc_shortfall_base_qty
+            iv_right_quantity =
+              ls_check-component_local_estimate-shortfall_quantity ).
+          IF <ls_summary>-first_unalloc_short_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_summary>-first_unalloc_short_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_unalloc_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_unalloc_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_unalloc_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_unalloc_res_item ) ) ).
+            <ls_summary>-first_unalloc_short_date =
+              lv_effective_required_date.
+            <ls_summary>-first_unalloc_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_unalloc_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_summary>-last_unalloc_short_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_unalloc_short_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_unalloc_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_unalloc_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_unalloc_res_item ) ) ).
+            <ls_summary>-last_unalloc_short_date =
+              lv_effective_required_date.
+            <ls_summary>-last_unalloc_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_unalloc_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+        ENDIF.
+        <ls_summary>-is_locally_ready = abap_false.
+        IF <ls_summary>-first_local_shortage_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_summary>-first_local_shortage_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_local_shortage_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_shortage_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_shortage_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_shortage_res_item ) ) ).
+          <ls_summary>-first_local_shortage_date =
+            lv_effective_required_date.
+          <ls_summary>-first_shortage_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-first_shortage_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date >
+            <ls_summary>-last_local_shortage_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_local_shortage_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_shortage_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_shortage_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_shortage_res_item ) ) ).
+          <ls_summary>-last_local_shortage_date =
+            lv_effective_required_date.
+          <ls_summary>-last_shortage_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-last_shortage_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date < iv_as_of_date.
+          ADD 1 TO <ls_summary>-overdue_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_summary>-overdue_partial_count.
+          ELSE.
+            ADD 1 TO <ls_summary>-overdue_unallocated_count.
+          ENDIF.
+          IF <ls_summary>-first_overdue_short_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_summary>-first_overdue_short_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-first_overdue_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-first_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-first_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_summary>-first_overdue_res_item ) ) ).
+            <ls_summary>-first_overdue_short_date =
+              lv_effective_required_date.
+            <ls_summary>-first_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_summary>-last_overdue_short_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-last_overdue_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-last_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-last_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_summary>-last_overdue_res_item ) ) ).
+            <ls_summary>-last_overdue_short_date =
+              lv_effective_required_date.
+            <ls_summary>-last_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-overdue_shortfall_qty =
+            sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-overdue_shortfall_qty
+              iv_right_quantity =
+                ls_check-component_local_estimate-shortfall_quantity ).
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            <ls_summary>-overdue_partial_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_partial_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ELSE.
+            <ls_summary>-overdue_unalloc_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_unalloc_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ENDIF.
+        ELSEIF lv_effective_required_date = iv_as_of_date.
+          ADD 1 TO <ls_summary>-due_today_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_summary>-due_today_partial_count.
+          ELSE.
+            ADD 1 TO <ls_summary>-due_today_unallocated_count.
+          ENDIF.
+          IF <ls_summary>-first_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number <
+                <ls_summary>-first_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-first_due_today_res_number
+                AND ls_check-component-reservation_item <
+                      <ls_summary>-first_due_today_res_item ).
+            <ls_summary>-first_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF <ls_summary>-last_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number >
+                <ls_summary>-last_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-last_due_today_res_number
+                AND ls_check-component-reservation_item >
+                      <ls_summary>-last_due_today_res_item ).
+            <ls_summary>-last_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-due_today_shortfall_qty =
+            sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-due_today_shortfall_qty
+              iv_right_quantity =
+                ls_check-component_local_estimate-shortfall_quantity ).
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            <ls_summary>-due_today_partial_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-due_today_partial_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ELSE.
+            <ls_summary>-due_today_unalloc_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-due_today_unalloc_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ENDIF.
+        ELSE.
+          ADD 1 TO <ls_summary>-future_short_count.
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            ADD 1 TO <ls_summary>-future_partial_count.
+          ELSE.
+            ADD 1 TO <ls_summary>-future_unallocated_count.
+          ENDIF.
+          IF <ls_summary>-first_future_short_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_summary>-first_future_short_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-first_future_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-first_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-first_future_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_summary>-first_future_res_item ) ) ).
+            <ls_summary>-first_future_short_date =
+              lv_effective_required_date.
+            <ls_summary>-first_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF lv_effective_required_date >
+              <ls_summary>-last_future_short_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-last_future_short_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-last_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-last_future_res_number
+                    AND ls_check-component-reservation_item <
+                          <ls_summary>-last_future_res_item ) ) ).
+            <ls_summary>-last_future_short_date =
+              lv_effective_required_date.
+            <ls_summary>-last_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-future_shortfall_qty =
+            sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-future_shortfall_qty
+              iv_right_quantity =
+                ls_check-component_local_estimate-shortfall_quantity ).
+          IF ls_check-component_local_estimate-allocated_quantity > 0.
+            <ls_summary>-future_partial_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-future_partial_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ELSE.
+            <ls_summary>-future_unalloc_short_qty =
+              sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-future_unalloc_short_qty
+                iv_right_quantity =
+                  ls_check-component_local_estimate-shortfall_quantity ).
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_summaries ASSIGNING <ls_summary>.
+      READ TABLE lt_order_readiness INTO DATA(ls_order_readiness)
+        WITH KEY production_order = <ls_summary>-production_order
+                 planned_order = <ls_summary>-planned_order.
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      <ls_summary>-allocation_coverage_pct = COND #(
+        WHEN <ls_summary>-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-allocated_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-requested_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-shortage_pct = COND #(
+        WHEN <ls_summary>-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-shortfall_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-requested_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-partial_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-partial_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-unalloc_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-unalloc_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-largest_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-largest_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-largest_shortfall_req_pct = COND #(
+        WHEN <ls_summary>-largest_req_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-largest_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-largest_req_base_qty ) )
+        ELSE 0 ).
+      <ls_summary>-short_component_pct = COND #(
+        WHEN <ls_summary>-component_count >
+            <ls_summary>-zero_demand_component_count
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-short_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34(
+            <ls_summary>-component_count
+            - <ls_summary>-zero_demand_component_count ) )
+        ELSE 0 ).
+      <ls_summary>-partial_component_pct = COND #(
+        WHEN <ls_summary>-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-partial_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-short_component_count ) )
+        ELSE 0 ).
+      <ls_summary>-unallocated_component_pct = COND #(
+        WHEN <ls_summary>-short_component_count > 0
+        THEN 100 - <ls_summary>-partial_component_pct
+        ELSE 0 ).
+      <ls_summary>-zero_demand_component_pct = COND #(
+        WHEN <ls_summary>-component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-zero_demand_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-component_count ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_short_pct = COND #(
+        WHEN <ls_summary>-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-short_component_count ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_short_pct = COND #(
+        WHEN <ls_summary>-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-short_component_count ) )
+        ELSE 0 ).
+      <ls_summary>-future_short_pct = COND #(
+        WHEN <ls_summary>-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_short_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-short_component_count ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_partial_pct = COND #(
+        WHEN <ls_summary>-overdue_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-overdue_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_unallocated_pct = COND #(
+        WHEN <ls_summary>-overdue_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-overdue_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_partial_pct = COND #(
+        WHEN <ls_summary>-due_today_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-due_today_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_unallocated_pct = COND #(
+        WHEN <ls_summary>-due_today_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-due_today_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-future_partial_pct = COND #(
+        WHEN <ls_summary>-future_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_partial_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-future_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-future_unallocated_pct = COND #(
+        WHEN <ls_summary>-future_short_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_unallocated_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-future_short_count ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_shortfall_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_shortfall_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-future_shortfall_pct = COND #(
+        WHEN <ls_summary>-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_shortfall_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-shortfall_base_quantity ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_partial_qty_pct = COND #(
+        WHEN <ls_summary>-overdue_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_partial_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-overdue_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-overdue_unalloc_qty_pct = COND #(
+        WHEN <ls_summary>-overdue_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-overdue_unalloc_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-overdue_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_partial_qty_pct = COND #(
+        WHEN <ls_summary>-due_today_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_partial_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-due_today_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-due_today_unalloc_qty_pct = COND #(
+        WHEN <ls_summary>-due_today_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-due_today_unalloc_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-due_today_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-future_partial_qty_pct = COND #(
+        WHEN <ls_summary>-future_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_partial_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-future_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-future_unalloc_qty_pct = COND #(
+        WHEN <ls_summary>-future_shortfall_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( <ls_summary>-future_unalloc_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( <ls_summary>-future_shortfall_qty ) )
+        ELSE 0 ).
+      <ls_summary>-allocation_outcome = COND #(
+        WHEN <ls_summary>-allocated_base_quantity =
+            <ls_summary>-requested_base_quantity
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN <ls_summary>-allocated_base_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      <ls_summary>-is_order_locally_ready =
+        ls_order_readiness-is_locally_ready.
+      <ls_summary>-first_overdue_days = COND #(
+        WHEN <ls_summary>-first_overdue_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-as_of_date
+          - <ls_summary>-first_overdue_short_date )
+        ELSE 0 ).
+      <ls_summary>-last_overdue_days = COND #(
+        WHEN <ls_summary>-last_overdue_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-as_of_date
+          - <ls_summary>-last_overdue_short_date )
+        ELSE 0 ).
+      <ls_summary>-first_future_days_until = COND #(
+        WHEN <ls_summary>-first_future_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-first_future_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-last_future_days_until = COND #(
+        WHEN <ls_summary>-last_future_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-last_future_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-first_partial_day_offset = COND #(
+        WHEN <ls_summary>-first_partial_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-first_partial_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-last_partial_day_offset = COND #(
+        WHEN <ls_summary>-last_partial_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-last_partial_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-first_unalloc_day_offset = COND #(
+        WHEN <ls_summary>-first_unalloc_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-first_unalloc_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-last_unalloc_day_offset = COND #(
+        WHEN <ls_summary>-last_unalloc_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-last_unalloc_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      <ls_summary>-largest_short_date_offset = COND #(
+        WHEN <ls_summary>-largest_short_date IS NOT INITIAL
+        THEN CONV i( <ls_summary>-largest_short_date
+          - <ls_summary>-as_of_date )
+        ELSE 0 ).
+      APPEND <ls_summary> TO rt_readiness.
     ENDLOOP.
   ENDMETHOD.
 
   METHOD summarize_component_shortages.
     DATA(lt_readiness) = summarize_component_readiness(
-      it_checks = it_checks ).
+      it_checks     = it_checks
+      iv_as_of_date = iv_as_of_date ).
     DATA lt_shortages TYPE SORTED TABLE OF ty_component_shortage
       WITH UNIQUE KEY material plant base_unit required_date.
     DATA lt_affected_orders TYPE ty_component_shortage_order_keys.
@@ -2694,7 +4836,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           material      = ls_check-component-material
           plant         = ls_check-component-plant
           base_unit     = ls_check-base_unit
-          required_date = lv_effective_required_date )
+          required_date = lv_effective_required_date
+          as_of_date    = iv_as_of_date )
           INTO TABLE lt_shortages.
         READ TABLE lt_shortages ASSIGNING <ls_shortage>
           WITH TABLE KEY material = ls_check-component-material
@@ -2718,44 +4861,191 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           ls_check-component_local_estimate-shortfall_quantity ).
 
       IF ls_check-component_local_estimate-shortfall_quantity > 0.
-        IF ls_check-component-production_order IS INITIAL.
-          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        DATA(lv_group_candidate_shortfall) =
+          ls_check-component_local_estimate-shortfall_quantity.
+        DATA(lv_replace_largest_shortfall) = abap_false.
+        IF lv_group_candidate_shortfall >
+            <ls_shortage>-largest_short_qty.
+          <ls_shortage>-largest_short_tie_count = 1.
+          lv_replace_largest_shortfall = abap_true.
+        ELSEIF lv_group_candidate_shortfall =
+            <ls_shortage>-largest_short_qty
+            AND lv_group_candidate_shortfall > 0.
+          ADD 1 TO <ls_shortage>-largest_short_tie_count.
+          IF ls_check-component-reservation_number <
+              <ls_shortage>-largest_short_res_number
+              OR ( ls_check-component-reservation_number =
+                <ls_shortage>-largest_short_res_number
+                AND ls_check-component-reservation_item <
+                  <ls_shortage>-largest_short_res_item ).
+            lv_replace_largest_shortfall = abap_true.
+          ENDIF.
+        ENDIF.
+        IF lv_replace_largest_shortfall = abap_true.
+          <ls_shortage>-largest_short_qty =
+            lv_group_candidate_shortfall.
+          <ls_shortage>-largest_short_requested_qty =
+            ls_check-requested_base_quantity.
+          <ls_shortage>-largest_short_outcome = COND #(
+            WHEN ls_check-component_local_estimate-allocated_quantity > 0
+            THEN zif_stock_repository=>c_allocation_outcome_partial
+            ELSE zif_stock_repository=>c_allocation_outcome_none ).
+          <ls_shortage>-largest_short_date = lv_effective_required_date.
+          <ls_shortage>-largest_short_prod_order =
+            ls_check-component-production_order.
+          <ls_shortage>-largest_short_plan_order =
+            ls_check-component-planned_order.
+          <ls_shortage>-largest_short_res_number =
+            ls_check-component-reservation_number.
+          <ls_shortage>-largest_short_res_item =
+            ls_check-component-reservation_item.
         ENDIF.
         ADD 1 TO <ls_shortage>-short_component_count.
+        IF ls_check-component_local_estimate-allocated_quantity > 0.
+          ADD 1 TO <ls_shortage>-partial_component_count.
+          <ls_shortage>-partial_shortfall_base_qty = sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_shortage>-partial_shortfall_base_qty
+            iv_right_quantity =
+              ls_check-component_local_estimate-shortfall_quantity ).
+        ELSE.
+          ADD 1 TO <ls_shortage>-unallocated_component_count.
+          <ls_shortage>-unalloc_shortfall_base_qty = sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_shortage>-unalloc_shortfall_base_qty
+            iv_right_quantity =
+              ls_check-component_local_estimate-shortfall_quantity ).
+        ENDIF.
+        INSERT VALUE #(
+          production_order   = ls_check-component-production_order
+          planned_order      = ls_check-component-planned_order
+          reservation_number = ls_check-component-reservation_number
+          reservation_item   = ls_check-component-reservation_item )
+          INTO TABLE <ls_shortage>-affected_reservation_items.
         INSERT VALUE #(
           material         = ls_check-component-material
           plant            = ls_check-component-plant
           base_unit        = ls_check-base_unit
           required_date    = lv_effective_required_date
-          production_order = ls_check-component-production_order )
+          production_order = ls_check-component-production_order
+          planned_order    = ls_check-component-planned_order )
           INTO TABLE lt_affected_orders.
         IF sy-subrc = 0.
           ADD 1 TO <ls_shortage>-affected_order_count.
-          INSERT ls_check-component-production_order
-            INTO TABLE <ls_shortage>-affected_production_orders.
+          IF ls_check-component-production_order IS INITIAL.
+            INSERT ls_check-component-planned_order
+              INTO TABLE <ls_shortage>-affected_planned_orders.
+          ELSE.
+            INSERT ls_check-component-production_order
+              INTO TABLE <ls_shortage>-affected_production_orders.
+          ENDIF.
         ENDIF.
       ENDIF.
     ENDLOOP.
 
     LOOP AT lt_shortages INTO DATA(ls_shortage)
         WHERE shortfall_base_quantity > 0.
+      ls_shortage-required_date_offset = CONV i(
+        ls_shortage-required_date - iv_as_of_date ).
+      ls_shortage-allocation_coverage_pct = COND #(
+        WHEN ls_shortage-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-allocated_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_shortage-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_shortage-shortage_pct = COND #(
+        WHEN ls_shortage-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-shortfall_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_shortage-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_shortage-largest_short_allocated_qty = COND #(
+        WHEN ls_shortage-largest_short_requested_qty >=
+            ls_shortage-largest_short_qty
+        THEN ls_shortage-largest_short_requested_qty
+          - ls_shortage-largest_short_qty
+        ELSE 0 ).
+      ls_shortage-largest_short_outcome = COND #(
+        WHEN ls_shortage-largest_short_allocated_qty > 0
+        THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_shortage-largest_shortfall_pct = COND #(
+        WHEN ls_shortage-largest_short_qty > 0
+          AND ls_shortage-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-largest_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_shortage-shortfall_base_quantity ) )
+        ELSE 0 ).
+      ls_shortage-largest_shortfall_req_pct = COND #(
+        WHEN ls_shortage-largest_short_requested_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-largest_short_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34(
+            ls_shortage-largest_short_requested_qty ) )
+        ELSE 0 ).
+      ls_shortage-partial_component_pct = COND #(
+        WHEN ls_shortage-short_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-partial_component_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_shortage-short_component_count ) )
+        ELSE 0 ).
+      ls_shortage-unallocated_component_pct = COND #(
+        WHEN ls_shortage-short_component_count > 0
+        THEN 100 - ls_shortage-partial_component_pct
+        ELSE 0 ).
+      ls_shortage-partial_shortfall_pct = COND #(
+        WHEN ls_shortage-shortfall_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_shortage-partial_shortfall_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_shortage-shortfall_base_quantity ) )
+        ELSE 0 ).
+      ls_shortage-unalloc_shortfall_pct = COND #(
+        WHEN ls_shortage-shortfall_base_quantity > 0
+        THEN 100 - ls_shortage-partial_shortfall_pct
+        ELSE 0 ).
+      ls_shortage-allocation_outcome = COND #(
+        WHEN ls_shortage-allocated_base_quantity > 0
+        THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
       APPEND ls_shortage TO rt_shortages.
     ENDLOOP.
   ENDMETHOD.
 
   METHOD summarize_order_atp.
-    DATA lt_seen_components TYPE HASHED TABLE OF ty_component_key
-      WITH UNIQUE KEY production_order reservation_number reservation_item.
+    TYPES:
+      BEGIN OF ty_summary_component_key,
+        production_order   TYPE resb-aufnr,
+        planned_order      TYPE resb-plnum,
+        reservation_number TYPE resb-rsnum,
+        reservation_item   TYPE resb-rspos,
+      END OF ty_summary_component_key.
+    DATA lt_seen_components TYPE HASHED TABLE OF ty_summary_component_key
+      WITH UNIQUE KEY production_order planned_order reservation_number
+        reservation_item.
     DATA lt_summaries TYPE SORTED TABLE OF ty_component_order_atp_summary
-      WITH UNIQUE KEY production_order material plant base_unit.
+      WITH UNIQUE KEY production_order planned_order material plant base_unit.
     FIELD-SYMBOLS <ls_summary> TYPE ty_component_order_atp_summary.
+
+    IF zcl_date_validation=>is_valid_gregorian_date( iv_as_of_date )
+        <> abap_true.
+      RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+    ENDIF.
 
     LOOP AT it_checks INTO DATA(ls_check).
       DATA(lv_effective_required_date) = COND resb-bdter(
         WHEN ls_check-effective_required_date IS INITIAL
         THEN ls_check-component-required_date
         ELSE ls_check-effective_required_date ).
-      IF ls_check-component-production_order IS INITIAL
+      IF ( ls_check-component-production_order IS INITIAL
+            AND ls_check-component-planned_order IS INITIAL )
+          OR ( ls_check-component-production_order IS NOT INITIAL
+            AND ls_check-component-planned_order IS NOT INITIAL )
           OR ls_check-component-reservation_number IS INITIAL
           OR ls_check-component-reservation_item IS INITIAL
           OR zcl_date_validation=>is_valid_gregorian_date(
@@ -2765,6 +5055,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       INSERT VALUE #(
         production_order   = ls_check-component-production_order
+        planned_order      = ls_check-component-planned_order
         reservation_number = ls_check-component-reservation_number
         reservation_item   = ls_check-component-reservation_item )
         INTO TABLE lt_seen_components.
@@ -2806,19 +5097,23 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       READ TABLE lt_summaries ASSIGNING <ls_summary>
         WITH TABLE KEY production_order =
                          ls_check-component-production_order
+                       planned_order = ls_check-component-planned_order
                        material = ls_check-component-material
                        plant = ls_check-component-plant
                        base_unit = ls_check-base_unit.
       IF sy-subrc <> 0.
         INSERT VALUE #(
           production_order         = ls_check-component-production_order
+          planned_order            = ls_check-component-planned_order
           material                 = ls_check-component-material
           plant                    = ls_check-component-plant
           base_unit                = ls_check-base_unit
+          as_of_date               = iv_as_of_date
           is_split_fully_confirmed = abap_true ) INTO TABLE lt_summaries.
         READ TABLE lt_summaries ASSIGNING <ls_summary>
           WITH TABLE KEY production_order =
                            ls_check-component-production_order
+                         planned_order = ls_check-component-planned_order
                          material = ls_check-component-material
                          plant = ls_check-component-plant
                          base_unit = ls_check-base_unit.
@@ -2837,14 +5132,76 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       IF <ls_summary>-first_required_date IS INITIAL
           OR lv_effective_required_date <
-            <ls_summary>-first_required_date.
+            <ls_summary>-first_required_date
+          OR ( lv_effective_required_date =
+                <ls_summary>-first_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_summary>-first_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-first_required_res_number
+                AND ls_check-component-reservation_item <
+                    <ls_summary>-first_required_res_item ) ) ).
         <ls_summary>-first_required_date =
           lv_effective_required_date.
+        <ls_summary>-first_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_summary>-first_required_res_item =
+          ls_check-component-reservation_item.
       ENDIF.
       IF lv_effective_required_date >
-          <ls_summary>-last_required_date.
+          <ls_summary>-last_required_date
+          OR ( lv_effective_required_date =
+                <ls_summary>-last_required_date
+            AND ( ls_check-component-reservation_number <
+                  <ls_summary>-last_required_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-last_required_res_number
+                AND ls_check-component-reservation_item <
+                    <ls_summary>-last_required_res_item ) ) ).
         <ls_summary>-last_required_date =
           lv_effective_required_date.
+        <ls_summary>-last_required_res_number =
+          ls_check-component-reservation_number.
+        <ls_summary>-last_required_res_item =
+          ls_check-component-reservation_item.
+      ENDIF.
+
+      IF ls_check-component_confirmed_quantity > 0.
+        IF <ls_summary>-first_confirmed_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_summary>-first_confirmed_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_confirmed_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_confirmed_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_confirmed_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_confirmed_res_item ) ) ).
+          <ls_summary>-first_confirmed_date =
+            lv_effective_required_date.
+          <ls_summary>-first_confirmed_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-first_confirmed_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date >
+            <ls_summary>-last_confirmed_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_confirmed_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_confirmed_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_confirmed_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_confirmed_res_item ) ) ).
+          <ls_summary>-last_confirmed_date =
+            lv_effective_required_date.
+          <ls_summary>-last_confirmed_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-last_confirmed_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
       ENDIF.
 
       IF ls_check-component_unconfirmed_quantity = 0.
@@ -2852,21 +5209,504 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       ELSEIF ls_check-component_confirmed_quantity > 0.
         ADD 1 TO <ls_summary>-partially_confirmed_count.
         <ls_summary>-is_split_fully_confirmed = abap_false.
+        IF <ls_summary>-first_partial_confirm_date IS INITIAL
+            OR lv_effective_required_date <
+              <ls_summary>-first_partial_confirm_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_partial_confirm_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_partial_res_item ) ) ).
+          <ls_summary>-first_partial_confirm_date =
+            lv_effective_required_date.
+          <ls_summary>-first_partial_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-first_partial_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date >
+            <ls_summary>-last_partial_confirm_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_partial_confirm_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_partial_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_partial_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_partial_res_item ) ) ).
+          <ls_summary>-last_partial_confirm_date =
+            lv_effective_required_date.
+          <ls_summary>-last_partial_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-last_partial_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
       ELSE.
         ADD 1 TO <ls_summary>-unconfirmed_count.
         <ls_summary>-is_split_fully_confirmed = abap_false.
       ENDIF.
 
-      IF ls_check-component_unconfirmed_quantity > 0
-          AND ( <ls_summary>-first_unconfirmed_date IS INITIAL
+      IF ls_check-component_unconfirmed_quantity > 0.
+        ADD 1 TO <ls_summary>-balance_component_count.
+        IF lv_effective_required_date < iv_as_of_date.
+          ADD 1 TO <ls_summary>-overdue_balance_count.
+          DATA(lv_overdue_age_days) = CONV i(
+            iv_as_of_date - lv_effective_required_date ).
+          IF lv_overdue_age_days <= 7.
+            ADD 1 TO <ls_summary>-overdue_1_7_balance_count.
+            <ls_summary>-overdue_1_7_balance_qty = sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-overdue_1_7_balance_qty
+              iv_right_quantity =
+                ls_check-component_unconfirmed_quantity ).
+            IF ls_check-component_confirmed_quantity > 0.
+              ADD 1 TO <ls_summary>-overdue_1_7_partial_count.
+              <ls_summary>-overdue_1_7_partial_qty = sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_1_7_partial_qty
+                iv_right_quantity =
+                  ls_check-component_unconfirmed_quantity ).
+            ENDIF.
+          ELSEIF lv_overdue_age_days <= 30.
+            ADD 1 TO <ls_summary>-overdue_8_30_balance_count.
+            <ls_summary>-overdue_8_30_balance_qty = sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-overdue_8_30_balance_qty
+              iv_right_quantity =
+                ls_check-component_unconfirmed_quantity ).
+            IF ls_check-component_confirmed_quantity > 0.
+              ADD 1 TO <ls_summary>-overdue_8_30_partial_count.
+              <ls_summary>-overdue_8_30_partial_qty = sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_8_30_partial_qty
+                iv_right_quantity =
+                  ls_check-component_unconfirmed_quantity ).
+            ENDIF.
+          ELSEIF lv_overdue_age_days <= 90.
+            ADD 1 TO <ls_summary>-overdue_31_90_balance_count.
+            <ls_summary>-overdue_31_90_balance_qty = sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-overdue_31_90_balance_qty
+              iv_right_quantity =
+                ls_check-component_unconfirmed_quantity ).
+            IF ls_check-component_confirmed_quantity > 0.
+              ADD 1 TO <ls_summary>-overdue_31_90_partial_count.
+              <ls_summary>-overdue_31_90_partial_qty = sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_31_90_partial_qty
+                iv_right_quantity =
+                  ls_check-component_unconfirmed_quantity ).
+            ENDIF.
+          ELSE.
+            ADD 1 TO <ls_summary>-overdue_over_90_balance_count.
+            <ls_summary>-overdue_over_90_balance_qty = sum_stock_quantities(
+              iv_left_quantity  =
+                <ls_summary>-overdue_over_90_balance_qty
+              iv_right_quantity =
+                ls_check-component_unconfirmed_quantity ).
+            IF ls_check-component_confirmed_quantity > 0.
+              ADD 1 TO <ls_summary>-overdue_over_90_partial_count.
+              <ls_summary>-overdue_over_90_partial_qty = sum_stock_quantities(
+                iv_left_quantity  =
+                  <ls_summary>-overdue_over_90_partial_qty
+                iv_right_quantity =
+                  ls_check-component_unconfirmed_quantity ).
+            ENDIF.
+          ENDIF.
+          IF <ls_summary>-oldest_overdue_balance_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_summary>-oldest_overdue_balance_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-oldest_overdue_balance_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-oldest_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-oldest_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                        <ls_summary>-oldest_overdue_res_item ) ) ).
+            <ls_summary>-oldest_overdue_balance_date =
+              lv_effective_required_date.
+            <ls_summary>-oldest_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-oldest_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF <ls_summary>-latest_overdue_balance_date IS INITIAL
+              OR lv_effective_required_date >
+                <ls_summary>-latest_overdue_balance_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-latest_overdue_balance_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-latest_overdue_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-latest_overdue_res_number
+                    AND ls_check-component-reservation_item <
+                        <ls_summary>-latest_overdue_res_item ) ) ).
+            <ls_summary>-latest_overdue_balance_date =
+              lv_effective_required_date.
+            <ls_summary>-latest_overdue_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-latest_overdue_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-overdue_unconfirmed_base_qty = sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_summary>-overdue_unconfirmed_base_qty
+            iv_right_quantity =
+              ls_check-component_unconfirmed_quantity ).
+        ELSEIF lv_effective_required_date = iv_as_of_date.
+          ADD 1 TO <ls_summary>-due_today_balance_count.
+          IF <ls_summary>-first_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number <
+                <ls_summary>-first_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-first_due_today_res_number
+                AND ls_check-component-reservation_item <
+                    <ls_summary>-first_due_today_res_item ).
+            <ls_summary>-first_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-first_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF <ls_summary>-last_due_today_res_number IS INITIAL
+              OR ls_check-component-reservation_number >
+                <ls_summary>-last_due_today_res_number
+              OR ( ls_check-component-reservation_number =
+                    <ls_summary>-last_due_today_res_number
+                AND ls_check-component-reservation_item >
+                    <ls_summary>-last_due_today_res_item ).
+            <ls_summary>-last_due_today_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_due_today_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-due_today_unconfirmed_base_qty = sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_summary>-due_today_unconfirmed_base_qty
+            iv_right_quantity =
+              ls_check-component_unconfirmed_quantity ).
+        ELSE.
+          ADD 1 TO <ls_summary>-future_balance_count.
+          IF <ls_summary>-next_future_balance_date IS INITIAL
+              OR lv_effective_required_date <
+                <ls_summary>-next_future_balance_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-next_future_balance_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-next_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-next_future_res_number
+                    AND ls_check-component-reservation_item <
+                        <ls_summary>-next_future_res_item ) ) ).
+            <ls_summary>-next_future_balance_date =
+              lv_effective_required_date.
+            <ls_summary>-next_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-next_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          IF <ls_summary>-last_future_balance_date IS INITIAL
+              OR lv_effective_required_date >
+                <ls_summary>-last_future_balance_date
+              OR ( lv_effective_required_date =
+                    <ls_summary>-last_future_balance_date
+                AND ( ls_check-component-reservation_number <
+                      <ls_summary>-last_future_res_number
+                  OR ( ls_check-component-reservation_number =
+                        <ls_summary>-last_future_res_number
+                    AND ls_check-component-reservation_item <
+                        <ls_summary>-last_future_res_item ) ) ).
+            <ls_summary>-last_future_balance_date =
+              lv_effective_required_date.
+            <ls_summary>-last_future_res_number =
+              ls_check-component-reservation_number.
+            <ls_summary>-last_future_res_item =
+              ls_check-component-reservation_item.
+          ENDIF.
+          <ls_summary>-future_unconfirmed_base_qty = sum_stock_quantities(
+            iv_left_quantity  =
+              <ls_summary>-future_unconfirmed_base_qty
+            iv_right_quantity =
+              ls_check-component_unconfirmed_quantity ).
+        ENDIF.
+        IF <ls_summary>-first_unconfirmed_date IS INITIAL
             OR lv_effective_required_date <
-              <ls_summary>-first_unconfirmed_date ).
-        <ls_summary>-first_unconfirmed_date =
-          lv_effective_required_date.
+              <ls_summary>-first_unconfirmed_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-first_unconfirmed_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-first_unconfirmed_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-first_unconfirmed_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-first_unconfirmed_res_item ) ) ).
+          <ls_summary>-first_unconfirmed_date =
+            lv_effective_required_date.
+          <ls_summary>-first_unconfirmed_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-first_unconfirmed_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
+        IF lv_effective_required_date >
+            <ls_summary>-last_unconfirmed_date
+            OR ( lv_effective_required_date =
+                  <ls_summary>-last_unconfirmed_date
+              AND ( ls_check-component-reservation_number <
+                    <ls_summary>-last_unconfirmed_res_number
+                OR ( ls_check-component-reservation_number =
+                      <ls_summary>-last_unconfirmed_res_number
+                  AND ls_check-component-reservation_item <
+                        <ls_summary>-last_unconfirmed_res_item ) ) ).
+          <ls_summary>-last_unconfirmed_date =
+            lv_effective_required_date.
+          <ls_summary>-last_unconfirmed_res_number =
+            ls_check-component-reservation_number.
+          <ls_summary>-last_unconfirmed_res_item =
+            ls_check-component-reservation_item.
+        ENDIF.
       ENDIF.
     ENDLOOP.
 
     LOOP AT lt_summaries INTO DATA(ls_summary).
+      ls_summary-fully_confirmed_count_pct = COND #(
+        WHEN ls_summary-component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-fully_confirmed_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-component_count ) )
+        ELSE 0 ).
+      ls_summary-partially_confirmed_count_pct = COND #(
+        WHEN ls_summary-component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-partially_confirmed_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-component_count ) )
+        ELSE 0 ).
+      ls_summary-unconfirmed_count_pct = COND #(
+        WHEN ls_summary-component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-unconfirmed_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-component_count ) )
+        ELSE 0 ).
+      ls_summary-confirmed_quantity_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-confirmed_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-unconfirmed_quantity_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-unconfirmed_base_quantity )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_balance_count_pct = COND #(
+        WHEN ls_summary-balance_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-balance_component_count ) )
+        ELSE 0 ).
+      ls_summary-due_today_balance_count_pct = COND #(
+        WHEN ls_summary-balance_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-due_today_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-balance_component_count ) )
+        ELSE 0 ).
+      ls_summary-future_balance_count_pct = COND #(
+        WHEN ls_summary-balance_component_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-future_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-balance_component_count ) )
+        ELSE 0 ).
+      ls_summary-overdue_1_7_count_pct = COND #(
+        WHEN ls_summary-overdue_balance_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_1_7_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_balance_count ) )
+        ELSE 0 ).
+      ls_summary-overdue_8_30_count_pct = COND #(
+        WHEN ls_summary-overdue_balance_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_8_30_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_balance_count ) )
+        ELSE 0 ).
+      ls_summary-overdue_31_90_count_pct = COND #(
+        WHEN ls_summary-overdue_balance_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_31_90_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_balance_count ) )
+        ELSE 0 ).
+      ls_summary-overdue_over_90_count_pct = COND #(
+        WHEN ls_summary-overdue_balance_count > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_over_90_balance_count )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_balance_count ) )
+        ELSE 0 ).
+      ls_summary-overdue_1_7_qty_pct = COND #(
+        WHEN ls_summary-overdue_unconfirmed_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_1_7_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty ) )
+        ELSE 0 ).
+      ls_summary-overdue_8_30_qty_pct = COND #(
+        WHEN ls_summary-overdue_unconfirmed_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_8_30_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty ) )
+        ELSE 0 ).
+      ls_summary-overdue_31_90_qty_pct = COND #(
+        WHEN ls_summary-overdue_unconfirmed_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_31_90_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty ) )
+        ELSE 0 ).
+      ls_summary-overdue_over_90_qty_pct = COND #(
+        WHEN ls_summary-overdue_unconfirmed_base_qty > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_over_90_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty ) )
+        ELSE 0 ).
+      ls_summary-overdue_1_7_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_1_7_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_8_30_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_8_30_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_31_90_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_31_90_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_over_90_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_over_90_balance_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_unconfirmed_pct = COND #(
+        WHEN ls_summary-unconfirmed_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-unconfirmed_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-due_today_unconfirmed_pct = COND #(
+        WHEN ls_summary-unconfirmed_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-due_today_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-unconfirmed_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-future_unconfirmed_pct = COND #(
+        WHEN ls_summary-unconfirmed_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-future_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-unconfirmed_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-overdue_unconfirmed_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-overdue_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-due_today_unconfirmed_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-due_today_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-future_unconfirmed_req_pct = COND #(
+        WHEN ls_summary-requested_base_quantity > 0
+        THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+          CONV decfloat34( ls_summary-future_unconfirmed_base_qty )
+          * CONV decfloat34( 100 )
+          / CONV decfloat34( ls_summary-requested_base_quantity ) )
+        ELSE 0 ).
+      ls_summary-confirmation_outcome = COND #(
+        WHEN ls_summary-unconfirmed_base_quantity = 0
+          THEN zif_stock_repository=>c_allocation_outcome_full
+        WHEN ls_summary-confirmed_base_quantity > 0
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+        ELSE zif_stock_repository=>c_allocation_outcome_none ).
+      ls_summary-first_required_day_offset = COND #(
+        WHEN ls_summary-first_required_date IS NOT INITIAL
+        THEN CONV i( ls_summary-first_required_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-last_required_day_offset = COND #(
+        WHEN ls_summary-last_required_date IS NOT INITIAL
+        THEN CONV i( ls_summary-last_required_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-first_confirmed_day_offset = COND #(
+        WHEN ls_summary-first_confirmed_date IS NOT INITIAL
+        THEN CONV i( ls_summary-first_confirmed_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-last_confirmed_day_offset = COND #(
+        WHEN ls_summary-last_confirmed_date IS NOT INITIAL
+        THEN CONV i( ls_summary-last_confirmed_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-first_partial_day_offset = COND #(
+        WHEN ls_summary-first_partial_confirm_date IS NOT INITIAL
+        THEN CONV i( ls_summary-first_partial_confirm_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-last_partial_day_offset = COND #(
+        WHEN ls_summary-last_partial_confirm_date IS NOT INITIAL
+        THEN CONV i( ls_summary-last_partial_confirm_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-first_unconfirmed_day_offset = COND #(
+        WHEN ls_summary-first_unconfirmed_date IS NOT INITIAL
+        THEN CONV i( ls_summary-first_unconfirmed_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-last_unconfirmed_day_offset = COND #(
+        WHEN ls_summary-last_unconfirmed_date IS NOT INITIAL
+        THEN CONV i( ls_summary-last_unconfirmed_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-oldest_overdue_balance_offset = COND #(
+        WHEN ls_summary-oldest_overdue_balance_date IS NOT INITIAL
+        THEN CONV i( ls_summary-oldest_overdue_balance_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-next_future_balance_offset = COND #(
+        WHEN ls_summary-next_future_balance_date IS NOT INITIAL
+        THEN CONV i( ls_summary-next_future_balance_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-latest_overdue_balance_offset = COND #(
+        WHEN ls_summary-latest_overdue_balance_date IS NOT INITIAL
+        THEN CONV i( ls_summary-latest_overdue_balance_date - ls_summary-as_of_date )
+        ELSE 0 ).
+      ls_summary-last_future_balance_offset = COND #(
+        WHEN ls_summary-last_future_balance_date IS NOT INITIAL
+        THEN CONV i( ls_summary-last_future_balance_date - ls_summary-as_of_date )
+        ELSE 0 ).
       APPEND ls_summary TO rt_summaries.
     ENDLOOP.
   ENDMETHOD.
@@ -3257,9 +6097,11 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
             <> ls_shortage-requested_base_quantity.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
-      IF ls_shortage-affected_production_orders IS NOT INITIAL
-          AND lines( ls_shortage-affected_production_orders ) <>
-            ls_shortage-affected_order_count.
+      IF ( ls_shortage-affected_production_orders IS NOT INITIAL
+          OR ls_shortage-affected_planned_orders IS NOT INITIAL )
+          AND lines( ls_shortage-affected_production_orders )
+            + lines( ls_shortage-affected_planned_orders ) <>
+              ls_shortage-affected_order_count.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
       LOOP AT ls_shortage-affected_production_orders
@@ -3268,6 +6110,87 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           RAISE EXCEPTION TYPE zcx_invalid_stock_request.
         ENDIF.
       ENDLOOP.
+      LOOP AT ls_shortage-affected_planned_orders
+          INTO DATA(lv_affected_planned_order).
+        IF lv_affected_planned_order IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+      IF ls_shortage-affected_reservation_items IS NOT INITIAL
+          AND lines( ls_shortage-affected_reservation_items ) <>
+            ls_shortage-short_component_count.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      LOOP AT ls_shortage-affected_reservation_items
+          INTO DATA(ls_affected_reservation_item).
+        IF ( ls_affected_reservation_item-production_order IS INITIAL
+              AND ls_affected_reservation_item-planned_order IS INITIAL )
+            OR ( ls_affected_reservation_item-production_order IS NOT INITIAL
+              AND ls_affected_reservation_item-planned_order IS NOT INITIAL )
+            OR ls_affected_reservation_item-reservation_number IS INITIAL
+            OR ls_affected_reservation_item-reservation_item IS INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ENDLOOP.
+
+      IF ls_shortage-largest_short_qty IS INITIAL.
+        IF ls_shortage-largest_short_tie_count IS NOT INITIAL
+            OR ls_shortage-largest_short_requested_qty IS NOT INITIAL
+            OR ls_shortage-largest_short_allocated_qty IS NOT INITIAL
+            OR ls_shortage-largest_short_outcome IS NOT INITIAL
+            OR ls_shortage-largest_short_date IS NOT INITIAL
+            OR ls_shortage-largest_short_prod_order IS NOT INITIAL
+            OR ls_shortage-largest_short_plan_order IS NOT INITIAL
+            OR ls_shortage-largest_short_res_number IS NOT INITIAL
+            OR ls_shortage-largest_short_res_item IS NOT INITIAL.
+          RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+        ENDIF.
+      ELSEIF ls_shortage-largest_short_qty < 0
+          OR ls_shortage-largest_short_tie_count < 0
+          OR ( ls_shortage-largest_short_tie_count > 0
+            AND ls_shortage-short_component_count > 0
+            AND ls_shortage-largest_short_tie_count >
+              ls_shortage-short_component_count )
+          OR ls_shortage-largest_short_requested_qty < 0
+          OR ( ls_shortage-largest_short_date IS NOT INITIAL
+            AND zcl_date_validation=>is_valid_gregorian_date(
+              ls_shortage-largest_short_date ) <> abap_true )
+          OR ( ls_shortage-largest_short_outcome IS NOT INITIAL
+            AND ls_shortage-largest_short_outcome <>
+              zif_stock_repository=>c_allocation_outcome_partial
+            AND ls_shortage-largest_short_outcome <>
+              zif_stock_repository=>c_allocation_outcome_none )
+          OR ( ls_shortage-largest_short_requested_qty > 0
+            AND ls_shortage-largest_short_outcome =
+              zif_stock_repository=>c_allocation_outcome_partial
+            AND ls_shortage-largest_short_requested_qty =
+              ls_shortage-largest_short_qty )
+          OR ( ls_shortage-largest_short_requested_qty >
+              ls_shortage-largest_short_qty
+            AND ls_shortage-largest_short_outcome =
+              zif_stock_repository=>c_allocation_outcome_none )
+          OR ( ls_shortage-largest_short_requested_qty > 0
+            AND ( ls_shortage-largest_short_qty >
+                ls_shortage-largest_short_requested_qty
+              OR ls_shortage-largest_short_requested_qty >
+                ls_shortage-requested_base_quantity ) )
+          OR ls_shortage-largest_short_qty >
+            ls_shortage-shortfall_base_quantity
+          OR ( ls_shortage-largest_short_prod_order IS INITIAL
+            AND ls_shortage-largest_short_plan_order IS INITIAL )
+          OR ( ls_shortage-largest_short_prod_order IS NOT INITIAL
+            AND ls_shortage-largest_short_plan_order IS NOT INITIAL )
+          OR ls_shortage-largest_short_res_number IS INITIAL
+          OR ls_shortage-largest_short_res_item IS INITIAL.
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
+      DATA(lv_largest_identity_complete) = xsdbool(
+        ls_shortage-largest_short_qty > 0 ).
+      DATA(lv_largest_short_tie_count) = COND i(
+        WHEN ls_shortage-largest_short_qty <= 0 THEN 0
+        WHEN ls_shortage-largest_short_tie_count > 0
+        THEN ls_shortage-largest_short_tie_count
+        ELSE 1 ).
 
       INSERT ls_shortage INTO TABLE lt_seen_shortages.
       IF sy-subrc <> 0.
@@ -3594,23 +6517,42 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
       IF lv_period_grouping <> abap_true.
         APPEND VALUE #(
-          material                   = ls_shortage-material
-          plant                      = ls_shortage-plant
-          base_unit                  = ls_shortage-base_unit
-          required_date              = ls_shortage-required_date
-          grouped_shortage_count     = 1
-          component_count            = ls_shortage-component_count
-          short_component_count      = ls_shortage-short_component_count
-          affected_order_count       = ls_shortage-affected_order_count
-          affected_production_orders =
+          material                      = ls_shortage-material
+          plant                         = ls_shortage-plant
+          base_unit                     = ls_shortage-base_unit
+          required_date                 = ls_shortage-required_date
+          grouped_shortage_count        = 1
+          component_count               = ls_shortage-component_count
+          short_component_count         = ls_shortage-short_component_count
+          affected_order_count          = ls_shortage-affected_order_count
+          affected_production_orders    =
             ls_shortage-affected_production_orders
-          requested_base_quantity    =
+          affected_planned_orders       =
+            ls_shortage-affected_planned_orders
+          affected_reservation_items    =
+            ls_shortage-affected_reservation_items
+          requested_base_quantity       =
             ls_shortage-requested_base_quantity
-          allocated_base_quantity    =
+          allocated_base_quantity       =
             ls_shortage-allocated_base_quantity
-          shortfall_base_quantity    =
+          shortfall_base_quantity       =
             ls_shortage-shortfall_base_quantity
-          input_index                = lv_input_index )
+          largest_short_qty             = ls_shortage-largest_short_qty
+          largest_short_tie_count       = lv_largest_short_tie_count
+          largest_short_requested_qty   =
+            ls_shortage-largest_short_requested_qty
+          largest_short_outcome         =
+            ls_shortage-largest_short_outcome
+          largest_short_date            = COND #(
+            WHEN ls_shortage-largest_short_date IS NOT INITIAL
+            THEN ls_shortage-largest_short_date
+            ELSE ls_shortage-required_date )
+          largest_short_prod_order      = ls_shortage-largest_short_prod_order
+          largest_short_plan_order      = ls_shortage-largest_short_plan_order
+          largest_short_res_number      = ls_shortage-largest_short_res_number
+          largest_short_res_item        = ls_shortage-largest_short_res_item
+          has_complete_largest_identity = lv_largest_identity_complete
+          input_index                   = lv_input_index )
           TO lt_planning_shortages.
         CONTINUE.
       ENDIF.
@@ -3623,18 +6565,42 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
                          ls_period_bounds-start_date.
       IF sy-subrc <> 0.
         INSERT VALUE #(
-          material                    = ls_shortage-material
-          plant                       = ls_shortage-plant
-          base_unit                   = ls_shortage-base_unit
-          required_date               = ls_shortage-required_date
-          lot_size_period_start       = ls_period_bounds-start_date
-          lot_size_period_end         = ls_period_bounds-end_date
-          affected_production_orders  =
+          material                      = ls_shortage-material
+          plant                         = ls_shortage-plant
+          base_unit                     = ls_shortage-base_unit
+          required_date                 = ls_shortage-required_date
+          lot_size_period_start         = ls_period_bounds-start_date
+          lot_size_period_end           = ls_period_bounds-end_date
+          affected_production_orders    =
             ls_shortage-affected_production_orders
-          has_complete_order_identity = xsdbool(
-            lines( ls_shortage-affected_production_orders ) =
+          affected_planned_orders       =
+            ls_shortage-affected_planned_orders
+          affected_reservation_items    =
+            ls_shortage-affected_reservation_items
+          largest_short_qty             = ls_shortage-largest_short_qty
+          largest_short_tie_count       = 0
+          largest_short_requested_qty   =
+            ls_shortage-largest_short_requested_qty
+          largest_short_outcome         =
+            ls_shortage-largest_short_outcome
+          largest_short_date            = COND #(
+            WHEN ls_shortage-largest_short_date IS NOT INITIAL
+            THEN ls_shortage-largest_short_date
+            ELSE ls_shortage-required_date )
+          largest_short_prod_order      = ls_shortage-largest_short_prod_order
+          largest_short_plan_order      = ls_shortage-largest_short_plan_order
+          largest_short_res_number      = ls_shortage-largest_short_res_number
+          largest_short_res_item        = ls_shortage-largest_short_res_item
+          has_complete_largest_identity = lv_largest_identity_complete
+          has_complete_res_identity     = xsdbool(
+            ls_shortage-affected_reservation_items IS NOT INITIAL
+              AND lines( ls_shortage-affected_reservation_items ) =
+                ls_shortage-short_component_count )
+          has_complete_order_identity   = xsdbool(
+            lines( ls_shortage-affected_production_orders )
+              + lines( ls_shortage-affected_planned_orders ) =
               ls_shortage-affected_order_count )
-          input_index                 = lv_input_index )
+          input_index                   = lv_input_index )
           INTO TABLE lt_period_planning_shortages.
         READ TABLE lt_period_planning_shortages ASSIGNING
           <ls_month_shortage>
@@ -3657,17 +6623,107 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       <ls_month_shortage>-short_component_count =
         <ls_month_shortage>-short_component_count
           + ls_shortage-short_component_count.
+      IF <ls_month_shortage>-has_complete_res_identity = abap_true
+          AND ls_shortage-affected_reservation_items IS NOT INITIAL
+          AND lines( ls_shortage-affected_reservation_items ) =
+            ls_shortage-short_component_count.
+        LOOP AT ls_shortage-affected_reservation_items
+            INTO DATA(ls_period_reservation_item).
+          INSERT ls_period_reservation_item
+            INTO TABLE <ls_month_shortage>-affected_reservation_items.
+        ENDLOOP.
+      ELSE.
+        <ls_month_shortage>-has_complete_res_identity = abap_false.
+        CLEAR <ls_month_shortage>-affected_reservation_items.
+      ENDIF.
       IF <ls_month_shortage>-has_complete_order_identity = abap_true
-          AND lines( ls_shortage-affected_production_orders ) =
+          AND lines( ls_shortage-affected_production_orders )
+            + lines( ls_shortage-affected_planned_orders ) =
             ls_shortage-affected_order_count.
         LOOP AT ls_shortage-affected_production_orders
             INTO DATA(lv_period_order_number).
           INSERT lv_period_order_number
             INTO TABLE <ls_month_shortage>-affected_production_orders.
         ENDLOOP.
+        LOOP AT ls_shortage-affected_planned_orders
+            INTO DATA(lv_period_planned_order).
+          INSERT lv_period_planned_order
+            INTO TABLE <ls_month_shortage>-affected_planned_orders.
+        ENDLOOP.
       ELSE.
         <ls_month_shortage>-has_complete_order_identity = abap_false.
         CLEAR <ls_month_shortage>-affected_production_orders.
+        CLEAR <ls_month_shortage>-affected_planned_orders.
+      ENDIF.
+      IF <ls_month_shortage>-has_complete_largest_identity = abap_true
+          AND lv_largest_identity_complete = abap_true.
+        IF ls_shortage-largest_short_qty >
+            <ls_month_shortage>-largest_short_qty.
+          <ls_month_shortage>-largest_short_tie_count = COND i(
+            WHEN ls_shortage-largest_short_tie_count > 0
+            THEN ls_shortage-largest_short_tie_count
+            ELSE 1 ).
+          <ls_month_shortage>-largest_short_qty =
+            ls_shortage-largest_short_qty.
+          <ls_month_shortage>-largest_short_requested_qty =
+            ls_shortage-largest_short_requested_qty.
+          <ls_month_shortage>-largest_short_outcome =
+            ls_shortage-largest_short_outcome.
+          <ls_month_shortage>-largest_short_date = COND #(
+            WHEN ls_shortage-largest_short_date IS NOT INITIAL
+            THEN ls_shortage-largest_short_date
+            ELSE ls_shortage-required_date ).
+          <ls_month_shortage>-largest_short_prod_order =
+            ls_shortage-largest_short_prod_order.
+          <ls_month_shortage>-largest_short_plan_order =
+            ls_shortage-largest_short_plan_order.
+          <ls_month_shortage>-largest_short_res_number =
+            ls_shortage-largest_short_res_number.
+          <ls_month_shortage>-largest_short_res_item =
+            ls_shortage-largest_short_res_item.
+        ELSEIF ls_shortage-largest_short_qty =
+            <ls_month_shortage>-largest_short_qty.
+          <ls_month_shortage>-largest_short_tie_count =
+            <ls_month_shortage>-largest_short_tie_count
+              + COND i(
+                WHEN ls_shortage-largest_short_tie_count > 0
+                THEN ls_shortage-largest_short_tie_count
+                ELSE 1 ).
+          IF ls_shortage-largest_short_res_number <
+              <ls_month_shortage>-largest_short_res_number
+              OR ( ls_shortage-largest_short_res_number =
+                <ls_month_shortage>-largest_short_res_number
+                AND ls_shortage-largest_short_res_item <
+                  <ls_month_shortage>-largest_short_res_item ).
+            <ls_month_shortage>-largest_short_requested_qty =
+              ls_shortage-largest_short_requested_qty.
+            <ls_month_shortage>-largest_short_outcome =
+              ls_shortage-largest_short_outcome.
+            <ls_month_shortage>-largest_short_date = COND #(
+              WHEN ls_shortage-largest_short_date IS NOT INITIAL
+              THEN ls_shortage-largest_short_date
+              ELSE ls_shortage-required_date ).
+            <ls_month_shortage>-largest_short_prod_order =
+              ls_shortage-largest_short_prod_order.
+            <ls_month_shortage>-largest_short_plan_order =
+              ls_shortage-largest_short_plan_order.
+            <ls_month_shortage>-largest_short_res_number =
+              ls_shortage-largest_short_res_number.
+            <ls_month_shortage>-largest_short_res_item =
+              ls_shortage-largest_short_res_item.
+          ENDIF.
+        ENDIF.
+      ELSE.
+        <ls_month_shortage>-has_complete_largest_identity = abap_false.
+        CLEAR <ls_month_shortage>-largest_short_qty.
+        CLEAR <ls_month_shortage>-largest_short_tie_count.
+        CLEAR <ls_month_shortage>-largest_short_requested_qty.
+        CLEAR <ls_month_shortage>-largest_short_outcome.
+        CLEAR <ls_month_shortage>-largest_short_date.
+        CLEAR <ls_month_shortage>-largest_short_prod_order.
+        CLEAR <ls_month_shortage>-largest_short_plan_order.
+        CLEAR <ls_month_shortage>-largest_short_res_number.
+        CLEAR <ls_month_shortage>-largest_short_res_item.
       ENDIF.
       <ls_month_shortage>-affected_order_count =
         <ls_month_shortage>-affected_order_count
@@ -3745,33 +6801,58 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     LOOP AT lt_period_planning_shortages INTO DATA(ls_month_period_row).
       APPEND VALUE #(
-        material                   = ls_month_period_row-material
-        plant                      = ls_month_period_row-plant
-        base_unit                  = ls_month_period_row-base_unit
-        required_date              = ls_month_period_row-required_date
-        lot_size_period_start      =
+        material                      = ls_month_period_row-material
+        plant                         = ls_month_period_row-plant
+        base_unit                     = ls_month_period_row-base_unit
+        required_date                 = ls_month_period_row-required_date
+        lot_size_period_start         =
           ls_month_period_row-lot_size_period_start
-        lot_size_period_end        = ls_month_period_row-lot_size_period_end
-        grouped_shortage_count     =
+        lot_size_period_end           = ls_month_period_row-lot_size_period_end
+        grouped_shortage_count        =
           ls_month_period_row-grouped_shortage_count
-        component_count            = ls_month_period_row-component_count
-        short_component_count      =
+        component_count               = ls_month_period_row-component_count
+        short_component_count         =
           ls_month_period_row-short_component_count
-        affected_order_count       = COND i(
+        affected_order_count          = COND i(
           WHEN ls_month_period_row-has_complete_order_identity = abap_true
           THEN lines(
             ls_month_period_row-affected_production_orders )
+            + lines( ls_month_period_row-affected_planned_orders )
           ELSE ls_month_period_row-affected_order_count )
-        affected_production_orders =
+        affected_production_orders    =
           ls_month_period_row-affected_production_orders
-        requested_base_quantity    =
+        affected_planned_orders       =
+          ls_month_period_row-affected_planned_orders
+        affected_reservation_items    =
+          ls_month_period_row-affected_reservation_items
+        largest_short_qty             =
+          ls_month_period_row-largest_short_qty
+        largest_short_tie_count       =
+          ls_month_period_row-largest_short_tie_count
+        largest_short_requested_qty   =
+          ls_month_period_row-largest_short_requested_qty
+        largest_short_outcome         =
+          ls_month_period_row-largest_short_outcome
+        largest_short_date            =
+          ls_month_period_row-largest_short_date
+        largest_short_prod_order      =
+          ls_month_period_row-largest_short_prod_order
+        largest_short_plan_order      =
+          ls_month_period_row-largest_short_plan_order
+        largest_short_res_number      =
+          ls_month_period_row-largest_short_res_number
+        largest_short_res_item        =
+          ls_month_period_row-largest_short_res_item
+        has_complete_largest_identity =
+          ls_month_period_row-has_complete_largest_identity
+        requested_base_quantity       =
           ls_month_period_row-requested_base_quantity
-        allocated_base_quantity    =
+        allocated_base_quantity       =
           ls_month_period_row-allocated_base_quantity
-        shortfall_base_quantity    =
+        shortfall_base_quantity       =
           ls_month_period_row-shortfall_base_quantity
-        input_index                = ls_month_period_row-input_index
-        pre_receipt_used_milli     =
+        input_index                   = ls_month_period_row-input_index
+        pre_receipt_used_milli        =
           ls_month_period_row-pre_receipt_used_milli )
         TO lt_planning_shortages.
     ENDLOOP.
@@ -4229,12 +7310,27 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           iv_gr_processing_days         = lv_gr_processing_days
           iv_purchasing_processing_days = lv_purchasing_processing_days ).
       ENDIF.
+      DATA(lv_required_date_offset) = CONV i(
+        ls_shortage-required_date - iv_as_of_date ).
+      DATA(lv_est_delivery_day_offset) = 0.
+      IF ls_timing-estimated_delivery_date IS NOT INITIAL.
+        lv_est_delivery_day_offset = CONV i(
+          ls_timing-estimated_delivery_date - iv_as_of_date ).
+      ENDIF.
+      DATA(lv_latest_po_day_offset) = 0.
+      IF ls_timing-latest_purchase_order_date IS NOT INITIAL.
+        lv_latest_po_day_offset = CONV i(
+          ls_timing-latest_purchase_order_date - iv_as_of_date ).
+      ENDIF.
+      DATA(lv_pr_release_day_offset) = 0.
       DATA(lv_pr_release_is_overdue) = abap_false.
       DATA(lv_pr_release_days_overdue) = 0.
+      DATA(lv_pr_release_days_until) = 0.
       DATA(lv_pr_release_urgency) = c_pr_urgency_no_estimate.
       IF ls_timing-latest_pr_release_date IS NOT INITIAL.
         DATA(lv_release_date_delta) =
           CONV i( ls_timing-latest_pr_release_date - iv_as_of_date ).
+        lv_pr_release_day_offset = lv_release_date_delta.
         IF lv_release_date_delta < 0.
           lv_pr_release_is_overdue = abap_true.
           lv_pr_release_days_overdue = 0 - lv_release_date_delta.
@@ -4242,6 +7338,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         ELSEIF lv_release_date_delta = 0.
           lv_pr_release_urgency = c_pr_urgency_due_today.
         ELSE.
+          lv_pr_release_days_until = lv_release_date_delta.
           lv_pr_release_urgency = c_pr_urgency_upcoming.
         ENDIF.
       ENDIF.
@@ -4272,6 +7369,7 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         plant                          = ls_shortage-plant
         base_unit                      = ls_shortage-base_unit
         required_date                  = ls_shortage-required_date
+        required_date_offset           = lv_required_date_offset
         lot_size_period_start          =
           ls_planning_shortage-lot_size_period_start
         lot_size_period_end            =
@@ -4282,6 +7380,56 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         affected_order_count           = ls_shortage-affected_order_count
         affected_production_orders     =
           ls_shortage-affected_production_orders
+        affected_planned_orders        =
+          ls_shortage-affected_planned_orders
+        affected_reservation_items     =
+          ls_planning_shortage-affected_reservation_items
+        largest_short_qty              = ls_shortage-largest_short_qty
+        largest_short_tie_count        = ls_shortage-largest_short_tie_count
+        largest_short_date             = ls_shortage-largest_short_date
+        largest_short_date_offset      = COND #(
+          WHEN ls_shortage-largest_short_date IS NOT INITIAL
+          THEN CONV i( ls_shortage-largest_short_date - iv_as_of_date )
+          ELSE 0 )
+        largest_short_requested_qty    =
+          ls_shortage-largest_short_requested_qty
+        largest_short_allocated_qty    = COND #(
+          WHEN ls_shortage-largest_short_requested_qty >=
+              ls_shortage-largest_short_qty
+          THEN ls_shortage-largest_short_requested_qty
+            - ls_shortage-largest_short_qty
+          ELSE 0 )
+        largest_short_outcome          = COND #(
+          WHEN ls_shortage-largest_short_outcome IS NOT INITIAL
+          THEN ls_shortage-largest_short_outcome
+          WHEN ls_shortage-largest_short_qty > 0
+            AND ls_shortage-largest_short_requested_qty >
+              ls_shortage-largest_short_qty
+          THEN zif_stock_repository=>c_allocation_outcome_partial
+          WHEN ls_shortage-largest_short_qty > 0
+            AND ls_shortage-largest_short_requested_qty > 0
+          THEN zif_stock_repository=>c_allocation_outcome_none
+          ELSE space )
+        largest_shortfall_pct          = COND #(
+          WHEN ls_shortage-largest_short_qty > 0
+            AND ls_shortage-shortfall_base_quantity > 0
+          THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+            CONV decfloat34( ls_shortage-largest_short_qty )
+            * CONV decfloat34( 100 )
+            / CONV decfloat34( ls_shortage-shortfall_base_quantity ) )
+          ELSE 0 )
+        largest_shortfall_req_pct      = COND #(
+          WHEN ls_shortage-largest_short_requested_qty > 0
+          THEN CONV zcl_stock_service=>ty_allocation_coverage_pct(
+            CONV decfloat34( ls_shortage-largest_short_qty )
+            * CONV decfloat34( 100 )
+            / CONV decfloat34(
+              ls_shortage-largest_short_requested_qty ) )
+          ELSE 0 )
+        largest_short_prod_order       = ls_shortage-largest_short_prod_order
+        largest_short_plan_order       = ls_shortage-largest_short_plan_order
+        largest_short_res_number       = ls_shortage-largest_short_res_number
+        largest_short_res_item         = ls_shortage-largest_short_res_item
         lot_size_procedure             = lv_lot_size_procedure
         planning_calendar_id           = lv_planning_calendar_id
         rounding_profile               = lv_rounding_profile
@@ -4302,13 +7450,18 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           lv_gr_processing_days
         purchasing_processing_days     = lv_purchasing_processing_days
         estimated_delivery_date        = ls_timing-estimated_delivery_date
+        estimated_delivery_day_offset  =
+          lv_est_delivery_day_offset
         latest_purchase_order_date     =
           ls_timing-latest_purchase_order_date
+        latest_po_day_offset           = lv_latest_po_day_offset
         latest_pr_release_date         =
           ls_timing-latest_pr_release_date
+        pr_release_day_offset          = lv_pr_release_day_offset
         as_of_date                     = iv_as_of_date
         pr_release_is_overdue          = lv_pr_release_is_overdue
         pr_release_days_overdue        = lv_pr_release_days_overdue
+        pr_release_days_until          = lv_pr_release_days_until
         pr_release_urgency             = lv_pr_release_urgency
         lead_time_status               = ls_timing-lead_time_status
         shortfall_base_quantity        = ls_shortage-shortfall_base_quantity

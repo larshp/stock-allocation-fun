@@ -263,8 +263,10 @@ components. Component allocation summaries echo the floor; ATP remains a
 separate confirmation of the requested demand. Per-component local estimates
 also expose `allocation_outcome` (`F`, `P`, or `U`) and the allocated/requested
 base-unit `allocation_coverage_pct`, rounded to two decimals and zero for a
-zero-quantity component. The grouped local estimate preserves the outcome and
-coverage percentage from its date-based plant summary.
+zero-quantity component. They also expose `shortage_pct`, calculated from the
+shortfall/requested base-unit quantities with the same rounding and
+zero-demand rule. The grouped local estimate preserves the outcome and both
+percentages from its date-based plant summary.
 
 ## Production component coverage floor rejection status
 
@@ -291,6 +293,44 @@ order, and every emitted batch or location split echoes that rank together with
 path has its own sequence counter. Component rows remain in repository order; a
 scoped grouped `local_estimate` remains an aggregate without a single demand
 sequence.
+
+## Component reservation read required-date windows
+
+`GET_OPEN_COMPONENTS`, `GET_OPEN_COMPONENTS_BULK`, `GET_OPEN_PLANNED_COMP`,
+and `GET_OPEN_PLANNED_COMP_BULK` accept the optional
+`is_required_date_range` selection. `filter_from` with a valid
+`required_date_from` selects required dates on or after the inclusive lower
+bound; `filter_through` with a valid `required_date_through` selects dates on
+or before the inclusive upper bound. Either bound may be used alone. When
+either bound is active, undated components are excluded. Active flags must be
+`abap_true`, inactive flags must be `abap_false`, active dates must be valid
+Gregorian dates, and inactive date values must be initial. When both bounds
+are active, the lower bound must not exceed the upper bound. Invalid selections
+are rejected before repository reads. The repository applies the date window
+to `RESB-BDTER` before returning rows, and single-order and bulk methods share
+the same filtering and order/reservation sorting.
+`filter_bucket` can additionally select `O` overdue dates before `as_of_date`,
+`T` dates equal to it, `F` dates after it, or `U` undated components. `N` and
+`R` select future and overdue dates within a relative horizon. The
+bucket flag must be `abap_true` when active and `abap_false` when inactive;
+active buckets require a valid Gregorian `as_of_date` and a supported bucket
+code. Inactive bucket code and date values must be initial. Bucket and
+range selectors intersect, so a date range excludes undated rows even when
+combined with bucket `U`.
+Bucket `N` selects near-term future components whose required date is after
+`as_of_date` and on or before the date `required_date_horizon_days` later. The
+horizon must be a positive number of calendar days that stays within the
+Gregorian date range. Other buckets require the horizon value to be initial;
+the near-term selection composes with either date bound.
+Bucket `R` selects overdue required dates on or after the date
+`required_date_horizon_days` before `as_of_date`, but strictly before
+`as_of_date`. Its positive horizon must remain within the Gregorian date range
+and composes with either date bound.
+Production and planned-order single/bulk ATP, stock, and scoped component
+previews accept the same selection and filter source reservation dates before
+allocation or ATP evaluation. A selected component remains in scope if an
+allocation policy later overrides its required date; that override controls
+allocation timing after the source-date selection.
 
 ## Storage-location demand coverage floors
 
@@ -522,7 +562,9 @@ when unavailable), and signed `days_since_manufacture` calculated as
 `as_of_date - manufacturing_date`. The age is initial when no manufacture date
 is known; a future manufacture date produces a negative value. Dated and
 undated rows both carry these fields, and UOM detail rows preserve them in their
-nested base row. The date describes the batch's recorded manufacture date, not
+nested base row. Dated and undated detail rows also carry
+`manufacturing_age_band` (`F`, `T`, `1`–`4`, or `U`) using the same keys as the
+summary; UOM nested base rows preserve it unchanged. The date describes the batch's recorded manufacture date, not
 the date inventory was received. The result also identifies
 `oldest_manufacture_storage_loc`, `oldest_manufacture_batch`, and
 `oldest_manufacture_val_type` for the chronologically earliest recorded
@@ -531,7 +573,74 @@ manufacture date among positive-stock rows that match the exposure filters.
 `days_since_oldest_manufacture` uses the same signed `as_of_date - date`
 calculation, and UOM results echo the identity and date fields unchanged. Rows
 without a manufacture date do not qualify; ties use batch, storage location,
-then valuation type. Each result counts returned
+then valuation type. The result also identifies the chronologically latest
+recorded manufacture date among positive-stock rows matching the exposure
+filters through `youngest_mfg_storage_loc`,
+`youngest_mfg_batch`, `youngest_mfg_val_type`,
+`youngest_mfg_date`, `youngest_mfg_date_src`, and signed
+`days_since_youngest_mfg`. Rows without a manufacture date do not
+qualify; ties use batch, storage location, then valuation type. UOM results
+echo this identity and date metadata unchanged. Each result also includes a
+fixed seven-row `manufacturing_age_bands` summary over positive-stock rows that
+pass the exposure filters, independent of detail pagination. Its `age_band`
+keys are `F` for a future manufacture date, `T` for age zero, `1` for 1–7
+days, `2` for 8–30 days, `3` for 31–90 days, `4` for over 90 days, and `U`
+when the manufacture date is unknown. Every row reports its count, share of
+rows, four stock-category quantities, and each category's share of the total.
+Each row also reports available percentage of unrestricted quantity and the
+reservation deduction (`unrestricted - available`). UOM rows preserve that
+percentage and provide the deduction in base/requested units. Active
+age-band rows also report the earliest and latest known manufacture dates and
+their elapsed-day span. Each endpoint also reports its source group (`P` plant, `G` global
+fallback, or `O` other/blank), along with its batch, storage location, and
+valuation type; equal-date rows use ascending batch, location, and
+valuation type as a stable tie break. `days_since_first_manufacture` and
+`days_since_last_manufacture` report signed ages as `as_of_date - endpoint
+date`. Empty or unknown-date bands retain initial dates, zero age offsets,
+and a zero span; UOM rows echo the endpoints and age values unchanged.
+Active manufacture-age bounds exclude unknown dates. UOM results retain the keys,
+counts, and shares and return base/requested-unit quantities. Set
+`filter_manufacturing_age_band = abap_true` with
+`manufacturing_age_band` `F`, `T`, `1`, `2`, `3`, `4`, or `U` to select the
+matching signed-age band, including unknown-date rows with `U`. It composes
+with inclusive age bounds and other filters before summaries and paging;
+invalid active values and noninitial disabled values are rejected, and UOM
+results echo both selector fields. Callers can set
+`filter_mfg_date_source = abap_true` with `mfg_date_source` set to `P` for the
+plant date, `G` for the global fallback, or blank for rows with a
+blank source marker. The source filter composes with the age-band and age-range
+selectors; disabled source values must be initial. Base and UOM results echo
+both source fields. Each result also returns a fixed 21-row
+`manufacturing_age_source_bands` matrix crossing source groups `P` (plant), `G`
+(global fallback), and `O` (blank or other source) with all seven age bands.
+The matrix reports row count, overall row share, share within its source, share
+within its age band, four stock-category quantities and their shares of the
+filtered totals, with each category's share within its source and age band,
+per-category positive-stock row counts and shares within each matrix cell,
+available percentage of unrestricted quantity, and reservation deduction
+(`unrestricted - available`). UOM rows preserve all counts and shares,
+availability percentage, and report base/requested-unit quantities, including
+the reservation deduction. Its scope matches the filtered age-band summary and
+remains independent of detail pagination. Each source/band cell also reports
+the earliest and latest recorded manufacture dates and their elapsed-day span;
+empty or unknown-date cells retain initial dates and a zero span. Each date
+endpoint includes its batch, storage location, and valuation type; equal-date
+rows use ascending batch, location, and valuation type as a stable tie break.
+Each endpoint also reports signed `days_since_*_manufacture` as
+`as_of_date - endpoint date`. Empty or unknown-date cells retain zero age
+offsets, and UOM results echo the dates, identities, and age offsets.
+The response also exposes `page_mfg_src_age_bands`, a fixed
+21-row matrix calculated from the returned batch page after cursor and page-size
+selection. Its counts, stock quantities, row shares, category shares, available
+percentages, reservation deductions, per-category positive-stock row counts
+and shares within each matrix cell,
+and manufacture-date spans describe only that page. It identifies each date
+endpoint by batch, storage location, and valuation type and reports each
+endpoint's signed age relative to `as_of_date`. Empty or unknown-date cells
+retain zero offsets. UOM results preserve the shares, dates, identities, and
+age offsets and convert the quantities.
+Each result
+counts returned
 batch/location/valuation rows
 with positive stock as `expired_batch_row_count` and
 `upcoming_batch_row_count`, plus `undated_batch_row_count` for positive-stock
@@ -574,6 +683,7 @@ expiry source, date bounds, and flags are echoed on base and UOM results. Set `f
 
 Set `positive_available_only` to `abap_true` to retain only rows whose reservation-net `available_quantity` is positive. The selector accepts only `abap_true` or `abap_false` and defaults to false. It applies to dated and undated rows before expiry counts, category totals, source/status summaries, and detail paging; category balances on retained rows are unchanged. Base and UOM results echo the selector.
 Optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`, filter each row by reservation-net available quantity. Either bound may be used alone; two active bounds must be ascending, and zero or negative thresholds are valid. Thresholds use the material base stock unit for both base and UOM requests. Inactive values must be initial; base and UOM results echo the flags and values. The bounds compose with `positive_available_only` and all other filters before dated and undated summaries, counts, and detail paging.
+Signed availability is retained when aggregating returned dated and undated pages, including their status, source, and age summaries.
 Optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`, select rows by their two-decimal `available_pct_of_unrestricted` value. The value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative. Thresholds are unitless; either bound may be used alone, and two active bounds must be ascending. Inactive values must be initial. Base and UOM results echo the flags and values. These bounds compose with availability quantity bounds and all other filters before dated and undated summaries, counts, and detail paging.
 
 Set `filter_positive_category` to `abap_true` and `positive_stock_category` to `U` for unrestricted, `A` for reservation-net available, `Q` for quality-inspection, or `B` for blocked quantity. Only these codes are accepted; the category must be initial when disabled. The filter retains rows with a positive balance in the selected category and composes with `positive_available_only` and all availability filters before counts, totals, and paging. Other category balances remain unchanged. Base and UOM results echo the selector, and allocation trace rows keep their independent scope.
@@ -643,8 +753,11 @@ Each result also includes `expiry_src_statuses`, a fixed nine-row matrix in
 plant (`P`), global fallback (`G`), and other or blank (`O`) source order, with
 expired (`E`), upcoming (`U`), and after-window (`A`) rows for each source.
 Every row carries `row_count`, its first and last expiration dates, and
-unrestricted, available, quality-inspection, and blocked quantities. The
-dates show the actual span within each source/status combination; `expiration_date_span_days` is last minus first in elapsed calendar days and is zero for empty or single-date cells. These dates stay
+unrestricted, available, quality-inspection, and blocked quantities.
+`days_to_first_expiration` and `days_to_last_expiration` fields calculate each
+endpoint as `expiration_date - as_of_date`; empty cells retain zero offsets,
+and UOM rows echo both values.
+Dates show the actual span within each source/status combination; `expiration_date_span_days` is last minus first in elapsed calendar days and is zero for empty or single-date cells. These dates stay
 initial for zero-count rows; zero-count combinations remain present. UOM results preserve the same row order with `base_*` and `unit_*` quantity members for each stock category and echo those date spans and elapsed day values unchanged.
 The source-age, upcoming lead-time, and after-window source rows also expose `expiration_date_span_days` as last minus first in elapsed calendar days. Empty and single-date rows report zero; UOM rows echo the values unchanged.
 Each result also reports `open_reservation_row_count` for eligible RESB rows
@@ -1264,7 +1377,9 @@ that age band's full category total across sources; their source shares sum to
 zero when their denominator is zero, and may sum slightly away from 100 due to
 independent rounding. Dates show the actual span within each source-age
 combination and remain initial when empty. The rows partition each disjoint age
-bucket by expiry-date source; zero-count combinations remain present. UOM results
+bucket by expiry-date source; zero-count combinations remain present. Endpoint
+day fields use `expiration_date - as_of_date`, so expired dates have negative
+offsets. Empty cells retain zero offsets and UOM rows echo them. UOM results
 retain the same order, counts, percentages, and date spans, with base and
 requested-unit quantities for every category.
 
@@ -1290,8 +1405,11 @@ from 100 due to independent rounding. The matrix
 partitions the disjoint upcoming bands and reconciles to upcoming counts and
 category totals. All source/band combinations remain present when empty. Every
 row reports its first and last expiration dates across matching stock; both
-remain initial when empty. UOM results preserve row order, counts, percentages,
-and date spans, with base and requested-unit category quantities. The
+remain initial when empty. `days_to_first_expiration` and
+`days_to_last_expiration` report each endpoint's distance as
+`expiration_date - as_of_date`. Empty cells retain zero offsets. UOM results preserve row order,
+counts, percentages, dates, spans, and offsets, with base and requested-unit
+category quantities. The
 `after_window_src_bands` result provides
 the same 12-row source matrix for positive-stock rows after the inclusive
 `through_date`, using bands 1–7, 8–30, 31–90, and over 90 days beyond that date.
@@ -1307,7 +1425,9 @@ sources, so nonzero band/category shares sum to 100 aside from rounding.
 Percentages round to two decimals, are zero when their denominator is zero, and
 may sum slightly away from 100 due to independent rounding. The matrix partitions the after-window count and category totals,
 retains zero combinations, and carries dates, counts, percentages, and
-base/requested units through the UOM result.
+base/requested units through the UOM result. Its endpoint-day fields use the
+same `expiration_date - as_of_date` calculation; empty cells retain zero
+offsets and UOM results echo them unchanged.
 
 Set `filter_expiry_upcoming_band = abap_true` with `expiry_upcoming_band` `1` for 0–7 days from `as_of_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes the as-of date and only dates through the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields. The selector uses the four `upcoming_src_bands` lead-time boundaries, including day 0 in band 1. Set `filter_exp_after_window_band = abap_true` with `expiry_after_window_band` `1` for 1–7 days after `through_date`, `2` for 8–30 days, `3` for 31–90 days, or `4` for over 90 days. The selector includes only dates after the inclusive `through_date`; it composes with status, source, location, batch, valuation, and date bounds before counts, totals, and paging, and omits undated rows. Only `1`–`4` are accepted; the value must be initial when disabled, and base and UOM results echo both fields.
 
@@ -1395,6 +1515,14 @@ span is latest minus earliest in elapsed calendar days. Empty pages return initi
 zero span, and one-row pages have a zero span. UOM results copy all three fields unchanged; full
 filtered date summaries remain unchanged.
 
+## Batch expiry page endpoint identities
+
+The page-wide earliest and latest expiration endpoints also identify their
+batch, storage location, valuation type, and raw expiration-date source. When
+multiple returned rows share an endpoint date, the selected identity uses
+ascending batch, storage-location, then valuation-type order. Empty pages keep
+all identity fields initial, and UOM results echo them unchanged.
+
 ## Batch expiry page status summaries
 
 Each dated page returns a fixed `page_expiry_statuses` table for expired (`E`), upcoming (`U`),
@@ -1414,8 +1542,10 @@ Each row in `page_expiry_statuses` also reports its first and last expiration
 dates and their elapsed day span, calculated from only returned dated rows of
 that status. The page-wide date range remains available independently. Statuses
 with no returned rows retain initial dates and a zero span; summary-only dated
-requests return the same zero page ranges. UOM results copy the date fields
-unchanged.
+requests return the same zero page ranges. `days_to_page_earliest_exp`
+and `days_to_page_latest_exp` report signed endpoint offsets as
+`expiration_date - as_of_date`; empty pages retain zero offsets. UOM results
+copy the dates, span, and offsets unchanged.
 
 ## Batch expiry page status quantity shares
 
@@ -1427,6 +1557,18 @@ nonzero category except for independent rounding. A zero category total yields
 zero shares for every status. Empty and summary-only pages return zero shares,
 and UOM results echo the percentages unchanged.
 
+## Batch expiry status-summary endpoint identities
+
+Full `expiry_statuses` and page `page_expiry_statuses` rows identify the batch,
+storage location, valuation type, and raw expiry-date source for their first
+and last dates. Equal-date ties choose ascending batch, storage location, then
+valuation type. Empty status rows retain initial identities, and UOM status
+rows echo all endpoint fields unchanged. Regression coverage checks tied
+expired and upcoming endpoints across sources, after-window results, and empty
+page status rows in base and UOM output. A multi-date `O`-only request verifies
+earliest/latest date selection and preserves each selected row's raw blank
+source marker in full, page, and UOM status-summary endpoints.
+
 ## Batch expiry page source/status summaries
 
 Each dated page returns a fixed nine-row `page_expiry_src_statuses` matrix for plant (`P`),
@@ -1435,6 +1577,7 @@ and after-window (`A`) status. Empty cells remain present with zero counts and q
 row reports `source_group`, `expiry_status`, `row_count`, `row_share_pct`,
 `status_row_share_pct`, `source_row_share_pct`, `first_expiration_date`,
 `last_expiration_date`, `expiration_date_span_days`,
+`days_to_first_expiration`, and `days_to_last_expiration`,
 `unrestricted_qty`, `available_qty`, `quality_qty`, and `blocked_qty`, plus the four `status_*_share_pct` and four `source_*_share_pct` percentages,
 aggregated only from the returned dated page. `row_share_pct` uses the returned
 page's dated row count. Percentages round to two decimals, remain zero on an
@@ -1446,8 +1589,10 @@ its denominator is empty. Each cell also reports `status_unrestricted_share_pct`
 `status_blocked_share_pct`: its share of the matching page status's quantity
 for that category. These status-relative quantity shares sum to 100 across
 sources for each nonzero status category, aside from independent rounding, and
-remain zero for zero totals. Blank and unknown source values map to `O`. UOM
-results preserve the matrix keys, counts, dates, and percentages, and return
+remain zero for zero totals. Blank and unknown source values map to `O`. Endpoint
+days equal `expiration_date - as_of_date`; empty cells retain zero
+offsets. UOM results preserve the matrix keys, counts, dates, offsets, and
+percentages, and return
 base/requested-unit quantities for all four categories. The matrix reconciles
 to the page status and category summaries without changing full filtered totals.
 
@@ -1467,6 +1612,36 @@ independent rounding. All shares are zero when their denominator is zero.
 Empty and summary-only pages return zero shares. UOM results echo the percentages
 unchanged.
 
+## Batch expiry source/status endpoint identities
+
+Each full and page `expiry_src_statuses` cell also identifies the batch,
+storage location, valuation type, and raw expiry-date source for its first and
+last expiration dates. When dates tie, the selected identity uses ascending
+batch, storage-location, then valuation-type order. Empty cells keep initial
+identities, and UOM rows echo all endpoint keys unchanged.
+
+## Batch expiry source-band endpoint identities
+
+Full and page expiry source/age, upcoming source/window, and after-window
+source/window cells identify the batch, storage location, valuation type, and
+raw expiry-date source for both their first and last expiration dates. Equal
+dates use ascending batch, storage location, then valuation type to choose the
+endpoint row. `O` rows preserve their raw blank or unknown source marker, while
+empty cells retain initial identities. UOM matrices echo the endpoint keys
+unchanged. Regression coverage checks tied endpoints in full, page, and UOM
+results for all three matrix families, plus blank-source rows in `O`.
+
+## Batch expiry source-summary endpoint identities
+
+Each full and page `expiry_sources` row identifies the batch, storage location,
+valuation type, and raw expiry-date source for its first and last expiration
+dates. These endpoints aggregate the matching source/status cells, using
+ascending batch, storage location, then valuation type when dates tie. `O`
+rows preserve their raw blank or unknown source marker. Empty rows keep initial
+identities, and UOM summary rows echo all endpoint keys unchanged. Regression
+coverage checks tied `P` endpoints, blank-source `O` endpoints, empty page
+rows, and base/UOM full and page results.
+
 ## Batch expiry page source/age-band summaries
 
 Each dated page also returns a fixed 12-cell `page_expiry_src_age_bands` matrix
@@ -1475,7 +1650,9 @@ for expired rows only. It crosses plant (`P`), global (`G`), and other or blank
 `as_of_date`. Each row includes the count, share of the page's expired rows,
 `source_row_share_pct` within its source, `age_band_row_share_pct` within its age
 band, first and last expiration dates, date span, all four stock-category
-totals, and four `*_qty_share_pct` fields. Source shares use returned expired
+totals, `days_to_first_expiration`, `days_to_last_expiration`, and four
+`*_qty_share_pct` fields. Endpoint days equal `expiration_date - as_of_date`,
+with zero offsets for empty cells. Source shares use returned expired
 rows for that source; age-band shares use returned expired rows in that band
 across sources. The four `source_*_share_pct` fields use the matching returned
 expired category total for that source. The four `band_*_share_pct` fields use
@@ -1484,7 +1661,7 @@ Quantity shares use the matching category total among returned expired rows; all
 when their denominator is zero. Blank and unknown sources map to `O`. The matrix
 reconciles to expired rows on the current page and is independent of the full
 filtered `expiry_src_age_bands` summary. UOM results preserve keys, counts,
-dates, spans, and shares and provide base and requested-unit quantities for all
+dates, spans, endpoint offsets, and shares and provide base and requested-unit quantities for all
 four categories. Summary-only dated requests return all 12 cells with zero page
 counts and quantities.
 
@@ -1501,15 +1678,18 @@ status, `source_row_share_pct` within its source, and
 `through_band_row_share_pct` within its window band. Four `source_*_share_pct`
 fields divide category quantities by their matching page-status source totals.
 The four `band_*_share_pct` fields use each returned page status's category total
-within that lead-time band across sources. First and last
-expiration dates, elapsed date span, all four stock-category totals, and four
+within that lead-time band across sources. First and last expiration dates,
+elapsed date span, and endpoint day distances calculated as
+`expiration_date - as_of_date`, all four
+stock-category totals, and four
 `*_qty_share_pct` fields, each using its matching page status category total.
 Source shares use all returned rows for that status and source; band shares use
 all returned rows for that status and band across sources. Empty cells stay
 present; all percentages round to two
 decimals and are zero when their denominator is zero. Blank and unknown sources map
-to `O`. UOM results preserve keys, counts, dates, spans, and shares, and
-provide base and requested-unit quantities for all categories. Summary-only
+to `O`. Empty cells keep zero endpoint offsets. UOM results preserve keys,
+counts, dates, spans, offsets, and shares, and provide base and requested-unit
+quantities for all categories. Summary-only
 dated requests return both matrices with zero page counts and quantities;
 full-scope upcoming and after-window summaries remain unchanged.
 
@@ -1625,6 +1805,14 @@ across page limits and cursors. Shares are zero when their denominator is zero.
 Empty source rows remain present with zero shares and initial dates. UOM results
 preserve counts, date ranges, and shares and provide base/requested-unit
 quantities.
+
+## Batch expiry summary endpoint day offsets
+
+Direct full and page status and source rows also report signed
+`days_to_first_expiration` and `days_to_last_expiration`, calculated as each
+endpoint date minus `as_of_date`. Expired endpoints are negative, upcoming and
+after-window endpoints are positive, and empty rows keep zero offsets. UOM
+summaries echo both offsets unchanged.
 
 ## Batch expiry undated page source summaries
 
@@ -2052,6 +2240,10 @@ orders (`10`) or process orders (`40`); omitted, the search includes both
 categories. An optional nonblank `order_type` filters on the exact AUFK-AUART
 order type. The repository applies it before keyset pagination, and the later
 detail read includes it in `finish_filter_lost` drift detection.
+Set `filter_order_type` to `abap_true` to match `order_type` exactly, including
+blank. The flag accepts only `abap_true` or `abap_false`; a nonblank order type
+continues to filter when the flag is false. The repository applies this exact
+selector before pagination, and detail reads recheck it for scope drift.
 The optional nonblank `order_description` filters on the exact AUFK-KTEXT
 short description and is returned on each detail item. Set
 `filter_order_description` to `abap_true` to match exactly, including blank;
@@ -3743,3 +3935,247 @@ reports successful, failed, and skipped counts. Earlier independent commits
 remain committed. Atomic failures roll back the staged group and distinguish
 unattempted rows; an atomic commit failure sets `stopped_on_failure` when the
 option is enabled.
+
+## Planned-order component reservation read
+
+`GET_OPEN_PLANNED_COMP` and `GET_OPEN_PLANNED_COMP_BULK` read planned-order component
+reservations from `RESB` by `PLNUM`. The bulk service rejects empty, blank, and
+duplicate planned-order inputs before reading. Before mapping, it rejects rows
+for unrequested planned orders, rows with blank reservation keys, and duplicate
+planned-order/reservation/item keys. Results omit deleted, finally issued,
+fully withdrawn, and nonpositive-open components; open quantity uses the shared
+reservation quantity calculation. Both forms return component material, plant,
+storage location, batch, movement type, required date, required and withdrawn
+quantities, unit, and open quantity in planned-order/reservation order.
+`PREVIEW_PLANNED_STOCK` and `PREVIEW_PLANNED_STOCK_BULK` apply the
+shared dated local-stock allocator to those rows, with the same reservation
+exclusions, projected receipts, allocation policies, location and batch
+options, receipt sources, and safety-stock protection as production component
+stock previews. Their results preserve the planned-order identity.
+`PREVIEW_PLANNED_COMP_ATP` and `PREVIEW_PLANNED_COMP_ATP_BULK` run those rows
+through the shared component ATP preview. The result preserves each
+planned-order key and supports
+the existing reservation exclusions, projected receipts, allocation policies,
+location/batch priority and candidate options, receipt sources, and safety-stock
+protection. Invalid check rules fail before component reads. `SUMMARIZE_ORDER_ATP`
+groups these checks by planned order, material, plant, and base unit, and reports
+component counts, required-date ranges, and first/last date spans for
+confirmed, partially confirmed, and unconfirmed components. These spans
+include only rows with the corresponding positive quantity and remain
+initial when no row matches. `first_confirmed_date`/`last_confirmed_date`,
+`first_partial_confirm_date`/`last_partial_confirm_date`, and
+`first_unconfirmed_date`/`last_unconfirmed_date` identify the spans. The
+first and last confirmed, partially confirmed, and unconfirmed endpoints also
+return reservation number and item for the component at that boundary;
+when dates tie, ascending reservation number and then item select the identity.
+The overall first and last required-date endpoints also identify their component
+with `first_required_res_number`/`first_required_res_item` and
+`last_required_res_number`/`last_required_res_item`; ties use ascending
+reservation number and then item. The method accepts `iv_as_of_date` defaulting to `sy-datum` and echoes
+`as_of_date`. Signed `*_day_offset` fields report the overall first/last required
+dates and each confirmed, partially confirmed, and unconfirmed endpoint date
+minus `as_of_date`; negative values
+are before the reference date, zero is on it, and positive values are after it.
+Empty endpoint spans report zero offsets. Confirmed and unconfirmed quantity
+totals remain separate. `overdue_unconfirmed_base_qty`,
+`due_today_unconfirmed_base_qty`, and `future_unconfirmed_base_qty` partition
+`unconfirmed_base_quantity` by required date relative to `as_of_date`. These
+quantities include outstanding remainders on partially confirmed components and
+are zero when no component quantity remains unconfirmed. `overdue_unconfirmed_pct`,
+`due_today_unconfirmed_pct`, and `future_unconfirmed_pct` report each horizon's
+share of `unconfirmed_base_quantity`, independently rounded to two decimals;
+all three are zero when no quantity remains unconfirmed. `overdue_unconfirmed_req_pct`,
+`due_today_unconfirmed_req_pct`, and `future_unconfirmed_req_pct` report each
+horizon's share of `requested_base_quantity`, also independently rounded to two
+decimals and zero when requested quantity is zero. Their sum tracks
+`unconfirmed_quantity_pct`, subject to independent rounding. The corresponding
+`overdue_balance_count`, `due_today_balance_count`,
+and `future_balance_count` count components with positive
+unconfirmed quantity in each horizon. These counts include partially confirmed
+components and partition all components with an outstanding quantity; their
+sum is `balance_component_count`. `overdue_balance_count_pct`,
+`due_today_balance_count_pct`, and `future_balance_count_pct` report each count's
+share of that total, independently rounded to two decimals. All three are zero
+when the total is zero. `overdue_1_7_balance_count`,
+`overdue_8_30_balance_count`, `overdue_31_90_balance_count`, and
+`overdue_over_90_balance_count` count components with outstanding quantity in
+1-7, 8-30, 31-90, and more than 90 overdue days. These counts partition
+`overdue_balance_count`. The matching `overdue_1_7_balance_qty`,
+`overdue_8_30_balance_qty`, `overdue_31_90_balance_qty`, and
+`overdue_over_90_balance_qty` partition `overdue_unconfirmed_base_qty`, including
+partial remainders. Empty age bands return zero counts and quantities.
+`overdue_1_7_partial_count`, `overdue_8_30_partial_count`,
+`overdue_31_90_partial_count`, and `overdue_over_90_partial_count` count the
+partially confirmed components in each band. The matching
+`overdue_1_7_partial_qty`, `overdue_8_30_partial_qty`,
+`overdue_31_90_partial_qty`, and `overdue_over_90_partial_qty` total only those
+components' outstanding remainders. These partial counts and quantities are
+subsets of the corresponding band totals; empty bands return zero. Subtracting
+them from the band totals yields the fully unconfirmed counts and quantities.
+`overdue_1_7_count_pct`, `overdue_8_30_count_pct`,
+`overdue_31_90_count_pct`, and `overdue_over_90_count_pct` report each count's
+share of `overdue_balance_count`. `overdue_1_7_qty_pct`,
+`overdue_8_30_qty_pct`, `overdue_31_90_qty_pct`, and
+`overdue_over_90_qty_pct` report each quantity's share of
+`overdue_unconfirmed_base_qty`. Shares are independently rounded to two
+decimals; empty overdue totals return zero shares, and populated shares sum to
+100% subject to rounding. `overdue_1_7_req_pct`, `overdue_8_30_req_pct`,
+`overdue_31_90_req_pct`, and `overdue_over_90_req_pct` report each age band's
+outstanding quantity as a share of `requested_base_quantity`. They are rounded
+independently, sum to `overdue_unconfirmed_req_pct` subject to rounding, and
+remain zero when requested quantity is zero.
+`oldest_overdue_balance_date` and `latest_overdue_balance_date` identify the
+overdue date range; `next_future_balance_date` and `last_future_balance_date`
+identify the future date range. Each endpoint returns its reservation number
+and item. `oldest_overdue_balance_offset`, `latest_overdue_balance_offset`,
+`next_future_balance_offset`, and `last_future_balance_offset` are signed
+`required_date - as_of_date` values, negative for overdue and positive for
+future components. `first_due_today_res_number`/`first_due_today_res_item` and
+`last_due_today_res_number`/`last_due_today_res_item` identify the lowest and
+highest reservation keys due today. Date endpoint ties select the lowest
+reservation number and item; the last due-today endpoint selects the highest
+key. Dates and identities remain initial, and offsets zero, when their horizon
+is empty.
+`fully_confirmed_count_pct`, `partially_confirmed_count_pct`, and
+`unconfirmed_count_pct` report each status count as a share of all
+component rows. These shares round independently to two decimals;
+zero-demand components retain the fully confirmed count convention.
+`confirmed_quantity_pct` and `unconfirmed_quantity_pct` report each share of
+requested base quantity, rounded independently to two decimals; both are zero
+when requested quantity is zero. `confirmation_outcome` is `F` for fully
+confirmed quantities, `P` for a positive partial confirmation, and `U` when no
+quantity is confirmed; zero-demand groups use `F`. The same summary method also
+groups production-order checks by production order.
+`SUMMARIZE_COMPONENT_READINESS` groups local-stock preview rows by production
+or planned order and reports covered, partially allocated, unallocated, short,
+and zero-demand component counts, allocated quantities, weighted allocation
+coverage and shortage percentages,
+required-date ranges, and the first and last local shortage dates.
+When all rows in an order share a known base unit, the order summary also
+reports the largest individual positive shortfall, its request and allocation,
+shortfall shares, required date, reservation identity, and outcome.
+`largest_short_tie_count` counts components tied at that maximum; the lowest
+reservation number and then item selects the reported component. These fields
+remain initial for mixed-unit or missing-unit orders. `largest_short_date_offset`
+is the signed calendar-day distance from `as_of_date` to `largest_short_date`;
+it is zero when no largest component date is available.
+`quantity_base_unit` and `has_single_base_unit` qualify order-level quantity
+fields. Those totals and the weighted allocation coverage and shortage
+percentages are populated only when every component has the same nonblank base
+unit. Mixed-unit or missing-unit orders return an initial `quantity_base_unit`
+and zero quantity totals and weighted percentages. Their component counts,
+`allocation_outcome`, and `is_locally_ready` remain valid. Material readiness stays grouped by material, plant, and base unit, so its
+quantities remain available per unit. At order
+and material scope, the overall required-date endpoints also identify their
+reservation component through `first_required_res_number`/`first_required_res_item`
+and `last_required_res_number`/`last_required_res_item`. Covered and zero-demand
+rows contribute to this range; same-date ties use ascending reservation number
+and item. The first and last local-shortage endpoints identify their component
+through
+`first_shortage_res_number`/`first_shortage_res_item` and
+`last_shortage_res_number`/`last_shortage_res_item`. Same-date ties use
+ascending reservation number and item; groups without a shortage keep the
+identities initial. They also report `short_component_pct`, the short-component count as a percentage of
+covered plus short positive-demand components. Zero-demand components are
+excluded from this denominator; summaries with no positive-demand components
+report 0%. They also report `zero_demand_component_pct`, the zero-demand row
+count as a percentage of all component rows; all-zero groups report 100%.
+`partial_component_count` and `unallocated_component_count` partition
+`short_component_count`: partial rows have positive allocation and positive
+shortfall, while unallocated rows have zero allocation and positive shortfall.
+`partial_component_pct` and `unallocated_component_pct` report each outcome's share of `short_component_count`. Both are zero when no components are short, and the populated pair sums to 100%.
+Both readiness summaries expose `allocation_outcome`: `F` when no
+positive-demand component is short, including zero-demand groups, `P` when a
+short order has at least one covered or partially allocated component, and `U`
+when every short component is unallocated. This count-based outcome remains valid for mixed-unit orders.
+Readiness summaries accept `iv_as_of_date`, defaulting to `sy-datum`, and
+echo the reference date. Order summaries report overdue, due-today, and
+future short-component counts. Material summaries also report each
+horizon's shortfall quantity in the group's base unit. The three horizons
+partition short counts, with quantities kept at material and base-unit
+scope. Material readiness also exposes `partial_shortfall_base_qty` and `unalloc_shortfall_base_qty`. They partition `shortfall_base_quantity` and equal the sum of the matching partial or unallocated quantities across the three horizons. `partial_shortfall_pct` and `unalloc_shortfall_pct` report each aggregate quantity's share of `shortfall_base_quantity`; both are zero when total shortfall is zero, and the populated pair sums to 100%. Fully covered and zero-demand components are excluded.
+Material readiness also identifies the component with the largest positive shortfall in each material/plant/base-unit group: `largest_shortfall_base_qty`, `largest_short_date`, `largest_short_res_number`, and `largest_short_res_item`. `largest_short_tie_count` reports how many components share the maximum positive shortfall; it is zero for covered groups. Equal quantities choose the lowest reservation number and then item. `largest_short_outcome` is `P` when the selected component has positive allocated quantity and `U` when none was allocated; it remains initial for covered groups. `largest_req_base_qty` and `largest_alloc_base_qty` report the selected component quantities in the same base unit; both are zero for covered groups. `largest_shortfall_pct` reports the component shortfall as a share of total shortfall; quantity and percentage are zero for covered groups, while date and identity stay initial. `largest_shortfall_req_pct` reports the same shortfall as a share of that component's requested quantity, rounded to two decimals. `largest_short_date_offset` is the signed calendar-day distance from `as_of_date` to `largest_short_date`; it is zero when no largest component date is available. Invalid as-of dates are rejected.
+Both summaries expose `overdue_short_pct`, `due_today_short_pct`, and
+`future_short_pct` as shares of short-component counts. Material summaries
+also expose `overdue_shortfall_pct`, `due_today_shortfall_pct`, and
+`future_shortfall_pct` as shares of total shortfall in the group's base unit.
+Count shares are zero when there are no short components; quantity shares
+are zero when shortfall is zero. Shares round independently to two decimals.
+Both summaries also expose the first and last overdue shortage dates and the
+first and last future shortage dates.
+Both summaries also expose day offsets for the first and last overdue and future shortage dates.
+`first_overdue_days`/`last_overdue_days` count back from `as_of_date`; `first_future_days_until`/`last_future_days_until` count forward. Populated offsets are positive; empty horizons report zero. `first_overdue_res_number`/`first_overdue_res_item`
+and `last_overdue_res_number`/`last_overdue_res_item` identify overdue endpoint
+components; the corresponding `first_future_*` and `last_future_*` fields
+identify future endpoint components. Same-date ties use ascending reservation number and item;
+identities remain initial for empty horizons. Both summaries also expose `overdue_partial_pct`/`overdue_unallocated_pct`, `due_today_partial_pct`/`due_today_unallocated_pct`, and `future_partial_pct`/`future_unallocated_pct`, each as the partial or unallocated share within that horizon's short-component count. Empty horizons report zero; populated pairs sum to 100%. Each horizon also exposes `overdue_partial_count`/`overdue_unallocated_count`, `due_today_partial_count`/`due_today_unallocated_count`, and `future_partial_count`/`future_unallocated_count`. Partial and unallocated counts partition that horizon's short-component count. Material summaries further split each horizon's shortfall into partial and unallocated quantities: `overdue_partial_short_qty`/`overdue_unalloc_short_qty`, `due_today_partial_short_qty`/`due_today_unalloc_short_qty`, and `future_partial_short_qty`/`future_unalloc_short_qty`. Each pair sums to the existing horizon shortfall quantity. Material summaries also expose `overdue_partial_qty_pct`/`overdue_unalloc_qty_pct`, `due_today_partial_qty_pct`/`due_today_unalloc_qty_pct`, and `future_partial_qty_pct`/`future_unalloc_qty_pct`, the partial and unallocated shares of each horizon's shortfall quantity. Empty horizons report zero; populated pairs sum to 100%. Due-today
+shortages use the as-of date and due-today count. Both summaries expose `first_due_today_res_number`/`first_due_today_res_item` and `last_due_today_res_number`/`last_due_today_res_item`, identifying the lowest and highest reservation keys among due-today short components. Reservation numbers sort first, with items breaking ties; fields remain initial when no due-today shortage exists. Partial and unallocated shortage rows also expose first/last date and reservation endpoints: `first_partial_short_date`/`last_partial_short_date` and `first_unalloc_short_date`/`last_unalloc_short_date`, with matching `first_*_res_number`/`first_*_res_item` and `last_*` identity fields. Date ties use ascending reservation number and item; fields remain initial when that outcome has no shortage.
+`first_partial_day_offset`/`last_partial_day_offset` and `first_unalloc_day_offset`/`last_unalloc_day_offset` report signed `required_date - as_of_date` day offsets. Negative values are overdue, zero is due on the as-of date, and positive values are future; empty outcome groups report zero.
+Zero-demand summaries report 0% for weighted coverage and shortage percentages
+and leave both shortage dates initial.
+`SUMMARIZE_COMP_MATERIAL_READY` provides the same readiness details by order,
+material, plant, and base unit, with both material-level and overall order-level
+readiness flags, the same covered/partial/unallocated/short/zero-demand counts,
+weighted coverage and shortage percentages,
+`short_component_pct`, `zero_demand_component_pct`, and the first and last
+local shortage dates.
+`SUMMARIZE_COMPONENT_SHORTAGES` includes affected planned-order numbers in its
+shortage rows and reports weighted allocation coverage and shortage
+percentages from allocated, requested, and shortfall quantities. Shortage rows expose `allocation_outcome`: `P` when the group has positive
+allocated quantity and `U` when none was allocated. Fully covered groups are
+omitted. They also report `partial_component_count` and
+`unallocated_component_count`, which partition `short_component_count`, plus
+`partial_component_pct` and `unallocated_component_pct` as shares of that
+count. The percentages are zero when there are no short components and sum to
+100% for populated rows. Shortfall quantities are also split into `partial_shortfall_base_qty` and
+`unalloc_shortfall_base_qty`, which partition `shortfall_base_quantity`.
+`partial_shortfall_pct` and `unalloc_shortfall_pct` report each share of the
+group's shortfall; they are zero when it is zero and sum to 100% otherwise.
+Shortage summaries accept `iv_as_of_date`, defaulting to `sy-datum`, and echo
+`as_of_date` with each row. `required_date_offset` is the signed number of days
+from `as_of_date` to `required_date`: negative for overdue, zero for due today,
+and positive for future requirements. Invalid as-of dates are rejected.
+Shortage rows also include the sorted `affected_reservation_items` list,
+which identifies each short component by production or planned order,
+reservation number, and item. The list contains short components only and has
+one entry per reservation item. Each row identifies the component with the largest
+positive shortfall using `largest_short_qty`, `largest_short_date`,
+`largest_short_res_number`, and `largest_short_res_item`; `largest_shortfall_pct` reports that component's
+share of the row's total shortfall. `largest_short_requested_qty` carries the
+selected component's request, `largest_short_allocated_qty` reports its
+allocated remainder, and `largest_shortfall_req_pct` reports its shortfall as a
+share of the request, rounded to two decimals. `largest_short_allocated_qty` is
+derived from request less shortfall and is zero when request metadata is
+incomplete. `largest_short_outcome` is `P` for positive allocation and `U` when
+none was allocated. Grouped suggestions preserve an explicit outcome; when it is
+omitted, they derive it from the selected request and shortfall if request
+metadata is available, and leave it initial otherwise. Grouped replenishment
+suggestions calculate the same share against the period total, and leave it zero
+when largest-component metadata is incomplete. They expose the selected request
+as `largest_short_requested_qty`; older inputs may omit it, in which case the
+request share is zero. On grouped suggestions, `largest_short_date` identifies
+the selected component's required date and can differ from the suggestion's
+earliest `required_date`. `largest_short_date_offset` is the signed calendar-day
+distance from `as_of_date` to `largest_short_date`; it is zero when no largest
+component date is available. `largest_short_prod_order` or
+`largest_short_plan_order` identifies its order. `largest_short_tie_count` records how many components share the row maximum. Grouped suggestions sum ties across the period when largest-shortfall metadata is complete; older inputs with a positive maximum but no count are treated as one. The count is zero when no largest component is selected. Ties select the lowest reservation number, then item. Replenishment inputs may omit the list; when
+provided, every entry must contain nonblank reservation keys and exactly one
+production or planned order, and the list length must match
+`short_component_count`. `SUGGEST_COMP_REPLENISHMENT` preserves and deduplicates
+these identities when it combines shortages into lot-size periods, alongside
+affected order numbers. Grouped suggestions also carry the largest individual
+shortfall and its order and reservation identity. These fields are populated
+only when every shortage row in the lot-size period supplies complete
+largest-shortfall metadata. Replenishment results report `pr_release_days_until`,
+the positive calendar-day distance from `as_of_date` to an upcoming requisition
+release date. It is zero for overdue, due-today, or unestimated dates;
+`pr_release_days_overdue` is positive only for overdue release dates.
+`pr_release_day_offset` is the signed distance `latest_pr_release_date -
+as_of_date`: negative for overdue releases, zero for today, and positive for
+upcoming releases; it is zero when no release date was estimated. Suggestions also report signed `estimated_delivery_day_offset` as
+`estimated_delivery_date - as_of_date`: negative for past estimates, zero for
+today, and positive for future estimates. It is zero when no delivery date was
+estimated. `latest_po_day_offset` applies the same signed convention
+to `latest_purchase_order_date - as_of_date`; it is zero when no PO date was
+estimated. Suggestions also expose `required_date_offset` as
+`required_date - as_of_date`, using the same signed convention.

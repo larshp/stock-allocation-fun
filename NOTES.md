@@ -2,6 +2,22 @@
 
 ## 2026-10-21
 
+- Batch expiry exposure now includes a fixed seven-row manufacturing-age
+  distribution for filtered positive-stock rows, with future, today, four
+  dated age bands, and unknown-date buckets. Each row reports row shares,
+  stock-category quantities, and category shares; UOM results include converted
+  quantities. A matching band selector filters base and UOM detail, including
+  the unknown-date band. Regressions cover signed ages, unknown dates, band
+  validation, and selector echo. A manufacture-date source filter selects plant,
+  global-fallback, or blank-source rows and is covered in base and UOM flows.
+
+- Batch expiry exposure now also reports the youngest recorded manufacture
+  date among positive-stock rows matching the filters. The summary includes
+  storage location, batch, valuation type, date source, and signed age; ties
+  use the same deterministic identity ordering as the oldest-manufacture
+  summary. Base and UOM regressions cover range-filtered and unit-aware
+  results. PLAN validation, abaplint, transpilation, and ABAP Unit all pass.
+
 - Fixed the failures uncovered by the full `npm test` run: the stock test
   double now carries valuation type into synthesized batch statuses, dated
   location UOM storage splits preserve allocation sequence, and manufacturing
@@ -12156,6 +12172,8 @@ ranges, result drift, and paged/unpaged SQL reads.
 - Shared priority FEFO UOM result structures now declare the `allocation_sequence` fields already emitted by the adapter for source and batch split rows. Fixed malformed priority ATP assertions and related test paths, removed the invalid multi-order result access, normalized the sales-order class's missing spaces around 66 assignments/conditions, and corrected surfaced field-name/type mismatches. Abaplint's auto-fix pass applied alignment updates required by the enabled rules; the subsequent full lint and transpilation pass.
 - STO source-plant creation now has a three-supplier regression for a successful first commit, failure on the last attempted supplier, and a skipped third supplier. It verifies that earlier commits remain visible, the failure still sets `stopped_on_failure` on the last row, and success/failure/skip counts stay separate. The PLAN guard checks this scenario.
 
+- Manufacture-source-by-age summaries now include the same fixed 21-cell view for the returned detail page. It reports page-only stock quantities, counts, source and age-band shares, positive contributor counts and within-cell shares by category, availability, reservation deductions, and manufacture-date spans; each date endpoint identifies its batch, location, and valuation type with deterministic ties. UOM responses preserve shares, counts, and identities and convert quantities. Tests cover the current page and UOM propagation.
+
 - Sales-order `order_summaries` now expose aggregate F/P/U outcomes and
   two-decimal coverage calculated from grouped base-unit totals. Summaries also
   count full, partial, unallocated, and positive coverage-floor-rejected lines;
@@ -12223,3 +12241,221 @@ ranges, result drift, and paged/unpaged SQL reads.
   earlier at `reports_cc_floor_rejection` in `zcl_cc_reservation_service`
   (expected `X`, got initial), before reaching sales-order tests. The PLAN
   validator still cannot start through the WSL 1 Node launcher.
+
+- Batch expiry detail rows now expose `manufacturing_age_band` directly for
+  dated and undated rows, using the same F/T/1–4/U codes as the aggregate.
+  UOM nested base rows preserve the code. The PLAN validator's undated-row
+  type fingerprint was updated to include the added field and now guards the
+  row constructors, base/UOM assertions, and docs. Full `npm test` passes:
+  PLAN validation, abaplint (0 issues across 252 files), transpilation, and
+  ABAP Unit.
+
+- Manufacturing-age summary bands now include available percentage of
+  unrestricted stock and reservation deduction (`unrestricted - available`),
+  with the percentage preserved and deduction converted in UOM results.
+  Regression coverage checks a 50.00% available share and a 0.500 base-unit /
+  0.042 BOX deduction. The PLAN validator guards the calculations, UOM mapping,
+  test values, and docs. Full `npm test` passes.
+
+- Seven-row manufacturing-age summaries now expose the earliest and latest known manufacture dates, their batch/location/valuation identities, and elapsed span, derived from the existing source-by-age cells. UOM results preserve these date fields. Tests cover empty unknown-date bands and a cross-source equal-date tie. `npm test` initially caught stale percentage expectations after adding the tie fixture; the expectations now account for all four batches, and the full pipeline passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Seven-row manufacturing-age endpoints now retain the resolved source group (`P` plant, `G` global fallback, or `O` other/blank) alongside their dates and batch/location/valuation identities; UOM summaries echo the markers. Regressions cover all three source groups, including an `O` earliest date, a `G` filtered result, and a latest cross-source tie resolved to `P`; they include UOM results and initial markers for undated bands. PLAN validation passes, abaplint reports 0 issues across 252 files, and full `npm test` passes.
+
+- Manufacturing-age endpoint tie coverage now verifies the full stable order: ascending batch, then storage location, then valuation type. A same-batch equal-date fixture makes location and valuation type independently determine both endpoints, and checks that UOM output preserves the selected identities. PLAN validation, abaplint (0 issues across 252 files), transpilation, and full ABAP Unit all pass.
+
+- Manufacturing-age endpoint summaries now verify positive signed offsets as well as zero and future-negative offsets. The base and UOM tests assert both first and last endpoint ages for a past-date band, and the PLAN validator enforces those checks. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Full and page `manufacturing_age_source_bands` cells now report signed days since their first and last manufacture dates. Empty/unknown-date cells retain zero offsets, and UOM results echo both values. Regressions cover future-date offsets in both matrices, UOM mappings, and unknown-date zeros. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Extended full and page upcoming/after-window expiry source-band rows with `days_to_first_expiration` and `days_to_last_expiration`, each calculated as `expiration_date - as_of_date`; empty cells stay zero and UOM rows echo both offsets. Regression coverage checks 1/7-day upcoming and 8/14-day after-window endpoints in full, page, and UOM results. Updated exact matrix fixtures, PLAN/README/ANOMALIES, and validator guards. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Full and page expiry source/status and expired source/age matrices now expose `days_to_first_expiration` and `days_to_last_expiration` as signed `expiration_date - as_of_date` offsets. Expired endpoints are negative, upcoming and after-window endpoints are positive, empty cells remain zero, and all four UOM matrices echo the values. Tests cover -7/-1, 1/7, and 8/14 day endpoints across full, page, and UOM output. Updated exact matrix fixtures, PLAN/README/ANOMALIES, and validator guards. `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Direct full and page expiry status/source summaries now expose signed `days_to_first_expiration` and `days_to_last_expiration` offsets, calculated as expiration date minus as-of date. Regression coverage checks expired, upcoming, after-window, page-scoped results, empty source groups, and UOM echoes. Updated PLAN/README/ANOMALIES and validator guards. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Page-wide batch expiry summaries now expose `days_to_page_earliest_exp` and `days_to_page_latest_exp` as signed endpoint offsets from `as_of_date`. Empty pages retain zero offsets, and UOM results echo both values. Regressions cover expired and future dates, empty pages, and UOM output; PLAN/README/ANOMALIES and validator guards are updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Page-wide batch expiry endpoints now identify the selected batch, storage location, valuation type, and raw expiry-date source. Equal endpoint dates use ascending batch, location, then valuation type as the stable tie-break; empty pages retain initial keys, and UOM results echo the identity. Added base/UOM tie and empty-page regressions and PLAN validator guards. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Full and page expiry source/status cells now identify the batch, storage location, valuation type, and raw expiry source for both first and last dates. Equal-date ties use ascending batch, location, then valuation type; regressions cover full, page, after-window, UOM echo, and empty-cell behavior. Added PLAN/README/ANOMALIES and validator guards. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Full and page expiry source/age, upcoming, and after-window cells now identify the batch, storage location, valuation type, and raw expiry source for both date endpoints. Equal-date ties use ascending batch, location, then valuation type; regression coverage checks full, page, UOM echoes, blank-source `O` rows, and empty cells. Updated PLAN/README/ANOMALIES and validator guards. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Full and page expiry source-only summaries now identify the batch, storage location, valuation type, and raw source at their first and last dates. They aggregate source/status endpoints with the same tie order and UOM echoes; regressions cover tied `P` endpoints, blank-source `O`, and empty pages. Full npm test passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Production component reads now support open planned-order components through `RESB-PLNUM`. The service validates requested planned orders and returned reservation keys, filters closed/deleted/final rows, and calculates positive open quantities. Repository and service regressions cover bulk ordering, open quantity, invalid keys, and skipped rows. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit. The first run exposed that the manual SQLite schema in `scripts/run-unit.mjs` also needed `PLNUM`; the schema and validator guard now include it.
+- Planned-order component ATP previews now accept single and bulk planned-order numbers and reuse the production-component ATP engine, preserving the planned-order key on each result. Regression coverage checks ATP quantity conversion, single and bulk wrappers, invalid check-rule rejection before reads, and API calls. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Full `expiry_statuses` and page `page_expiry_statuses` now identify the batch, storage location, valuation type, and raw source at both date endpoints; UOM rows echo those keys. Regression coverage checks cross-source ties, after-window output, and empty page rows, and multi-date blank-source `O` endpoint selection in full/page UOM output. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component ATP summaries now support planned orders and retain the `PLNUM` alongside production-order summaries. Results group by order identity, material, plant, and base unit; regression coverage checks planned-order identity and quantities. Full `npm test` passes, including PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Planned-order local stock previews now have single and bulk entry points using the shared dated stock allocator. `SUMMARIZE_COMPONENT_READINESS` groups checks by production or planned order and retains the order identity. Regression coverage checks allocated quantity, readiness counts, both wrappers, and planned-order identity. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component shortage summaries now retain affected planned-order numbers. Replenishment suggestions carry those identifiers through monthly lot-size grouping and deduplicate a planned order that has shortages on multiple dates. An end-to-end regression covers the summary and grouped suggestion. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Added `SUMMARIZE_COMP_MATERIAL_READY`, which breaks local readiness down by order, material, plant, and base unit. Each row reports component counts, allocated and shortfall quantities, required-date span, first shortage date, material readiness, and overall order readiness. Planned-order regression coverage checks a ready component material beside a short material. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Order-level and material-level component readiness summaries now include weighted `allocation_coverage_pct`, calculated from total allocated divided by total requested quantity and rounded to two decimals. Zero-demand summaries return 0%. Regressions cover partial and full coverage; PLAN, README, and validator guards were updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Production/planned-order and material readiness summaries now report weighted shortage percentages alongside weighted coverage. Both percentages use aggregate quantities, round to two decimals, and return 0% for zero demand. Added partial, zero-shortage, and fully covered regression assertions and updated PLAN/README validator checks. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component readiness summaries now report both the first and last local shortage dates at order and material scope. They reduce effective required dates independently of input order, and covered groups leave both dates initial. Regression coverage checks unsorted shortage dates and empty endpoints; PLAN/README and validator guards are updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component local estimates now expose weighted `shortage_pct` beside `allocation_coverage_pct` for both individual and grouped demand. Each uses base-unit quantities, two-decimal rounding, and zero for zero demand. Regressions cover 66.67% coverage / 33.33% shortage and zero-demand behavior; PLAN/README and validator guards are updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Production/planned-order readiness and material readiness summaries now include `short_component_pct`: short positive-demand rows divided by covered plus short positive-demand rows. Zero-demand components do not affect the denominator, and a scope with no positive demand reports 0%. Regression fixtures verify 66.67% with an extra zero-demand row and 100% for two short rows plus a zero-demand row. PLAN/README and validator guards are updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Readiness summaries now include `zero_demand_component_pct`, the zero-demand component count over all component rows. Both order and material scopes return 100% for all-zero groups; weighted coverage, shortage share, and short-component share remain zero where their demand denominator is zero. Tests cover mixed and zero-only groups. PLAN/README and validator checks are updated. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Order and material readiness summaries now split short components into `partial_component_count` and `unallocated_component_count`. The counts partition `short_component_count`: partial rows have positive allocation and positive shortfall; unallocated rows have zero allocation and positive shortfall. Regression fixtures cover both outcomes, covered rows, and zero-demand rows. Updated PLAN/README and validator checks. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Production/planned-order component readiness summaries now expose the aggregate `allocation_outcome` (`F` fully covered, `P` partly covered, `U` with no allocation); zero-demand groups follow the existing full outcome convention. Regressions cover all three outcomes at order and material scope, including zero demand. Full `npm test` passes with the Linux Node runtime: PLAN validation, abaplint, transpilation, and ABAP Unit.
+- Order- and material-level component readiness summaries now accept and echo `iv_as_of_date` (default `sy-datum`) and split shortages into overdue, due-today, and future short-component counts at order scope, plus base-unit shortfall quantities at material scope. The three bands partition short counts and material quantities; covered and zero-demand rows are excluded. Tests cover all bands, multi-row aggregation, fully covered rows, and invalid as-of dates.
+- Readiness summaries now report overdue, due-today, and future shortage shares. Order and material rows include the share of short components in each band; material rows also include each band's share of shortfall in the group base unit. Empty shortage sets return zero, and shares round independently to two decimals. Tests cover mixed and empty bands.
+- Component readiness summaries now expose the first and last overdue
+  shortage dates and the first and last future shortage dates at both
+  order and material scope. Empty horizons retain initial dates; due-today
+  shortages are represented by the as-of date and count. Regression tests
+  cover populated endpoints and empty horizons.
+- Planned and production-order ATP summaries now report confirmed and
+  unconfirmed quantity shares in the group's base unit. Shares round
+  independently to two decimals and are both zero for zero-demand groups.
+  Regression coverage checks partial, full, none, and zero-demand cases.
+- Order-level ATP summaries now include the first and last required dates
+  among unconfirmed components. The span remains initial when a group is
+  fully confirmed or has zero demand; tests cover same-day and multi-date
+  unconfirmed rows plus an empty span.
+- Planned and production-order ATP summaries now report fully confirmed,
+  partially confirmed, and unconfirmed component-count shares. Shares are
+  relative to all rows, independently rounded to two decimals, and retain
+  the existing rule that zero-demand rows count as fully confirmed. Tests
+  cover mixed statuses, all-unconfirmed, and zero-demand groups.
+- ATP component summaries now expose `confirmation_outcome` as `F` fully
+  confirmed, `P` partially confirmed, or `U` with no confirmed quantity.
+  Zero-demand groups use `F`, matching the existing fully-confirmed row
+  convention. Tests cover planned-order, mixed, unconfirmed, and zero-demand
+  summaries.
+- Planned and production-order ATP summaries now report the first and last
+  required dates for components with positive confirmed quantity. These
+  endpoints remain initial when no quantity is confirmed; regressions cover
+  multiple dates, a no-confirmation group, and zero demand.
+- ATP component summaries now expose the first and last required dates for
+  partially confirmed components, alongside the existing confirmed and
+  unconfirmed spans. A partial row must have both positive confirmed and
+  unconfirmed quantities; empty status spans remain initial. Regression
+  tests cover mixed status dates and empty spans.
+- ATP summary unconfirmed date endpoints now return the reservation number and item that produced each endpoint. Same-date rows resolve by ascending reservation number and item; a reversed-order tie fixture verifies the result, and no-unconfirmed groups retain initial identities.
+- ATP summary endpoints now identify the reservation number and item for confirmed and partially confirmed date bounds as well as unconfirmed bounds. All status endpoints use ascending reservation number/item ties; regression rows arrive in reverse item order for each status.
+- Order- and material-level component readiness summaries now identify the reservation number/item at first and last local shortage dates.
+  Same-date endpoints use ascending reservation keys; regression checks cover reversed item order and initial identities for a covered material group.
+  Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Readiness summaries now identify the reservation number/item at first and last overdue and future shortage dates. Same-date ties use ascending reservation keys, with reverse-order tie regressions at both order and material scope; empty horizons retain initial identities.
+  Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Order- and material-level readiness summaries now identify the reservation number/item at first and last overall required dates. All rows, including covered and zero-demand rows, contribute; date ties use ascending reservation keys. Regression coverage confirms the zero-demand lower key wins a tied endpoint.
+- Order- and material-level readiness summaries now expose the lowest and highest reservation number/item among due-today shortages. Reservation numbers sort first, with items breaking ties; empty due-today identities stay initial. Regression coverage reverses two tied reservation items and checks empty groups. Horizon counts now split into partial and unallocated components, which reconcile to each horizon total. Material horizon shortfall quantities now split along the same line and reconcile to each horizon quantity. Both summary scopes now report partial/unallocated percentages within each horizon, with zero values for empty horizons.
+- Readiness summaries now report partial and unallocated percentages within each overdue, due-today, and future horizon. Percentages are zero for empty horizons and sum to 100% for populated horizons. Regression coverage checks mixed and empty horizons at order and material scope. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component readiness summaries now return first and last shortage date endpoints separately for partial and unallocated components, with reservation number/item identities. Same-date identities use ascending keys. Tests verify reversed ties at order and material scope and initial endpoints for a covered-only group. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Material readiness summaries now report partial and unallocated shares of each horizon's shortfall quantity. Empty horizons report zero; populated pairs reconcile to 100%. Regression coverage checks overdue, due-today, and rounded future shares, plus empty horizons. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Material readiness summaries now expose aggregate partial and unallocated shortage quantities. They partition total shortfall and reconcile with the sums of their corresponding horizon quantities. Regression coverage checks mixed and empty groups. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Material readiness now reports aggregate `partial_shortfall_pct` and `unalloc_shortfall_pct` against total shortfall. The pair is zero for empty shortage groups and reconciles to 100% otherwise; tests cover rounded mixed and empty groups.
+- Order and material readiness now report `partial_component_pct` and `unallocated_component_pct` as shares of short components. Empty shortage groups report zero and populated pairs reconcile to 100%; coverage tests verify both scopes.
+- Component readiness endpoints now expose day offsets: overdue endpoints count back from `as_of_date`, while future endpoints count forward. Empty horizons report zero; order/material tests cover mixed and empty groups. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Partial and unallocated readiness endpoints now report signed day offsets from `as_of_date`, so consumers can distinguish overdue, due-today, and future shortage endpoints without date arithmetic. Tests cover negative, positive, and empty-group results. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Material readiness now identifies the largest single component shortfall, its date and reservation key, and its share of group shortfall. Equal quantities use ascending reservation keys; covered groups return zero values and initial identity. Tests cover a mixed tie, a unique largest component, and an empty group. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- The largest component shortfall now includes `largest_short_outcome`: `P` for partial allocation and `U` for no allocation. Empty groups keep it initial; coverage tests exercise both populated outcomes. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- The largest-shortfall material summary now includes that component's requested and allocated base quantities, reconciling with its shortfall. Tests cover partial, unallocated, and covered groups. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Material readiness now reports `largest_shortfall_req_pct`, the largest shortfall as a share of that component's requested quantity. Tests cover partial, unallocated, and empty groups. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Order-level readiness now prechecks component base units before adding quantities. It reports `quantity_base_unit` and `has_single_base_unit`; mixed or missing units leave quantity totals and weighted percentages at zero while counts, outcomes, and readiness flags remain valid. Material summaries retain per-unit quantities. Added mixed-unit and missing-unit regression tests. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- Component shortage rows now expose `allocation_outcome`, partial/unallocated short-component counts and shares, and matching shortfall quantities and shares. Count and quantity pairs reconcile to their totals and sum to 100% for populated rows. Fully covered groups remain omitted. Tests cover mixed and entirely unallocated groups. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component shortage summary rows now echo a caller-selected `as_of_date` and report signed `required_date_offset` values (overdue negative, due today zero, future positive). Tests cover all three offsets. The PLAN, README, and validator now describe and guard the contract; full `npm test` passes.
+
+- Component shortage rows now list each affected reservation item with
+  its production or planned order, reservation number, and item.
+  Lot-size replenishment suggestions preserve and deduplicate those
+  identities across combined shortage dates. Regression coverage
+  checks production and planned-order summaries and a multi-date
+  suggestion. PLAN and README document the contract.
+
+- Replenishment suggestions now include `pr_release_days_until`, the positive
+  calendar-day distance to an upcoming requisition release. Overdue, due-
+  today, and unestimated results return zero; urgency regressions verify
+  all four statuses and the overdue/upcoming day counts. Updated PLAN,
+  README, and validator guards.
+
+- Replenishment suggestions now report signed `estimated_delivery_day_offset`
+  from `as_of_date`, calculated as `estimated_delivery_date - as_of_date`.
+  Tests cover past, same-day, future, and unestimated delivery dates.
+  Updated PLAN, README, and validator guards.
+
+- Replenishment suggestions now expose signed `latest_po_day_offset`
+  from `as_of_date`, identifying past PO dates, today's date, and future
+  PO dates. The urgency regression covers past, zero, future, and missing
+  PO dates. Updated PLAN, README, and validator checks.
+
+- Replenishment suggestions now include signed `required_date_offset`, calculated as
+  `required_date - as_of_date`. Regression coverage checks overdue, due-today,
+  future, and missing-estimate suggestions. PLAN, README, and validator checks
+  now cover the field.
+
+- Replenishment suggestions now expose signed `pr_release_day_offset` values
+  from `latest_pr_release_date - as_of_date`, covering overdue, due-today,
+  upcoming, and unestimated releases. Added regression checks and updated PLAN,
+  README, and validator guards.
+
+- Component shortage rows now identify the reservation component with the
+  largest individual shortfall, including its production/planned order and
+  reservation key. Equal quantities resolve by reservation number then item.
+  Replenishment suggestions carry the maximum and its identity through grouped
+  periods when all input rows provide complete metadata. Tests cover propagation
+  and incomplete groups; updated PLAN and README. Full `npm test` passes.
+
+- Component shortage rows and grouped replenishment suggestions now report
+  `largest_shortfall_pct`, the largest component shortfall as a share of total
+  shortfall. Incomplete grouped identity returns zero; regressions cover 91.67%,
+  60.00%, and incomplete metadata.
+
+- Component shortage rows and grouped replenishment suggestions now include
+  `largest_shortfall_req_pct`, the selected component shortfall as a share of its
+  own requested quantity. The selected request quantity flows through lot-size
+  grouping; older inputs without it return zero for this percentage. Regression
+  coverage checks a 64.71% summary share, a 100% planned-order group share, and
+  incomplete monthly metadata. PLAN, README, and validator guards are updated.
+
+- Component shortage summaries and replenishment suggestions now carry the
+  selected component's requested and allocated quantities and `P`/`U` outcome.
+  Suggestions preserve explicit outcomes or derive them when request metadata is
+  available; incomplete identity groups clear the selected-component detail.
+  Regressions cover partial and unallocated shortages, incomplete metadata, and
+  invalid or contradictory outcomes. Full `npm test` passes: PLAN validation,
+  abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component shortage summaries and grouped replenishment suggestions now expose
+  `largest_short_date`, the selected component's required date. Grouped results
+  preserve it when the maximum changes and clear it with incomplete largest-
+  component metadata; older inputs fall back to their row's `required_date`.
+  Tests distinguish the selected date from the period's earliest date and reject
+  invalid supplied dates. Full `npm test` passes.
+
+- Grouped replenishment suggestions now report `largest_short_date_offset`, the
+  signed day difference from `as_of_date` to the largest-shortfall component's
+  required date. Tests cover future and overdue offsets, plus zero when grouped
+  largest-component metadata is incomplete. PLAN validation, abaplint,
+  transpilation, and ABAP Unit pass.
+
+- Order and material readiness, component-shortage summaries, and grouped replenishment suggestions now report the largest positive component shortfall and its tie count when quantities share a base unit. Tied components retain the lowest reservation-number/item winner; mixed-unit order summaries leave largest-component details initial. Replenishment treats an omitted legacy count as one, clears counts when grouped metadata is incomplete, and rejects invalid counts. Regression coverage checks ties across a monthly period, readiness and suggestion outputs, deterministic selection, mixed units, incomplete metadata, and invalid counts. Full npm test passes on 2026-10-22: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component readiness summaries now expose signed offsets for the selected largest-shortfall date. `SUMMARIZE_ORDER_ATP` accepts and echoes `iv_as_of_date`, reports signed offsets for required-date and confirmation-status endpoints, and identifies the first/last required-date components with deterministic reservation-key ties. Regressions cover overdue, due-today, future, tied endpoints, mixed units, and invalid reference dates. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- `SUMMARIZE_ORDER_ATP` now partitions outstanding component quantities into overdue, due-today, and future horizons and reports each horizon's share of total unconfirmed quantity. Partially confirmed remainders are included; shares are independently rounded and zero for an empty total. Regression coverage checks 11.11%, 22.22%, and 66.67%, with zero shares for an empty group. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- `SUMMARIZE_ORDER_ATP` also reports `overdue_balance_count`, `due_today_balance_count`, and `future_balance_count`: counts of components with any unconfirmed balance in each required-date horizon. The counts include partial remainders, partition all components with an outstanding quantity, and are zero for empty horizons. Tests cover one component in each horizon, including partially confirmed remainders, and an empty group. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- ATP summaries now expose `balance_component_count` and overdue, due-today, and future balance-count percentages. The three counts partition components with outstanding quantity; the percentages use that total and round independently, so three equal buckets report 33.33% each and sum to 99.99%. Regression coverage checks the total, partition, rounding, and empty-group zeros. Full `npm test` passes: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+- ATP balance horizons now identify the most overdue and nearest upcoming components through `oldest_overdue_balance_date` and `next_future_balance_date`, with deterministic reservation-key ties and signed date offsets. Regressions cover tied overdue and future dates, tie selection, offsets, and empty-horizon defaults. Full `npm test` passes with exit code 0.
+- ATP horizon endpoint ranges are complete: summaries identify oldest and latest overdue components, nearest and latest future components, and the lowest/highest due-today reservation keys. Date endpoints include signed day offsets and deterministic tie selection; empty buckets return initial identities and zero offsets. Full `npm test` passes with exit code 0.
+- ATP summaries now expose `overdue_unconfirmed_req_pct`, `due_today_unconfirmed_req_pct`, and `future_unconfirmed_req_pct`, each horizon's outstanding amount as a share of requested quantity. They round independently and return zero for zero demand. Regression checks cover 8.33%, 16.67%, and 50.00%, their reconciliation to total unconfirmed demand, and zero-demand groups. Full `npm test` passed with exit code 0.
+- ATP overdue balances are split into 1-7, 8-30, 31-90, and over-90-day bands. Each band reports component count and outstanding quantity; counts partition overdue components and quantities reconcile to overdue unconfirmed quantity. Partially confirmed remainders are included. Boundary regressions cover 1, 7, 8, 30, 31, 90, and 91 days, plus empty bands. Full `npm test` passed with exit code 0.
+
+- ATP overdue age bands now report count shares of `overdue_balance_count` and quantity shares of `overdue_unconfirmed_base_qty`. Shares are rounded independently to two decimals and return zero for empty overdue totals. Regression checks cover the 1-7, 8-30, 31-90, and over-90-day shares, rounding to 100%, and empty-band defaults. PLAN validation passed, abaplint reported 0 issues across 252 files, and full `npm test` passed with exit code 0.
+
+- ATP overdue age bands now also report `overdue_1_7_req_pct`, `overdue_8_30_req_pct`, `overdue_31_90_req_pct`, and `overdue_over_90_req_pct`, each band's outstanding quantity as a share of requested base quantity. The four shares reconcile to `overdue_unconfirmed_req_pct` subject to rounding and return zero for zero demand. Tests cover exact band percentages, reconciliation, and empty-group defaults. Full `npm test` passed with exit code 0.
+
+- ATP overdue age-band summaries now report partial component counts and outstanding remainder quantities for each of the four bands. These are subsets of band totals; fully unconfirmed counts and quantities can be derived by subtraction. Regressions cover partial remainders in every age band and zero defaults for empty groups. Full `npm test` passed with exit code 0.
+
+- Batch expiry availability selectors now have direct regression coverage for inclusive negative/positive base-unit quantity bounds, composition with positive-only filtering, negative/zero/over-100 availability percentages, selected-category quantity bounds, UOM echo, and invalid ranges before reads. The negative-availability case exposed page summaries using a nonnegative-only accumulator; dated and undated page totals now preserve signed availability with overflow checks. Full `npm test` passed with exit code 0, and PLAN validation passed after the documentation update.
+
+- Batch-expiry regressions now check oldest and youngest manufacture-date identities through storage location, valuation type, and raw source for tied dates in base and UOM results. Availability coverage also exercises inclusive signed reservation-deduction bounds in base units, summary reconciliation, UOM selector echo, and reversed or inactive bounds before reads. Full `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Production-order finish-window regressions now cover inclusive unreceived-percent boundaries, zero-open completed and over-received orders, percentage filtering before pagination, cursor continuation, detail drift, invalid selections before reads, and over-receipt percentages on bulk and finish-window reads. Fixed two ABAP test syntax errors found by lint. Full `npm test` passed with exit code 0.
+
+- Production-order finish-window reads now support `filter_order_type` to select an exact AUFK-AUART value, including blank; nonblank order types still filter by default. The repository applies the selector before pagination, and detail reads report type drift. SQLite and service regressions cover blank/nonblank matching, invalid flags, drift, and one-row cursor continuation. Full `npm test` passed with exit code 0.
+
+- Production and planned-order open-component reads now accept an optional inclusive required-date window. Either bound may stand alone; active windows exclude undated rows, invalid flags/dates and reversed bounds are rejected before reads, and RESB applies the predicates in SQL. SQLite repository and service regressions cover inclusive endpoints, one-sided bounds, undated exclusion, single/bulk forwarding, and invalid input. PLAN, README, and validator guards document the contract. Full `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- The component required-date window now flows through production/planned single and bulk stock, ATP, and scoped previews. The shared preview pipeline validates the selection before reads and filters source RESB dates before evaluation; allocation-policy date overrides apply after the source-date filter. Regressions cover planned ATP/stock and production ATP/stock preview paths, plus invalid preview selection before reads. PLAN, README, and validator guards cover the contract. Full `npm test` exited 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component reservation selectors now support overdue (`O`), due-today (`T`), future (`F`), and undated (`U`) buckets relative to a validated `as_of_date`. Buckets intersect with inclusive date windows, and service validation rejects invalid selectors before repository reads. Production and planned reads share the SQL behavior; tests cover all buckets, range composition, and invalid input. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component required-date buckets now include `N` for future dates after `as_of_date` through a configurable positive `required_date_horizon_days`. The bound composes with inclusive date ranges and rejects date overflow before repository access. Added Gregorian-safe day arithmetic and tests across month, leap-day, and supported-date boundaries, plus production and planned repository/service regressions. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Required-date bucket `R` now selects recent overdue component dates from `as_of_date - required_date_horizon_days` through yesterday. It composes with inclusive date bounds for production and planned orders; nonpositive horizons and lower-bound underflow are rejected before reads. Regression coverage includes repository SQL, single-order service reads, and date-range composition. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.

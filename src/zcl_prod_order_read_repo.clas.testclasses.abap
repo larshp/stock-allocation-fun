@@ -509,19 +509,22 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
     DATA lt_jest TYPE STANDARD TABLE OF jest WITH EMPTY KEY.
 
     lt_aufk = VALUE #(
-      ( aufnr = '1004' autyp = '10' )
-      ( aufnr = '1005' autyp = '10' objnr = 'OBJ1005' )
+      ( aufnr = '1004' autyp = '10' auart = 'PP01' )
+      ( aufnr = '1005' autyp = '10' auart = 'PP02'
+        objnr = 'OBJ1005' )
       ( aufnr = '1006' autyp = '10' )
       ( aufnr = '1007' autyp = '10' )
       ( aufnr = '1008' autyp = '10' )
-      ( aufnr = '1009' autyp = '10' objnr = 'OBJ1009' ) ).
+      ( aufnr = '1009' autyp = '10' objnr = 'OBJ1009' )
+      ( aufnr = '1010' autyp = '10' ) ).
     lt_afko = VALUE #(
       ( aufnr = '1004' gltrp = '20260120' )
       ( aufnr = '1005' gltrp = '20260120' )
       ( aufnr = '1006' gltrp = '20260120' )
       ( aufnr = '1007' gltrp = '20260120' )
       ( aufnr = '1008' gltrp = '20260120' )
-      ( aufnr = '1009' gltrp = '20260121' ) ).
+      ( aufnr = '1009' gltrp = '20260121' )
+      ( aufnr = '1010' gltrp = '20260201' ) ).
     lt_afpo = VALUE #(
       ( aufnr = '1004' posnr = '0001' matnr = 'MAT-1'
         werks = '1000' psmng = '10.000' wemng = '0.000' )
@@ -534,7 +537,9 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
       ( aufnr = '1008' posnr = '0001' matnr = 'MAT-1'
         werks = '1000' psmng = '5.000' wemng = '-1.000' )
       ( aufnr = '1009' posnr = '0001' matnr = 'MAT-1'
-        werks = '1000' psmng = '4.000' wemng = '4.000' ) ).
+        werks = '1000' psmng = '4.000' wemng = '4.000' )
+      ( aufnr = '1010' posnr = '0001' matnr = 'MAT-1'
+        werks = '1000' psmng = '12.000' wemng = '4.000' ) ).
     lt_jest = VALUE #(
       ( objnr = 'OBJ1005' stat = 'I0002' chgnr = '001' )
       ( objnr = 'OBJ1009' stat = 'I0002' chgnr = '001' ) ).
@@ -753,6 +758,131 @@ CLASS ltcl_prod_order_read_repo IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '1004'
       act = lt_zero_received_pct_keys[ 1 ]-production_order ).
+
+    CLEAR ls_selection-filter_received_pct_to.
+    CLEAR ls_selection-received_pct_to.
+    CLEAR ls_selection-filter_received_pct_from.
+    CLEAR ls_selection-received_pct_from.
+    ls_selection-finish_date_to = '20260228'.
+    ls_selection-filter_unreceived_pct_from = abap_true.
+    ls_selection-unreceived_pct_from = '60.00'.
+    ls_selection-filter_unreceived_pct_to = abap_true.
+    ls_selection-unreceived_pct_to = '70.00'.
+    DATA(lt_open_pct_keys) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_open_pct_keys ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1001'
+      act = lt_open_pct_keys[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1010'
+      act = lt_open_pct_keys[ 2 ]-production_order ).
+
+    ls_selection-after_finish_date = '20260120'.
+    ls_selection-after_order = '1001'.
+    DATA(lt_open_pct_next_page) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_open_pct_next_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1010'
+      act = lt_open_pct_next_page[ 1 ]-production_order ).
+
+    CLEAR ls_selection-after_finish_date.
+    CLEAR ls_selection-after_order.
+    ls_selection-filter_unreceived_pct_to = abap_false.
+    CLEAR ls_selection-unreceived_pct_to.
+    ls_selection-unreceived_pct_from = '100.00'.
+    DATA(lt_open_pct_from_only) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_open_pct_from_only ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1004'
+      act = lt_open_pct_from_only[ 1 ]-production_order ).
+
+    ls_selection-filter_unreceived_pct_from = abap_false.
+    CLEAR ls_selection-unreceived_pct_from.
+    ls_selection-filter_unreceived_pct_to = abap_true.
+    ls_selection-unreceived_pct_to = 0.
+    DATA(lt_zero_open_pct_keys) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_zero_open_pct_keys ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1005'
+      act = lt_zero_open_pct_keys[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1006'
+      act = lt_zero_open_pct_keys[ 2 ]-production_order ).
+
+    ls_selection-after_finish_date = '20260120'.
+    ls_selection-after_order = '1006'.
+    DATA(lt_zero_open_pct_next_page) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_zero_open_pct_next_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1009'
+      act = lt_zero_open_pct_next_page[ 1 ]-production_order ).
+
+    CLEAR ls_selection-after_finish_date.
+    CLEAR ls_selection-after_order.
+    DATA(ls_order_type_selection) = VALUE
+      zif_prod_order_read_repo=>ty_order_selection(
+        material          = 'MAT-1'
+        plant             = '1000'
+        finish_date_from  = '20260101'
+        finish_date_to    = '20260131'
+        filter_order_type = abap_true
+        order_type        = 'PP01'
+        maximum_results   = 1 ).
+    DATA(lt_order_type_keys) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_order_type_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_order_type_keys ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1004'
+      act = lt_order_type_keys[ 1 ]-production_order ).
+
+    CLEAR ls_order_type_selection-order_type.
+    DATA(lt_blank_order_type_keys) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_order_type_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_blank_order_type_keys ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1001'
+      act = lt_blank_order_type_keys[ 1 ]-production_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1006'
+      act = lt_blank_order_type_keys[ 2 ]-production_order ).
+
+    ls_order_type_selection-after_finish_date = '20260120'.
+    ls_order_type_selection-after_order = '1001'.
+    DATA(lt_blank_order_type_next_page) =
+      lo_cut->zif_prod_order_read_repo~read_orders_by_finish_window(
+        is_selection = ls_order_type_selection ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_blank_order_type_next_page ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1006'
+      act = lt_blank_order_type_next_page[ 1 ]-production_order ).
   ENDMETHOD.
 
   METHOD reads_confirmations.

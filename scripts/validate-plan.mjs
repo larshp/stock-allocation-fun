@@ -14573,6 +14573,22 @@ const componentOrderReadinessType = productionComponentService.slice(
   productionComponentService.indexOf("begin of ty_component_order_readiness"),
   productionComponentService.indexOf("end of ty_component_order_readiness"),
 );
+const componentMaterialReadinessType = productionComponentService.slice(
+  productionComponentService.indexOf("begin of ty_comp_material_readiness"),
+  productionComponentService.indexOf("end of ty_comp_material_readiness"),
+);
+const componentShortageType = productionComponentService.slice(
+  productionComponentService.indexOf("begin of ty_component_shortage"),
+  productionComponentService.indexOf("end of ty_component_shortage"),
+);
+const componentReplenishmentType = productionComponentService.slice(
+  productionComponentService.indexOf("begin of ty_comp_replenishment"),
+  productionComponentService.indexOf("end of ty_comp_replenishment"),
+);
+const planningShortageType = productionComponentService.slice(
+  productionComponentService.indexOf("begin of ty_planning_shortage"),
+  productionComponentService.indexOf("end of ty_planning_shortage"),
+);
 const componentLocationPriorityType = productionComponentService.slice(
   productionComponentService.indexOf("begin of ty_comp_location_priority"),
   productionComponentService.indexOf("end of ty_comp_location_priority"),
@@ -14652,6 +14668,9 @@ if (!componentAllocationPolicyType.includes(
     || !componentLocalEstimateType.includes(
       "allocation_coverage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
     )
+    || !componentLocalEstimateType.includes(
+      "shortage_pct type zcl_stock_service=>ty_allocation_coverage_pct",
+    )
     || !componentLocalEstimateType.includes("allocation_sequence type i")
     || !componentLocalEstimateType.includes(
       "allocation_sequence_scope type ty_comp_seq_scope",
@@ -14677,6 +14696,10 @@ if (!componentAllocationPolicyType.includes(
     || !productionComponentPreview.includes(
       "ls_component_group_estimate-allocation_coverage_pct = cond #(",
     )
+    || !productionComponentPreview.includes(
+      "ls_component_group_estimate-shortage_pct = cond #(",
+    )
+    || !productionComponentPreview.includes("shortage_pct = cond #(")
     || !productionComponentPreview.includes(
       "component_local_estimate = value #( allocation_sequence = lv_comp_allocation_seq allocation_sequence_scope = lv_component_sequence_scope requested_quantity = lv_component_base_quantity available_quantity = lv_component_available allocated_quantity = lv_component_allocated shortfall_quantity = lv_component_shortfall minimum_coverage_pct = ls_component_allocation_policy-minimum_coverage_pct minimum_coverage_rejected = lv_component_floor_rejected allocation_outcome = cond #(",
     )
@@ -14718,6 +14741,18 @@ if (!componentAllocationPolicyType.includes(
     || !productionComponentTests.includes(
       "exp = conv mard-labst( '4.000' ) act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity",
     )
+    || !productionComponentTests.includes(
+      "lt_checks[ 1 ]-component_local_estimate-shortage_pct",
+    )
+    || !productionComponentTests.includes(
+      "lt_checks[ 1 ]-local_estimate-shortage_pct",
+    )
+    || !productionComponentTests.includes(
+      "lt_zero_demand_checks[ 1 ]-component_local_estimate-shortage_pct",
+    )
+    || !productionComponentTests.includes(
+      "lt_zero_demand_checks[ 1 ]-local_estimate-shortage_pct",
+    )
     || !productionComponentDocs.includes(
       "the per-component `component_local_estimate` also reports `minimum_coverage_rejected`",
     )
@@ -14726,6 +14761,9 @@ if (!componentAllocationPolicyType.includes(
     )
     || !productionComponentPlan.includes(
       "production component coverage floor rejection status",
+    )
+    || !productionComponentPlan.includes(
+      "shortfall/requested base-unit quantities",
     )) {
   errors.push(
     "production component coverage floors must validate policy rows, gate scoped balance consumption, report floor rejections, and echo the threshold",
@@ -14761,7 +14799,7 @@ if (!batchReceiptIdentityDocs.includes(
   "each allocation policy may also set `minimum_coverage_pct` from 0 through 100",
 )
     || !batchReceiptIdentityDocs.includes(
-      "per-component local estimates also report `allocation_outcome` (`f`, `p`, or `u`) and `allocation_coverage_pct` from base-unit quantities, rounded to two decimals and zero for zero demand",
+      "per-component local estimates also report `allocation_outcome` (`f`, `p`, or `u`), `allocation_coverage_pct`, and `shortage_pct` from base-unit quantities, rounded to two decimals and zero for zero demand",
     )) {
   errors.push(
     "production component allocation policies must document their coverage floor",
@@ -15302,6 +15340,12 @@ const batchReceiptIdentityChecks = [
         "shortfall_base_quantity type mard-labst",
       )
       && componentOrderReadinessType.includes(
+        "quantity_base_unit type mara-meins",
+      )
+      && componentOrderReadinessType.includes(
+        "has_single_base_unit type abap_bool",
+      )
+      && componentOrderReadinessType.includes(
         "zero_demand_component_count type i",
       )
       && productionComponentCheckType.includes(
@@ -15836,7 +15880,7 @@ const batchReceiptIdentityChecks = [
         "set `override_open_quantity` to use the policy's `open_quantity` instead of the open resb quantity for local allocation and atp quantities",
       )
       && batchReceiptIdentityDocs.includes(
-        "it reports the open, covered, short, and zero-demand component counts, total requested, allocated, and shortfall base quantities",
+        "it reports the open, covered, partially allocated, unallocated, short, and zero-demand component counts, total requested, allocated, and shortfall base quantities",
       )
       && batchReceiptIdentityDocs.includes(
         "quantity totals use checked sums and raise `zcx_invalid_stock_request` if an order total exceeds `mard-labst`",
@@ -18582,6 +18626,10 @@ const expiryDayRangeFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_expiry_day_range",
 );
+const expiryAvailabilityRangeTest = normalizedMethod(
+  stockServiceTests,
+  "filters_exp_avail_ranges",
+);
 const manufacturingAgeRangeFilterTest = normalizedMethod(
   stockServiceTests,
   "filters_mfg_age_range",
@@ -18597,6 +18645,10 @@ const expiryRiskBucketsTest = normalizedMethod(
 const batchExpiryPageTotalsTest = normalizedMethod(
   stockServiceTests,
   "report_exp_page_totals",
+);
+const pageExpiryEndpointIdentityTest = normalizedMethod(
+  stockServiceTests,
+  "reports_page_expiry_ids",
 );
 const batchExpiryPageQuantitySharesTest = normalizedMethod(
   stockServiceTests,
@@ -19213,10 +19265,10 @@ if (!batchStockStatusMethod.includes("open_reservation_row_count = ls_repository
     || !stockServiceTests.includes("exp = value zcl_stock_service=>ty_batch_exp_src_age_uoms(")
     || !stockServiceTests.includes("exp = value zcl_stock_service=>ty_batch_exp_src_windows(")
     || !stockServiceTests.includes("exp = value zcl_stock_service=>ty_batch_exp_src_window_uoms(")
-    || !stockServiceTests.includes("act = lt_results[ 1 ]-upcoming_src_bands")
+    || !stockServiceTests.includes("act = lt_upcoming_bands_without_ids")
     || !stockServiceTests.includes("method reports_after_window_bands.")
     || !stockServiceTests.includes("exp = value zcl_stock_service=>ty_batch_exp_src_windows(")
-    || !stockServiceTests.includes("act = lt_results[ 1 ]-after_window_src_bands")
+    || !stockServiceTests.includes("act = lt_after_win_bands_no_ids")
     || !stockServiceTests.includes("first_expiration_date = '20261019'")
     || !stockServiceTests.includes("last_expiration_date = '20261025'")
     || !stockServiceTests.includes("exp = value zcl_stock_service=>ty_batch_exp_src_window_uoms(")
@@ -21040,6 +21092,344 @@ if (!valuationStockPlan.includes("every row reports its first and last expiratio
 }
 if (!valuationStockPlan.includes("the source-age, upcoming lead-time, and after-window source rows also expose `expiration_date_span_days`")) {
   errors.push("PLAN must document elapsed source-age and source-window expiry spans");
+}
+const expirySourceWindowEndpointOffsetsAreGuarded =
+  (valuationStockService.match(/days_to_first_expiration\s+type i/g) ?? []).length === 10
+  && (valuationStockService.match(/days_to_last_expiration\s+type i/g) ?? []).length === 10
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_window>-days_to_first_expiration = <ls_expiry_source_window>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_window>-days_to_last_expiration = <ls_expiry_source_window>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_after_window_source_band>-days_to_first_expiration = <ls_after_window_source_band>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_after_window_source_band>-days_to_last_expiration = <ls_after_window_source_band>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_exp_window>-days_to_first_expiration = <ls_page_exp_window>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_exp_window>-days_to_last_expiration = <ls_page_exp_window>-last_expiration_date - ls_result-as_of_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_source_window-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_source_window-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_after_window_band-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_after_window_band-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_upcoming_band-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_upcoming_band-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_after_window_band-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_after_window_band-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = ls_base_upcoming_window-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = ls_base_upcoming_window-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = ls_base_after_window-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = ls_base_after_window-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = ls_unit_upcoming_window-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = ls_unit_upcoming_window-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = ls_unit_after_window-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = ls_unit_after_window-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = lt_base_results[ 1 ]-page_upcoming_src_bands[ 1 ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = lt_base_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_base_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = lt_unit_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_unit_results[ 2 ]-page_after_window_src_bands[ 1 ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 0 act = lt_base_results[ 1 ]-upcoming_src_bands[ source_group = 'o' through_band = '4' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 0 act = lt_unit_results[ 1 ]-upcoming_src_bands[ source_group = 'o' through_band = '4' ]-days_to_last_expiration",
+  )
+  && valuationStockPlan.includes(
+    "`days_to_last_expiration` report each endpoint's distance as `expiration_date - as_of_date`",
+  )
+  && valuationStockPlan.includes(
+    "endpoint day distances calculated as `expiration_date - as_of_date`",
+  )
+  && valuationStockDocs.includes(
+    "day distance as `expiration_date - as_of_date`; empty combinations keep zero offsets",
+  )
+  && valuationStockAnomalies.includes(
+    "days_to_first_expiration` and `days_to_last_expiration` report each endpoint as `expiration_date - as_of_date`",
+  );
+if (!expirySourceWindowEndpointOffsetsAreGuarded) {
+  errors.push(
+    "full and page expiry source/window rows must calculate, echo, document, and test endpoint day offsets",
+  );
+}
+const expirySourceStatusAgeEndpointOffsetsAreGuarded =
+  batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-days_to_first_expiration = <ls_expiry_source_status>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-days_to_last_expiration = <ls_expiry_source_status>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_age>-days_to_first_expiration = <ls_expiry_source_age>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_age>-days_to_last_expiration = <ls_expiry_source_age>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-days_to_first_expiration = <ls_page_expiry_source_status>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-days_to_last_expiration = <ls_page_expiry_source_status>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_age>-days_to_first_expiration = <ls_page_expiry_source_age>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_age>-days_to_last_expiration = <ls_page_expiry_source_age>-last_expiration_date - ls_result-as_of_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_exp_src_status-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_exp_src_status-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_exp_src_age-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_exp_src_age-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_source_status-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_source_status-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_source_age-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_source_age-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = ls_base_expired_status-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -1 act = ls_base_expired_status-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = ls_base_after_status-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = ls_base_after_status-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = ls_base_upcoming_status-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = ls_base_upcoming_status-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = ls_base_expiry_age-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -1 act = ls_base_expiry_age-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 1 ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_base_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -1 act = lt_base_results[ 1 ]-page_expiry_src_age_bands[ 1 ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = lt_base_results[ 1 ]-page_expiry_src_statuses[ 2 ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 0 act = lt_base_results[ 1 ]-expiry_src_age_bands[ source_group = 'o' age_band = '4' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 0 act = lt_base_results[ 1 ]-page_expiry_src_age_bands[ source_group = 'o' age_band = '4' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = ls_unit_expired_status-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = ls_unit_after_status-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = ls_unit_expiry_age-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 1 act = ls_unit_upcoming_status-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_unit_results[ 2 ]-page_expiry_src_statuses[ 3 ]-days_to_last_expiration",
+  )
+  && valuationStockPlan.includes(
+    "`days_to_first_expiration` and `days_to_last_expiration` fields calculate each endpoint as `expiration_date - as_of_date`",
+  )
+  && valuationStockDocs.includes(
+    "`days_to_first_expiration` and `days_to_last_expiration` fields calculate each endpoint as `expiration_date - as_of_date`",
+  )
+  && valuationStockAnomalies.includes(
+    "`days_to_first_expiration` and `days_to_last_expiration`, calculated as `expiration_date - as_of_date`",
+  );
+if (!expirySourceStatusAgeEndpointOffsetsAreGuarded) {
+  errors.push(
+    "full and page expiry source/status and source/age matrices must calculate and echo signed endpoint day offsets",
+  );
+}
+const expiryStatusSourceEndpointOffsetsAreGuarded =
+  batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_status>-days_to_first_expiration = <ls_full_expiry_status>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_status>-days_to_last_expiration = <ls_full_expiry_status>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_source>-days_to_first_expiration = <ls_full_expiry_source>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_full_expiry_source>-days_to_last_expiration = <ls_full_expiry_source>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_status>-days_to_first_expiration = <ls_page_expiry_status>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_status>-days_to_last_expiration = <ls_page_expiry_status>-last_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source>-days_to_first_expiration = <ls_page_expiry_source>-first_expiration_date - ls_result-as_of_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source>-days_to_last_expiration = <ls_page_expiry_source>-last_expiration_date - ls_result-as_of_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_expiry_source-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_expiry_source-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_expiry_source-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_expiry_source-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_expiry_status-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_expiry_status-days_to_last_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_first_expiration = ls_base_page_expiry_status-days_to_first_expiration",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_to_last_expiration = ls_base_page_expiry_status-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_base_results[ 1 ]-expiry_statuses[ expiry_status = 'e' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = lt_base_results[ 1 ]-expiry_statuses[ expiry_status = 'u' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_base_results[ 1 ]-expiry_statuses[ expiry_status = 'a' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_base_results[ 1 ]-expiry_sources[ source_group = 'p' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_base_results[ 1 ]-expiry_sources[ source_group = 'p' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 0 act = lt_base_results[ 1 ]-expiry_sources[ source_group = 'g' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_base_results[ 1 ]-page_expiry_statuses[ expiry_status = 'e' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 7 act = lt_base_results[ 1 ]-page_expiry_sources[ source_group = 'p' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = lt_base_results[ 2 ]-page_expiry_sources[ source_group = 'p' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_base_results[ 2 ]-page_expiry_sources[ source_group = 'p' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_unit_results[ 1 ]-expiry_statuses[ expiry_status = 'e' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_unit_results[ 1 ]-expiry_sources[ source_group = 'p' ]-days_to_last_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = -7 act = lt_unit_results[ 1 ]-page_expiry_sources[ source_group = 'p' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 8 act = lt_unit_results[ 2 ]-page_expiry_sources[ source_group = 'p' ]-days_to_first_expiration",
+  )
+  && expirySourceSpansTest.includes(
+    "exp = 14 act = lt_unit_results[ 2 ]-page_expiry_sources[ source_group = 'p' ]-days_to_last_expiration",
+  )
+  && valuationStockPlan.includes(
+    "direct full and page status and source rows also report signed `days_to_first_expiration` and `days_to_last_expiration`",
+  )
+  && valuationStockDocs.includes(
+    "direct expiry status and source summaries also report signed endpoint day offsets",
+  )
+  && valuationStockAnomalies.includes(
+    "direct full and page expiry status/source rows now expose signed endpoint day offsets",
+  );
+if (!expiryStatusSourceEndpointOffsetsAreGuarded) {
+  errors.push(
+    "direct full and page expiry status/source summaries must calculate, echo, document, and test signed endpoint day offsets",
+  );
 }
 if (!expiredQiScrapUomMethod.includes("convert_material_unit(")
     || !expiredQiScrapUomMethod.includes("base_quantity")
@@ -25410,6 +25800,10 @@ const productionOrderReadInterface = readFileSync(
   join(projectRoot, "src/zif_prod_order_read_repo.intf.abap"),
   "utf8",
 ).replace(/\s+/g, " ").toLowerCase();
+const productionOrderSelectionType = productionOrderReadInterface.slice(
+  productionOrderReadInterface.indexOf("begin of ty_order_selection"),
+  productionOrderReadInterface.indexOf("end of ty_order_selection"),
+);
 const productionOrderReadRepo = readFileSync(
   join(projectRoot, "src/zcl_prod_order_read_repo.clas.abap"),
   "utf8",
@@ -25562,7 +25956,19 @@ const productionOrderFinishReceivedQuantityFilterTest = normalizedMethod(
   productionOrderReadServiceTests,
   "filters_finish_rcvd_qty",
 );
+const productionOrderFinishUnreceivedPctFilterTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_finish_unreceived_pct",
+);
+const productionOrderFinishOrderTypeTest = normalizedMethod(
+  productionOrderReadServiceTests,
+  "filters_finish_order_type",
+);
 const productionOrderFinishRepoProgressFilterTest = normalizedMethod(
+  productionOrderReadRepoTests,
+  "filters_finish_receipt_state",
+);
+const productionOrderFinishRepoOrderTypeTest = normalizedMethod(
   productionOrderReadRepoTests,
   "filters_finish_receipt_state",
 );
@@ -25610,6 +26016,71 @@ const productionOrderFinishAnomalies = readFileSync(
   join(projectRoot, "ANOMALIES.md"),
   "utf8",
 ).replace(/\s+/g, " ").toLowerCase();
+const productionOrderFinishOrderTypeSqlFilters = [
+  ...productionOrderFinishRepoSearch.matchAll(
+    /@lv_filter_order_type = @lv_false_indicator/g,
+  ),
+];
+if (!productionOrderSelectionType.includes(
+      "order_type type aufk-auart, filter_order_type type abap_bool",
+    )
+    || !productionOrderFinishRepoSearch.includes(
+      "lv_filter_order_type = is_selection-filter_order_type",
+    )
+    || productionOrderFinishOrderTypeSqlFilters.length !== 4
+    || !productionOrderFinishRepoSearch.includes(
+      "or aufk_row~auart = @lv_order_type",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_type <> abap_true",
+    )
+    || !productionOrderFinishValidation.includes(
+      "is_selection-filter_order_type <> abap_false",
+    )
+    || !productionOrderFinishServiceSearch.includes(
+      "is_selection-filter_order_type = abap_false and is_selection-order_type is initial",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-filter_order_type = abap_true or is_selection-order_type is not initial",
+    )
+    || !productionOrderFinishOrderTypeTest.includes(
+      "filter_order_type = abap_true",
+    )
+    || !productionOrderFinishOrderTypeTest.includes("order_type = 'pp01'")
+    || !productionOrderFinishOrderTypeTest.includes(
+      "finish_filter_lost",
+    )
+    || !productionOrderFinishOrderTypeTest.includes("filter_order_type = 'y'")
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "filter_order_type = abap_true",
+    )
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "order_type = 'pp01'")
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "lt_blank_order_type_keys",
+    )
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "maximum_results = 1",
+    )
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "after_order = '1001'",
+    )
+    || !productionOrderFinishRepoOrderTypeTest.includes(
+      "lt_blank_order_type_next_page",
+    )
+    || !productionOrderFinishPlan.includes(
+      "set `filter_order_type` to `abap_true` to match `order_type` exactly, including blank",
+    )
+    || !productionOrderFinishDocs.includes(
+      "set `filter_order_type` to `abap_true` to match the exact value including blank",
+    )
+    || !productionOrderFinishAnomalies.includes(
+      "production-order finish-window reads can now select an exact blank aufk-auart order type",
+    )) {
+  errors.push(
+    "production-order finish-window order-type filtering must support exact blank matching before pagination and detail-read drift checks",
+  );
+}
 if (!productionOrderReadInterface.includes("ty_order_selection")
     || !productionOrderReadInterface.includes(
       "read_orders_by_finish_window",
@@ -26947,7 +27418,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "is_selection-filter_scheduled_finish_time = abap_false or ( zcl_date_validation=>is_valid_time( iv_time = ls_finish_item-order_item-scheduled_finish_time ) = abap_true and ls_finish_item-order_item-scheduled_finish_time >= is_selection-scheduled_finish_time_from and ls_finish_item-order_item-scheduled_finish_time <= is_selection-scheduled_finish_time_to )",
     )
     || !productionOrderFinishServiceSearch.includes(
-      "is_selection-order_type is initial or ls_finish_item-order_item-order_type = is_selection-order_type",
+      "( ( is_selection-filter_order_type = abap_false and is_selection-order_type is initial ) or ls_finish_item-order_item-order_type = is_selection-order_type )",
     )
     || !productionOrderFinishServiceSearch.includes(
       "( is_selection-filter_order_description = abap_false and is_selection-order_description is initial ) or ls_finish_item-order_item-order_description = is_selection-order_description",
@@ -27166,7 +27637,7 @@ if (!productionOrderReadInterface.includes("ty_order_selection")
       "is_selection-filter_unreceived_qty_to = abap_true and ( ls_order_item-order_quantity <= ls_order_item-received_quantity or ls_order_item-order_quantity - ls_order_item-received_quantity > is_selection-unreceived_qty_to )",
     )
     || !productionOrderFinishFake.includes(
-      "is_selection-order_type is not initial and ls_order_item-order_type <> is_selection-order_type",
+      "( ( is_selection-filter_order_type = abap_true or is_selection-order_type is not initial ) and ls_order_item-order_type <> is_selection-order_type )",
     )
     || !productionOrderFinishFake.includes(
       "( is_selection-filter_order_description = abap_true or is_selection-order_description is not initial ) and ls_order_item-order_description <> is_selection-order_description",
@@ -28849,6 +29320,12 @@ if (!productionOrderFinishPlan.includes(
     || !productionOrderBulkReadService.includes(
       "<ls_item_result>-over_receipt_pct_of_order_qty = <ls_item_result>-over_receipt_qty_order_unit * 100 / lv_order_quantity",
     )
+    || !productionOrderBulkReadTest.includes(
+      "over_receipt_pct_of_order_qty",
+    )
+    || !productionOrderFinishProgressFilterTest.includes(
+      "over_receipt_pct_of_order_qty",
+    )
     || !productionOrderBulkReadService.includes(
       "<ls_item_result>-is_receipt_progress_valid = abap_true and ls_order_item-received_quantity > ls_order_item-order_quantity",
     )
@@ -30006,6 +30483,15 @@ if (!productionOrderReadInterface.includes(
     || !productionOrderFinishFake.includes(
       "ls_order_item-received_quantity * 100 > is_selection-received_pct_to * ls_order_item-order_quantity",
     )
+    || !productionOrderFinishFake.includes(
+      "is_selection-unreceived_pct_from > 0",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-unreceived_pct_from * ls_order_item-order_quantity",
+    )
+    || !productionOrderFinishFake.includes(
+      "is_selection-unreceived_pct_to * ls_order_item-order_quantity",
+    )
     || !productionOrderReadServiceTests.includes(
       "method filters_finish_rcvd_qty.",
     )
@@ -30050,6 +30536,42 @@ if (!productionOrderReadInterface.includes(
     )
     || !productionOrderFinishRepoProgressFilterTest.includes(
       "lt_received_pct_next_page[ 2 ]-production_order",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "unreceived_pct_from = '60.00'",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "unreceived_pct_to = '70.00'",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "lt_open_pct_next_page[ 1 ]-production_order",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "lt_zero_open_pct_keys[ 2 ]-production_order",
+    )
+    || !productionOrderFinishRepoProgressFilterTest.includes(
+      "lt_zero_open_pct_next_page[ 1 ]-production_order",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "unreceived_pct_from = '50.00'",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "unreceived_pct_to = '100.00'",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "ls_zero_open-orders[ 2 ]-production_order",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "ls_upper_only-orders[ 2 ]-production_order",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "ls_drift-orders[ 1 ]-finish_filter_lost",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "unreceived_pct_from = '100.01'",
+    )
+    || !productionOrderFinishUnreceivedPctFilterTest.includes(
+      "filter_unreceived_pct_to = 'y'",
     )
     || !productionOrderFinishPlan.includes(
       "inclusive lower and upper bounds for afpo-wemng in the order unit, before pagination",
@@ -36456,8 +36978,16 @@ const availableQuantityBoundsAreGuarded =
   && (stockServiceSource.match(/available_quantity_to\s+type mchb-clabs/g) ?? []).length >= 4
   && valuationStockDocs.includes("optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`")
   && valuationStockDocs.includes("thresholds use the material base stock unit for both base and uom requests")
+  && valuationStockDocs.includes("signed availability is retained when aggregating returned dated and undated pages")
   && expiredAgePlan.includes("optional inclusive `available_quantity_from` and `available_quantity_to` bounds, enabled by `filter_available_from` and `filter_available_to`")
-  && expiredAgePlan.includes("thresholds use the material base stock unit for both base and uom requests");
+  && expiredAgePlan.includes("thresholds use the material base stock unit for both base and uom requests")
+  && expiredAgePlan.includes("signed availability is retained when aggregating returned dated and undated pages")
+  && expiryAvailabilityRangeTest.includes("available_quantity_from = -2")
+  && expiryAvailabilityRangeTest.includes("available_quantity_to = 4")
+  && expiryAvailabilityRangeTest.includes("positive_available_only = abap_true")
+  && expiryAvailabilityRangeTest.includes("lt_results[ 6 ]-page_available_qty")
+  && batchExpiryExposureMethod.includes("ls_result-page_available_qty = sum_signed_stock_quantities(")
+  && stockServiceSource.includes("method sum_signed_stock_quantities.");
 if (!availableQuantityBoundsAreGuarded) {
   errors.push(
     "batch expiry reservation-net availability bounds must validate, filter before summaries, forward and echo through UOM, and document units and inclusive limits",
@@ -36498,7 +37028,11 @@ const availablePercentageBoundsAreGuarded =
   && valuationStockDocs.includes("optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`")
   && valuationStockDocs.includes("the value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative")
   && expiredAgePlan.includes("optional inclusive `available_pct_from` and `available_pct_to` bounds, enabled by `filter_available_pct_from` and `filter_available_pct_to`")
-  && expiredAgePlan.includes("the value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative");
+  && expiredAgePlan.includes("the value is zero when unrestricted quantity is zero or negative; it can exceed 100 or be negative")
+  && expiryAvailabilityRangeTest.includes("available_pct_from = -20")
+  && expiryAvailabilityRangeTest.includes("available_pct_to = 0")
+  && expiryAvailabilityRangeTest.includes("available_pct_from = 120")
+  && expiryAvailabilityRangeTest.includes("available_pct_to = 120");
 if (!availablePercentageBoundsAreGuarded) {
   errors.push(
     "batch expiry availability-ratio bounds must validate, use the reported two-decimal ratio, forward and echo through UOM, and document edge cases",
@@ -36538,7 +37072,15 @@ const reservationDeductionBoundsAreGuarded =
   && valuationStockDocs.includes("optional inclusive `resv_deduction_from` and `resv_deduction_to` bounds, enabled by `filter_resv_deduction_from` and `filter_resv_deduction_to`")
   && valuationStockDocs.includes("filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`")
   && expiredAgePlan.includes("optional inclusive `resv_deduction_from` and `resv_deduction_to` bounds, enabled by `filter_resv_deduction_from` and `filter_resv_deduction_to`")
-  && expiredAgePlan.includes("filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`");
+  && expiredAgePlan.includes("filter the signed difference `reservation_deduction_qty` = `unrestricted_quantity` − `available_quantity`")
+  && expiryAvailabilityRangeTest.includes("request_id = 'av-resv-signed'")
+  && expiryAvailabilityRangeTest.includes("filter_resv_deduction_from = abap_true resv_deduction_from = -4")
+  && expiryAvailabilityRangeTest.includes("filter_resv_deduction_to = abap_true resv_deduction_to = 2")
+  && expiryAvailabilityRangeTest.includes("lt_results[ 7 ]-page_reservation_deduction_qty")
+  && expiryAvailabilityRangeTest.includes("request_id = 'av-uom-resv'")
+  && expiryAvailabilityRangeTest.includes("lt_uom_results[ 2 ]-resv_deduction_to")
+  && expiryAvailabilityRangeTest.includes("lv_reversed_resv_rejected")
+  && expiryAvailabilityRangeTest.includes("lv_inactive_resv_rejected");
 if (!reservationDeductionBoundsAreGuarded) {
   errors.push(
     "batch expiry reservation-deduction bounds must validate, use the signed stock difference, forward and echo through UOM, and be documented",
@@ -36582,7 +37124,11 @@ const stockCategoryQuantityBoundsAreGuarded =
   && valuationStockDocs.includes("optional inclusive `category_quantity_from` and `category_quantity_to` bounds, enabled by `filter_category_quantity_from` and `filter_category_quantity_to`")
   && valuationStockDocs.includes("they use the category named by `positive_stock_category`, in material base units for both base and uom requests")
   && expiredAgePlan.includes("optional inclusive `category_quantity_from` and `category_quantity_to` bounds, enabled by `filter_category_quantity_from` and `filter_category_quantity_to`")
-  && expiredAgePlan.includes("they use the category named by `positive_stock_category`, in material base units for both base and uom requests");
+  && expiredAgePlan.includes("they use the category named by `positive_stock_category`, in material base units for both base and uom requests")
+  && expiryAvailabilityRangeTest.includes("filter_category_quantity_from = abap_true")
+  && expiryAvailabilityRangeTest.includes("category_quantity_from = 2")
+  && expiryAvailabilityRangeTest.includes("category_quantity_to = 3")
+  && expiryAvailabilityRangeTest.includes("positive_stock_category = zcl_stock_service=>c_exp_category_quality");
 if (!stockCategoryQuantityBoundsAreGuarded) {
   errors.push(
     "batch expiry selected-category quantity bounds must validate, filter before summaries, forward and echo through UOM, and document base-unit semantics",
@@ -36726,7 +37272,7 @@ if (!manufacturingAgeRangeFilterIsGuarded) {
   );
 }
 
-const oldestManufactureSummaryIsGuarded =
+const manufactureDateExtremesSummaryIsGuarded =
   manufacturingAgeRangeFilterTest.includes(
     "lt_range[ 1 ]-oldest_manufacture_batch",
   )
@@ -36747,10 +37293,821 @@ const oldestManufactureSummaryIsGuarded =
   )
   && valuationStockAnomalies.includes(
     "the chronologically earliest recorded manufacture date among positive-stock rows matching the exposure filters",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_range[ 1 ]-youngest_mfg_batch",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-youngest_mfg_date_src",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-manufacturing_date > ls_result-youngest_mfg_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-days_since_youngest_mfg = lv_manufacturing_age_days",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-youngest_mfg_batch = ls_base_result-youngest_mfg_batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-storage_location < ls_result-oldest_manufacture_storage_loc",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-valuation_type < ls_result-oldest_manufacture_val_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-oldest_manufacture_storage_loc = ls_batch-storage_location",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-oldest_manufacture_val_type = ls_batch-valuation_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-oldest_manufacturing_date_src = ls_batch-manufacturing_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-storage_location < ls_result-youngest_mfg_storage_loc",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-valuation_type < ls_result-youngest_mfg_val_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-youngest_mfg_storage_loc = ls_batch-storage_location",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-youngest_mfg_val_type = ls_batch-valuation_type",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-oldest_manufacture_storage_loc = ls_base_result-oldest_manufacture_storage_loc",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-oldest_manufacture_val_type = ls_base_result-oldest_manufacture_val_type",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-oldest_manufacturing_date_src = ls_base_result-oldest_manufacturing_date_src",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-youngest_mfg_storage_loc = ls_base_result-youngest_mfg_storage_loc",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-youngest_mfg_val_type = ls_base_result-youngest_mfg_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacture_storage_loc",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacture_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-oldest_manufacturing_date_src",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_storage_loc",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties[ 1 ]-youngest_mfg_date_src",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacture_storage_loc",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacture_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-oldest_manufacturing_date_src",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_storage_loc",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "act = lt_mfg_endpoint_ties_uom[ 1 ]-youngest_mfg_date_src",
+  )
+  && valuationStockDocs.includes(
+    "the chronologically latest recorded manufacture date among positive-stock rows matching the exposure filters",
+  )
+  && valuationStockAnomalies.includes(
+    "the chronologically latest recorded manufacture date among positive-stock rows matching the exposure filters",
+  )
+  && expiredAgePlan.includes(
+    "the chronologically latest recorded manufacture date among positive-stock rows matching the exposure filters",
   );
-if (!oldestManufactureSummaryIsGuarded) {
+if (!manufactureDateExtremesSummaryIsGuarded) {
   errors.push(
-    "batch expiry exposure must report its oldest filtered manufacture-date identity and age in base and UOM results",
+    "batch expiry exposure must report oldest and youngest filtered manufacture-date identities and ages in base and UOM results",
+  );
+}
+
+const manufacturingAgeBandsSummaryIsGuarded =
+  valuationStockService.includes("begin of ty_batch_mfg_age_band")
+  && valuationStockService.includes(
+    "manufacturing_age_bands type ty_batch_mfg_age_bands",
+  )
+  && valuationStockService.includes(
+    "manufacturing_age_bands type ty_batch_mfg_age_band_uoms",
+  )
+  && valuationStockService.includes(
+    "first_manufacturing_date type mcha-hsdat",
+  )
+  && valuationStockService.includes(
+    "first_manufacture_source type c length 1",
+  )
+  && valuationStockService.includes(
+    "last_manufacture_source type c length 1",
+  )
+  && valuationStockService.includes(
+    "days_since_first_manufacture type i",
+  )
+  && valuationStockService.includes(
+    "days_since_last_manufacture type i",
+  )
+  && valuationStockService.includes(
+    "first_manufacture_storage_loc type mard-lgort",
+  )
+  && valuationStockService.includes(
+    "last_manufacture_val_type type mcha-bwtar",
+  )
+  && valuationStockService.includes(
+    "manufacturing_date_span_days type i",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-manufacturing_age_bands = value #(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-manufacturing_age_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_share>-row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-manufacturing_age_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-manufacturing_age_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-manufacturing_age_bands assigning field-symbol(<ls_mfg_age_summary_span>) with key age_band = <ls_mfg_age_source_share>-age_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-first_manufacturing_date < <ls_mfg_age_summary_span>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-last_manufacturing_date > <ls_mfg_age_summary_span>-last_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_summary_span>-first_manufacture_source = <ls_mfg_age_source_share>-source_group",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_summary_span>-last_manufacture_source = <ls_mfg_age_source_share>-source_group",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_summary_span_days>-manufacturing_date_span_days = <ls_mfg_age_summary_span_days>-last_manufacturing_date - <ls_mfg_age_summary_span_days>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_summary_span_days>-days_since_first_manufacture = ls_result-as_of_date - <ls_mfg_age_summary_span_days>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_summary_span_days>-days_since_last_manufacture = ls_result-as_of_date - <ls_mfg_age_summary_span_days>-last_manufacturing_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_manufacturing_date = ls_base_mfg_age_band-first_manufacturing_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_manufacture_source = ls_base_mfg_age_band-first_manufacture_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_manufacture_source = ls_base_mfg_age_band-last_manufacture_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_first_manufacture = ls_base_mfg_age_band-days_since_first_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_last_manufacture = ls_base_mfg_age_band-days_since_last_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_manufacture_batch = ls_base_mfg_age_band-last_manufacture_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "manufacturing_date_span_days = ls_base_mfg_age_band-manufacturing_date_span_days",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_share>-available_pct_of_unrestricted = conv decfloat34( <ls_mfg_age_share>-available_qty ) * 100 / conv decfloat34( <ls_mfg_age_share>-unrestricted_qty )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_share>-reservation_deduction_qty = conv decfloat34( <ls_mfg_age_share>-unrestricted_qty ) - conv decfloat34( <ls_mfg_age_share>-available_qty )",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_pct_of_unrestricted = ls_base_mfg_age_band-available_pct_of_unrestricted",
+  )
+  && expiryExposureUomMethod.includes(
+    "base_reservation_deduction_qty = ls_base_mfg_age_band-reservation_deduction_qty",
+  )
+  && expiryExposureUomMethod.includes(
+    "unit_reservation_deduction_qty = convert_stock_quantity( iv_base_quantity = ls_base_mfg_age_band-reservation_deduction_qty iv_numerator = ls_ratio_cache-ratio-numerator iv_denominator = ls_ratio_cache-ratio-denominator )",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_range[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_all_ages[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-first_manufacturing_date",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-first_manufacture_source",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-last_manufacture_source",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'u' ]-manufacturing_date_span_days",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-first_manufacturing_date",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-first_manufacture_batch",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-last_manufacture_batch",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-first_manufacture_source",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-last_manufacture_source",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 3 act = lt_range[ 1 ]-manufacturing_age_bands[ age_band = '1' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 3 act = lt_range[ 1 ]-manufacturing_age_bands[ age_band = '1' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 3 act = lt_uom[ 1 ]-manufacturing_age_bands[ age_band = '1' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 3 act = lt_uom[ 1 ]-manufacturing_age_bands[ age_band = '1' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_global_mfg_source[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom_source[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes("batch = 'mfg-tie'")
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_mfg_endpoint_ties[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_mfg_endpoint_ties_uom[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "first_manufacture_storage_loc",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "first_manufacture_val_type",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-manufacturing_date_span_days",
+  )
+  && manufacturingAgeRangeFilterTest.includes("batch = 'mfg-span-0'")
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-available_pct_of_unrestricted",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-reservation_deduction_qty",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-base_reservation_deduction_qty",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "age_band = 'f' ]-unit_reservation_deduction_qty",
+  )
+  && expiredAgePlan.includes(
+    "fixed seven-row `manufacturing_age_bands` summary",
+  )
+  && expiredAgePlan.includes(
+    "each row also reports available percentage of unrestricted quantity and the reservation deduction",
+  )
+  && expiredAgePlan.includes(
+    "age-band rows also report the earliest and latest known manufacture dates and their elapsed-day span",
+  )
+  && expiredAgePlan.includes(
+    "each endpoint also reports its source group (`p` plant, `g` global fallback, or `o` other/blank)",
+  )
+  && expiredAgePlan.includes(
+    "ascending batch, location, and valuation type as a stable tie break",
+  )
+  && expiredAgePlan.includes(
+    "report signed ages as `as_of_date - endpoint date`",
+  )
+  && expiredAgePlan.includes("zero age offsets")
+  && valuationStockDocs.includes(
+    "fixed seven-row `manufacturing_age_bands` summary",
+  )
+  && valuationStockDocs.includes(
+    "each row also reports available percentage of unrestricted quantity and the reservation deduction",
+  )
+  && valuationStockDocs.includes(
+    "age-band rows also report the earliest and latest known manufacture dates and their elapsed-day span",
+  )
+  && valuationStockDocs.includes(
+    "each endpoint also reports its source group (`p` plant, `g` global fallback, or `o` other/blank)",
+  )
+  && valuationStockDocs.includes(
+    "ascending batch, location, and valuation type as a stable tie break",
+  )
+  && valuationStockDocs.includes(
+    "report signed ages as `as_of_date - endpoint date`",
+  )
+  && valuationStockDocs.includes("zero age offsets")
+  && valuationStockAnomalies.includes(
+    "`manufacturing_age_bands`, a fixed seven-row",
+  )
+  && valuationStockAnomalies.includes(
+    "each row also reports available percentage of unrestricted quantity and the reservation deduction",
+  )
+  && valuationStockAnomalies.includes(
+    "each age-band row also reports the earliest and latest known manufacture dates and their elapsed-day span",
+  )
+  && valuationStockAnomalies.includes(
+    "each endpoint also reports its source group (`p` plant, `g` global fallback, or `o` other/blank)",
+  )
+  && valuationStockAnomalies.includes(
+    "ascending batch, location, and valuation type as a stable tie break",
+  )
+  && valuationStockAnomalies.includes(
+    "report signed ages as `as_of_date - endpoint date`",
+  )
+  && valuationStockAnomalies.includes("zero age offsets");
+if (!manufacturingAgeBandsSummaryIsGuarded) {
+  errors.push(
+    "batch expiry exposure must report fixed filtered manufacturing-age counts, category totals, shares, and converted UOM quantities with regression coverage",
+  );
+}
+
+const manufacturingAgeBandFilterIsGuarded =
+  (stockServiceSource.match(/filter_manufacturing_age_band\s+type abap_bool/g) ?? []).length >= 4
+  && (stockServiceSource.match(/manufacturing_age_band\s+type c length 1/g) ?? []).length >= 4
+  && batchExpiryExposureMethod.includes(
+    "ls_request-filter_manufacturing_age_band <> abap_true and ls_request-filter_manufacturing_age_band <> abap_false",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_request-manufacturing_age_band <> 'f'",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_request-manufacturing_age_band is not initial",
+  )
+  && batchExpiryExposureMethod.includes(
+    "lv_manufacturing_age_band <> ls_request-manufacturing_age_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-filter_manufacturing_age_band = ls_request-filter_manufacturing_age_band",
+  )
+  && expiryExposureUomMethod.includes(
+    "filter_manufacturing_age_band = ls_request-filter_manufacturing_age_band",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_base_result-manufacturing_age_band <> ls_request-manufacturing_age_band",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-manufacturing_age_band = ls_request-manufacturing_age_band",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "manufacturing_age_band = 'f'",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "manufacturing_age_band = 'u'",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom_band[ 1 ]-manufacturing_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lv_bad_age_band_rejected",
+  )
+  && valuationStockDocs.includes(
+    "`filter_manufacturing_age_band = abap_true`",
+  )
+  && valuationStockAnomalies.includes(
+    "`filter_manufacturing_age_band = abap_true`",
+  )
+  && expiredAgePlan.includes(
+    "`filter_manufacturing_age_band = abap_true`",
+  )
+  && (stockServiceSource.match(
+    /days_since_manufacture\s+type i,\s+manufacturing_age_band\s+type c length 1,\s+unrestricted_quantity\s+type mchb-clabs/g,
+  ) ?? []).length >= 2
+  && (batchExpiryExposureMethod.match(
+    /manufacturing_age_band\s+=\s+lv_manufacturing_age_band/g,
+  ) ?? []).length >= 3
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_range[ 1 ]-batches[ 1 ]-manufacturing_age_band",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_range[ 1 ]-undated_batches[ 1 ]-manufacturing_age_band",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_unknown_mfg_band[ 1 ]-batches[ 1 ]-manufacturing_age_band",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-batches[ 1 ]-base_row-manufacturing_age_band",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-undated_batches[ 1 ]-base_row-manufacturing_age_band",
+  )
+  && expiredAgePlan.includes(
+    "dated and undated detail rows also carry `manufacturing_age_band`",
+  )
+  && valuationStockDocs.includes(
+    "dated and undated detail rows also carry `manufacturing_age_band`",
+  )
+  && valuationStockAnomalies.includes(
+    "dated and undated detail rows also carry `manufacturing_age_band`",
+  );
+if (!manufacturingAgeBandFilterIsGuarded) {
+  errors.push(
+    "batch expiry must validate, apply, echo, document, and test the signed manufacturing-age band selector in base and UOM flows",
+  );
+}
+
+const manufacturingDateSourceFilterIsGuarded =
+  (stockServiceSource.match(/filter_mfg_date_source\s+type abap_bool/g) ?? []).length >= 4
+  && batchExpiryExposureMethod.includes(
+    "ls_request-filter_mfg_date_source <> abap_true and ls_request-filter_mfg_date_source <> abap_false",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_request-mfg_date_source <> 'p'",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_request-mfg_date_source <> 'g'",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_request-mfg_date_source is not initial",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-manufacturing_date_source <> ls_request-mfg_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-mfg_date_source = ls_request-mfg_date_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "filter_mfg_date_source = ls_request-filter_mfg_date_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_base_result-mfg_date_source <> ls_request-mfg_date_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-mfg_date_source = ls_request-mfg_date_source",
+  )
+  && manufacturingAgeRangeFilterTest.includes("lt_global_mfg_source")
+  && manufacturingAgeRangeFilterTest.includes("lt_blank_mfg_source")
+  && manufacturingAgeRangeFilterTest.includes("lt_uom_source")
+  && manufacturingAgeRangeFilterTest.includes("lv_bad_mfg_source_rejected")
+  && valuationStockDocs.includes(
+    "`filter_mfg_date_source = abap_true`",
+  )
+  && valuationStockAnomalies.includes(
+    "`filter_mfg_date_source` with `mfg_date_source` set to `p`",
+  )
+  && valuationStockDocs.includes("`mfg_date_source` set to `p`")
+  && expiredAgePlan.includes(
+    "`filter_mfg_date_source = abap_true`",
+  );
+if (!manufacturingDateSourceFilterIsGuarded) {
+  errors.push(
+    "batch expiry must validate, apply, echo, document, and test the manufacture-date source filter in base and UOM flows",
+  );
+}
+
+const manufacturingAgeSourceBandsAreGuarded =
+  valuationStockService.includes("begin of ty_batch_mfg_age_source_band")
+  && valuationStockService.includes(
+    "manufacturing_age_source_bands type ty_batch_mfg_age_source_bands",
+  )
+  && valuationStockService.includes(
+    "manufacturing_age_source_bands type ty_batch_mfg_age_source_band_uoms",
+  )
+  && valuationStockService.includes(
+    "page_mfg_src_age_bands type ty_batch_mfg_age_source_bands",
+  )
+  && valuationStockService.includes(
+    "page_mfg_src_age_bands type ty_batch_mfg_age_source_band_uoms",
+  )
+  && valuationStockService.includes(
+    "first_manufacturing_date type mcha-hsdat",
+  )
+  && valuationStockService.includes(
+    "first_manufacturing_date type mcha-hsdat, days_since_first_manufacture type i, first_manufacture_batch type mchb-charg",
+  )
+  && valuationStockService.includes(
+    "last_manufacturing_date type mcha-hsdat",
+  )
+  && valuationStockService.includes(
+    "last_manufacturing_date type mcha-hsdat, days_since_last_manufacture type i, last_manufacture_batch type mchb-charg",
+  )
+  && valuationStockService.includes(
+    "first_manufacture_batch type mchb-charg",
+  )
+  && valuationStockService.includes(
+    "last_manufacture_val_type type mcha-bwtar",
+  )
+  && valuationStockService.includes(
+    "manufacturing_date_span_days type i",
+  )
+  && valuationStockService.includes(
+    "source_unrestricted_share_pct type p length 5 decimals 2",
+  )
+  && valuationStockService.includes(
+    "band_blocked_share_pct type p length 5 decimals 2",
+  )
+  && valuationStockService.includes("available_row_count type i")
+  && valuationStockService.includes(
+    "available_row_share_pct type p length 5 decimals 2",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-manufacturing_age_source_bands = value #(",
+  )
+  && batchExpiryExposureMethod.includes(
+    "read table ls_result-manufacturing_age_source_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "with key source_group = lv_mfg_src_group age_band = lv_manufacturing_age_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "loop at ls_result-page_mfg_src_age_bands",
+  )
+  && batchExpiryExposureMethod.includes(
+    "with key source_group = lv_page_mfg_source_group age_band = lv_page_manufacturing_age_band",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_mfg_source_share>-band_available_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_src_band>-row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_src_band>-first_manufacturing_date = ls_batch-manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_src_band>-last_manufacturing_date = ls_batch-manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_src_band>-last_manufacturing_date - <ls_mfg_src_band>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-days_since_first_manufacture = ls_result-as_of_date - <ls_mfg_age_source_share>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-days_since_last_manufacture = ls_result-as_of_date - <ls_mfg_age_source_share>-last_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_mfg_source_share>-days_since_first_manufacture = ls_result-as_of_date - <ls_page_mfg_source_share>-first_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_mfg_source_share>-days_since_last_manufacture = ls_result-as_of_date - <ls_page_mfg_source_share>-last_manufacturing_date",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_src_band>-first_manufacture_batch = ls_batch-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_mfg_source_band>-last_manufacture_batch = ls_batch_page_row-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to <ls_mfg_src_band>-available_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "add 1 to <ls_page_mfg_source_band>-available_row_count",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-available_row_share_pct = conv decfloat34( <ls_mfg_age_source_share>-available_row_count ) * 100 / conv decfloat34( <ls_mfg_age_source_share>-row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_mfg_source_share>-available_row_share_pct = conv decfloat34( <ls_page_mfg_source_share>-available_row_count ) * 100 / conv decfloat34( <ls_page_mfg_source_share>-row_count )",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-source_row_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-age_band_row_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-available_pct_of_unrestricted",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-reservation_deduction_qty",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-available_qty_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-source_available_share_pct",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_mfg_age_source_share>-band_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-manufacturing_age_source_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "loop at ls_base_result-page_mfg_src_age_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-page_mfg_src_age_bands",
+  )
+  && expiryExposureUomMethod.includes(
+    "band_available_share_pct = ls_base_page_mfg_source_band-band_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "unit_reservation_deduction_qty = convert_stock_quantity(",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_manufacturing_date = ls_base_mfg_age_source_band-first_manufacturing_date",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_first_manufacture = ls_base_mfg_age_source_band-days_since_first_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_last_manufacture = ls_base_mfg_age_source_band-days_since_last_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_first_manufacture = ls_base_page_mfg_source_band-days_since_first_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "days_since_last_manufacture = ls_base_page_mfg_source_band-days_since_last_manufacture",
+  )
+  && expiryExposureUomMethod.includes(
+    "manufacturing_date_span_days = ls_base_mfg_age_source_band-manufacturing_date_span_days",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_manufacture_batch = ls_base_mfg_age_source_band-first_manufacture_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_manufacture_batch = ls_base_page_mfg_source_band-last_manufacture_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_row_count = ls_base_mfg_age_source_band-available_row_count",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_row_count = ls_base_page_mfg_source_band-available_row_count",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_row_share_pct = ls_base_mfg_age_source_band-available_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "available_row_share_pct = ls_base_page_mfg_source_band-available_row_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "source_unrestricted_share_pct = ls_base_mfg_age_source_band-source_unrestricted_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "band_available_share_pct = ls_base_mfg_age_source_band-band_available_share_pct",
+  )
+  && expiryExposureUomMethod.includes(
+    "to ls_result-manufacturing_age_source_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_all_ages[ 1 ]-manufacturing_age_source_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "lt_uom[ 1 ]-manufacturing_age_source_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "page_mfg_src_age_bands",
+  )
+  && manufacturingAgeRangeFilterTest.includes("lt_mfg_span_page_uom")
+  && manufacturingAgeRangeFilterTest.includes("exp = 21")
+  && manufacturingAgeRangeFilterTest.includes("band_available_share_pct")
+  && manufacturingAgeRangeFilterTest.includes(
+    "-reservation_deduction_qty",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "-unit_reservation_deduction_qty",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "-source_unrestricted_share_pct",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "-band_unrestricted_share_pct",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "-source_available_share_pct",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "-band_available_share_pct",
+  )
+  && manufacturingAgeRangeFilterTest.includes("mfg-source-span")
+  && manufacturingAgeRangeFilterTest.includes("-first_manufacturing_date")
+  && manufacturingAgeRangeFilterTest.includes("-last_manufacturing_date")
+  && manufacturingAgeRangeFilterTest.includes("-manufacturing_date_span_days")
+  && manufacturingAgeRangeFilterTest.includes("-first_manufacture_batch")
+  && manufacturingAgeRangeFilterTest.includes("-last_manufacture_batch")
+  && manufacturingAgeRangeFilterTest.includes("-available_row_count")
+  && manufacturingAgeRangeFilterTest.includes("-available_row_share_pct")
+  && manufacturingAgeRangeFilterTest.includes(
+    "source_group = 'o' age_band = 'u' ]-first_manufacturing_date",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "source_group = 'o' age_band = 'u' ]-last_manufacturing_date",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "source_group = 'o' age_band = 'u' ]-manufacturing_date_span_days",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 0 act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[ source_group = 'o' age_band = 'u' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = 0 act = lt_all_ages[ 1 ]-manufacturing_age_source_bands[ source_group = 'o' age_band = 'u' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -2 act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[ source_group = 'g' age_band = 'f' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -3 act = lt_mfg_span[ 1 ]-manufacturing_age_source_bands[ source_group = 'g' age_band = 'f' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -2 act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[ source_group = 'g' age_band = 'f' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -3 act = lt_mfg_span_uom[ 1 ]-manufacturing_age_source_bands[ source_group = 'g' age_band = 'f' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -2 act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[ source_group = 'g' age_band = 'f' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -3 act = lt_mfg_span_page[ 1 ]-page_mfg_src_age_bands[ source_group = 'g' age_band = 'f' ]-days_since_last_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -2 act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[ source_group = 'g' age_band = 'f' ]-days_since_first_manufacture",
+  )
+  && manufacturingAgeRangeFilterTest.includes(
+    "exp = -3 act = lt_mfg_span_page_uom[ 1 ]-page_mfg_src_age_bands[ source_group = 'g' age_band = 'f' ]-days_since_last_manufacture",
+  )
+  && expiredAgePlan.includes("reservation deduction (`unrestricted - available`)")
+  && valuationStockDocs.includes("reservation deduction (`unrestricted - available`)")
+  && valuationStockAnomalies.includes("reservation deduction (`unrestricted - available`)")
+  && expiredAgePlan.includes("earliest and latest recorded manufacture dates and their elapsed-day span")
+  && valuationStockDocs.includes("earliest and latest recorded manufacture dates and their elapsed-day span")
+  && valuationStockAnomalies.includes("earliest and latest recorded manufacture dates and elapsed-day span")
+  && expiredAgePlan.includes("category's share within its source and age band")
+  && valuationStockDocs.includes("shares within the source and age band")
+  && valuationStockAnomalies.includes("shares within the source and age band")
+  && expiredAgePlan.includes("batch, storage location, and valuation type")
+  && valuationStockDocs.includes("batch, storage location, and valuation type")
+  && valuationStockAnomalies.includes("batch, storage location, and valuation type")
+  && expiredAgePlan.includes("per-category positive-stock row counts")
+  && valuationStockDocs.includes("per-category positive-stock row counts")
+  && valuationStockAnomalies.includes("per-category positive-stock row counts")
+  && expiredAgePlan.includes("shares within each matrix cell")
+  && valuationStockDocs.includes("shares within each matrix cell")
+  && valuationStockAnomalies.includes("shares within each matrix cell")
+  && expiredAgePlan.includes("`page_mfg_src_age_bands`")
+  && valuationStockDocs.includes("`page_mfg_src_age_bands`")
+  && valuationStockAnomalies.includes("`page_mfg_src_age_bands`")
+  && expiredAgePlan.includes(
+    "each endpoint also reports signed `days_since_*_manufacture`",
+  )
+  && valuationStockDocs.includes(
+    "reports signed `days_since_*_manufacture` as `as_of_date - endpoint date`",
+  )
+  && valuationStockAnomalies.includes(
+    "each endpoint reports its signed age as `as_of_date - endpoint date`",
+  )
+  && expiredAgePlan.includes(
+    "reports each endpoint's signed age relative to `as_of_date`",
+  )
+  && valuationStockDocs.includes(
+    "reports each endpoint's signed age relative to `as_of_date`",
+  )
+  && valuationStockAnomalies.includes(
+    "reports signed age offsets from `as_of_date`",
+  )
+  && expiredAgePlan.includes("fixed 21-row `manufacturing_age_source_bands` matrix")
+  && valuationStockDocs.includes("fixed 21-row `manufacturing_age_source_bands` matrix")
+  && valuationStockAnomalies.includes("`manufacturing_age_source_bands` result is a fixed 21-row matrix");
+if (!manufacturingAgeSourceBandsAreGuarded) {
+  errors.push(
+    "batch expiry must report full and page-level manufacture-source by age-band summaries with category shares and UOM quantities",
   );
 }
 
@@ -36998,7 +38355,7 @@ const batchExpiryPageTotalsAreGuarded =
     "ls_result-page_unrestricted_qty = sum_stock_quantities(",
   )
   && batchExpiryExposureMethod.includes(
-    "ls_result-page_available_qty = sum_stock_quantities(",
+    "ls_result-page_available_qty = sum_signed_stock_quantities(",
   )
   && batchExpiryExposureMethod.includes(
     "ls_result-page_quality_qty = sum_stock_quantities(",
@@ -37084,11 +38441,50 @@ const batchExpiryPageTotalsAreGuarded =
   && batchExpiryExposureMethod.includes(
     "ls_result-page_expiration_date_span_days = ls_result-page_latest_expiration_date - ls_result-page_earliest_expiration_date.",
   )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-days_to_page_earliest_exp = ls_result-page_earliest_expiration_date - ls_result-as_of_date.",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-days_to_page_latest_exp = ls_result-page_latest_expiration_date - ls_result-as_of_date.",
+  )
   && expiryExposureUomMethod.includes(
     "ls_result-page_earliest_expiration_date = ls_base_result-page_earliest_expiration_date",
   )
+  && expiryExposureUomMethod.includes(
+    "ls_result-days_to_page_earliest_exp = ls_base_result-days_to_page_earliest_exp",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-days_to_page_latest_exp = ls_base_result-days_to_page_latest_exp",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = -1 act = lt_first_page[ 1 ]-days_to_page_earliest_exp",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 4 act = lt_first_page[ 1 ]-days_to_page_latest_exp",
+  )
   && batchExpiryPageTotalsTest.includes(
     "lt_empty_page[ 1 ]-page_expiration_date_span_days",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 0 act = lt_empty_page[ 1 ]-days_to_page_earliest_exp",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 0 act = lt_empty_page[ 1 ]-days_to_page_latest_exp",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = -1 act = lt_uom_results[ 1 ]-days_to_page_earliest_exp",
+  )
+  && batchExpiryPageTotalsTest.includes(
+    "exp = 4 act = lt_uom_results[ 1 ]-days_to_page_latest_exp",
+  )
+  && valuationStockPlan.includes(
+    "`days_to_page_earliest_exp` and `days_to_page_latest_exp` report signed endpoint offsets",
+  )
+  && valuationStockDocs.includes(
+    "signed `days_to_page_earliest_exp` and `days_to_page_latest_exp` offsets",
+  )
+  && valuationStockAnomalies.includes(
+    "page-wide expiry endpoints now include concise signed day offsets",
   )
   && batchExpiryPageTotalsTest.includes(
     "lt_uom_results[ 1 ]-page_expiration_date_span_days",
@@ -37709,7 +39105,7 @@ const batchExpiryPageTotalsAreGuarded =
     "expiration_date_source type c length 1,",
   )
   && compactBatchExpiryServiceSource.includes(
-    "begin of ty_batch_expiry_undated_row, storage_location type mard-lgort, batch type mchb-charg, valuation_type type mcha-bwtar, expiration_date_source type c length 1, manufacturing_date type mcha-hsdat, manufacturing_date_source type c length 1, days_since_manufacture type i, unrestricted_quantity type mchb-clabs",
+    "begin of ty_batch_expiry_undated_row, storage_location type mard-lgort, batch type mchb-charg, valuation_type type mcha-bwtar, expiration_date_source type c length 1, manufacturing_date type mcha-hsdat, manufacturing_date_source type c length 1, days_since_manufacture type i, manufacturing_age_band type c length 1, unrestricted_quantity type mchb-clabs",
   )
   && compactBatchExpiryServiceSource.includes(
     "undated_page_expiry_sources type ty_exp_undated_sources,",
@@ -38778,6 +40174,415 @@ if (!batchExpiryPageTotalsAreGuarded) {
     "batch expiry pages, snapshots, and summary-only reads must preserve aggregation, paging, UOM echo, and omission behavior",
   );
 }
+const pageExpiryEndpointIdentitiesAreGuarded =
+  batchExpiryExposureMethod.includes(
+    "ls_result-page_earliest_batch = ls_batch_page_row-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_earliest_storage_loc = ls_batch_page_row-storage_location",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_earliest_val_type = ls_batch_page_row-valuation_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_earliest_source = ls_batch_page_row-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_latest_batch = ls_batch_page_row-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_result-page_latest_source = ls_batch_page_row-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-batch < ls_result-page_earliest_batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-storage_location < ls_result-page_earliest_storage_loc",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-valuation_type < ls_result-page_earliest_val_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-batch < ls_result-page_latest_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_earliest_batch = ls_base_result-page_earliest_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_earliest_storage_loc = ls_base_result-page_earliest_storage_loc",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_earliest_val_type = ls_base_result-page_earliest_val_type",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_earliest_source = ls_base_result-page_earliest_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_latest_batch = ls_base_result-page_latest_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "ls_result-page_latest_source = ls_base_result-page_latest_source",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-first' act = lt_base_results[ 1 ]-page_earliest_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = '0001' act = lt_base_results[ 1 ]-page_earliest_storage_loc",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a' act = lt_base_results[ 1 ]-page_earliest_val_type",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'g' act = lt_base_results[ 1 ]-page_earliest_source",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-last' act = lt_base_results[ 1 ]-page_latest_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-first' act = lt_uom_results[ 1 ]-page_earliest_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-last' act = lt_uom_results[ 1 ]-page_latest_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "assert_initial( act = lt_base_results[ 3 ]-page_earliest_batch )",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "assert_initial( act = lt_uom_results[ 3 ]-page_latest_batch )",
+  )
+  && valuationStockPlan.includes(
+    "the page-wide earliest and latest expiration endpoints also identify their batch, storage location, valuation type, and raw expiration-date source",
+  )
+  && valuationStockDocs.includes(
+    "the page endpoints also identify the batch, storage location, valuation type, and raw expiration-date source",
+  )
+  && valuationStockAnomalies.includes(
+    "page-wide expiry endpoint identities now return batch, storage location, valuation type, and raw date source",
+  );
+if (!pageExpiryEndpointIdentitiesAreGuarded) {
+  errors.push(
+    "page-wide expiry endpoints must preserve deterministic identities, UOM echo, and empty-page behavior",
+  );
+}
+const batchExpirySourceStatusEndpointIdentitiesAreGuarded =
+  batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-first_expiration_batch = ls_batch-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-first_expiration_storage_loc = ls_batch-storage_location",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-first_expiration_val_type = ls_batch-valuation_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-first_expiration_source = ls_batch-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-last_expiration_batch = ls_batch-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_expiry_source_status>-last_expiration_source = ls_batch-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-first_expiration_batch = ls_batch_page_row-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-first_expiration_storage_loc = ls_batch_page_row-storage_location",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-first_expiration_val_type = ls_batch_page_row-valuation_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-first_expiration_source = ls_batch_page_row-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-last_expiration_batch = ls_batch_page_row-batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "<ls_page_expiry_source_status>-last_expiration_source = ls_batch_page_row-expiration_date_source",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-batch < <ls_expiry_source_status>-first_expiration_batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-storage_location < <ls_expiry_source_status>-first_expiration_storage_loc",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch-valuation_type < <ls_expiry_source_status>-first_expiration_val_type",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-batch < <ls_page_expiry_source_status>-first_expiration_batch",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-storage_location < <ls_page_expiry_source_status>-first_expiration_storage_loc",
+  )
+  && batchExpiryExposureMethod.includes(
+    "ls_batch_page_row-valuation_type < <ls_page_expiry_source_status>-first_expiration_val_type",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_expiration_batch = ls_base_source_status-first_expiration_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_expiration_source = ls_base_source_status-last_expiration_source",
+  )
+  && expiryExposureUomMethod.includes(
+    "first_expiration_batch = ls_base_page_exp_src_status-first_expiration_batch",
+  )
+  && expiryExposureUomMethod.includes(
+    "last_expiration_source = ls_base_page_exp_src_status-last_expiration_source",
+  )
+  && batchExpiryExposureTest.includes("first_expiration_batch = 'expired'")
+  && batchExpiryExposureTest.includes("last_expiration_batch = 'horizon-2'")
+  && batchExpiryExposureTest.includes("first_expiration_storage_loc = '0003'")
+  && batchExpiryExposureTest.includes("first_expiration_source = 'g'")
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-after' act = lt_base_results[ 2 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = '0001' act = lt_base_results[ 2 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_storage_loc",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a' act = lt_base_results[ 2 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_val_type",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'p' act = lt_base_results[ 2 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_source",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-after' act = lt_uom_results[ 2 ]-expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-after' act = lt_base_results[ 2 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "exp = 'a-after' act = lt_uom_results[ 2 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "assert_initial( act = lt_base_results[ 1 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch )",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "assert_initial( act = lt_base_results[ 3 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch )",
+  )
+  && pageExpiryEndpointIdentityTest.includes(
+    "assert_initial( act = lt_uom_results[ 3 ]-page_expiry_src_statuses[ source_group = 'p' expiry_status = 'a' ]-first_expiration_batch )",
+  )
+  && batchExpiryPlan.includes("## batch expiry source/status endpoint identities")
+  && batchExpiryPlan.includes(
+    "each full and page `expiry_src_statuses` cell also identifies the batch",
+  )
+  && valuationStockDocs.includes(
+    "each cell also identifies the batch, storage location, valuation type, and raw",
+  )
+  && valuationStockAnomalies.includes(
+    "full and page expiry source/status cells now expose batch, storage location, valuation type, and raw expiry source",
+  );
+if (!batchExpirySourceStatusEndpointIdentitiesAreGuarded) {
+  errors.push(
+    "full and page expiry source/status endpoint identities must preserve deterministic row identity, UOM echo, and empty-cell behavior",
+  );
+}
+const expirySourceBandEndpointIdentitiesAreGuarded = (() => {
+  const endpointFields = [
+    ["first_expiration_batch", "batch"],
+    ["first_expiration_storage_loc", "storage_location"],
+    ["first_expiration_val_type", "valuation_type"],
+    ["first_expiration_source", "expiration_date_source"],
+    ["last_expiration_batch", "batch"],
+    ["last_expiration_storage_loc", "storage_location"],
+    ["last_expiration_val_type", "valuation_type"],
+    ["last_expiration_source", "expiration_date_source"],
+  ];
+  const fullPaths = [
+    ["<ls_expiry_source_age>", "ls_batch"],
+    ["<ls_expiry_source_window>", "ls_batch"],
+    ["<ls_after_window_source_band>", "ls_batch"],
+  ];
+  const pagePaths = [
+    ["<ls_page_expiry_source_age>", "ls_batch_page_row"],
+    ["<ls_page_exp_window>", "ls_batch_page_row"],
+  ];
+  const aggregationPaths = [...fullPaths, ...pagePaths];
+  const assignmentsAreComplete = aggregationPaths.every(
+    ([target, source]) => endpointFields.every(([field, input]) =>
+      batchExpiryExposureMethod.includes(`${target}-${field} = ${source}-${input}`),
+    ),
+  );
+  const tieKeys = [
+    ["batch", "first_expiration_batch", "last_expiration_batch"],
+    ["storage_location", "first_expiration_storage_loc", "last_expiration_storage_loc"],
+    ["valuation_type", "first_expiration_val_type", "last_expiration_val_type"],
+  ];
+  const tieBreakersAreComplete = aggregationPaths.every(
+    ([target, source]) => tieKeys.every(([input, firstField, lastField]) =>
+      batchExpiryExposureMethod.includes(`${source}-${input} < ${target}-${firstField}`)
+      && batchExpiryExposureMethod.includes(`${source}-${input} < ${target}-${lastField}`),
+    ),
+  );
+  const uomPaths = [
+    "ls_base_source_age",
+    "ls_base_page_exp_src_age",
+    "ls_base_source_window",
+    "ls_base_after_window_band",
+    "ls_base_page_upcoming_band",
+    "ls_base_page_after_window_band",
+  ];
+  const uomMappingsAreComplete = uomPaths.every((source) =>
+    endpointFields.every(([field]) =>
+      expiryExposureUomMethod.includes(`${field} = ${source}-${field}`),
+    ),
+  );
+  return assignmentsAreComplete
+    && tieBreakersAreComplete
+    && uomMappingsAreComplete
+    && pageExpiryEndpointIdentityTest.includes("data(ls_expired_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("data(ls_upcoming_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("data(ls_other_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("data(ls_after_window_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("corresponding ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("batch = 'z-other'")
+    && pageExpiryEndpointIdentityTest.includes("source_group = 'o' through_band = '1'")
+    && pageExpiryEndpointIdentityTest.includes("assert_initial(")
+    && batchExpiryPlan.includes("## batch expiry source-band endpoint identities")
+    && batchExpiryPlan.includes("full and page expiry source/age, upcoming source/window, and after-window source/window cells identify the batch")
+    && batchExpiryPlan.includes("blank-source rows in `o`")
+    && batchExpiryReadme.includes("full and page source/age, upcoming source/window, and after-window source/window cells also identify the batch")
+    && valuationStockAnomalies.includes("full and page expiry source-band cells now expose batch, storage location, valuation type, and raw expiry source");
+})();
+if (!expirySourceBandEndpointIdentitiesAreGuarded) {
+  errors.push(
+    "full and page expiry source-band endpoint identities must preserve deterministic row identity, UOM echo, tests, and documentation",
+  );
+}
+const expirySourceSummaryEndpointIdentitiesAreGuarded = (() => {
+  const endpointFields = [
+    "first_expiration_batch",
+    "first_expiration_storage_loc",
+    "first_expiration_val_type",
+    "first_expiration_source",
+    "last_expiration_batch",
+    "last_expiration_storage_loc",
+    "last_expiration_val_type",
+    "last_expiration_source",
+  ];
+  const aggregations = [
+    ["<ls_full_expiry_source>", "ls_full_expiry_source_status"],
+    ["<ls_page_expiry_source>", "ls_page_expiry_source_status"],
+  ];
+  const aggregationIsComplete = aggregations.every(([target, source]) =>
+    endpointFields.every((field) =>
+      batchExpiryExposureMethod.includes(`${target}-${field} = ${source}-${field}`),
+    )
+    && [
+      "first_expiration_batch",
+      "first_expiration_storage_loc",
+      "first_expiration_val_type",
+      "last_expiration_batch",
+      "last_expiration_storage_loc",
+      "last_expiration_val_type",
+    ].every((field) =>
+      batchExpiryExposureMethod.includes(`${source}-${field} < ${target}-${field}`),
+    ),
+  );
+  const uomMappingsAreComplete = [
+    "ls_base_expiry_source",
+    "ls_base_page_expiry_source",
+  ].every((source) => endpointFields.every((field) =>
+    expiryExposureUomMethod.includes(`${field} = ${source}-${field}`),
+  ));
+  return aggregationIsComplete
+    && uomMappingsAreComplete
+    && pageExpiryEndpointIdentityTest.includes("data(ls_source_summary_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("first_expiration_batch = 'a-first'")
+    && pageExpiryEndpointIdentityTest.includes("last_expiration_batch = 'a-last'")
+    && pageExpiryEndpointIdentityTest.includes("source_group = 'p'")
+    && pageExpiryEndpointIdentityTest.includes("source_group = 'o'")
+    && pageExpiryEndpointIdentityTest.includes("assert_initial(")
+    && batchExpiryPlan.includes("## batch expiry source-summary endpoint identities")
+    && batchExpiryPlan.includes("ascending batch, storage location, then valuation type")
+    && batchExpiryPlan.includes("blank-source `o` endpoints")
+    && batchExpiryReadme.includes("full and page source-only expiry summary rows also identify the batch")
+    && valuationStockAnomalies.includes("full and page expiry source-only summary rows now expose batch, storage location, valuation type, and raw expiry source");
+})();
+if (!expirySourceSummaryEndpointIdentitiesAreGuarded) {
+  errors.push(
+    "full and page expiry source-only summaries must preserve deterministic endpoint identities, UOM echo, tests, and documentation",
+  );
+}
+const expiryStatusSummaryEndpointIdentitiesAreGuarded = (() => {
+  const endpointFields = [
+    "first_expiration_batch",
+    "first_expiration_storage_loc",
+    "first_expiration_val_type",
+    "first_expiration_source",
+    "last_expiration_batch",
+    "last_expiration_storage_loc",
+    "last_expiration_val_type",
+    "last_expiration_source",
+  ];
+  const aggregations = [
+    [
+      "<ls_full_expiry_status>",
+      "ls_full_expiry_source_status",
+      endpointFields.map((field) => [field, field]),
+    ],
+    [
+      "<ls_page_expiry_status>",
+      "ls_batch_page_row",
+      [
+        ["first_expiration_batch", "batch"],
+        ["first_expiration_storage_loc", "storage_location"],
+        ["first_expiration_val_type", "valuation_type"],
+        ["first_expiration_source", "expiration_date_source"],
+        ["last_expiration_batch", "batch"],
+        ["last_expiration_storage_loc", "storage_location"],
+        ["last_expiration_val_type", "valuation_type"],
+        ["last_expiration_source", "expiration_date_source"],
+      ],
+    ],
+  ];
+  const aggregationsAreComplete = aggregations.every(([target, source, fields]) =>
+    fields.every(([field, input]) =>
+      batchExpiryExposureMethod.includes(`${target}-${field} = ${source}-${input}`),
+    )
+    && fields
+      .filter(([field]) => field.endsWith("_batch")
+        || field.endsWith("_storage_loc")
+        || field.endsWith("_val_type"))
+      .every(([field, input]) =>
+        batchExpiryExposureMethod.includes(`${source}-${input} < ${target}-${field}`),
+      ),
+  );
+  const uomMappingsAreComplete = [
+    "ls_base_expiry_status",
+    "ls_base_page_expiry_status",
+  ].every((source) => endpointFields.every((field) =>
+    expiryExposureUomMethod.includes(`${field} = ${source}-${field}`),
+  ));
+  return aggregationsAreComplete
+    && uomMappingsAreComplete
+    && pageExpiryEndpointIdentityTest.includes("data(ls_status_expired_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("data(ls_status_upcoming_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("data(ls_status_after_identity) = value ty_endpoint_identity(")
+    && pageExpiryEndpointIdentityTest.includes("expiry_status = 'e'")
+    && pageExpiryEndpointIdentityTest.includes("expiry_status = 'u'")
+    && pageExpiryEndpointIdentityTest.includes("request_id = 'page-endpoints-o'")
+    && pageExpiryEndpointIdentityTest.includes("expiry_source = 'o'")
+    && pageExpiryEndpointIdentityTest.includes("first_expiration_batch = 'a-other'")
+    && pageExpiryEndpointIdentityTest.includes("last_expiration_batch = 'z-other'")
+    && pageExpiryEndpointIdentityTest.includes("lt_base_results[ 4 ]-page_expiry_statuses[ expiry_status = 'u' ]")
+    && pageExpiryEndpointIdentityTest.includes("assert_initial(")
+    && batchExpiryPlan.includes("## batch expiry status-summary endpoint identities")
+    && batchExpiryPlan.includes("full `expiry_statuses` and page `page_expiry_statuses` rows identify the batch")
+    && batchExpiryPlan.includes("multi-date `o`-only request verifies")
+    && batchExpiryPlan.includes("earliest/latest date selection")
+    && batchExpiryReadme.includes("full and page expiry status summary rows also identify the batch")
+    && batchExpiryReadme.includes("`o`-only results preserve a blank raw source marker")
+    && valuationStockAnomalies.includes("full and page expiry status summary rows now expose batch, storage location, valuation type, and raw expiry source");
+})();
+if (!expiryStatusSummaryEndpointIdentitiesAreGuarded) {
+  errors.push(
+    "full and page expiry status summaries must preserve deterministic endpoint identities, UOM echo, tests, and documentation",
+  );
+}
 
 const expirySourceBandQuantityShareScopes = [
   ["<ls_full_expiry_age_row_share>", "lv_full_exp_age_src"],
@@ -38917,6 +40722,7 @@ if (!expiryBandCategorySharesAreGuarded) {
 }
 
 const expiryAvailabilityRatioScopes = [
+  "<ls_mfg_age_share>",
   "<ls_full_expiry_age_row_share>",
   "<ls_page_expiry_age_row_share>",
   "<ls_full_upc_row_share>",
@@ -38925,6 +40731,7 @@ const expiryAvailabilityRatioScopes = [
   "<ls_page_after_win_row_share>",
 ];
 const expiryAvailabilityRatioUomRows = [
+  "ls_base_mfg_age_band",
   "ls_base_page_exp_src_age",
   "ls_base_source_age",
   "ls_base_page_upcoming_band",
@@ -38966,6 +40773,7 @@ if (!expiryAvailabilityRatioIsGuarded) {
 }
 
 const expiryReservationDeductionScopes = [
+  "<ls_mfg_age_share>",
   "<ls_full_expiry_age_row_share>",
   "<ls_page_expiry_age_row_share>",
   "<ls_full_upc_row_share>",
@@ -38974,6 +40782,7 @@ const expiryReservationDeductionScopes = [
   "<ls_page_after_win_row_share>",
 ];
 const expiryReservationDeductionUomRows = [
+  "ls_base_mfg_age_band",
   "ls_base_page_exp_src_age",
   "ls_base_source_age",
   "ls_base_page_upcoming_band",
@@ -41019,6 +42828,1482 @@ if (!projectPriorityTraceTests.includes("method preserves_wbs_floor_atp.")
     )) {
   errors.push(
     "WBS date-first FEFO, location, transfer, and ATP wrappers must preserve floor rejection and stock reuse",
+  );
+}
+
+const plannedOrderComponentServiceSource = readFileSync(
+  join(projectRoot, "src/zcl_prod_comp_service.clas.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentRepositorySource = readFileSync(
+  join(projectRoot, "src/zcl_prod_comp_repo.clas.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentRepositoryInterface = readFileSync(
+  join(projectRoot, "src/zif_prod_comp_repo.intf.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentServiceTests = readFileSync(
+  join(projectRoot, "src/zcl_prod_comp_service.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentRepositoryTests = readFileSync(
+  join(projectRoot, "src/zcl_prod_comp_repo.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentPlan = readFileSync(
+  join(projectRoot, "PLAN.md"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentReadme = readFileSync(
+  join(projectRoot, "README.md"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentStub = readFileSync(
+  join(projectRoot, "stubs/src/resb.tabl.xml"),
+  "utf8",
+).toLowerCase();
+const componentDateValidationSource = readFileSync(
+  join(projectRoot, "src/zcl_date_validation.clas.abap"),
+  "utf8",
+).toLowerCase();
+const componentDateValidationTests = readFileSync(
+  join(projectRoot, "src/zcl_date_validation.clas.testclasses.abap"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentUnitRunner = readFileSync(
+  join(projectRoot, "scripts/run-unit.mjs"),
+  "utf8",
+).toLowerCase();
+const plannedOrderComponentRepositoryRead = normalizedMethod(
+  plannedOrderComponentRepositorySource,
+  "zif_prod_comp_repo~get_planned_comp_bulk",
+);
+const productionOrderComponentRepositoryRead = normalizedMethod(
+  plannedOrderComponentRepositorySource,
+  "zif_prod_comp_repo~get_components_bulk",
+);
+const plannedOrderComponentDateRangeRepositoryTest = normalizedMethod(
+  plannedOrderComponentRepositoryTests,
+  "filters_required_date_range",
+);
+const plannedOrderComponentDateRangeValidator = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "is_valid_required_date_range",
+);
+const plannedOrderComponentServiceRead = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "get_open_planned_comp_bulk",
+);
+const productionOrderComponentServiceRead = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "get_open_components_bulk",
+);
+const plannedOrderAtpPreview = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_planned_comp_atp_bulk",
+);
+const plannedOrderAtpSummary = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "summarize_order_atp",
+);
+const plannedOrderStockPreview = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_planned_stock_bulk",
+);
+const plannedOrderReadinessSummary = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "summarize_component_readiness",
+);
+const plannedOrderMaterialReadiness = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "summarize_comp_material_ready",
+);
+const plannedOrderShortageSummary = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "summarize_component_shortages",
+);
+const plannedOrderReplenishment = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "suggest_comp_replenishment",
+);
+const plannedOrderComponentPreviewEngine = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_components_internal",
+);
+const productionComponentAtpPreview = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_components_atp_bulk",
+);
+const productionComponentStockPreview = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_components_stock_bulk",
+);
+const plannedOrderScopedComponentPreview = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_scoped_components_bulk",
+);
+const componentPreviewInternal = normalizedMethod(
+  plannedOrderComponentServiceSource,
+  "preview_components_internal",
+);
+const plannedComponentPreviewDateTests = normalizedMethod(
+  plannedOrderComponentServiceTests,
+  "previews_planned_comp_atp",
+);
+const productionComponentAtpDateTests = normalizedMethod(
+  plannedOrderComponentServiceTests,
+  "previews_components_atp",
+);
+const productionComponentStockDateTests = normalizedMethod(
+  plannedOrderComponentServiceTests,
+  "previews_components_stock",
+);
+if (!plannedOrderComponentRepositoryRead.includes("plnum as planned_order")
+    || !plannedOrderComponentRepositoryRead.includes("for all entries in @it_planned_orders")
+    || !plannedOrderComponentRepositoryRead.includes("where plnum = @it_planned_orders-table_line")
+    || !plannedOrderComponentRepositoryRead.includes("order by plnum, rsnum, rspos")
+    || !plannedOrderComponentRepositoryInterface.includes("ty_required_date_range")
+    || !plannedOrderComponentRepositoryInterface.includes("required_date_from")
+    || !plannedOrderComponentRepositoryInterface.includes("required_date_through")
+    || !plannedOrderComponentRepositoryInterface.includes("filter_bucket")
+    || !plannedOrderComponentRepositoryInterface.includes("required_date_bucket")
+    || !plannedOrderComponentRepositoryInterface.includes("required_date_horizon_days")
+    || !plannedOrderComponentRepositoryInterface.includes("as_of_date")
+    || !plannedOrderComponentRepositoryRead.includes("@lv_filter_from = @abap_false")
+    || !plannedOrderComponentRepositoryRead.includes("bdter >= @lv_required_date_from")
+    || !plannedOrderComponentRepositoryRead.includes("bdter <> @lv_initial_date")
+    || !plannedOrderComponentRepositoryRead.includes("bdter <= @lv_required_date_through")
+    || !plannedOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'o'")
+    || !plannedOrderComponentRepositoryRead.includes("bdter < @lv_as_of_date")
+    || !plannedOrderComponentRepositoryRead.includes("bdter = @lv_as_of_date")
+    || !plannedOrderComponentRepositoryRead.includes("bdter > @lv_as_of_date")
+    || !plannedOrderComponentRepositoryRead.includes("bdter = @lv_initial_date")
+    || !plannedOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'n'")
+    || !plannedOrderComponentRepositoryRead.includes("bdter <= @lv_horizon_to")
+    || !plannedOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'r'")
+    || !plannedOrderComponentRepositoryRead.includes("bdter >= @lv_horizon_from")
+    || !plannedOrderComponentRepositoryRead.includes("bdter < @lv_as_of_date")
+    || !productionOrderComponentRepositoryRead.includes("@lv_filter_from = @abap_false")
+    || !productionOrderComponentRepositoryRead.includes("bdter >= @lv_required_date_from")
+    || !productionOrderComponentRepositoryRead.includes("bdter <> @lv_initial_date")
+    || !productionOrderComponentRepositoryRead.includes("bdter <= @lv_required_date_through")
+    || !productionOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'o'")
+    || !productionOrderComponentRepositoryRead.includes("bdter < @lv_as_of_date")
+    || !productionOrderComponentRepositoryRead.includes("bdter = @lv_as_of_date")
+    || !productionOrderComponentRepositoryRead.includes("bdter > @lv_as_of_date")
+    || !productionOrderComponentRepositoryRead.includes("bdter = @lv_initial_date")
+    || !productionOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'n'")
+    || !productionOrderComponentRepositoryRead.includes("bdter <= @lv_horizon_to")
+    || !productionOrderComponentRepositoryRead.includes("@lv_required_date_bucket = 'r'")
+    || !productionOrderComponentRepositoryRead.includes("bdter >= @lv_horizon_from")
+    || !productionOrderComponentRepositoryRead.includes("bdter < @lv_as_of_date")
+    || !plannedOrderComponentDateRangeValidator.includes("filter_bucket <> abap_true")
+    || !plannedOrderComponentDateRangeValidator.includes("when 'o' or 't' or 'f' or 'u'")
+    || !plannedOrderComponentDateRangeValidator.includes("when 'n'")
+    || !plannedOrderComponentDateRangeValidator.includes("when 'r'")
+    || !plannedOrderComponentDateRangeValidator.includes("required_date_horizon_days <= 0")
+    || !plannedOrderComponentDateRangeValidator.includes("zcl_date_validation=>add_days(")
+    || !plannedOrderComponentDateRangeValidator.includes("as_of_date")
+    || !plannedOrderComponentServiceRead.includes("get_planned_comp_bulk(")
+    || !plannedOrderComponentServiceRead.includes("is_valid_required_date_range(")
+    || !plannedOrderComponentServiceRead.includes("is_required_date_range = is_required_date_range")
+    || !productionOrderComponentServiceRead.includes("is_valid_required_date_range(")
+    || !productionOrderComponentServiceRead.includes("is_required_date_range = is_required_date_range")
+    || !plannedOrderComponentServiceRead.includes("insert value #(")
+    || !plannedOrderComponentServiceRead.includes("ls_item-is_deleted <> space")
+    || !plannedOrderComponentServiceRead.includes("ls_item-is_final_issue = abap_true")
+    || !plannedOrderComponentServiceRead.includes("calculate_open_res_qty(")
+    || !plannedOrderComponentServiceRead.includes("sort rt_components by planned_order reservation_number reservation_item")
+    || !plannedOrderComponentServiceTests.includes("method reads_open_planned_components.")
+    || !plannedOrderComponentServiceTests.includes("method filters_required_date_range.")
+    || !plannedOrderComponentServiceTests.includes("method rejects_bad_date_range.")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 'o'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 't'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 'f'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 'u'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 'n'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_bucket = 'r'")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("required_date_horizon_days = 2")
+    || !plannedOrderComponentRepositoryTests.includes("method filters_required_date_range.")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("zif_prod_comp_repo~get_components(")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("zif_prod_comp_repo~get_planned_comp(")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("required_date_bucket = 'o'")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("required_date_bucket = 't'")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("required_date_bucket = 'f'")
+    || !plannedOrderComponentDateRangeRepositoryTest.includes("required_date_bucket = 'u'")
+    || !plannedOrderComponentDateRangeRepositoryTest.replace(/\s+/g, " ").includes("required_date_bucket = 'n'")
+    || !plannedOrderComponentDateRangeRepositoryTest.replace(/\s+/g, " ").includes("required_date_bucket = 'r'")
+    || !plannedOrderComponentDateRangeRepositoryTest.replace(/\s+/g, " ").includes("required_date_horizon_days = 2")
+    || !componentDateValidationSource.includes("class-methods add_days")
+    || !componentDateValidationTests.includes("method adds_calendar_days.")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("bucket `n` selects near-term future components")
+    || !plannedOrderComponentReadme.replace(/\s+/g, " ").includes("bucket `n` selects future required dates strictly after `as_of_date`")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("bucket `r` selects overdue required dates")
+    || !plannedOrderComponentReadme.replace(/\s+/g, " ").includes("bucket `r` selects overdue dates")
+    || !plannedOrderComponentPlan.includes("filter_bucket")
+    || !plannedOrderComponentPlan.includes("undated components")
+    || !plannedOrderComponentReadme.includes("filter_bucket")
+    || !plannedOrderComponentReadme.includes("undated components")
+    || !plannedOrderAtpPreview.includes("it_planned_orders is initial")
+    || !plannedOrderAtpPreview.includes("preview_components_internal(")
+    || !plannedOrderAtpPreview.includes("iv_check_atp = abap_true")
+    || !plannedOrderAtpPreview.includes("is_required_date_range = is_required_date_range")
+    || !plannedOrderStockPreview.includes("it_planned_orders is initial")
+    || !plannedOrderStockPreview.includes("preview_components_internal(")
+    || !plannedOrderStockPreview.includes("iv_check_atp = abap_false")
+    || !plannedOrderStockPreview.includes("is_required_date_range = is_required_date_range")
+    || !productionComponentAtpPreview.includes("is_required_date_range = is_required_date_range")
+    || !productionComponentStockPreview.includes("is_required_date_range = is_required_date_range")
+    || !plannedOrderScopedComponentPreview.includes("is_required_date_range = is_required_date_range")
+    || !componentPreviewInternal.includes("is_valid_required_date_range(")
+    || !componentPreviewInternal.includes("get_open_components_bulk(")
+    || !componentPreviewInternal.includes("get_open_planned_comp_bulk(")
+    || !plannedComponentPreviewDateTests.includes("is_required_date_range = ls_range")
+    || !plannedComponentPreviewDateTests.includes("required_date_through = '20261006'")
+    || !productionComponentAtpDateTests.includes("is_required_date_range = ls_range")
+    || !productionComponentStockDateTests.includes("is_required_date_range = ls_range")
+    || !plannedOrderReadinessSummary.includes(
+      "ls_check-component-planned_order",
+    )
+    || !plannedOrderReadinessSummary.includes(
+      "allocation_coverage_pct = cond #(",
+    )
+    || !plannedOrderReadinessSummary.includes("has_single_base_unit = abap_true")
+    || !plannedOrderReadinessSummary.includes("ls_unit_check-base_unit")
+    || !plannedOrderReadinessSummary.includes("shortage_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("short_component_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("zero_demand_component_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("partial_component_count")
+    || !plannedOrderReadinessSummary.includes("unallocated_component_count")
+    || !plannedOrderReadinessSummary.includes("last_local_shortage_date =")
+    || !plannedOrderReadinessSummary.includes("allocation_outcome = cond #(")
+    || !plannedOrderReadinessSummary.includes("iv_as_of_date")
+    || !plannedOrderReadinessSummary.includes("overdue_short_count")
+    || !plannedOrderReadinessSummary.includes("due_today_short_count")
+    || !plannedOrderReadinessSummary.includes("future_short_count")
+    || !plannedOrderReadinessSummary.includes("overdue_short_pct")
+    || !plannedOrderReadinessSummary.includes("due_today_short_pct")
+    || !plannedOrderReadinessSummary.includes("future_short_pct")
+    || !plannedOrderComponentServiceSource.includes("first_overdue_short_date")
+    || !plannedOrderComponentServiceSource.includes("last_overdue_short_date")
+    || !plannedOrderComponentServiceSource.includes("first_future_short_date")
+    || !plannedOrderComponentServiceSource.includes("last_future_short_date")
+    || !plannedOrderReadinessSummary.includes("first_overdue_short_date =")
+    || !plannedOrderReadinessSummary.includes("last_overdue_short_date =")
+    || !plannedOrderReadinessSummary.includes("first_future_short_date =")
+    || !plannedOrderReadinessSummary.includes("last_future_short_date =")
+    || !plannedOrderMaterialReadiness.includes(
+      "summarize_component_readiness(",
+    )
+    || !plannedOrderMaterialReadiness.includes("is_order_locally_ready")
+    || !plannedOrderMaterialReadiness.includes(
+      "allocation_coverage_pct = cond #(",
+    )
+    || !plannedOrderMaterialReadiness.includes("shortage_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("short_component_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("zero_demand_component_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("partial_component_count")
+    || !plannedOrderMaterialReadiness.includes("unallocated_component_count")
+    || !plannedOrderMaterialReadiness.includes("last_local_shortage_date =")
+    || !plannedOrderMaterialReadiness.includes("allocation_outcome = cond #(")
+    || !plannedOrderMaterialReadiness.includes("iv_as_of_date = iv_as_of_date")
+    || !plannedOrderMaterialReadiness.includes("overdue_short_count")
+    || !plannedOrderMaterialReadiness.includes("due_today_short_count")
+    || !plannedOrderMaterialReadiness.includes("future_short_count")
+    || !plannedOrderMaterialReadiness.includes("overdue_shortfall_qty")
+    || !plannedOrderMaterialReadiness.includes("due_today_shortfall_qty")
+    || !plannedOrderMaterialReadiness.includes("future_shortfall_qty")
+    || !plannedOrderMaterialReadiness.includes("overdue_short_pct")
+    || !plannedOrderMaterialReadiness.includes("due_today_short_pct")
+    || !plannedOrderMaterialReadiness.includes("future_short_pct")
+    || !plannedOrderMaterialReadiness.includes("overdue_shortfall_pct")
+    || !plannedOrderMaterialReadiness.includes("due_today_shortfall_pct")
+    || !plannedOrderMaterialReadiness.includes("future_shortfall_pct")
+    || !plannedOrderMaterialReadiness.includes("first_overdue_short_date =")
+    || !plannedOrderMaterialReadiness.includes("last_overdue_short_date =")
+    || !plannedOrderMaterialReadiness.includes("first_future_short_date =")
+    || !plannedOrderMaterialReadiness.includes("last_future_short_date =")
+    || !plannedOrderShortageSummary.includes(
+      "ls_check-component-planned_order",
+    )
+    || !plannedOrderShortageSummary.includes("affected_planned_orders")
+    || !plannedOrderShortageSummary.includes(
+      "allocation_coverage_pct = cond #(",
+    )
+    || !plannedOrderShortageSummary.includes("shortage_pct = cond #(")
+    || !plannedOrderShortageSummary.includes("allocation_outcome = cond #(")
+    || !componentShortageType.includes("as_of_date type d")
+    || !componentShortageType.includes("required_date_offset type i")
+    || !componentShortageType.includes("affected_reservation_items type ty_shortage_reservation_items")
+    || !componentShortageType.includes("largest_short_qty type mard-labst")
+    || !componentShortageType.includes("largest_short_tie_count type i")
+    || !componentShortageType.includes("largest_short_requested_qty type mard-labst")
+    || !componentShortageType.includes("largest_short_allocated_qty type mard-labst")
+    || !componentShortageType.includes("largest_short_outcome type c length 1")
+    || !componentShortageType.includes("largest_short_date type resb-bdter")
+    || !componentShortageType.includes("largest_short_prod_order type resb-aufnr")
+    || !componentShortageType.includes("largest_short_plan_order type resb-plnum")
+    || !componentShortageType.includes("largest_short_res_number type resb-rsnum")
+    || !componentShortageType.includes("largest_short_res_item type resb-rspos")
+    || !componentShortageType.includes("largest_shortfall_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentShortageType.includes("largest_shortfall_req_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentReplenishmentType.includes("largest_short_qty type mard-labst")
+    || !componentReplenishmentType.includes("largest_short_tie_count type i")
+    || !componentReplenishmentType.includes("largest_short_requested_qty type mard-labst")
+    || !componentReplenishmentType.includes("largest_short_allocated_qty type mard-labst")
+    || !componentReplenishmentType.includes("largest_short_outcome type c length 1")
+    || !componentReplenishmentType.includes("largest_short_date type resb-bdter")
+    || !componentReplenishmentType.includes("largest_short_date_offset type i")
+    || !componentReplenishmentType.includes("largest_short_prod_order type resb-aufnr")
+    || !componentReplenishmentType.includes("largest_short_plan_order type resb-plnum")
+    || !componentReplenishmentType.includes("largest_short_res_number type resb-rsnum")
+    || !componentReplenishmentType.includes("largest_short_res_item type resb-rspos")
+    || !componentReplenishmentType.includes("largest_shortfall_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentReplenishmentType.includes("largest_shortfall_req_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !planningShortageType.includes("largest_short_tie_count type i")
+    || !planningShortageType.includes("largest_short_requested_qty type mard-labst")
+    || !planningShortageType.includes("largest_short_outcome type c length 1")
+    || !planningShortageType.includes("largest_short_date type resb-bdter")
+    || !planningShortageType.includes("has_complete_largest_identity type abap_bool")
+    || !plannedOrderShortageSummary.includes("into table <ls_shortage>-affected_reservation_items")
+    || !plannedOrderShortageSummary.includes("lv_group_candidate_shortfall > <ls_shortage>-largest_short_qty")
+    || !plannedOrderShortageSummary.includes("largest_shortfall_pct = cond #(")
+    || !plannedOrderShortageSummary.includes("largest_shortfall_req_pct = cond #(")
+    || !plannedOrderShortageSummary.includes("<ls_shortage>-largest_short_date = lv_effective_required_date")
+    || !plannedOrderShortageSummary.includes("largest_short_tie_count = 1")
+    || !plannedOrderShortageSummary.includes("add 1 to <ls_shortage>-largest_short_tie_count")
+    || !plannedOrderShortageSummary.includes("reservation_number < <ls_shortage>-largest_short_res_number")
+    || !plannedOrderShortageSummary.includes("reservation_item < <ls_shortage>-largest_short_res_item")
+    || !plannedOrderShortageSummary.includes("iv_as_of_date = iv_as_of_date")
+    || !plannedOrderShortageSummary.includes("required_date_offset = conv i(")
+    || !componentShortageType.includes("partial_component_count type i")
+    || !componentShortageType.includes("unallocated_component_count type i")
+    || !componentShortageType.includes("partial_component_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentShortageType.includes("unallocated_component_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentShortageType.includes("partial_shortfall_base_qty type mard-labst")
+    || !componentShortageType.includes("unalloc_shortfall_base_qty type mard-labst")
+    || !componentShortageType.includes("partial_shortfall_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !componentShortageType.includes("unalloc_shortfall_pct type zcl_stock_service=>ty_allocation_coverage_pct")
+    || !plannedOrderShortageSummary.includes("partial_shortfall_base_qty = sum_stock_quantities(")
+    || !plannedOrderShortageSummary.includes("unalloc_shortfall_base_qty = sum_stock_quantities(")
+    || !plannedOrderShortageSummary.includes("partial_shortfall_pct = cond #(")
+    || !plannedOrderShortageSummary.includes("unalloc_shortfall_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("affected_reservation_items[ 1 ]-reservation_item")
+    || !plannedOrderComponentServiceTests.includes("lines( lt_suggestions[ 1 ]-affected_reservation_items )")
+    || !plannedOrderComponentServiceTests.includes("lv_bad_resv_identity_rejected")
+    || !plannedOrderComponentServiceTests.includes("lv_bad_largest_outcome")
+    || !plannedOrderComponentServiceTests.includes("lv_mismatch_largest_outcome")
+    || !plannedOrderComponentServiceTests.includes("reservation_number = space")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-partial_shortfall_base_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-unalloc_shortfall_base_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-partial_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-unalloc_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_short_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_short_allocated_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_short_date")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_date")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_overdue_suggestions[ 1 ]-largest_short_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-required_date")
+    || !plannedOrderComponentServiceTests.includes("lv_bad_largest_date")
+    || !plannedOrderComponentServiceTests.includes("lv_bad_largest_tie_count")
+    || !plannedOrderComponentServiceTests.includes("method summarizes_largest_short_ties.")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_tie_count")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_requested_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-largest_short_res_number")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 3 ]-largest_short_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 3 ]-largest_short_res_item")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_qty")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_plan_order")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_res_number")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_res_item")
+    || !plannedOrderComponentServiceTests.replace(/\s+/g, " ").includes("largest_short_qty = '3.000'")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-largest_short_prod_order")
+    || !plannedOrderShortageSummary.includes("partial_component_pct = cond #(")
+    || !plannedOrderShortageSummary.includes("unallocated_component_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-partial_component_count")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-unallocated_component_count")
+    || !plannedOrderComponentServiceTests.includes("method summarizes_shortage_offsets.")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-as_of_date")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 2 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 3 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 3 ]-pr_release_days_until")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-pr_release_days_overdue")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 3 ]-estimated_delivery_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-estimated_delivery_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 3 ]-latest_po_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-latest_po_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 1 ]-pr_release_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 2 ]-pr_release_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 3 ]-pr_release_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 4 ]-pr_release_day_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 3 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_suggestions[ 4 ]-required_date_offset")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 1 ]-allocation_outcome")
+    || !plannedOrderComponentServiceTests.includes("act = lt_shortages[ 2 ]-allocation_outcome")
+    || !plannedOrderComponentPlan.includes("shortage rows expose `allocation_outcome`: `p` when the group has positive")
+    || !plannedOrderComponentReadme.includes("shortage rows expose `allocation_outcome`:")
+    || !plannedOrderComponentPlan.includes("`partial_component_count` and")
+    || !plannedOrderComponentPlan.includes("`unallocated_component_count`, which partition")
+    || !plannedOrderComponentReadme.includes("`partial_component_count` and")
+    || !plannedOrderComponentReadme.includes("`unallocated_component_count`, which partition")
+    || !plannedOrderComponentPlan.includes("shortfall quantities are also split into `partial_shortfall_base_qty` and")
+    || !plannedOrderComponentReadme.includes("shortfall quantities are also split into `partial_shortfall_base_qty` and")
+    || !plannedOrderComponentPlan.includes("shortage summaries accept `iv_as_of_date`, defaulting to `sy-datum`")
+    || !plannedOrderComponentReadme.includes("shortage summaries accept `iv_as_of_date`, defaulting to `sy-datum`")
+    || !plannedOrderComponentPlan.includes("`required_date_offset` is the signed number of days")
+    || !plannedOrderComponentReadme.includes("`required_date_offset` is the signed number of days")
+    || !plannedOrderComponentPlan.includes("the sorted `affected_reservation_items` list")
+    || !plannedOrderComponentReadme.includes("the sorted `affected_reservation_items` list")
+    || !plannedOrderComponentPlan.includes("each row identifies the component with the largest")
+    || !plannedOrderComponentReadme.includes("each row identifies the component with the largest")
+    || !plannedOrderComponentPlan.includes("largest_short_date")
+    || !plannedOrderComponentReadme.includes("largest_short_date")
+    || !plannedOrderComponentPlan.includes("can differ from the suggestion's")
+    || !plannedOrderComponentReadme.includes("can differ from the suggestion's")
+    || !plannedOrderComponentPlan.includes("largest_shortfall_pct")
+    || !plannedOrderComponentPlan.includes("largest_shortfall_req_pct")
+    || !plannedOrderComponentReadme.includes("largest_shortfall_pct")
+    || !plannedOrderComponentReadme.includes("largest_shortfall_req_pct")
+    || !plannedOrderComponentPlan.includes("same share against the period total")
+    || !plannedOrderComponentReadme.includes("same share against the period total")
+    || !plannedOrderComponentPlan.includes("grouped suggestions also carry the largest individual")
+    || !plannedOrderComponentReadme.includes("grouped suggestions also carry the largest individual")
+    || !plannedOrderComponentPlan.includes("only when every shortage row in the lot-size period")
+    || !plannedOrderComponentReadme.includes("when every shortage row in the period")
+    || !plannedOrderComponentPlan.includes("lowest reservation number, then item")
+    || !plannedOrderComponentReadme.includes("lowest reservation number, then item")
+    || !plannedOrderComponentPlan.includes("the positive calendar-day distance from `as_of_date` to an upcoming requisition")
+    || !plannedOrderComponentReadme.includes("`pr_release_days_until` is positive only for an upcoming release")
+    || !plannedOrderComponentPlan.includes("`pr_release_day_offset` is the signed distance `latest_pr_release_date -")
+    || !plannedOrderComponentReadme.includes("`pr_release_day_offset` is the")
+    || !plannedOrderComponentPlan.includes("suggestions also report signed `estimated_delivery_day_offset`")
+    || !plannedOrderComponentReadme.includes("`estimated_delivery_day_offset` as `estimated_delivery_date - as_of_date`")
+    || !plannedOrderComponentPlan.includes("`latest_po_day_offset` applies the same signed convention")
+    || !plannedOrderComponentReadme.includes("`latest_po_day_offset` measures")
+    || !plannedOrderComponentPlan.includes("suggestions also expose `required_date_offset` as")
+    || !plannedOrderComponentReadme.includes("suggestions also expose `required_date_offset` as")
+    || !plannedOrderReplenishment.includes("affected_planned_orders")
+    || !plannedOrderReplenishment.includes("affected_reservation_items")
+    || !plannedOrderReplenishment.includes("has_complete_res_identity")
+    || !plannedOrderReplenishment.includes("has_complete_largest_identity = abap_true")
+    || !plannedOrderReplenishment.includes("largest_shortfall_pct = cond #(")
+    || !plannedOrderReplenishment.includes("largest_shortfall_req_pct = cond #(")
+    || !plannedOrderReplenishment.includes("largest_short_allocated_qty = cond #(")
+    || !plannedOrderReplenishment.includes("largest_short_outcome = cond #(")
+    || !plannedOrderReplenishment.includes("largest_short_date = cond #(")
+    || !plannedOrderReplenishment.includes("largest_short_date = ls_month_period_row-largest_short_date")
+    || !plannedOrderReplenishment.includes("largest_short_date_offset = cond #(")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_date")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_date")
+    || !plannedOrderReplenishment.includes("is_valid_gregorian_date( ls_shortage-largest_short_date )")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_outcome")
+    || !plannedOrderReplenishment.includes("largest_short_outcome = ls_shortage-largest_short_outcome")
+    || !plannedOrderReplenishment.includes("ls_shortage-largest_short_qty > <ls_month_shortage>-largest_short_qty")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_qty")
+    || !plannedOrderReplenishment.includes("largest_short_qty = ls_month_period_row-largest_short_qty")
+    || !plannedOrderReplenishment.includes("largest_short_qty = ls_shortage-largest_short_qty")
+    || !plannedOrderReplenishment.includes("largest_short_tie_count = lv_largest_short_tie_count")
+    || !plannedOrderReplenishment.includes("largest_short_tie_count = <ls_month_shortage>-largest_short_tie_count + cond i(")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_tie_count")
+    || !plannedOrderReplenishment.includes("largest_short_tie_count > ls_shortage-short_component_count")
+    || !plannedOrderReplenishment.includes("largest_short_requested_qty = ls_shortage-largest_short_requested_qty")
+    || !plannedOrderReplenishment.includes("largest_short_requested_qty = ls_shortage-largest_short_requested_qty")
+    || !plannedOrderReplenishment.includes("clear <ls_month_shortage>-largest_short_requested_qty")
+    || !plannedOrderReplenishment.includes("lv_pr_release_days_until = lv_release_date_delta")
+    || !plannedOrderReplenishment.includes("pr_release_days_until = lv_pr_release_days_until")
+    || !plannedOrderReplenishment.includes("estimated_delivery_day_offset = lv_est_delivery_day_offset")
+    || !plannedOrderReplenishment.includes("latest_po_day_offset = lv_latest_po_day_offset")
+    || !plannedOrderReplenishment.includes("latest_purchase_order_date - iv_as_of_date")
+    || !plannedOrderReplenishment.includes("required_date - iv_as_of_date")
+    || !plannedOrderReplenishment.includes("required_date_offset = lv_required_date_offset")
+    || !plannedOrderReplenishment.includes("pr_release_day_offset = lv_pr_release_day_offset")
+    || !plannedOrderReplenishment.includes("estimated_delivery_date - iv_as_of_date")
+    || !plannedOrderComponentServiceSource.replace(/\s+/g, " ").includes("estimated_delivery_day_offset type i")
+    || !plannedOrderComponentServiceSource.replace(/\s+/g, " ").includes("latest_po_day_offset type i")
+    || !plannedOrderComponentServiceSource.replace(/\s+/g, " ").includes("required_date_offset type i")
+    || !plannedOrderComponentServiceSource.replace(/\s+/g, " ").includes("pr_release_days_until type i")
+    || !plannedOrderComponentServiceSource.replace(/\s+/g, " ").includes("pr_release_day_offset type i")
+    || !plannedOrderComponentPreviewEngine.includes("get_open_planned_comp_bulk(")
+    || !plannedOrderComponentServiceTests.includes("method previews_planned_comp_atp.")
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_bulk_checks[ 1 ]-component-planned_order",
+    )
+    || !plannedOrderAtpSummary.includes(
+      "ls_check-component-planned_order",
+    )
+    || !plannedOrderAtpSummary.includes(
+      "planned_order = ls_check-component-planned_order",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_planned_summaries[ 1 ]-planned_order",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "preview_planned_stock_bulk(",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "preview_planned_stock(",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-planned_order",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "method plans_planned_order_shortage.",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "method summarizes_plan_mat_readiness.",
+    )
+    || !plannedOrderComponentServiceTests.includes("method summarizes_due_horizons.")
+    || !plannedOrderComponentServiceTests.includes("iv_as_of_date = '20261010'")
+    || !plannedOrderComponentServiceTests.includes("overdue_short_count")
+    || !plannedOrderComponentServiceTests.includes("due_today_short_count")
+    || !plannedOrderComponentServiceTests.includes("future_short_count")
+    || !plannedOrderComponentServiceTests.includes("future_shortfall_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_short_pct")
+    || !plannedOrderComponentServiceTests.includes("due_today_short_pct")
+    || !plannedOrderComponentServiceTests.includes("future_short_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("due_today_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("future_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("first_overdue_short_date")
+    || !plannedOrderComponentServiceTests.includes("last_overdue_short_date")
+    || !plannedOrderComponentServiceTests.includes("first_future_short_date")
+    || !plannedOrderComponentServiceTests.includes("last_future_short_date")
+    || !plannedOrderComponentServiceTests.includes("exp = '20261011'")
+    || !plannedOrderComponentServiceTests.includes("exp = '20261020'")
+    || !plannedOrderComponentServiceTests.includes("lv_as_of_date_rejected")
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-is_order_locally_ready",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-allocation_coverage_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-shortage_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-shortage_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-short_component_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-partial_component_count",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-unallocated_component_count",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-partial_component_count",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-unallocated_component_count",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-short_component_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 3 ]-zero_demand_component_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-allocation_outcome",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-allocation_outcome",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 4 ]-allocation_outcome",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 3 ]-allocation_outcome",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-zero_demand_component_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 1 ]-last_local_shortage_date",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_readiness[ 2 ]-last_local_shortage_date",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_suggestions[ 1 ]-affected_planned_orders[ 1 ]",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_shortages[ 1 ]-allocation_coverage_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "act = lt_shortages[ 1 ]-shortage_pct",
+    )
+    || !plannedOrderComponentServiceTests.includes(
+      "iv_check_rule     = space",
+    )
+    || !plannedOrderComponentServiceTests.includes("method rejects_bad_planned_comp_rows.")
+    || !plannedOrderComponentServiceTests.includes("method rejects_bad_planned_order_list.")
+    || !plannedOrderComponentRepositoryTests.includes("method reads_planned_order_components.")
+    || !plannedOrderComponentStub.includes("<fieldname>plnum</fieldname>")
+    || !plannedOrderComponentUnitRunner.includes("erfme nchar(3), bwtar nchar(10), plnum nchar(10)")
+    || !plannedOrderComponentPlan.includes("## planned-order component reservation read")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("## component reservation read required-date windows")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("inclusive lower bound")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("inclusive upper bound")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("when either bound is active, undated components are excluded")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("invalid selections are rejected before repository reads")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("production and planned-order single/bulk atp, stock, and scoped component previews accept the same selection")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("filter source reservation dates before allocation or atp evaluation")
+    || !plannedOrderComponentPlan.replace(/\s+/g, " ").includes("allocation policy later overrides its required date; that override controls allocation timing after the source-date selection")
+    || !plannedOrderComponentPlan.includes("unrequested planned orders")
+    || !plannedOrderComponentPlan.includes("preview_planned_comp_atp_bulk")
+    || !plannedOrderComponentPlan.includes("summarize_order_atp")
+    || !plannedOrderComponentPlan.includes("preview_planned_stock_bulk")
+    || !plannedOrderComponentPlan.includes("affected planned-order numbers")
+    || !plannedOrderComponentPlan.includes("weighted allocation coverage")
+    || !plannedOrderComponentPlan.includes("coverage and shortage percentages")
+    || !plannedOrderComponentPlan.includes("first and last local shortage dates")
+    || !plannedOrderComponentPlan.includes("short_component_pct")
+    || !plannedOrderComponentPlan.includes("partial_component_count` and `unallocated_component_count` partition")
+    || !plannedOrderComponentPlan.includes("positive-demand components")
+    || !plannedOrderComponentPlan.includes("zero_demand_component_pct")
+    || !plannedOrderComponentPlan.includes("all-zero groups report 100%")
+    || !plannedOrderComponentPlan.includes("iv_as_of_date`, defaulting to `sy-datum`")
+    || !plannedOrderComponentPlan.includes("order summaries report overdue, due-today, and")
+    || !plannedOrderComponentPlan.includes("partition short counts, with quantities kept at material and base-unit")
+    || !plannedOrderComponentPlan.includes("`overdue_short_pct`, `due_today_short_pct`, and")
+    || !plannedOrderComponentPlan.includes("`overdue_shortfall_pct`, `due_today_shortfall_pct`, and")
+    || !plannedOrderComponentPlan.includes("shares round independently to two decimals")
+    || !plannedOrderComponentPlan.includes("first and last overdue shortage dates")
+    || !plannedOrderComponentPlan.includes("first and last future shortage dates")
+    || !plannedOrderComponentPlan.includes("both readiness summaries expose `allocation_outcome`: `f` when no")
+    || !plannedOrderComponentPlan.includes("summarize_comp_material_ready")
+    || !plannedOrderComponentReadme.includes("preview_planned_comp_atp_bulk")
+    || !plannedOrderComponentReadme.includes("summarize_order_atp")
+    || !plannedOrderComponentReadme.includes("preview_planned_stock_bulk")
+    || !plannedOrderComponentReadme.includes("affected planned-order numbers")
+    || !plannedOrderComponentReadme.includes("allocation coverage and shortage percentages")
+    || !plannedOrderComponentReadme.includes("weighted coverage and shortage percentages")
+    || !plannedOrderComponentReadme.includes("first and last local shortage dates")
+    || !plannedOrderComponentReadme.includes("short_component_pct")
+    || !plannedOrderComponentReadme.includes("partial_component_count` and `unallocated_component_count` partition")
+    || !plannedOrderComponentReadme.includes("positive-demand components")
+    || !plannedOrderComponentReadme.includes("zero_demand_component_pct")
+    || !plannedOrderComponentReadme.includes("all-zero groups report 100%")
+    || !plannedOrderComponentReadme.includes("iv_as_of_date`, defaulting to `sy-datum`")
+    || !plannedOrderComponentReadme.includes("order summaries report overdue, due-today, and")
+    || !plannedOrderComponentReadme.includes("partition short counts, with quantities kept at material and base-unit")
+    || !plannedOrderComponentReadme.includes("`overdue_short_pct`, `due_today_short_pct`, and")
+    || !plannedOrderComponentReadme.includes("`overdue_shortfall_pct`, `due_today_shortfall_pct`, and")
+    || !plannedOrderComponentReadme.includes("shares round independently to two decimals")
+    || !plannedOrderComponentReadme.includes("first and last overdue shortage dates")
+    || !plannedOrderComponentReadme.includes("first and last future shortage dates")
+    || !plannedOrderComponentReadme.includes("both readiness summaries expose `allocation_outcome`: `f` when no")
+    || !plannedOrderComponentReadme.includes("summarize_comp_material_ready")
+    || !plannedOrderComponentReadme.includes("all four production and planned-order open-component read methods accept an")
+    || !plannedOrderComponentReadme.replace(/\s+/g, " ").includes("activating a bound omits undated components")
+    || !plannedOrderComponentReadme.includes("invalid ranges fail before repository access")
+    || !plannedOrderComponentReadme.replace(/\s+/g, " ").includes("production and planned-order atp, stock, and scoped preview methods also accept this selection")
+    || !plannedOrderComponentReadme.replace(/\s+/g, " ").includes("they filter source reservation dates before allocation and atp evaluation")
+    || !plannedOrderComponentReadme.includes("component reservations by `resb-plnum`")) {
+  errors.push(
+    "planned-order component reads must validate reservation scope and expose only open components",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("confirmed_quantity_pct")
+    || !plannedOrderComponentServiceSource.includes("unconfirmed_quantity_pct")
+    || !plannedOrderComponentServiceSource.includes("fully_confirmed_count_pct")
+    || !plannedOrderComponentServiceSource.includes("partially_confirmed_count_pct")
+    || !plannedOrderComponentServiceSource.includes("unconfirmed_count_pct")
+    || !plannedOrderComponentServiceSource.includes("confirmation_outcome")
+    || !plannedOrderAtpSummary.includes("confirmation_outcome = cond #(")
+    || !plannedOrderAtpSummary.includes("fully_confirmed_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("partially_confirmed_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("unconfirmed_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("confirmed_quantity_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("unconfirmed_quantity_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("confirmed_quantity_pct")
+    || !plannedOrderComponentServiceTests.includes("unconfirmed_quantity_pct")
+    || !plannedOrderComponentServiceTests.includes("fully_confirmed_count_pct")
+    || !plannedOrderComponentServiceTests.includes("partially_confirmed_count_pct")
+    || !plannedOrderComponentServiceTests.includes("unconfirmed_count_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 2 ]-unconfirmed_count_pct")
+    || !plannedOrderComponentServiceTests.includes("confirmation_outcome")
+    || !plannedOrderComponentServiceTests.includes("c_allocation_outcome_full")
+    || !plannedOrderComponentServiceTests.includes("c_allocation_outcome_partial")
+    || !plannedOrderComponentServiceTests.includes("c_allocation_outcome_none")
+    || !plannedOrderComponentServiceTests.includes("'71.43'")
+    || !plannedOrderComponentServiceTests.includes("'28.57'")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-confirmed_quantity_pct")
+    || !plannedOrderComponentPlan.includes("confirmed_quantity_pct")
+    || !plannedOrderComponentReadme.includes("confirmed_quantity_pct")
+    || !plannedOrderComponentPlan.includes("fully_confirmed_count_pct")
+    || !plannedOrderComponentReadme.includes("fully_confirmed_count_pct")
+    || !plannedOrderComponentPlan.includes("confirmation_outcome")
+    || !plannedOrderComponentReadme.includes("confirmation_outcome")) {
+  errors.push(
+    "ATP component summaries must report confirmed and unconfirmed base-quantity shares, including zero demand",
+  );
+}
+
+if (!plannedOrderAtpSummary.includes("is_valid_gregorian_date( iv_as_of_date )")
+    || !plannedOrderAtpSummary.includes("as_of_date = iv_as_of_date")
+    || !plannedOrderAtpSummary.includes("first_required_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("last_required_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("first_confirmed_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("last_confirmed_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("first_partial_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("last_partial_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("first_unconfirmed_day_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("last_unconfirmed_day_offset = cond #(")
+    || !/\bas_of_date\s+type d\b/.test(plannedOrderComponentServiceSource)
+    || !plannedOrderComponentServiceTests.includes("method summarizes_atp_date_offsets.")
+    || !plannedOrderComponentServiceTests.includes("first_required_day_offset")
+    || !plannedOrderComponentServiceTests.includes("last_required_day_offset")
+    || !plannedOrderComponentServiceTests.includes("first_confirmed_day_offset")
+    || !plannedOrderComponentServiceTests.includes("last_partial_day_offset")
+    || !plannedOrderComponentServiceTests.includes("last_unconfirmed_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lv_atp_as_of_rejected")
+    || !plannedOrderComponentPlan.includes("signed `*_day_offset` fields report the overall first/last required")
+    || !plannedOrderComponentReadme.includes("signed `*_day_offset` fields report the overall first/last required")
+    || !plannedOrderAtpSummary.includes("last_unconfirmed_date =")
+    || !plannedOrderAtpSummary.includes("first_confirmed_date =")
+    || !plannedOrderAtpSummary.includes("last_confirmed_date =")
+    || !plannedOrderAtpSummary.includes("first_partial_confirm_date =")
+    || !plannedOrderAtpSummary.includes("last_partial_confirm_date =")
+    || !plannedOrderComponentServiceSource.includes("first_partial_confirm_date")
+    || !plannedOrderComponentServiceSource.includes("last_partial_confirm_date")
+    || !plannedOrderComponentServiceTests.includes("first_partial_confirm_date")
+    || !plannedOrderComponentServiceTests.includes("last_partial_confirm_date")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 2 ]-first_partial_confirm_date")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 3 ]-last_partial_confirm_date")
+    || !plannedOrderComponentPlan.includes("partially confirmed, and unconfirmed components")
+    || !plannedOrderComponentReadme.includes("partially confirmed, and unconfirmed components")
+    || !plannedOrderComponentServiceSource.includes("first_confirmed_date")
+    || !plannedOrderComponentServiceSource.includes("last_confirmed_date")
+    || !plannedOrderComponentServiceTests.includes("first_confirmed_date")
+    || !plannedOrderComponentServiceTests.includes("last_confirmed_date")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 2 ]-first_confirmed_date")
+    || !plannedOrderComponentServiceTests.includes("exp = '20261015'")
+    || !plannedOrderComponentPlan.includes("first_confirmed_date")
+    || !plannedOrderComponentReadme.includes("first_confirmed_date")
+    || !plannedOrderComponentServiceSource.includes("last_unconfirmed_date")
+    || !plannedOrderComponentServiceTests.includes("last_unconfirmed_date")
+    || !plannedOrderComponentServiceTests.includes("exp = '20261015'")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-last_unconfirmed_date")
+    || !plannedOrderComponentPlan.includes("first/last date spans for\nconfirmed, partially confirmed, and unconfirmed components")
+    || !plannedOrderComponentReadme.includes("first/last date spans for\nconfirmed, partially confirmed, and unconfirmed components")
+    || !plannedOrderComponentServiceSource.includes("first_unconfirmed_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_unconfirmed_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_unconfirmed_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_unconfirmed_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-first_unconfirmed_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-first_unconfirmed_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-last_unconfirmed_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-last_unconfirmed_res_item")
+    || !plannedOrderComponentServiceTests.includes("reservation_item   = '0030'")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 3 ]-first_unconfirmed_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 3 ]-first_unconfirmed_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 3 ]-last_unconfirmed_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 3 ]-last_unconfirmed_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-first_unconfirmed_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-last_unconfirmed_res_item")
+    || !plannedOrderComponentPlan.includes("ascending reservation number and then item select the identity")
+    || !plannedOrderComponentReadme.includes("ascending reservation number and then item select the identity")
+    || !plannedOrderComponentServiceSource.includes("first_confirmed_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_confirmed_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_confirmed_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_confirmed_res_item")
+    || !plannedOrderComponentServiceSource.includes("first_partial_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_partial_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_partial_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_partial_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-first_confirmed_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-first_confirmed_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-last_confirmed_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-last_confirmed_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-first_partial_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-first_partial_res_item")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_number < <ls_summary>-last_partial_res_number")
+    || !plannedOrderAtpSummary.includes("ls_check-component-reservation_item < <ls_summary>-last_partial_res_item")
+    || !plannedOrderComponentServiceTests.includes("method summarizes_atp_endpoint_ids.")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-first_confirmed_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-last_confirmed_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-first_partial_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-last_partial_res_item")
+    || !plannedOrderComponentPlan.includes("first and last confirmed, partially confirmed, and unconfirmed endpoints")
+    || !plannedOrderComponentReadme.includes("first and last confirmed, partially confirmed, and unconfirmed endpoints")) {
+  errors.push(
+    "ATP component summaries must identify every confirmation-status date endpoint with deterministic ties",
+  );
+}
+
+
+if (!plannedOrderComponentServiceSource.includes("first_required_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_required_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_required_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_required_res_item")
+    || !plannedOrderAtpSummary.includes("first_required_res_number =")
+    || !plannedOrderAtpSummary.includes("last_required_res_number =")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-first_required_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-first_required_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-last_required_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-last_required_res_item")
+    || !plannedOrderComponentPlan.includes("overall first and last required-date endpoints also identify their component")
+    || !plannedOrderComponentReadme.includes("overall first and last required-date endpoints also identify their component")) {
+  errors.push(
+    "ATP component summaries must identify overall required-date endpoints with deterministic ties",
+  );
+}
+
+if (!plannedOrderAtpSummary.includes("overdue_unconfirmed_base_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("due_today_unconfirmed_base_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("future_unconfirmed_base_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-balance_component_count")
+    || !plannedOrderAtpSummary.includes("overdue_balance_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("due_today_balance_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("future_balance_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_balance_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-due_today_balance_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-future_balance_count")
+    || !plannedOrderAtpSummary.includes("overdue_unconfirmed_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("due_today_unconfirmed_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("future_unconfirmed_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_unconfirmed_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("due_today_unconfirmed_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("future_unconfirmed_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_1_7_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_8_30_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_31_90_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_over_90_count_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_1_7_qty_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_8_30_qty_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_31_90_qty_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_over_90_qty_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_1_7_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_8_30_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_31_90_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("overdue_over_90_req_pct = cond #(")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_1_7_balance_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_8_30_balance_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_31_90_balance_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_over_90_balance_count")
+    || !plannedOrderAtpSummary.includes("overdue_1_7_balance_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_8_30_balance_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_31_90_balance_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_over_90_balance_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_1_7_partial_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_8_30_partial_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_31_90_partial_count")
+    || !plannedOrderAtpSummary.includes("add 1 to <ls_summary>-overdue_over_90_partial_count")
+    || !plannedOrderAtpSummary.includes("overdue_1_7_partial_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_8_30_partial_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_31_90_partial_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("overdue_over_90_partial_qty = sum_stock_quantities(")
+    || !plannedOrderAtpSummary.includes("oldest_overdue_balance_date =")
+    || !plannedOrderAtpSummary.includes("next_future_balance_date =")
+    || !plannedOrderAtpSummary.includes("oldest_overdue_balance_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("next_future_balance_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("latest_overdue_balance_date =")
+    || !plannedOrderAtpSummary.includes("last_future_balance_date =")
+    || !plannedOrderAtpSummary.includes("first_due_today_res_number =")
+    || !plannedOrderAtpSummary.includes("last_due_today_res_number =")
+    || !plannedOrderAtpSummary.includes("latest_overdue_balance_offset = cond #(")
+    || !plannedOrderAtpSummary.includes("last_future_balance_offset = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-overdue_unconfirmed_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-due_today_unconfirmed_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-future_unconfirmed_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-future_unconfirmed_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-overdue_unconfirmed_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-due_today_unconfirmed_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-future_unconfirmed_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-overdue_unconfirmed_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-due_today_unconfirmed_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-future_unconfirmed_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-future_unconfirmed_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-future_unconfirmed_pct")
+    || !plannedOrderComponentServiceTests.includes("method summarizes_atp_overdue_ages.")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_balance_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_balance_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_balance_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_balance_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_balance_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_balance_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_balance_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_balance_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_partial_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_partial_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_partial_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_partial_count")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_partial_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_partial_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_partial_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_partial_qty")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_count_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_count_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_count_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_count_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_1_7_req_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_8_30_req_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_31_90_req_pct")
+    || !plannedOrderComponentServiceTests.includes("overdue_over_90_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-balance_component_count")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-overdue_balance_count_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-due_today_balance_count_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-future_balance_count_pct")
+    || !plannedOrderComponentServiceTests.includes("method summarizes_atp_horizon_ends.")
+    || !plannedOrderComponentServiceTests.includes("oldest_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("next_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-next_future_balance_offset")
+    || !plannedOrderComponentServiceTests.includes("latest_overdue_balance_date")
+    || !plannedOrderComponentServiceTests.includes("last_future_balance_date")
+    || !plannedOrderComponentServiceTests.includes("first_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("last_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-future_balance_count_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-overdue_balance_count")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-due_today_balance_count")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 1 ]-future_balance_count")
+    || !plannedOrderComponentServiceTests.includes("lt_summaries[ 4 ]-future_balance_count")
+    || !plannedOrderComponentPlan.includes("oldest_overdue_balance_date")
+    || !plannedOrderComponentPlan.includes("next_future_balance_date")
+    || !plannedOrderComponentReadme.includes("oldest_overdue_balance_date")
+    || !plannedOrderComponentReadme.includes("next_future_balance_date")
+    || !plannedOrderComponentPlan.includes("latest_overdue_balance_date")
+    || !plannedOrderComponentPlan.includes("last_future_balance_date")
+    || !plannedOrderComponentReadme.includes("latest_overdue_balance_date")
+    || !plannedOrderComponentReadme.includes("last_future_balance_date")
+    || !plannedOrderComponentPlan.includes("overdue_balance_count_pct")
+    || !plannedOrderComponentPlan.includes("balance_component_count")
+    || !plannedOrderComponentPlan.includes("overdue_1_7_balance_count")
+    || !plannedOrderComponentReadme.includes("overdue_1_7_balance_count")
+    || !plannedOrderComponentPlan.includes("overdue_over_90_balance_qty")
+    || !plannedOrderComponentReadme.includes("overdue_over_90_balance_qty")
+    || !plannedOrderComponentPlan.includes("overdue_1_7_partial_count")
+    || !plannedOrderComponentPlan.includes("overdue_8_30_partial_count")
+    || !plannedOrderComponentPlan.includes("overdue_31_90_partial_count")
+    || !plannedOrderComponentPlan.includes("overdue_over_90_partial_count")
+    || !plannedOrderComponentReadme.includes("overdue_1_7_partial_count")
+    || !plannedOrderComponentReadme.includes("overdue_8_30_partial_count")
+    || !plannedOrderComponentReadme.includes("overdue_31_90_partial_count")
+    || !plannedOrderComponentReadme.includes("overdue_over_90_partial_count")
+    || !plannedOrderComponentPlan.includes("overdue_1_7_partial_qty")
+    || !plannedOrderComponentPlan.includes("overdue_8_30_partial_qty")
+    || !plannedOrderComponentPlan.includes("overdue_31_90_partial_qty")
+    || !plannedOrderComponentPlan.includes("overdue_over_90_partial_qty")
+    || !plannedOrderComponentReadme.includes("overdue_1_7_partial_qty")
+    || !plannedOrderComponentReadme.includes("overdue_8_30_partial_qty")
+    || !plannedOrderComponentReadme.includes("overdue_31_90_partial_qty")
+    || !plannedOrderComponentReadme.includes("overdue_over_90_partial_qty")
+    || !plannedOrderComponentPlan.includes("overdue_1_7_qty_pct")
+    || !plannedOrderComponentPlan.includes("overdue_8_30_qty_pct")
+    || !plannedOrderComponentPlan.includes("overdue_31_90_qty_pct")
+    || !plannedOrderComponentPlan.includes("overdue_over_90_qty_pct")
+    || !plannedOrderComponentReadme.includes("overdue_1_7_qty_pct")
+    || !plannedOrderComponentReadme.includes("overdue_8_30_qty_pct")
+    || !plannedOrderComponentReadme.includes("overdue_31_90_qty_pct")
+    || !plannedOrderComponentReadme.includes("overdue_over_90_qty_pct")
+    || !plannedOrderComponentPlan.includes("overdue_1_7_req_pct")
+    || !plannedOrderComponentPlan.includes("overdue_8_30_req_pct")
+    || !plannedOrderComponentPlan.includes("overdue_31_90_req_pct")
+    || !plannedOrderComponentPlan.includes("overdue_over_90_req_pct")
+    || !plannedOrderComponentReadme.includes("overdue_1_7_req_pct")
+    || !plannedOrderComponentReadme.includes("overdue_8_30_req_pct")
+    || !plannedOrderComponentReadme.includes("overdue_31_90_req_pct")
+    || !plannedOrderComponentReadme.includes("overdue_over_90_req_pct")
+    || !plannedOrderComponentPlan.includes("overdue_balance_count")
+    || !plannedOrderComponentReadme.includes("overdue_balance_count_pct")
+    || !plannedOrderComponentReadme.includes("balance_component_count")
+    || !plannedOrderComponentReadme.includes("overdue_balance_count")
+    || !plannedOrderComponentPlan.includes("overdue_unconfirmed_req_pct")
+    || !plannedOrderComponentReadme.includes("overdue_unconfirmed_req_pct")
+    || !plannedOrderComponentPlan.includes("overdue_unconfirmed_pct")
+    || !plannedOrderComponentPlan.includes("unconfirmed_base_quantity")
+    || !plannedOrderComponentPlan.includes("overdue_unconfirmed_base_qty")
+    || !plannedOrderComponentReadme.includes("overdue_unconfirmed_pct")
+    || !plannedOrderComponentReadme.includes("unconfirmed_base_quantity")
+    || !plannedOrderComponentReadme.includes("overdue_unconfirmed_base_qty")) {
+  errors.push(
+    "ATP component summaries must partition unconfirmed quantities by required-date horizon",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_shortage_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_shortage_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_shortage_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_shortage_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-first_shortage_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-first_shortage_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-last_shortage_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-last_shortage_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-first_shortage_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-first_shortage_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-last_shortage_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-last_shortage_res_item")
+    || !plannedOrderComponentServiceTests.includes("method shortage_endpoint_ids.")
+    || !plannedOrderComponentServiceTests.includes("lt_order_readiness[ 1 ]-first_shortage_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_readiness[ 1 ]-last_shortage_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_readiness[ 2 ]-first_shortage_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_readiness[ 2 ]-last_shortage_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_readiness[ 1 ]-first_shortage_res_number")
+    || !plannedOrderComponentPlan.includes("first_shortage_res_number`/`first_shortage_res_item")
+    || !plannedOrderComponentReadme.includes("first_shortage_res_number`/`first_shortage_res_item")
+    || !plannedOrderComponentPlan.includes("ascending reservation number and item")
+    || !plannedOrderComponentReadme.includes("ascending reservation number and item")) {
+  errors.push(
+    "component readiness summaries must identify first and last local shortage endpoints deterministically",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_required_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_required_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_required_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_required_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-first_required_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-first_required_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-last_required_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-last_required_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-first_required_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-first_required_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-last_required_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-last_required_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_readiness[ 1 ]-first_required_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_readiness[ 1 ]-last_required_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_readiness[ 2 ]-first_required_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_readiness[ 2 ]-last_required_res_item")
+    || !plannedOrderComponentPlan.includes("first_required_res_number`/`first_required_res_item")
+    || !plannedOrderComponentReadme.includes("first_required_res_number`/`first_required_res_item")
+    || !plannedOrderComponentPlan.includes("covered and zero-demand\nrows contribute to this range")
+    || !plannedOrderComponentReadme.includes("covered and zero-demand\nrows contribute to this range")) {
+  errors.push(
+    "readiness required-date endpoints must identify their component across all rows with deterministic ties",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_overdue_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_overdue_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_overdue_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_overdue_res_item")
+    || !plannedOrderComponentServiceSource.includes("first_future_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_future_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_future_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_future_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-first_overdue_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-first_overdue_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-last_overdue_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-last_overdue_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-first_future_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-first_future_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-last_future_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-last_future_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-first_overdue_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-first_overdue_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-last_overdue_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-last_overdue_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-first_future_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-first_future_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-last_future_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("method due_horizon_endpoint_ids.")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-first_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-first_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-last_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-first_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-first_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-last_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-first_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-last_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-last_future_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_future_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-last_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-first_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-first_overdue_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_overdue_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_future_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-first_future_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-first_future_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_overdue_res_item")
+    || !plannedOrderComponentPlan.includes("first_overdue_res_number`/`first_overdue_res_item")
+    || !plannedOrderComponentReadme.includes("first_overdue_res_number`/`first_overdue_res_item")
+    || !plannedOrderComponentPlan.includes("corresponding `first_future_*` and `last_future_*` fields")
+    || !plannedOrderComponentReadme.includes("corresponding `first_future_*` and `last_future_*` fields")
+    || !plannedOrderComponentPlan.includes("identities remain initial for empty horizons")
+    || !plannedOrderComponentReadme.includes("identities remain initial for empty horizons")
+    || !plannedOrderComponentPlan.includes("same-date ties use ascending reservation number and item")
+    || !plannedOrderComponentReadme.includes("same-date ties use ascending reservation number and item")) {
+  errors.push(
+    "readiness horizon endpoints must identify the overdue/future shortage component with deterministic ties",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("overdue_partial_count")
+    || !plannedOrderComponentServiceSource.includes("overdue_unallocated_count")
+    || !plannedOrderComponentServiceSource.includes("due_today_partial_count")
+    || !plannedOrderComponentServiceSource.includes("due_today_unallocated_count")
+    || !plannedOrderComponentServiceSource.includes("future_partial_count")
+    || !plannedOrderComponentServiceSource.includes("future_unallocated_count")
+    || !plannedOrderReadinessSummary.includes("overdue_partial_count")
+    || !plannedOrderReadinessSummary.includes("due_today_unallocated_count")
+    || !plannedOrderReadinessSummary.includes("future_partial_count")
+    || !plannedOrderMaterialReadiness.includes("overdue_unallocated_count")
+    || !plannedOrderMaterialReadiness.includes("due_today_partial_count")
+    || !plannedOrderMaterialReadiness.includes("future_unallocated_count")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-overdue_partial_count")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-future_unallocated_count")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-overdue_unallocated_count")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_partial_count")
+    || !plannedOrderComponentPlan.includes("partial and unallocated counts partition that horizon's short-component count")
+    || !plannedOrderComponentReadme.includes("partial and unallocated counts partition that horizon's short-component count")
+    || !plannedOrderComponentServiceSource.includes("overdue_partial_short_qty")
+    || !plannedOrderComponentServiceSource.includes("overdue_unalloc_short_qty")
+    || !plannedOrderComponentServiceSource.includes("due_today_partial_short_qty")
+    || !plannedOrderComponentServiceSource.includes("due_today_unalloc_short_qty")
+    || !plannedOrderComponentServiceSource.includes("future_partial_short_qty")
+    || !plannedOrderComponentServiceSource.includes("future_unalloc_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-overdue_partial_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-overdue_unalloc_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-due_today_partial_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-due_today_unalloc_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-future_partial_short_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-future_unalloc_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-overdue_partial_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-overdue_unalloc_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-due_today_partial_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-due_today_unalloc_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_partial_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_unalloc_short_qty")
+    || !plannedOrderComponentPlan.includes("each pair sums to the existing horizon shortfall quantity")
+    || !plannedOrderComponentReadme.includes("each pair sums to the existing horizon shortfall quantity")
+    || !plannedOrderComponentServiceSource.includes("overdue_partial_pct")
+    || !plannedOrderComponentServiceSource.includes("overdue_unallocated_pct")
+    || !plannedOrderComponentServiceSource.includes("due_today_partial_pct")
+    || !plannedOrderComponentServiceSource.includes("due_today_unallocated_pct")
+    || !plannedOrderComponentServiceSource.includes("future_partial_pct")
+    || !plannedOrderComponentServiceSource.includes("future_unallocated_pct")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-overdue_partial_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-due_today_unallocated_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-future_partial_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-overdue_unallocated_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-due_today_partial_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-future_unallocated_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-overdue_partial_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-future_unallocated_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-due_today_partial_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_unallocated_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-overdue_partial_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-future_unallocated_pct")
+    || !plannedOrderComponentPlan.includes("partial or unallocated share within that horizon's short-component count")
+    || !plannedOrderComponentReadme.includes("partial or unallocated share within that horizon's short-component count")
+    || !plannedOrderComponentServiceSource.includes("first_due_today_res_number")
+    || !plannedOrderComponentServiceSource.includes("first_due_today_res_item")
+    || !plannedOrderComponentServiceSource.includes("last_due_today_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_due_today_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number < <ls_readiness>-first_due_today_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item < <ls_readiness>-first_due_today_res_item")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_number > <ls_readiness>-last_due_today_res_number")
+    || !plannedOrderReadinessSummary.includes("ls_check-component-reservation_item > <ls_readiness>-last_due_today_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number < <ls_summary>-first_due_today_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item < <ls_summary>-first_due_today_res_item")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_number > <ls_summary>-last_due_today_res_number")
+    || !plannedOrderMaterialReadiness.includes("ls_check-component-reservation_item > <ls_summary>-last_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("method due_horizon_endpoint_ids.")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_due_today_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-last_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-first_due_today_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-first_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-last_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_due_today_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-first_due_today_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-last_due_today_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_due_today_res_item")
+    || !plannedOrderComponentPlan.includes("first_due_today_res_number`/`first_due_today_res_item")
+    || !plannedOrderComponentPlan.includes("last_due_today_res_number`/`last_due_today_res_item")
+    || !plannedOrderComponentReadme.includes("first_due_today_res_number`/`first_due_today_res_item")
+    || !plannedOrderComponentReadme.includes("last_due_today_res_number`/`last_due_today_res_item")
+    || !plannedOrderComponentPlan.includes("lowest and highest reservation keys")
+    || !plannedOrderComponentReadme.includes("lowest and highest reservation keys")
+    || !plannedOrderComponentPlan.includes("fields remain initial when no due-today shortage exists")
+    || !plannedOrderComponentReadme.includes("fields remain initial when no due-today shortage exists")) {
+  errors.push(
+    "readiness summaries must identify the first due-today shortage component deterministically",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_partial_short_date")
+    || !plannedOrderComponentServiceSource.includes("first_partial_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_partial_short_date")
+    || !plannedOrderComponentServiceSource.includes("last_partial_res_item")
+    || !plannedOrderComponentServiceSource.includes("first_unalloc_short_date")
+    || !plannedOrderComponentServiceSource.includes("first_unalloc_res_number")
+    || !plannedOrderComponentServiceSource.includes("last_unalloc_short_date")
+    || !plannedOrderComponentServiceSource.includes("last_unalloc_res_item")
+    || !plannedOrderReadinessSummary.includes("<ls_readiness>-first_partial_short_date")
+    || !plannedOrderReadinessSummary.includes("<ls_readiness>-last_partial_short_date")
+    || !plannedOrderReadinessSummary.includes("<ls_readiness>-first_unalloc_short_date")
+    || !plannedOrderReadinessSummary.includes("<ls_readiness>-last_unalloc_short_date")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_partial_short_date")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_partial_short_date")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_unalloc_short_date")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_unalloc_short_date")
+    || !plannedOrderComponentServiceTests.includes("method readiness_outcome_endpoints.")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_partial_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-last_unalloc_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-first_partial_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-last_unalloc_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 2 ]-first_partial_short_date")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 2 ]-last_unalloc_res_number")
+    || !plannedOrderComponentPlan.includes("partial and unallocated shortage rows also expose first/last date and reservation endpoints")
+    || !plannedOrderComponentReadme.includes("partial and unallocated shortage rows also expose first/last date and reservation endpoints")
+    || !plannedOrderComponentPlan.includes("date ties use ascending reservation number and item")
+    || !plannedOrderComponentReadme.includes("date ties use ascending reservation number and item")) {
+  errors.push(
+    "component readiness summaries must identify first and last partial and unallocated shortage endpoints",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("overdue_partial_qty_pct")
+    || !plannedOrderComponentServiceSource.includes("overdue_unalloc_qty_pct")
+    || !plannedOrderComponentServiceSource.includes("due_today_partial_qty_pct")
+    || !plannedOrderComponentServiceSource.includes("due_today_unalloc_qty_pct")
+    || !plannedOrderComponentServiceSource.includes("future_partial_qty_pct")
+    || !plannedOrderComponentServiceSource.includes("future_unalloc_qty_pct")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-overdue_partial_qty_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-overdue_unalloc_qty_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-due_today_partial_qty_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-due_today_unalloc_qty_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-future_partial_qty_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-future_unalloc_qty_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-overdue_partial_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-overdue_unalloc_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-due_today_partial_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-due_today_unalloc_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_partial_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_unalloc_qty_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-future_unalloc_qty_pct")
+    || !plannedOrderComponentPlan.includes("partial and unallocated shares of each horizon's shortfall quantity")
+    || !plannedOrderComponentReadme.includes("partial and unallocated shares of each horizon's shortfall quantity")
+    || !plannedOrderComponentPlan.includes("empty horizons report zero; populated pairs sum to 100%")
+    || !plannedOrderComponentReadme.includes("empty horizons report zero; populated pairs sum to 100%")) {
+  errors.push(
+    "material readiness summaries must report partial and unallocated shares within each horizon's shortfall quantity",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("partial_shortfall_base_qty")
+    || !plannedOrderComponentServiceSource.includes("unalloc_shortfall_base_qty")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-partial_shortfall_base_qty = sum_stock_quantities(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-unalloc_shortfall_base_qty = sum_stock_quantities(")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-partial_shortfall_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-unalloc_shortfall_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_partial_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-future_unalloc_short_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-partial_shortfall_base_qty")
+    || !plannedOrderComponentPlan.includes("they partition `shortfall_base_quantity`")
+    || !plannedOrderComponentReadme.includes("they partition `shortfall_base_quantity`")) {
+  errors.push(
+    "material readiness must report and reconcile aggregate partial and unallocated shortfall quantities",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("partial_shortfall_pct")
+    || !plannedOrderComponentServiceSource.includes("unalloc_shortfall_pct")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-partial_shortfall_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-unalloc_shortfall_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-partial_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-unalloc_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("'18.18'")
+    || !plannedOrderComponentServiceTests.includes("'81.82'")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-partial_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-unalloc_shortfall_pct")
+    || !plannedOrderComponentPlan.includes("`partial_shortfall_pct` and `unalloc_shortfall_pct` report each aggregate quantity's share of `shortfall_base_quantity`")
+    || !plannedOrderComponentReadme.includes("`partial_shortfall_pct` and `unalloc_shortfall_pct` report each aggregate quantity's share of `shortfall_base_quantity`")) {
+  errors.push(
+    "material readiness must report aggregate partial and unallocated shortfall shares",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("partial_component_pct")
+    || !plannedOrderComponentServiceSource.includes("unallocated_component_pct")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-partial_component_pct = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-unallocated_component_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-partial_component_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-unallocated_component_pct = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-partial_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-unallocated_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-partial_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-unallocated_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-partial_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-unallocated_component_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-unallocated_component_pct")
+    || !plannedOrderComponentPlan.includes("`partial_component_pct` and `unallocated_component_pct` report each outcome's share of `short_component_count`")
+    || !plannedOrderComponentReadme.includes("`partial_component_pct` and `unallocated_component_pct` report each outcome's share of `short_component_count`")) {
+  errors.push(
+    "readiness summaries must report partial and unallocated shares of short components",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_overdue_days")
+    || !plannedOrderComponentServiceSource.includes("last_overdue_days")
+    || !plannedOrderComponentServiceSource.includes("first_future_days_until")
+    || !plannedOrderComponentServiceSource.includes("last_future_days_until")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-first_overdue_days = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-last_overdue_days = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-first_future_days_until = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-last_future_days_until = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_overdue_days = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_overdue_days = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_future_days_until = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_future_days_until = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-first_overdue_days")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 3 ]-last_future_days_until")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-first_overdue_days")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-last_future_days_until")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 4 ]-first_future_days_until")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-last_overdue_days")
+    || !plannedOrderComponentPlan.includes("both summaries also expose day offsets for the first and last overdue and future shortage dates")
+    || !plannedOrderComponentReadme.includes("both summaries also expose day offsets for the first and last overdue and future shortage dates")) {
+  errors.push(
+    "readiness summaries must report day offsets for overdue and future shortage endpoints",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("first_partial_day_offset")
+    || !plannedOrderComponentServiceSource.includes("last_partial_day_offset")
+    || !plannedOrderComponentServiceSource.includes("first_unalloc_day_offset")
+    || !plannedOrderComponentServiceSource.includes("last_unalloc_day_offset")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-first_partial_day_offset = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-last_partial_day_offset = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-first_unalloc_day_offset = cond #(")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-last_unalloc_day_offset = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_partial_day_offset = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_partial_day_offset = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-first_unalloc_day_offset = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-last_unalloc_day_offset = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_partial_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-first_unalloc_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-last_partial_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-last_unalloc_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 2 ]-first_unalloc_day_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 2 ]-last_partial_day_offset")
+    || !plannedOrderComponentPlan.includes("`first_partial_day_offset`/`last_partial_day_offset` and `first_unalloc_day_offset`/`last_unalloc_day_offset` report signed")
+    || !plannedOrderComponentReadme.includes("`first_partial_day_offset`/`last_partial_day_offset` and `first_unalloc_day_offset`/`last_unalloc_day_offset` report signed")) {
+  errors.push(
+    "readiness summaries must report signed day offsets for partial and unallocated endpoints",
+  );
+}
+
+if (!componentOrderReadinessType.includes("largest_shortfall_base_qty type mard-labst")
+    || !componentOrderReadinessType.includes("largest_short_date_offset type i")
+    || !componentOrderReadinessType.includes("largest_short_tie_count type i")
+    || !componentOrderReadinessType.includes("largest_short_res_number type resb-rsnum")
+    || !plannedOrderReadinessSummary.includes("<ls_readiness>-largest_short_tie_count = 1")
+    || !plannedOrderReadinessSummary.includes("add 1 to <ls_readiness>-largest_short_tie_count")
+    || !plannedOrderReadinessSummary.includes("ls_readiness-largest_short_date_offset = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_short_tie_count")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_req_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_alloc_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_short_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-largest_shortfall_base_qty" )
+    || !plannedOrderComponentServiceTests.includes("act = lt_order_ready[ 1 ]-largest_short_date")
+    || !plannedOrderComponentServiceTests.includes("act = lt_order_ready[ 1 ]-largest_short_date_offset")
+    || !plannedOrderComponentPlan.includes("largest_short_date_offset")
+    || !plannedOrderComponentReadme.includes("largest_short_date_offset")
+    || !plannedOrderComponentPlan.includes("reports the largest individual positive shortfall")
+    || !plannedOrderComponentReadme.includes("reports the largest individual positive shortfall")) {
+  errors.push(
+    "order readiness must identify the largest shortfall component when quantities share a base unit",
+  );
+}
+
+if (!plannedOrderComponentServiceSource.includes("largest_shortfall_base_qty")
+    || !componentMaterialReadinessType.includes("largest_short_date_offset type i")
+    || !componentMaterialReadinessType.includes("largest_short_tie_count type i")
+    || !plannedOrderComponentServiceSource.includes("largest_req_base_qty")
+    || !plannedOrderComponentServiceSource.includes("largest_alloc_base_qty")
+    || !plannedOrderComponentServiceSource.includes("largest_shortfall_pct")
+    || !plannedOrderComponentServiceSource.includes("largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceSource.includes("largest_short_outcome")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_shortfall_base_qty =")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_short_tie_count = 1")
+    || !plannedOrderMaterialReadiness.includes("add 1 to <ls_summary>-largest_short_tie_count")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_req_base_qty =")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_alloc_base_qty =")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_short_res_number =")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_shortfall_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_shortfall_req_pct = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_short_date_offset = cond #(")
+    || !plannedOrderMaterialReadiness.includes("<ls_summary>-largest_short_outcome = cond #(")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_shortfall_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_short_tie_count")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_short_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_req_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_alloc_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_short_res_item")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_short_date_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_short_date_offset")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 1 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_shortfall_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_req_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_alloc_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_short_date")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 3 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-largest_short_res_number")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-largest_shortfall_req_pct")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-largest_alloc_base_qty")
+    || !plannedOrderComponentServiceTests.includes("lt_material_ready[ 4 ]-largest_short_outcome")
+    || !plannedOrderComponentServiceTests.includes("method readiness_mixed_base_units.")
+    || !plannedOrderComponentServiceTests.includes("method readiness_missing_base_unit.")
+    || !plannedOrderComponentServiceTests.includes("method readiness_unit_overflow_skip.")
+    || !plannedOrderComponentServiceTests.includes("9999999999.999")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-has_single_base_unit")
+    || !plannedOrderComponentServiceTests.includes("lt_order_ready[ 1 ]-quantity_base_unit")
+    || !plannedOrderComponentPlan.includes("mixed-unit or missing-unit orders return an initial `quantity_base_unit`")
+    || !plannedOrderComponentReadme.includes("mixed-unit or missing-unit orders return an initial `quantity_base_unit`")
+    || !plannedOrderComponentPlan.includes("count-based outcome remains valid for mixed-unit orders")
+    || !plannedOrderComponentReadme.includes("count-based outcome remains valid for mixed-unit orders")
+    || !plannedOrderComponentPlan.includes("material readiness stays grouped by material, plant, and base unit")
+    || !plannedOrderComponentReadme.includes("material readiness stays grouped by material, plant, and base unit")
+    || !plannedOrderComponentPlan.includes("material readiness also identifies the component with the largest positive shortfall")
+    || !plannedOrderComponentPlan.includes("largest_short_date_offset")
+    || !plannedOrderComponentReadme.includes("largest_short_date_offset")
+    || !plannedOrderComponentPlan.includes("`largest_short_tie_count` reports how many components share the maximum positive shortfall")
+    || !plannedOrderComponentPlan.includes("`largest_short_outcome` is `p` when the selected component has positive allocated quantity and `u` when none was allocated")
+    || !plannedOrderComponentPlan.includes("`largest_req_base_qty` and `largest_alloc_base_qty` report the selected component quantities in the same base unit")
+    || !plannedOrderComponentPlan.includes("`largest_shortfall_req_pct` reports the same shortfall as a share of that component's requested quantity")
+    || !plannedOrderComponentReadme.includes("material readiness also identifies the component with the largest positive shortfall")
+    || !plannedOrderComponentReadme.includes("`largest_short_tie_count` reports how many components share the maximum positive shortfall")
+    || !plannedOrderComponentReadme.includes("`largest_short_outcome` is `p` when the selected component has positive allocated quantity and `u` when none was allocated")
+    || !plannedOrderComponentReadme.includes("`largest_req_base_qty` and `largest_alloc_base_qty` report the selected component quantities in the same base unit")
+    || !plannedOrderComponentReadme.includes("`largest_shortfall_req_pct` reports the same shortfall as a share of that component's requested quantity")
+    || !plannedOrderComponentPlan.includes("`largest_short_tie_count` records how many components")
+    || !plannedOrderComponentReadme.includes("`largest_short_tie_count` records how many components")) {
+  errors.push(
+    "material readiness must identify the largest shortfall component and its share",
   );
 }
 

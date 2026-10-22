@@ -206,6 +206,46 @@
           <INTTYPE>C</INTTYPE>
           <INTLEN>000020</INTLEN>
         </DD03P>
+        <DD03P>
+          <FIELDNAME>BDART</FIELDNAME>
+          <POSITION>0024</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000002</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000004</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>BERKZ</FIELDNAME>
+          <POSITION>0025</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>NO_DISP</FIELDNAME>
+          <POSITION>0026</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000001</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000002</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>POTX1</FIELDNAME>
+          <POSITION>0027</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000040</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000080</INTLEN>
+        </DD03P>
+        <DD03P>
+          <FIELDNAME>POSNR</FIELDNAME>
+          <POSITION>0028</POSITION>
+          <DATATYPE>CHAR</DATATYPE>
+          <LENG>000004</LENG>
+          <INTTYPE>C</INTTYPE>
+          <INTLEN>000008</INTLEN>
+        </DD03P>
       </DD03P_TABLE>
     </asx:values>
   </asx:abap>

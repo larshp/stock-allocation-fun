@@ -1,5 +1,69 @@
 # Development notes
 
+## 2026-10-22
+
+- Production and planned component reads and previews now preserve
+  `RESB-POTX1` as `bom_item_text`, giving callers the BOM item text
+  alongside the material number. The RESB stub and SQLite schema
+  include POTX1; repository and service regressions cover both read
+  paths. PLAN validation, abaplint, transpilation, and ABAP Unit pass.
+
+- Production and planned component reads now support an exact
+  `RESB-NO_DISP` MRP-relevance selector. Initial and `1` values are
+  selectable; `1` means the component is not relevant to MRP. The
+  service validates inputs and rejects returned scope drift. The RESB
+  stub and SQLite schema include NO_DISP; repository and service tests
+  cover both values and read modes. Full `npm test` passes.
+
+- Production and planned component reads now support an exact `RESB-BERKZ`
+  material-staging selector. Initial values are selectable; disabled values
+  must be blank, and service reads reject returned staging-scope drift. The
+  local RESB stub and SQLite schema now include BERKZ. Repository and service
+  regressions cover both values and production/planned reads. Full `npm test`
+  passes: PLAN validation, abaplint (0 issues), transpilation, and ABAP Unit.
+
+- Production and planned component reads now support an exact `RESB-BDART`
+  requirement-type selector, including the initial value. Results preserve
+  the type, and invalid inputs or returned scope drift are rejected. The
+  RESB stub and SQLite schema include BDART; regressions cover `SB`, initial
+  values, and production/planned reads. Full `npm test` passes.
+
+- Production and planned component reads now support an exact
+  `RESB-SOBKZ` special-stock selector. An initial indicator selects regular
+  stock; the selector composes with the other filters, is echoed on rows,
+  and returned-scope drift is rejected. Repository and service regressions
+  cover production and planned reads, initial and noninitial values, and
+  invalid input. Full `npm test` passes, including PLAN validation,
+  abaplint (0 issues), transpilation, and ABAP Unit.
+
+- Production and planned component reads now support an exact `RESB-KDEIN`
+  schedule-line selector inside the active exact sales-order item scope.
+  Initial `0000` lines are selectable; results echo the line, and invalid
+  selector combinations and returned scope drift are rejected. Repository
+  and service regressions cover both line values and planned/production
+  reads. Full `npm test` passes: PLAN validation, abaplint (0 issues),
+  transpilation, and ABAP Unit.
+
+- Production and planned component reads now support an exact paired
+  `RESB-KDAUF`/`RESB-KDPOS` selector. Active filters require both values;
+  disabled filters require both values to be blank. Both keys are returned on
+  component rows, and service reads reject returned scope drift. Regressions
+  cover repository filtering, service filtering, invalid inputs, and drift.
+  PLAN validation now guards the repository predicates, service checks, tests,
+  and documentation.
+
+- Production and planned component reads now expose an exact internal WBS
+  selector over `RESB-PSPEL`. Active selection accepts the initial value to find
+  components without a WBS assignment; disabled values must be initial, and the
+  service rejects invalid flags and returned WBS-scope drift. Repository and
+  service regressions cover both populated and initial values. PLAN validation,
+  abaplint (0 issues), transpilation, and ABAP Unit all pass.
+
+- Fixed `npm test` failures: shortened a test identifier rejected by abaplint
+  and kept the component row reservation sort keys ahead of the new reference
+  fields for deterministic transpiled-test ordering. Full `npm test` passes: PLAN
+  validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
 ## 2026-10-21
 
 - Batch expiry exposure now includes a fixed seven-row manufacturing-age
@@ -12459,3 +12523,68 @@ ranges, result drift, and paged/unpaged SQL reads.
 - Component required-date buckets now include `N` for future dates after `as_of_date` through a configurable positive `required_date_horizon_days`. The bound composes with inclusive date ranges and rejects date overflow before repository access. Added Gregorian-safe day arithmetic and tests across month, leap-day, and supported-date boundaries, plus production and planned repository/service regressions. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
 
 - Required-date bucket `R` now selects recent overdue component dates from `as_of_date - required_date_horizon_days` through yesterday. It composes with inclusive date bounds for production and planned orders; nonpositive horizons and lower-bound underflow are rejected before reads. Regression coverage includes repository SQL, single-order service reads, and date-range composition. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- The component required-date bucket selector now supports `D` to include every dated production or planned component without requiring an as-of date; undated rows are excluded. It composes with the existing inclusive bounds, and validation rejects an as-of date or horizon supplied with this bucket. Repository and service regressions cover both order types. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- The required-date selector adds bucket `D` to return all dated production and planned components while excluding undated rows, without requiring an as-of date or a date window. Date bounds still intersect with the selector; validation rejects noninitial as-of and horizon values. Repository and service tests cover both order types. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Buckets `D` (all dated) and `U` (undated) no longer require a redundant `as_of_date`; they require it to be initial. Temporal buckets `O`, `T`, `F`, `N`, and `R` still require a valid reference date. Service regressions cover both reference-free buckets and reject an unexpected date on `U`. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Planned component ATP and stock previews now have an end-to-end regression for the dated-only `D` selector. A fixture includes an undated open component; both previews return only the two dated open components. Full `npm test` passes with exit code 0: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit.
+
+- Component required-date selectors now support `include_undated` to add undated reservations alongside active bound or bucket matches. Dated rows still satisfy every selector. Previews preserve the blank source date and use today's date as the effective allocation and ATP date for included undated rows. Tests cover production/planned reads, selector validation, and planned ATP/stock previews. PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit pass.
+
+- Component reservations now support optional exact material and plant filters in production and planned single/bulk reads and previews. Active filters can select blank RESB values, compose with date/bucket selectors, and run in both RESB queries; service validation rejects malformed flags, inactive values, and returned scope drift. Regressions cover production and planned reads, blank matches, composition with undated inclusion, and scope drift. PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit pass.
+
+- Production and planned component reads now support exact storage-location, batch, and movement-type selectors, including explicit selection of blank RESB-LGORT, RESB-CHARG, and RESB-BWART values. The selectors compose with each other, material, plant, and required-date filters in both RESB queries; service validation rejects malformed flags and inactive values before reads and rejects returned-scope drift. Single/bulk reads and shared previews accept the selectors. Repository/service regressions cover nonblank and blank matching, composition, and production/planned scope drift. Full `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit (exit 0).
+
+- Component reservation reads now accept exact reservation-number and reservation-item selectors in production and planned single/bulk reads and previews. The repository applies `RESB-RSNUM` and `RESB-RSPOS` predicates, validation rejects malformed flags and inactive values before reads, and service reads reject returned-key scope drift. Regressions cover production and planned exact-key reads and drift. Full `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit (exit 0).
+
+- Production and planned component reads now accept inclusive minimum and maximum bounds on calculated remaining open quantity. Either bound may stand alone; invalid flags, inactive values, negative bounds, and reversed ranges are rejected before repository access. The shared open-quantity calculation runs before filtering, and component previews receive only matching rows. Tests cover exact bounds, both one-sided forms, and invalid input. Full `npm test` passed: PLAN validation, abaplint (0 issues across 252 files), transpilation, and ABAP Unit (exit 0).
+
+## 2026-10-22
+
+- Production and planned component selection now supports inclusive required-quantity
+  (`RESB-BDMNG`) and withdrawn-quantity (`RESB-ENMNG`) bounds. Either bound can
+  be used alone; active values must be nonnegative and ascending, and inactive
+  values must be initial. Both repository queries apply the filters, while the
+  service validates inputs and rejects returned scope drift. Repository and
+  service regressions, PLAN/README notes, and validator coverage were added. The
+  full `npm test` pipeline passes after correcting the lint and method-boundary
+  failures in the new changes.
+
+- Component reads and previews now support exact `RESB-MEINS` unit selection,
+  including an initial unit when enabled. Production and planned repository tests
+  cover KG and initial units; service checks cover both query paths, invalid and
+  inactive filters, and returned unit-scope drift. PLAN, README, and validator
+  coverage were updated.
+
+- Planned-order stock previews now have explicit minimum-coverage behavior
+  coverage: a reservation below its per-item floor receives zero allocation
+  and leaves stock available to later planned components. The returned local
+  estimate echoes the floor-rejection status. Regression coverage, PLAN/README
+  documentation, and validator guards were added.
+
+- Component filters can now bound the percentage of original required
+  quantity that remains open. Bounds are inclusive from 0 to 100; the service
+  derives the ratio after open-quantity calculation and ignores rows with a
+  nonpositive required quantity when this selector is active.
+
+- Production and planned component reads now support inclusive lower and
+  upper `RESB-RSPOS` ranges. The selector validates flags and inactive values,
+  checks returned scope, and composes with exact item filtering.
+
+- Production and planned component reads now support inclusive lower and
+  upper `RESB-RSNUM` ranges. Either bound can stand alone; the service rejects
+  malformed flags, inactive values, reversed bounds, and returned scope drift.
+  SQLite and service tests cover both order types, inclusive endpoints, and
+  one-sided ranges. PLAN, README, and validator coverage were updated.
+
+- Production and planned component reads now support inclusive bounds on
+  withdrawn quantity as a percentage of required quantity. Either bound can
+  stand alone, the range composes with the open-quantity percentage selector,
+  and invalid flags, inactive values, out-of-range percentages, or reversed
+  bounds are rejected before repository reads. Both order types have boundary
+  and one-sided regression coverage; previews receive only matching rows. The
+  full `npm test` pipeline passes: PLAN validation, abaplint (0 issues across
+  252 files), transpilation, and ABAP Unit.

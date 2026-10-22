@@ -54,20 +54,30 @@ CLASS zcl_prod_comp_service DEFINITION
         VALUE 'NONE'.
     TYPES:
       BEGIN OF ty_component,
-        production_order   TYPE resb-aufnr,
-        planned_order      TYPE resb-plnum,
-        reservation_number TYPE resb-rsnum,
-        reservation_item   TYPE resb-rspos,
-        material           TYPE resb-matnr,
-        plant              TYPE resb-werks,
-        storage_location   TYPE resb-lgort,
-        batch              TYPE resb-charg,
-        movement_type      TYPE resb-bwart,
-        required_date      TYPE resb-bdter,
-        required_quantity  TYPE resb-bdmng,
-        withdrawn_quantity TYPE resb-enmng,
-        open_quantity      TYPE resb-bdmng,
-        unit               TYPE resb-meins,
+        production_order          TYPE resb-aufnr,
+        planned_order             TYPE resb-plnum,
+        reservation_number        TYPE resb-rsnum,
+        reservation_item          TYPE resb-rspos,
+        sales_order_number        TYPE resb-kdauf,
+        sales_order_item          TYPE resb-kdpos,
+        sales_order_schedule_line TYPE resb-kdein,
+        wbs_internal_id           TYPE resb-pspel,
+        special_stock_indicator   TYPE resb-sobkz,
+        requirement_type          TYPE resb-bdart,
+        staging_indicator         TYPE resb-berkz,
+        mrp_relevance             TYPE resb-no_disp,
+        bom_item_number           TYPE resb-posnr,
+        bom_item_text             TYPE resb-potx1,
+        material                  TYPE resb-matnr,
+        plant                     TYPE resb-werks,
+        storage_location          TYPE resb-lgort,
+        batch                     TYPE resb-charg,
+        movement_type             TYPE resb-bwart,
+        required_date             TYPE resb-bdter,
+        required_quantity         TYPE resb-bdmng,
+        withdrawn_quantity        TYPE resb-enmng,
+        open_quantity             TYPE resb-bdmng,
+        unit                      TYPE resb-meins,
     END OF ty_component.
     TYPES ty_components TYPE STANDARD TABLE OF ty_component WITH EMPTY KEY.
     TYPES:
@@ -1797,6 +1807,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
   METHOD get_open_components_bulk.
     DATA lv_open_quantity TYPE resb-bdmng.
+    DATA lv_open_quantity_pct TYPE zif_prod_comp_repo=>ty_open_quantity_pct.
+    DATA lv_withdrawn_quantity_pct TYPE zif_prod_comp_repo=>ty_open_quantity_pct.
     DATA lt_seen_orders TYPE HASHED TABLE OF resb-aufnr
       WITH UNIQUE KEY table_line.
 
@@ -1826,8 +1838,87 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       READ TABLE lt_seen_orders WITH TABLE KEY
         table_line = ls_item-production_order
         TRANSPORTING NO FIELDS.
-      IF sy-subrc <> 0
-          OR ls_item-is_deleted <> space
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      IF ( is_required_date_range-filter_material = abap_true
+          AND ls_item-material <> is_required_date_range-material )
+          OR ( is_required_date_range-filter_plant = abap_true
+            AND ls_item-plant <> is_required_date_range-plant )
+          OR ( is_required_date_range-filter_storage_location = abap_true
+            AND ls_item-storage_location <>
+              is_required_date_range-storage_location )
+          OR ( is_required_date_range-filter_batch = abap_true
+            AND ls_item-batch <> is_required_date_range-batch )
+          OR ( is_required_date_range-filter_movement_type = abap_true
+            AND ls_item-movement_type <>
+              is_required_date_range-movement_type )
+          OR ( is_required_date_range-filter_unit = abap_true
+            AND ls_item-unit <> is_required_date_range-unit )
+          OR ( is_required_date_range-filter_sales_order_item = abap_true
+            AND ( ls_item-sales_order_number <>
+                    is_required_date_range-sales_order_number
+              OR ls_item-sales_order_item <>
+                    is_required_date_range-sales_order_item ) )
+          OR ( is_required_date_range-filter_sales_schedule_line =
+              abap_true
+            AND ls_item-sales_order_schedule_line <>
+              is_required_date_range-sales_order_schedule_line )
+          OR ( is_required_date_range-filter_special_stock_indicator =
+              abap_true
+            AND ls_item-special_stock_indicator <>
+              is_required_date_range-special_stock_indicator )
+          OR ( is_required_date_range-filter_requirement_type =
+              abap_true
+            AND ls_item-requirement_type <>
+              is_required_date_range-requirement_type )
+          OR ( is_required_date_range-filter_staging_indicator =
+              abap_true
+            AND ls_item-staging_indicator <>
+              is_required_date_range-staging_indicator )
+          OR ( is_required_date_range-filter_mrp_relevance =
+              abap_true
+            AND ls_item-mrp_relevance <>
+              is_required_date_range-mrp_relevance )
+          OR ( is_required_date_range-filter_bom_item = abap_true
+            AND ls_item-bom_item_number <>
+              is_required_date_range-bom_item_number )
+          OR ( is_required_date_range-filter_wbs_internal_id = abap_true
+          AND ls_item-wbs_internal_id <>
+            is_required_date_range-wbs_internal_id )
+          OR ( is_required_date_range-filter_reservation_number = abap_true
+            AND ls_item-reservation_number <>
+              is_required_date_range-reservation_number )
+          OR ( is_required_date_range-filter_res_num_from = abap_true
+            AND ls_item-reservation_number <
+              is_required_date_range-reservation_number_from )
+          OR ( is_required_date_range-filter_res_num_through = abap_true
+            AND ls_item-reservation_number >
+              is_required_date_range-reservation_number_through )
+          OR ( is_required_date_range-filter_reservation_item = abap_true
+            AND ls_item-reservation_item <>
+              is_required_date_range-reservation_item )
+          OR ( is_required_date_range-filter_res_item_from = abap_true
+            AND ls_item-reservation_item <
+              is_required_date_range-reservation_item_from )
+          OR ( is_required_date_range-filter_res_item_through = abap_true
+            AND ls_item-reservation_item >
+              is_required_date_range-reservation_item_through )
+          OR ( is_required_date_range-filter_required_qty_from = abap_true
+            AND ls_item-required_quantity <
+              is_required_date_range-required_quantity_from )
+          OR ( is_required_date_range-filter_required_qty_through = abap_true
+            AND ls_item-required_quantity >
+              is_required_date_range-required_quantity_through )
+          OR ( is_required_date_range-filter_withdrawn_qty_from = abap_true
+            AND ls_item-withdrawn_quantity <
+              is_required_date_range-withdrawn_quantity_from )
+          OR ( is_required_date_range-filter_withdrawn_qty_through = abap_true
+            AND ls_item-withdrawn_quantity >
+              is_required_date_range-withdrawn_quantity_through ).
+        RAISE EXCEPTION TYPE zcx_invalid_production_order.
+      ENDIF.
+      IF ls_item-is_deleted <> space
           OR ls_item-is_final_issue = abap_true
           OR ls_item-reservation_number IS INITIAL
           OR ls_item-reservation_item IS INITIAL.
@@ -1840,22 +1931,77 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       IF lv_open_quantity <= 0.
         CONTINUE.
       ENDIF.
+      IF is_required_date_range-filter_open_quantity_from = abap_true
+          AND lv_open_quantity < is_required_date_range-open_quantity_from.
+        CONTINUE.
+      ENDIF.
+      IF is_required_date_range-filter_open_quantity_through = abap_true
+          AND lv_open_quantity >
+            is_required_date_range-open_quantity_through.
+        CONTINUE.
+      ENDIF.
+      IF is_required_date_range-filter_open_qty_pct_from = abap_true
+          OR is_required_date_range-filter_open_qty_pct_through = abap_true.
+        IF ls_item-required_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        lv_open_quantity_pct = lv_open_quantity /
+          ls_item-required_quantity * 100.
+        IF is_required_date_range-filter_open_qty_pct_from = abap_true
+            AND lv_open_quantity_pct <
+              is_required_date_range-open_qty_pct_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_open_qty_pct_through = abap_true
+            AND lv_open_quantity_pct >
+              is_required_date_range-open_qty_pct_through.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+          OR is_required_date_range-filter_withdrawn_pct_through = abap_true.
+        IF ls_item-required_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        lv_withdrawn_quantity_pct = ls_item-withdrawn_quantity /
+          ls_item-required_quantity * 100.
+        IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+            AND lv_withdrawn_quantity_pct <
+              is_required_date_range-withdrawn_pct_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_pct_through = abap_true
+            AND lv_withdrawn_quantity_pct >
+              is_required_date_range-withdrawn_pct_through.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
 
       APPEND VALUE #(
-        production_order   = ls_item-production_order
-        planned_order      = ls_item-planned_order
-        reservation_number = ls_item-reservation_number
-        reservation_item   = ls_item-reservation_item
-        material           = ls_item-material
-        plant              = ls_item-plant
-        storage_location   = ls_item-storage_location
-        batch              = ls_item-batch
-        movement_type      = ls_item-movement_type
-        required_date      = ls_item-required_date
-        required_quantity  = ls_item-required_quantity
-        withdrawn_quantity = ls_item-withdrawn_quantity
-        open_quantity      = lv_open_quantity
-        unit               = ls_item-unit ) TO rt_components.
+        production_order          = ls_item-production_order
+        planned_order             = ls_item-planned_order
+        sales_order_number        = ls_item-sales_order_number
+        sales_order_item          = ls_item-sales_order_item
+        sales_order_schedule_line = ls_item-sales_order_schedule_line
+        wbs_internal_id           = ls_item-wbs_internal_id
+        special_stock_indicator   = ls_item-special_stock_indicator
+        requirement_type          = ls_item-requirement_type
+        staging_indicator         = ls_item-staging_indicator
+        mrp_relevance             = ls_item-mrp_relevance
+        bom_item_number           = ls_item-bom_item_number
+        bom_item_text             = ls_item-bom_item_text
+        reservation_number        = ls_item-reservation_number
+        reservation_item          = ls_item-reservation_item
+        material                  = ls_item-material
+        plant                     = ls_item-plant
+        storage_location          = ls_item-storage_location
+        batch                     = ls_item-batch
+        movement_type             = ls_item-movement_type
+        required_date             = ls_item-required_date
+        required_quantity         = ls_item-required_quantity
+        withdrawn_quantity        = ls_item-withdrawn_quantity
+        open_quantity             = lv_open_quantity
+        unit                      = ls_item-unit ) TO rt_components.
     ENDLOOP.
 
     SORT rt_components BY production_order reservation_number reservation_item.
@@ -1881,6 +2027,8 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         reservation_item   TYPE resb-rspos,
       END OF ty_component_key.
     DATA lv_open_quantity TYPE resb-bdmng.
+    DATA lv_open_quantity_pct TYPE zif_prod_comp_repo=>ty_open_quantity_pct.
+    DATA lv_withdrawn_quantity_pct TYPE zif_prod_comp_repo=>ty_open_quantity_pct.
     DATA lt_seen_orders TYPE HASHED TABLE OF resb-plnum
       WITH UNIQUE KEY table_line.
     DATA lt_seen_components TYPE HASHED TABLE OF ty_component_key
@@ -1917,6 +2065,83 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
           OR ls_item-reservation_item IS INITIAL.
         RAISE EXCEPTION TYPE zcx_invalid_stock_request.
       ENDIF.
+      IF ( is_required_date_range-filter_material = abap_true
+          AND ls_item-material <> is_required_date_range-material )
+          OR ( is_required_date_range-filter_plant = abap_true
+            AND ls_item-plant <> is_required_date_range-plant )
+          OR ( is_required_date_range-filter_storage_location = abap_true
+            AND ls_item-storage_location <>
+              is_required_date_range-storage_location )
+          OR ( is_required_date_range-filter_batch = abap_true
+            AND ls_item-batch <> is_required_date_range-batch )
+          OR ( is_required_date_range-filter_movement_type = abap_true
+            AND ls_item-movement_type <>
+              is_required_date_range-movement_type )
+          OR ( is_required_date_range-filter_unit = abap_true
+            AND ls_item-unit <> is_required_date_range-unit )
+          OR ( is_required_date_range-filter_sales_order_item = abap_true
+            AND ( ls_item-sales_order_number <>
+                    is_required_date_range-sales_order_number
+              OR ls_item-sales_order_item <>
+                    is_required_date_range-sales_order_item ) )
+          OR ( is_required_date_range-filter_sales_schedule_line =
+              abap_true
+            AND ls_item-sales_order_schedule_line <>
+              is_required_date_range-sales_order_schedule_line )
+          OR ( is_required_date_range-filter_special_stock_indicator =
+              abap_true
+            AND ls_item-special_stock_indicator <>
+              is_required_date_range-special_stock_indicator )
+          OR ( is_required_date_range-filter_requirement_type =
+              abap_true
+            AND ls_item-requirement_type <>
+              is_required_date_range-requirement_type )
+          OR ( is_required_date_range-filter_staging_indicator =
+              abap_true
+            AND ls_item-staging_indicator <>
+              is_required_date_range-staging_indicator )
+          OR ( is_required_date_range-filter_mrp_relevance =
+              abap_true
+            AND ls_item-mrp_relevance <>
+              is_required_date_range-mrp_relevance )
+          OR ( is_required_date_range-filter_bom_item = abap_true
+            AND ls_item-bom_item_number <>
+              is_required_date_range-bom_item_number )
+          OR ( is_required_date_range-filter_wbs_internal_id = abap_true
+          AND ls_item-wbs_internal_id <>
+            is_required_date_range-wbs_internal_id )
+          OR ( is_required_date_range-filter_reservation_number = abap_true
+            AND ls_item-reservation_number <>
+              is_required_date_range-reservation_number )
+          OR ( is_required_date_range-filter_res_num_from = abap_true
+            AND ls_item-reservation_number <
+              is_required_date_range-reservation_number_from )
+          OR ( is_required_date_range-filter_res_num_through = abap_true
+            AND ls_item-reservation_number >
+              is_required_date_range-reservation_number_through )
+          OR ( is_required_date_range-filter_reservation_item = abap_true
+            AND ls_item-reservation_item <>
+              is_required_date_range-reservation_item )
+          OR ( is_required_date_range-filter_res_item_from = abap_true
+            AND ls_item-reservation_item <
+              is_required_date_range-reservation_item_from )
+          OR ( is_required_date_range-filter_res_item_through = abap_true
+            AND ls_item-reservation_item >
+              is_required_date_range-reservation_item_through )
+          OR ( is_required_date_range-filter_required_qty_from = abap_true
+            AND ls_item-required_quantity <
+              is_required_date_range-required_quantity_from )
+          OR ( is_required_date_range-filter_required_qty_through = abap_true
+            AND ls_item-required_quantity >
+              is_required_date_range-required_quantity_through )
+          OR ( is_required_date_range-filter_withdrawn_qty_from = abap_true
+            AND ls_item-withdrawn_quantity <
+              is_required_date_range-withdrawn_quantity_from )
+          OR ( is_required_date_range-filter_withdrawn_qty_through = abap_true
+            AND ls_item-withdrawn_quantity >
+              is_required_date_range-withdrawn_quantity_through ).
+        RAISE EXCEPTION TYPE zcx_invalid_stock_request.
+      ENDIF.
 
       INSERT VALUE #(
         planned_order      = ls_item-planned_order
@@ -1938,21 +2163,76 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
       IF lv_open_quantity <= 0.
         CONTINUE.
       ENDIF.
+      IF is_required_date_range-filter_open_quantity_from = abap_true
+          AND lv_open_quantity < is_required_date_range-open_quantity_from.
+        CONTINUE.
+      ENDIF.
+      IF is_required_date_range-filter_open_quantity_through = abap_true
+          AND lv_open_quantity >
+            is_required_date_range-open_quantity_through.
+        CONTINUE.
+      ENDIF.
+      IF is_required_date_range-filter_open_qty_pct_from = abap_true
+          OR is_required_date_range-filter_open_qty_pct_through = abap_true.
+        IF ls_item-required_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        lv_open_quantity_pct = lv_open_quantity /
+          ls_item-required_quantity * 100.
+        IF is_required_date_range-filter_open_qty_pct_from = abap_true
+            AND lv_open_quantity_pct <
+              is_required_date_range-open_qty_pct_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_open_qty_pct_through = abap_true
+            AND lv_open_quantity_pct >
+              is_required_date_range-open_qty_pct_through.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+      IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+          OR is_required_date_range-filter_withdrawn_pct_through = abap_true.
+        IF ls_item-required_quantity <= 0.
+          CONTINUE.
+        ENDIF.
+        lv_withdrawn_quantity_pct = ls_item-withdrawn_quantity /
+          ls_item-required_quantity * 100.
+        IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+            AND lv_withdrawn_quantity_pct <
+              is_required_date_range-withdrawn_pct_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_pct_through = abap_true
+            AND lv_withdrawn_quantity_pct >
+              is_required_date_range-withdrawn_pct_through.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
 
       APPEND VALUE #(
-        planned_order      = ls_item-planned_order
-        reservation_number = ls_item-reservation_number
-        reservation_item   = ls_item-reservation_item
-        material           = ls_item-material
-        plant              = ls_item-plant
-        storage_location   = ls_item-storage_location
-        batch              = ls_item-batch
-        movement_type      = ls_item-movement_type
-        required_date      = ls_item-required_date
-        required_quantity  = ls_item-required_quantity
-        withdrawn_quantity = ls_item-withdrawn_quantity
-        open_quantity      = lv_open_quantity
-        unit               = ls_item-unit ) TO rt_components.
+        planned_order             = ls_item-planned_order
+        sales_order_number        = ls_item-sales_order_number
+        sales_order_item          = ls_item-sales_order_item
+        sales_order_schedule_line = ls_item-sales_order_schedule_line
+        wbs_internal_id           = ls_item-wbs_internal_id
+        special_stock_indicator   = ls_item-special_stock_indicator
+        requirement_type          = ls_item-requirement_type
+        staging_indicator         = ls_item-staging_indicator
+        mrp_relevance             = ls_item-mrp_relevance
+        bom_item_number           = ls_item-bom_item_number
+        bom_item_text             = ls_item-bom_item_text
+        reservation_number        = ls_item-reservation_number
+        reservation_item          = ls_item-reservation_item
+        material                  = ls_item-material
+        plant                     = ls_item-plant
+        storage_location          = ls_item-storage_location
+        batch                     = ls_item-batch
+        movement_type             = ls_item-movement_type
+        required_date             = ls_item-required_date
+        required_quantity         = ls_item-required_quantity
+        withdrawn_quantity        = ls_item-withdrawn_quantity
+        open_quantity             = lv_open_quantity
+        unit                      = ls_item-unit ) TO rt_components.
     ENDLOOP.
 
     SORT rt_components BY planned_order reservation_number reservation_item.
@@ -1971,6 +2251,365 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
     ENDIF.
     IF is_required_date_range-filter_bucket <> abap_true
         AND is_required_date_range-filter_bucket <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-include_undated <> abap_true
+        AND is_required_date_range-include_undated <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_material <> abap_true
+        AND is_required_date_range-filter_material <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_plant <> abap_true
+        AND is_required_date_range-filter_plant <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_storage_location <> abap_true
+        AND is_required_date_range-filter_storage_location <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_batch <> abap_true
+        AND is_required_date_range-filter_batch <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_movement_type <> abap_true
+        AND is_required_date_range-filter_movement_type <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_unit <> abap_true
+        AND is_required_date_range-filter_unit <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_schedule_line <> abap_true
+        AND is_required_date_range-filter_sales_schedule_line <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_special_stock_indicator <> abap_true
+        AND is_required_date_range-filter_special_stock_indicator <>
+          abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_requirement_type <> abap_true
+        AND is_required_date_range-filter_requirement_type <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_staging_indicator <> abap_true
+        AND is_required_date_range-filter_staging_indicator <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_mrp_relevance <> abap_true
+        AND is_required_date_range-filter_mrp_relevance <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_bom_item <> abap_true
+        AND is_required_date_range-filter_bom_item <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_wbs_internal_id <> abap_true
+        AND is_required_date_range-filter_wbs_internal_id <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_order_item <> abap_true
+        AND is_required_date_range-filter_sales_order_item <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_reservation_number <> abap_true
+        AND is_required_date_range-filter_reservation_number <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_num_from <> abap_true
+        AND is_required_date_range-filter_res_num_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_num_through <> abap_true
+        AND is_required_date_range-filter_res_num_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_reservation_item <> abap_true
+        AND is_required_date_range-filter_reservation_item <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_item_from <> abap_true
+        AND is_required_date_range-filter_res_item_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_item_through <> abap_true
+        AND is_required_date_range-filter_res_item_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_from <> abap_true
+        AND is_required_date_range-filter_open_quantity_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_through <> abap_true
+        AND is_required_date_range-filter_open_quantity_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_from <> abap_true
+        AND is_required_date_range-filter_required_qty_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_through <> abap_true
+        AND is_required_date_range-filter_required_qty_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_from <> abap_true
+        AND is_required_date_range-filter_withdrawn_qty_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_through <> abap_true
+        AND is_required_date_range-filter_withdrawn_qty_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_from <> abap_true
+        AND is_required_date_range-filter_open_qty_pct_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_through <> abap_true
+        AND is_required_date_range-filter_open_qty_pct_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_from <> abap_true
+        AND is_required_date_range-filter_withdrawn_pct_from <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_through <> abap_true
+        AND is_required_date_range-filter_withdrawn_pct_through <> abap_false.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_material = abap_false
+        AND is_required_date_range-material IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_plant = abap_false
+        AND is_required_date_range-plant IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_storage_location = abap_false
+        AND is_required_date_range-storage_location IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_batch = abap_false
+        AND is_required_date_range-batch IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_movement_type = abap_false
+        AND is_required_date_range-movement_type IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_unit = abap_false
+        AND is_required_date_range-unit IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_schedule_line = abap_true
+        AND is_required_date_range-filter_sales_order_item <> abap_true.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_schedule_line = abap_false
+        AND is_required_date_range-sales_order_schedule_line IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_special_stock_indicator = abap_false
+        AND is_required_date_range-special_stock_indicator IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_requirement_type = abap_false
+        AND is_required_date_range-requirement_type IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_staging_indicator = abap_false
+        AND is_required_date_range-staging_indicator IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_mrp_relevance = abap_false
+        AND is_required_date_range-mrp_relevance IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_bom_item = abap_false
+        AND is_required_date_range-bom_item_number IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_wbs_internal_id = abap_false
+        AND is_required_date_range-wbs_internal_id IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_order_item = abap_false
+        AND ( is_required_date_range-sales_order_number IS NOT INITIAL
+          OR is_required_date_range-sales_order_item IS NOT INITIAL ).
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_sales_order_item = abap_true
+        AND ( is_required_date_range-sales_order_number IS INITIAL
+          OR is_required_date_range-sales_order_item IS INITIAL ).
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_reservation_number = abap_false
+        AND is_required_date_range-reservation_number IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_num_from = abap_false
+        AND is_required_date_range-reservation_number_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_num_through = abap_false
+        AND is_required_date_range-reservation_number_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_reservation_item = abap_false
+        AND is_required_date_range-reservation_item IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_item_from = abap_false
+        AND is_required_date_range-reservation_item_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_item_through = abap_false
+        AND is_required_date_range-reservation_item_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_from = abap_false
+        AND is_required_date_range-open_quantity_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_through = abap_false
+        AND is_required_date_range-open_quantity_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_from = abap_false
+        AND is_required_date_range-required_quantity_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_through = abap_false
+        AND is_required_date_range-required_quantity_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_from = abap_false
+        AND is_required_date_range-withdrawn_quantity_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_through = abap_false
+        AND is_required_date_range-withdrawn_quantity_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_from = abap_false
+        AND is_required_date_range-open_qty_pct_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_through = abap_false
+        AND is_required_date_range-open_qty_pct_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_from = abap_false
+        AND is_required_date_range-withdrawn_pct_from IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_through = abap_false
+        AND is_required_date_range-withdrawn_pct_through IS NOT INITIAL.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_num_from = abap_true
+        AND is_required_date_range-filter_res_num_through = abap_true
+        AND is_required_date_range-reservation_number_from >
+          is_required_date_range-reservation_number_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_res_item_from = abap_true
+        AND is_required_date_range-filter_res_item_through = abap_true
+        AND is_required_date_range-reservation_item_from >
+          is_required_date_range-reservation_item_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_from = abap_true
+        AND is_required_date_range-open_quantity_from < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_through = abap_true
+        AND is_required_date_range-open_quantity_through < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_quantity_from = abap_true
+        AND is_required_date_range-filter_open_quantity_through = abap_true
+        AND is_required_date_range-open_quantity_from >
+          is_required_date_range-open_quantity_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_from = abap_true
+        AND is_required_date_range-required_quantity_from < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_through = abap_true
+        AND is_required_date_range-required_quantity_through < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_required_qty_from = abap_true
+        AND is_required_date_range-filter_required_qty_through = abap_true
+        AND is_required_date_range-required_quantity_from >
+          is_required_date_range-required_quantity_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_from = abap_true
+        AND is_required_date_range-withdrawn_quantity_from < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_through = abap_true
+        AND is_required_date_range-withdrawn_quantity_through < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_qty_from = abap_true
+        AND is_required_date_range-filter_withdrawn_qty_through = abap_true
+        AND is_required_date_range-withdrawn_quantity_from >
+          is_required_date_range-withdrawn_quantity_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_from = abap_true
+        AND is_required_date_range-open_qty_pct_from < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_through = abap_true
+        AND is_required_date_range-open_qty_pct_through < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_from = abap_true
+        AND is_required_date_range-open_qty_pct_from > 100.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_through = abap_true
+        AND is_required_date_range-open_qty_pct_through > 100.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_open_qty_pct_from = abap_true
+        AND is_required_date_range-filter_open_qty_pct_through = abap_true
+        AND is_required_date_range-open_qty_pct_from >
+          is_required_date_range-open_qty_pct_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+        AND is_required_date_range-withdrawn_pct_from < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_through = abap_true
+        AND is_required_date_range-withdrawn_pct_through < 0.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+        AND is_required_date_range-withdrawn_pct_from > 100.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_through = abap_true
+        AND is_required_date_range-withdrawn_pct_through > 100.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-filter_withdrawn_pct_from = abap_true
+        AND is_required_date_range-filter_withdrawn_pct_through = abap_true
+        AND is_required_date_range-withdrawn_pct_from >
+          is_required_date_range-withdrawn_pct_through.
+      RETURN.
+    ENDIF.
+    IF is_required_date_range-include_undated = abap_true
+        AND is_required_date_range-filter_from = abap_false
+        AND is_required_date_range-filter_through = abap_false
+        AND is_required_date_range-filter_bucket = abap_false.
       RETURN.
     ENDIF.
 
@@ -1994,7 +2633,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
 
     IF is_required_date_range-filter_bucket = abap_true.
       CASE is_required_date_range-required_date_bucket.
-        WHEN 'O' OR 'T' OR 'F' OR 'U'.
+        WHEN 'D' OR 'U'.
+          IF is_required_date_range-required_date_horizon_days <> 0
+              OR is_required_date_range-as_of_date IS NOT INITIAL.
+            RETURN.
+          ENDIF.
+        WHEN 'O' OR 'T' OR 'F'.
           IF is_required_date_range-required_date_horizon_days <> 0.
             RETURN.
           ENDIF.
@@ -2019,9 +2663,12 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         WHEN OTHERS.
           RETURN.
       ENDCASE.
-      IF zcl_date_validation=>is_valid_gregorian_date(
-          is_required_date_range-as_of_date ) <> abap_true.
-        RETURN.
+      IF is_required_date_range-required_date_bucket <> 'D'
+          AND is_required_date_range-required_date_bucket <> 'U'.
+        IF zcl_date_validation=>is_valid_gregorian_date(
+            is_required_date_range-as_of_date ) <> abap_true.
+          RETURN.
+        ENDIF.
       ENDIF.
     ELSEIF is_required_date_range-required_date_bucket IS NOT INITIAL
         OR is_required_date_range-as_of_date IS NOT INITIAL
@@ -2344,6 +2991,9 @@ CLASS zcl_prod_comp_service IMPLEMENTATION.
         WHEN ls_component_allocation_policy-override_required_date
           = abap_true
         THEN ls_component_allocation_policy-required_date
+        WHEN ls_component-required_date IS INITIAL
+          AND is_required_date_range-include_undated = abap_true
+        THEN sy-datum
         ELSE ls_component-required_date ).
       lv_component_open_quantity = COND #(
         WHEN ls_component_allocation_policy-override_open_quantity

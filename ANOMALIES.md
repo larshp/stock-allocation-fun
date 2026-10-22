@@ -1,5 +1,11 @@
 # Anomalies
 
+Planned-component allocation policies route local previews through the scoped
+allocator. A regression initially supplied only date-based stock, which does
+not populate that path; the fixture now supplies location stock. The test
+verifies that a floor-rejected planned component allocates zero and leaves
+that balance for the next component. Full `npm test` passes.
+
 Batch expiry can now suppress dated detail rows while preserving full-scope summaries; the
 independent undated page remains available and dated page values become zero. Summaries also
 include dated row-share percentages for page status buckets and
@@ -8232,3 +8238,11 @@ Planned-order component reads added RESB-PLNUM to the stub table, while the ABAP
 
 
 Production-order finish-window reads can now select an exact blank AUFK-AUART order type with `filter_order_type`, while nonblank values retain their default exact-match behavior. The selector applies before pagination and is checked after detail reads; SQLite, service, and scope-drift regressions cover both blank and nonblank values.
+
+## Resolved component-selector validation regression (2026-10-22)
+
+The full `npm test` run exposed a malformed inactive-value guard for the exact
+reservation-item selector: its missing `AND ... IS NOT INITIAL` condition made
+the ABAP parser lose the remainder of the service class and produced cascading
+lint errors. Restoring the condition resolved the parser failure. The full
+pipeline passes with PLAN validation, abaplint, transpilation, and ABAP Unit.

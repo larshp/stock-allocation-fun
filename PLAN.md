@@ -311,12 +311,144 @@ to `RESB-BDTER` before returning rows, and single-order and bulk methods share
 the same filtering and order/reservation sorting.
 `filter_bucket` can additionally select `O` overdue dates before `as_of_date`,
 `T` dates equal to it, `F` dates after it, or `U` undated components. `N` and
-`R` select future and overdue dates within a relative horizon. The
+`R` select future and overdue dates within a relative horizon. `D` selects all
+dated components; `U` selects undated components. Neither requires
+`as_of_date`. The
 bucket flag must be `abap_true` when active and `abap_false` when inactive;
-active buckets require a valid Gregorian `as_of_date` and a supported bucket
-code. Inactive bucket code and date values must be initial. Bucket and
+active buckets require a supported bucket code. Buckets `D` and `U` require
+initial `as_of_date`; `O`, `T`, `F`, `N`, and `R` require a valid Gregorian
+`as_of_date`. Inactive bucket code and date values must be initial. Bucket and
 range selectors intersect, so a date range excludes undated rows even when
 combined with bucket `U`.
+Set `include_undated` to `abap_true` to add undated rows to the rows matching
+the active date bounds and/or bucket. Dated rows still have to satisfy every
+active selector. The flag must be `abap_false` when inactive, and when active
+at least one date bound or bucket selector is required. The default preserves
+undated exclusion for date bounds. Component previews keep an included row's
+source required date initial and use today's date as its effective date for
+stock allocation and ATP evaluation.
+`filter_material`/`material` and `filter_plant`/`plant` optionally select exact
+`RESB-MATNR` and `RESB-WERKS` values, including an initial value when the
+corresponding filter is active. Disabled filters require initial values;
+invalid flags and inactive values are rejected before repository reads. These
+scope filters compose with date and bucket selectors, run in the `RESB` query,
+and are checked against returned rows before mapping. Component previews accept
+the same filters.
+`filter_storage_location`/`storage_location` optionally select an exact
+`RESB-LGORT`, including an initial location when enabled. The inactive value
+must be initial; invalid flags and returned scope drift are rejected. The
+location filter composes with material, plant, date, and bucket selectors, runs
+in the `RESB` query, and is accepted by component previews.
+`filter_batch`/`batch` optionally select an exact `RESB-CHARG`, including an
+initial batch when enabled. Disabled values must be initial; invalid flags and
+returned batch-scope drift are rejected. The batch filter composes with the
+other component selectors, runs in both `RESB` queries, and applies to
+component previews.
+`filter_movement_type`/`movement_type` optionally select an exact
+`RESB-BWART`, including an initial movement type when enabled. Disabled values
+must be initial; invalid flags and returned movement-type scope drift are
+rejected. The selector composes with all other component filters and applies
+to production and planned previews.
+`filter_unit`/`unit` optionally select an exact `RESB-MEINS`, including an
+initial unit when enabled. Disabled values must be initial; invalid flags and
+returned unit-scope drift are rejected. The unit selector composes with the
+other component filters, runs in both `RESB` queries, and applies to production
+and planned previews.
+`filter_sales_order_item`/`sales_order_number`/`sales_order_item` select an
+exact paired `RESB-KDAUF`/`RESB-KDPOS` reference. Both key fields are required
+when active and must be initial when disabled. The repository applies both
+predicates in production and planned reads; the service rejects invalid flags,
+incomplete keys, inactive values, and returned reference-scope drift. Open
+component rows preserve both reference fields, and previews accept the selector.
+`filter_wbs_internal_id`/`wbs_internal_id` optionally select an exact
+internal WBS assignment from `RESB-PSPEL`, including the initial value when
+enabled. The value must be initial when disabled; invalid flags and returned
+WBS-scope drift are rejected. The filter composes with the other component
+selectors, runs in both `RESB` queries, and applies to production and planned
+component previews. Returned open-component rows preserve the internal WBS ID.
+`filter_sales_schedule_line`/`sales_order_schedule_line` optionally select
+an exact `RESB-KDEIN` line within the active exact sales-order item selector.
+The schedule-line flag requires `filter_sales_order_item`; its value may be
+initial to select the initial schedule line. The value must be initial when
+disabled, and the service rejects invalid flags, an unscoped active line, and
+returned schedule-line drift. Both `RESB` queries apply it, result rows preserve
+the line, and production and planned component previews accept the selector.
+`filter_special_stock_indicator`/`special_stock_indicator` optionally select
+an exact `RESB-SOBKZ` special-stock indicator, including the initial value
+for regular stock. The value must be initial when disabled; invalid flags,
+inactive values, and returned special-stock scope drift are rejected. The
+selector composes with the other filters, runs in both `RESB` queries, is
+preserved on component rows, and applies to production and planned previews.
+`filter_requirement_type`/`requirement_type` optionally select an exact
+`RESB-BDART` requirement type, including the initial value. Disabled values
+must be initial; invalid flags and returned requirement-type scope drift are
+rejected. Both `RESB` queries apply the selector, result rows preserve it,
+and production and planned component previews accept it.
+`filter_staging_indicator`/`staging_indicator` optionally select an exact
+`RESB-BERKZ` material staging indicator, including the initial value. The
+value must be initial when disabled; invalid flags and returned staging
+scope drift are rejected. Both `RESB` queries apply the selector, component
+rows preserve it, and production and planned previews accept it.
+`filter_mrp_relevance`/`mrp_relevance` optionally select an exact
+`RESB-NO_DISP` MRP-relevance value; SAP uses `1` for not relevant to MRP.
+The initial value can also be selected. Disabled values must be initial;
+invalid flags and returned MRP-scope drift are rejected. Both `RESB`
+queries apply the selector and component rows preserve it for previews.
+Production and planned component rows also preserve `RESB-POTX1` as
+`bom_item_text`, the BOM item text line shown alongside the material
+number in reads and previews.
+`filter_reservation_number`/`reservation_number` and
+`filter_reservation_item`/`reservation_item` optionally select exact
+`RESB-RSNUM` and `RESB-RSPOS` keys. Disabled values must be initial; invalid
+flags and returned reservation-key scope drift are rejected. The key selectors
+compose with the other selectors and apply to both production and planned
+component previews.
+`filter_res_item_from`/`reservation_item_from` and
+`filter_res_item_through`/`reservation_item_through` select inclusive
+`RESB-RSPOS` bounds. Either bound may be used alone; active bounds must be
+ascending, and disabled values must be initial. The range composes with the
+exact reservation-item selector and other component filters. Both `RESB`
+queries apply it before returning rows; the service rejects invalid flags,
+inactive values, reversed bounds, and returned item-scope drift. Component
+previews accept the same range.
+`filter_res_num_from`/`reservation_number_from` and
+`filter_res_num_through`/`reservation_number_through` select inclusive
+`RESB-RSNUM` bounds. Either bound may be used alone; active bounds must be
+ascending, and disabled values must be initial. The range composes with exact
+reservation-number and item selectors, including the `RESB-RSPOS` range. Both
+queries apply it before returning rows; the service rejects invalid flags,
+inactive values, reversed bounds, and returned reservation-number scope drift.
+Component previews accept the same range.
+`filter_open_quantity_from` and `filter_open_quantity_through` optionally set
+inclusive bounds on the calculated remaining open quantity. Either bound may
+be used alone; bounds must be nonnegative and ascending, and disabled values
+must be initial. The service applies them after the shared reservation-open
+quantity calculation, before returning components or sending them to previews.
+`filter_required_qty_from`/`required_quantity_from` and
+`filter_required_qty_through`/`required_quantity_through` select inclusive
+`RESB-BDMNG` bounds. `filter_withdrawn_qty_from`/`withdrawn_quantity_from` and
+`filter_withdrawn_qty_through`/`withdrawn_quantity_through` do the same for
+`RESB-ENMNG`. Each range accepts either bound alone; enabled bounds must be
+nonnegative and ascending, and disabled values must be initial. Both `RESB`
+queries apply these selectors before returning rows, while the service rejects
+invalid flags, invalid ranges, and returned quantity-scope drift. Component
+previews accept the same ranges.
+`filter_open_qty_pct_from`/`open_qty_pct_from` and
+`filter_open_qty_pct_through`/`open_qty_pct_through` select an inclusive
+percentage range for calculated open quantity divided by original required
+quantity. Either bound may be used alone; bounds must be from 0 through 100
+and ascending, and disabled values must be initial. An active percentage
+selector excludes rows whose required quantity is zero or negative. The
+service applies this derived filter after open-quantity calculation and
+before component previews.
+`filter_withdrawn_pct_from`/`withdrawn_pct_from` and
+`filter_withdrawn_pct_through`/`withdrawn_pct_through` select an
+inclusive percentage range for withdrawn quantity divided by original required
+quantity. Either bound may be used alone; bounds must be from 0 through 100 and
+ascending, and disabled values must be initial. The service calculates this
+derived percentage after open-quantity calculation, composes it with the open
+quantity percentage and other selectors, and passes only matching components
+to stock and ATP previews.
 Bucket `N` selects near-term future components whose required date is after
 `as_of_date` and on or before the date `required_date_horizon_days` later. The
 horizon must be a positive number of calendar days that stays within the
@@ -326,6 +458,10 @@ Bucket `R` selects overdue required dates on or after the date
 `required_date_horizon_days` before `as_of_date`, but strictly before
 `as_of_date`. Its positive horizon must remain within the Gregorian date range
 and composes with either date bound.
+Bucket `D` requires an initial horizon and excludes rows without
+`RESB-BDTER`; it can be used alone to select every dated component.
+Bucket `U` also requires an initial horizon and selects rows without
+`RESB-BDTER` without needing a reference date.
 Production and planned-order single/bulk ATP, stock, and scoped component
 previews accept the same selection and filter source reservation dates before
 allocation or ATP evaluation. A selected component remains in scope if an
@@ -3952,6 +4088,13 @@ shared dated local-stock allocator to those rows, with the same reservation
 exclusions, projected receipts, allocation policies, location and batch
 options, receipt sources, and safety-stock protection as production component
 stock previews. Their results preserve the planned-order identity.
+Planned-component allocation policies may set `minimum_coverage_pct` from 0
+through 100 for an individual reservation. The shared local allocator compares
+eligible base-unit stock after the date, location, batch, receipt, and
+safety-stock rules; below-floor components receive zero allocation and leave
+stock for later planned components. Their `component_local_estimate` echoes the
+floor and `minimum_coverage_rejected`. ATP confirmation remains a separate
+check of the requested demand.
 `PREVIEW_PLANNED_COMP_ATP` and `PREVIEW_PLANNED_COMP_ATP_BULK` run those rows
 through the shared component ATP preview. The result preserves each
 planned-order key and supports

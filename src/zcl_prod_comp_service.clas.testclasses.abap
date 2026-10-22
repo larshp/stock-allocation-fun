@@ -7,6 +7,7 @@ CLASS lcl_prod_comp_repo DEFINITION FINAL.
     METHODS get_read_count
       RETURNING
         VALUE(rv_count) TYPE i.
+    DATA return_all_components TYPE abap_bool.
     DATA return_all_planned TYPE abap_bool.
   PRIVATE SECTION.
     DATA mt_components TYPE zif_prod_comp_repo=>ty_reservation_items.
@@ -33,11 +34,139 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
 
   METHOD zif_prod_comp_repo~get_components_bulk.
     ADD 1 TO mv_read_count.
+    IF return_all_components = abap_true.
+      rt_items = mt_components.
+      RETURN.
+    ENDIF.
     LOOP AT mt_components INTO DATA(ls_component).
       READ TABLE it_production_orders WITH KEY
         table_line = ls_component-production_order
         TRANSPORTING NO FIELDS.
       IF sy-subrc = 0.
+        IF is_required_date_range-filter_material = abap_true
+            AND ls_component-material <> is_required_date_range-material.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_plant = abap_true
+            AND ls_component-plant <> is_required_date_range-plant.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_storage_location = abap_true
+            AND ls_component-storage_location <>
+              is_required_date_range-storage_location.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_batch = abap_true
+            AND ls_component-batch <> is_required_date_range-batch.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_movement_type = abap_true
+            AND ls_component-movement_type <>
+              is_required_date_range-movement_type.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_unit = abap_true
+            AND ls_component-unit <> is_required_date_range-unit.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_sales_order_item = abap_true
+            AND ( ls_component-sales_order_number <>
+                    is_required_date_range-sales_order_number
+              OR ls_component-sales_order_item <>
+                    is_required_date_range-sales_order_item ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_sales_schedule_line = abap_true
+            AND ls_component-sales_order_schedule_line <>
+              is_required_date_range-sales_order_schedule_line.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_special_stock_indicator =
+            abap_true
+            AND ls_component-special_stock_indicator <>
+              is_required_date_range-special_stock_indicator.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_requirement_type = abap_true
+            AND ls_component-requirement_type <>
+              is_required_date_range-requirement_type.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_staging_indicator = abap_true
+            AND ls_component-staging_indicator <>
+              is_required_date_range-staging_indicator.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_mrp_relevance = abap_true
+            AND ls_component-mrp_relevance <>
+              is_required_date_range-mrp_relevance.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_bom_item = abap_true
+            AND ls_component-bom_item_number <>
+              is_required_date_range-bom_item_number.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_wbs_internal_id = abap_true
+            AND ls_component-wbs_internal_id <>
+              is_required_date_range-wbs_internal_id.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_reservation_number = abap_true
+            AND ls_component-reservation_number <>
+              is_required_date_range-reservation_number.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_num_from = abap_true
+            AND ls_component-reservation_number <
+              is_required_date_range-reservation_number_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_num_through = abap_true
+            AND ls_component-reservation_number >
+              is_required_date_range-reservation_number_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_reservation_item = abap_true
+            AND ls_component-reservation_item <>
+              is_required_date_range-reservation_item.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_item_from = abap_true
+            AND ls_component-reservation_item <
+              is_required_date_range-reservation_item_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_item_through = abap_true
+            AND ls_component-reservation_item >
+              is_required_date_range-reservation_item_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_required_qty_from = abap_true
+            AND ls_component-required_quantity <
+              is_required_date_range-required_quantity_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_required_qty_through = abap_true
+            AND ls_component-required_quantity >
+              is_required_date_range-required_quantity_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_qty_from = abap_true
+            AND ls_component-withdrawn_quantity <
+              is_required_date_range-withdrawn_quantity_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_qty_through = abap_true
+            AND ls_component-withdrawn_quantity >
+              is_required_date_range-withdrawn_quantity_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-include_undated = abap_true
+            AND ls_component-required_date IS INITIAL.
+          APPEND ls_component TO rt_items.
+          CONTINUE.
+        ENDIF.
         IF is_required_date_range-filter_from = abap_true
             AND ( ls_component-required_date IS INITIAL
               OR ls_component-required_date
@@ -52,6 +181,10 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
         ENDIF.
         IF is_required_date_range-filter_bucket = abap_true.
           CASE is_required_date_range-required_date_bucket.
+            WHEN 'D'.
+              IF ls_component-required_date IS INITIAL.
+                CONTINUE.
+              ENDIF.
             WHEN 'O'.
               IF ls_component-required_date IS INITIAL
                   OR ls_component-required_date >=
@@ -120,6 +253,130 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
         table_line = ls_component-planned_order
         TRANSPORTING NO FIELDS.
       IF sy-subrc = 0.
+        IF is_required_date_range-filter_material = abap_true
+            AND ls_component-material <> is_required_date_range-material.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_plant = abap_true
+            AND ls_component-plant <> is_required_date_range-plant.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_storage_location = abap_true
+            AND ls_component-storage_location <>
+              is_required_date_range-storage_location.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_batch = abap_true
+            AND ls_component-batch <> is_required_date_range-batch.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_movement_type = abap_true
+            AND ls_component-movement_type <>
+              is_required_date_range-movement_type.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_unit = abap_true
+            AND ls_component-unit <> is_required_date_range-unit.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_sales_order_item = abap_true
+            AND ( ls_component-sales_order_number <>
+                    is_required_date_range-sales_order_number
+              OR ls_component-sales_order_item <>
+                    is_required_date_range-sales_order_item ).
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_sales_schedule_line = abap_true
+            AND ls_component-sales_order_schedule_line <>
+              is_required_date_range-sales_order_schedule_line.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_special_stock_indicator =
+            abap_true
+            AND ls_component-special_stock_indicator <>
+              is_required_date_range-special_stock_indicator.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_requirement_type = abap_true
+            AND ls_component-requirement_type <>
+              is_required_date_range-requirement_type.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_staging_indicator = abap_true
+            AND ls_component-staging_indicator <>
+              is_required_date_range-staging_indicator.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_mrp_relevance = abap_true
+            AND ls_component-mrp_relevance <>
+              is_required_date_range-mrp_relevance.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_bom_item = abap_true
+            AND ls_component-bom_item_number <>
+              is_required_date_range-bom_item_number.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_wbs_internal_id = abap_true
+            AND ls_component-wbs_internal_id <>
+              is_required_date_range-wbs_internal_id.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_reservation_number = abap_true
+            AND ls_component-reservation_number <>
+              is_required_date_range-reservation_number.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_num_from = abap_true
+            AND ls_component-reservation_number <
+              is_required_date_range-reservation_number_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_num_through = abap_true
+            AND ls_component-reservation_number >
+              is_required_date_range-reservation_number_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_reservation_item = abap_true
+            AND ls_component-reservation_item <>
+              is_required_date_range-reservation_item.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_item_from = abap_true
+            AND ls_component-reservation_item <
+              is_required_date_range-reservation_item_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_res_item_through = abap_true
+            AND ls_component-reservation_item >
+              is_required_date_range-reservation_item_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_required_qty_from = abap_true
+            AND ls_component-required_quantity <
+              is_required_date_range-required_quantity_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_required_qty_through = abap_true
+            AND ls_component-required_quantity >
+              is_required_date_range-required_quantity_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_qty_from = abap_true
+            AND ls_component-withdrawn_quantity <
+              is_required_date_range-withdrawn_quantity_from.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-filter_withdrawn_qty_through = abap_true
+            AND ls_component-withdrawn_quantity >
+              is_required_date_range-withdrawn_quantity_through.
+          CONTINUE.
+        ENDIF.
+        IF is_required_date_range-include_undated = abap_true
+            AND ls_component-required_date IS INITIAL.
+          APPEND ls_component TO rt_items.
+          CONTINUE.
+        ENDIF.
         IF is_required_date_range-filter_from = abap_true
             AND ( ls_component-required_date IS INITIAL
               OR ls_component-required_date
@@ -134,6 +391,10 @@ CLASS lcl_prod_comp_repo IMPLEMENTATION.
         ENDIF.
         IF is_required_date_range-filter_bucket = abap_true.
           CASE is_required_date_range-required_date_bucket.
+            WHEN 'D'.
+              IF ls_component-required_date IS INITIAL.
+                CONTINUE.
+              ENDIF.
             WHEN 'O'.
               IF ls_component-required_date IS INITIAL
                   OR ls_component-required_date >=
@@ -1073,6 +1334,8 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
       RAISING cx_static_check.
     METHODS previews_planned_comp_atp FOR TESTING
       RAISING cx_static_check.
+    METHODS planned_comp_floor_rejection FOR TESTING
+      RAISING cx_static_check.
     METHODS rejects_bad_planned_comp_rows FOR TESTING
       RAISING cx_static_check.
     METHODS rejects_bad_planned_order_list FOR TESTING
@@ -1180,6 +1443,76 @@ CLASS ltcl_prod_comp_service DEFINITION FINAL
 ENDCLASS.
 
 CLASS ltcl_prod_comp_service IMPLEMENTATION.
+  METHOD planned_comp_floor_rejection.
+    DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
+    lo_repository->set_components(
+      it_components = VALUE #(
+        ( planned_order      = '0000009002'
+          reservation_number = '0000009002'
+          reservation_item   = '0001'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261005'
+          required_quantity  = '4.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000009002'
+          reservation_number = '0000009002'
+          reservation_item   = '0002'
+          material           = 'MAT-1'
+          plant              = '1000'
+          required_date      = '20261005'
+          required_quantity  = '4.000'
+          unit               = 'EA' ) ) ).
+    DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
+    lo_uom_repository->set_units(
+      iv_material         = 'MAT-1'
+      iv_base_unit        = 'EA'
+      iv_alternative_unit = 'EA'
+      iv_numerator        = 1
+      iv_denominator      = 1 ).
+    DATA(lo_converter) = NEW zcl_material_uom_converter(
+      io_repository = lo_uom_repository ).
+    DATA(lo_stock_repository) = NEW lcl_prod_stock_repository( ).
+    lo_stock_repository->set_location_status(
+      iv_material = 'MAT-1'
+      iv_plant    = '1000'
+      it_status   = VALUE #(
+        ( storage_location           = '0001'
+          unrestricted_quantity      = '2.000'
+          available_unrestricted_qty = '0.000' ) ) ).
+    DATA(lo_stock_service) = NEW zcl_stock_service(
+      io_stock_repository = lo_stock_repository
+      io_uom_converter    = lo_converter ).
+    DATA(lo_cut) = NEW zcl_prod_comp_service(
+      io_repository    = lo_repository
+      io_stock_service = lo_stock_service
+      io_uom_converter = lo_converter ).
+
+    DATA(lt_checks) = lo_cut->preview_planned_stock_bulk(
+      it_planned_orders      = VALUE #( ( '0000009002' ) )
+      it_allocation_policies = VALUE #(
+        ( reservation_number   = '0000009002'
+          reservation_item     = '0001'
+          minimum_coverage_pct = '75.00' ) ) ).
+
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '75.00'
+      act = lt_checks[ 1 ]-component_local_estimate-minimum_coverage_pct ).
+    cl_abap_unit_assert=>assert_true(
+      lt_checks[ 1 ]-component_local_estimate-minimum_coverage_rejected ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '0.000' )
+      act = lt_checks[ 1 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV mard-labst( '2.000' )
+      act = lt_checks[ 2 ]-component_local_estimate-allocated_quantity ).
+    cl_abap_unit_assert=>assert_false(
+      lt_checks[ 2 ]-component_local_estimate-minimum_coverage_rejected ).
+  ENDMETHOD.
+
   METHOD reads_open_planned_components.
     DATA(lo_repository) = NEW lcl_prod_comp_repo( ).
     lo_repository->set_components(
@@ -1188,6 +1521,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_number = '0000000001'
           reservation_item   = '0002'
           material           = 'COMP-2'
+          bom_item_text      = 'Pump rotor'
           plant              = '1000'
           required_quantity  = '10.000'
           withdrawn_quantity = '3.000'
@@ -1247,6 +1581,9 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       exp = 'COMP-2'
       act = lt_components[ 1 ]-material ).
     cl_abap_unit_assert=>assert_equals(
+      exp = 'Pump rotor'
+      act = lt_components[ 1 ]-bom_item_text ).
+    cl_abap_unit_assert=>assert_equals(
       exp = CONV resb-bdmng( '7.000' )
       act = lt_components[ 1 ]-open_quantity ).
     cl_abap_unit_assert=>assert_equals(
@@ -1267,33 +1604,73 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       it_components = VALUE #(
         ( production_order = '0000004711'
           planned_order = '0000001001'
+          sales_order_number = '0000500001'
+          sales_order_item = '000010'
+          sales_order_schedule_line = '0000'
+          wbs_internal_id = '00000001'
+          special_stock_indicator = 'E'
+          requirement_type = 'SB'
+          staging_indicator = '1'
+          mrp_relevance = '1'
           reservation_number = '0000000001'
           reservation_item = '0001'
+          material = 'MAT-A' plant = '1000'
+          storage_location = '0001'
+          batch = 'BATCH-A'
+          movement_type = '261'
           required_date = '20261020'
-          required_quantity = '5.000' unit = 'EA' )
+          required_quantity = '5.000'
+          withdrawn_quantity = '3.000' unit = 'EA' )
         ( production_order = '0000004711'
           planned_order = '0000001001'
+          sales_order_number = '0000500001'
+          sales_order_item = '000020'
+          sales_order_schedule_line = '0002'
+          wbs_internal_id = '00000002'
+          special_stock_indicator = 'Q'
+          requirement_type = 'AR'
+          staging_indicator = '2'
           reservation_number = '0000000001'
           reservation_item = '0002'
+          material = 'MAT-A' plant = '1000'
+          storage_location = '0001'
+          batch = 'BATCH-A'
+          movement_type = '261'
           required_date = '20261021'
-          required_quantity = '5.000' unit = 'EA' )
+          required_quantity = '5.000'
+          withdrawn_quantity = '1.000' unit = 'EA' )
         ( production_order = '0000004711'
           planned_order = '0000001001'
+          sales_order_number = '0000500002'
+          sales_order_item = '000010'
+          sales_order_schedule_line = '0001'
+          wbs_internal_id = space
           reservation_number = '0000000001'
           reservation_item = '0003'
+          plant = '1000'
+          batch = 'BATCH-B'
+          movement_type = '262'
           required_date = '20261022'
-          required_quantity = '5.000' unit = 'EA' )
+          required_quantity = '5.000'
+          withdrawn_quantity = '2.000' unit = 'KG' )
         ( production_order = '0000004711'
           planned_order = '0000001001'
           reservation_number = '0000000001'
           reservation_item = '0004'
+          wbs_internal_id = '00000001'
+          material = 'MAT-A'
+          storage_location = '0002'
+          batch = 'BATCH-C'
+          movement_type = '262'
           required_date = '20261023'
-          required_quantity = '5.000' unit = 'EA' )
+          required_quantity = '6.000' unit = 'EA' )
         ( production_order = '0000004711'
           planned_order = '0000001001'
-          reservation_number = '0000000001'
+          reservation_number = '0000000002'
           reservation_item = '0005'
-          required_quantity = '5.000' unit = 'EA' ) ) ).
+          material = 'MAT-A' plant = '1000'
+          storage_location = '0001'
+          required_quantity = '5.000' ) ) ).
     DATA(lo_cut) = NEW zcl_prod_comp_service(
       io_repository = lo_repository ).
     DATA(ls_range) = VALUE zif_prod_comp_repo=>ty_required_date_range(
@@ -1330,6 +1707,858 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 2
       act = lines( lt_production ) ).
+    ls_range-include_undated = abap_true.
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 3 ]-required_date ).
+    lt_planned = lo_cut->get_open_planned_comp(
+      iv_planned_order       = '0000001001'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_planned[ 3 ]-required_date ).
+
+    ls_range = VALUE #(
+      filter_unit = abap_true
+      unit        = 'KG' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'KG'
+      act = lt_production[ 1 ]-unit ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #( filter_unit = abap_true ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-unit ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_material = abap_true
+      material        = 'MAT-A'
+      filter_plant    = abap_true
+      plant           = '1000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_material = abap_true
+      filter_plant    = abap_true
+      plant           = '1000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-material ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_material = abap_true
+      material        = 'MAT-A'
+      filter_plant    = abap_true ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-plant ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_storage_location = abap_true
+      storage_location        = '0001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #( filter_storage_location = abap_true ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-storage_location ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_batch = abap_true
+      batch        = 'BATCH-A' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #( filter_batch = abap_true ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-batch ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_movement_type = abap_true
+      movement_type        = '261' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #( filter_movement_type = abap_true ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-movement_type ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_reservation_number = abap_true
+      reservation_number        = '0000000001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_sales_order_item = abap_true
+      sales_order_number      = '0000500001'
+      sales_order_item        = '000020' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '000020'
+      act = lt_production[ 1 ]-sales_order_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_sales_order_item    = abap_true
+      sales_order_number         = '0000500001'
+      sales_order_item           = '000020'
+      filter_sales_schedule_line = abap_true
+      sales_order_schedule_line  = '0002' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-sales_order_schedule_line ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_sales_order_item    = abap_true
+      sales_order_number         = '0000500001'
+      sales_order_item           = '000010'
+      filter_sales_schedule_line = abap_true
+      sales_order_schedule_line  = space ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-sales_order_schedule_line ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+       filter_special_stock_indicator = abap_true
+              special_stock_indicator = 'E' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'E'
+      act = lt_production[ 1 ]-special_stock_indicator ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+       filter_special_stock_indicator = abap_true
+              special_stock_indicator = space ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-special_stock_indicator ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+        filter_requirement_type = abap_true
+               requirement_type = 'SB' ).
+                 lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'SB'
+      act = lt_production[ 1 ]-requirement_type ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+        filter_requirement_type = abap_true
+               requirement_type = space ).
+                 lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-requirement_type ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+        filter_staging_indicator = abap_true
+               staging_indicator = '1' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_production[ 1 ]-staging_indicator ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+        filter_staging_indicator = abap_true
+               staging_indicator = space ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-staging_indicator ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+       filter_mrp_relevance = abap_true
+              mrp_relevance = '1' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '1'
+      act = lt_production[ 1 ]-mrp_relevance ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+       filter_mrp_relevance = abap_true
+              mrp_relevance = space ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-mrp_relevance ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4 act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_wbs_internal_id = abap_true
+      wbs_internal_id        = '00000001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '00000001'
+      act = lt_production[ 1 ]-wbs_internal_id ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range-wbs_internal_id = space.
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_production[ 1 ]-wbs_internal_id ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_num_from        = abap_true
+      reservation_number_from    = '0000000001'
+      filter_res_num_through     = abap_true
+      reservation_number_through = '0000000001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0000000001'
+      act = lt_production[ 1 ]-reservation_number ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_num_from     = abap_true
+      reservation_number_from = '0000000002' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_production[ 1 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_num_through     = abap_true
+      reservation_number_through = '0000000001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_reservation_item = abap_true
+      reservation_item        = '0002' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_item_from     = abap_true
+      reservation_item_from    = '0002'
+      filter_res_item_through  = abap_true
+      reservation_item_through = '0003' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_production[ 2 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_item_from  = abap_true
+      reservation_item_from = '0004' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_res_item_through  = abap_true
+      reservation_item_through = '0001' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_production[ 1 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_quantity_from    = abap_true
+      open_quantity_from           = '4.000'
+      filter_open_quantity_through = abap_true
+      open_quantity_through        = '4.000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = CONV resb-bdmng( '4.000' )
+      act = lt_production[ 1 ]-open_quantity ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_quantity_from = abap_true
+      open_quantity_from        = '4.000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_quantity_through = abap_true
+      open_quantity_through        = '3.000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_required_qty_from    = abap_true
+      required_quantity_from      = '5.000'
+      filter_required_qty_through = abap_true
+      required_quantity_through   = '5.000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_withdrawn_qty_from    = abap_true
+      withdrawn_quantity_from      = '1.000'
+      filter_withdrawn_qty_through = abap_true
+      withdrawn_quantity_through   = '2.000' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_qty_pct_from    = abap_true
+      open_qty_pct_from           = '60.00'
+      filter_open_qty_pct_through = abap_true
+      open_qty_pct_through        = '80.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_production[ 2 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_planned[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_planned[ 2 ]-reservation_item ).
+
+    ls_range = VALUE #(
+      filter_open_qty_pct_from = abap_true
+      open_qty_pct_from        = '80.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_qty_pct_through = abap_true
+      open_qty_pct_through        = '40.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_production[ 1 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 1
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_open_qty_pct_from    = abap_true
+      open_qty_pct_from           = '0.00'
+      filter_open_qty_pct_through = abap_true
+      open_qty_pct_through        = '100.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 5
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_withdrawn_pct_from    = abap_true
+      withdrawn_pct_from           = '20.00'
+      filter_withdrawn_pct_through = abap_true
+      withdrawn_pct_through        = '40.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_production[ 2 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_planned[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_planned[ 2 ]-reservation_item ).
+
+    ls_range = VALUE #(
+      filter_withdrawn_pct_from = abap_true
+      withdrawn_pct_from        = '40.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0001'
+      act = lt_production[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0003'
+      act = lt_production[ 2 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_withdrawn_pct_through = abap_true
+      withdrawn_pct_through        = '20.00' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_production ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0002'
+      act = lt_production[ 1 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0004'
+      act = lt_production[ 2 ]-reservation_item ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = '0005'
+      act = lt_production[ 3 ]-reservation_item ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_planned ) ).
+
+    ls_range = VALUE #(
+      filter_material         = abap_true
+      material                = 'MAT-A'
+      filter_plant            = abap_true
+      plant                   = '1000'
+      filter_storage_location = abap_true
+      storage_location        = '0001'
+      filter_from             = abap_true
+      required_date_from      = '20261021'
+      include_undated         = abap_true ).
+    lt_production = lo_cut->get_open_components(
+      iv_production_order    = '0000004711'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp(
+      iv_planned_order       = '0000001001'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_planned ) ).
 
     ls_range = VALUE #( filter_bucket = abap_true
       required_date_bucket            = 'O'
@@ -1368,8 +2597,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       act = lines( lt_production ) ).
 
     ls_range = VALUE #( filter_bucket = abap_true
-      required_date_bucket            = 'U'
-      as_of_date                      = '20261021' ).
+      required_date_bucket            = 'U' ).
     lt_production = lo_cut->get_open_components_bulk(
       it_production_orders   = VALUE #( ( '0000004711' ) )
       is_required_date_range = ls_range ).
@@ -1451,8 +2679,23 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '20261020'
       act = lt_planned[ 1 ]-required_date ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'D' ).
+    lt_production = lo_cut->get_open_components_bulk(
+      it_production_orders   = VALUE #( ( '0000004711' ) )
+      is_required_date_range = ls_range ).
     cl_abap_unit_assert=>assert_equals(
-      exp = 13
+      exp = 4
+      act = lines( lt_production ) ).
+    lt_planned = lo_cut->get_open_planned_comp_bulk(
+      it_planned_orders      = VALUE #( ( '0000001001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 4
+      act = lines( lt_planned ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 107
       act = lo_repository->get_read_count( ) ).
   ENDMETHOD.
 
@@ -1503,6 +2746,158 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
       required_date_bucket        = 'T'
       required_date_horizon_days  = 1
       as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'D'
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( filter_bucket = abap_true
+      required_date_bucket        = 'U'
+      as_of_date                  = '20261021' ) TO lt_ranges.
+    APPEND VALUE #( include_undated = abap_true ) TO lt_ranges.
+    APPEND VALUE #( filter_from = abap_true
+      required_date_from        = '20261021'
+      include_undated           = 'Y' ) TO lt_ranges.
+    APPEND VALUE #( filter_material = 'Y'
+      material                      = 'MAT-A' ) TO lt_ranges.
+    APPEND VALUE #( material = 'MAT-A' ) TO lt_ranges.
+    APPEND VALUE #( filter_plant = 'Y'
+      plant                      = '1000' ) TO lt_ranges.
+    APPEND VALUE #( plant = '1000' ) TO lt_ranges.
+    APPEND VALUE #( filter_storage_location = 'Y'
+      storage_location                      = '0001' ) TO lt_ranges.
+    APPEND VALUE #( storage_location = '0001' ) TO lt_ranges.
+    APPEND VALUE #( filter_batch = 'Y'
+      batch                      = 'BATCH-A' ) TO lt_ranges.
+    APPEND VALUE #( batch = 'BATCH-A' ) TO lt_ranges.
+    APPEND VALUE #( filter_movement_type = 'Y'
+      movement_type                      = '261' ) TO lt_ranges.
+    APPEND VALUE #( movement_type = '261' ) TO lt_ranges.
+    APPEND VALUE #( filter_unit = 'Y' unit = 'KG' ) TO lt_ranges.
+    APPEND VALUE #( unit = 'KG' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_sales_order_item = 'Y'
+      sales_order_number      = '0000500001'
+      sales_order_item        = '000010' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_sales_order_item = abap_true
+      sales_order_item        = '000010' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_sales_order_item = abap_true
+      sales_order_number      = '0000500001' ) TO lt_ranges.
+    APPEND VALUE #( sales_order_number = '0000500001' ) TO lt_ranges.
+    APPEND VALUE #( sales_order_item = '000010' ) TO lt_ranges.
+    APPEND VALUE #( filter_sales_schedule_line = 'Y'
+      filter_sales_order_item                  = abap_true
+      sales_order_number                       = '0000500001'
+      sales_order_item                         = '000010' ) TO lt_ranges.
+    APPEND VALUE #( filter_sales_schedule_line = abap_true
+      sales_order_schedule_line                = '0001' ) TO lt_ranges.
+    APPEND VALUE #( sales_order_schedule_line = '0001' ) TO lt_ranges.
+    APPEND VALUE #( filter_special_stock_indicator = 'Y' ) TO lt_ranges.
+    APPEND VALUE #( special_stock_indicator = 'E' ) TO lt_ranges.
+    APPEND VALUE #( filter_requirement_type = 'Y' ) TO lt_ranges.
+    APPEND VALUE #( requirement_type = 'SB' ) TO lt_ranges.
+    APPEND VALUE #( filter_staging_indicator = 'Y' ) TO lt_ranges.
+    APPEND VALUE #( staging_indicator = '1' ) TO lt_ranges.
+    APPEND VALUE #( filter_mrp_relevance = 'Y' ) TO lt_ranges.
+    APPEND VALUE #( mrp_relevance = '1' ) TO lt_ranges.
+    APPEND VALUE #( filter_wbs_internal_id = 'Y'
+      wbs_internal_id                      = '00000001' ) TO lt_ranges.
+    APPEND VALUE #( wbs_internal_id                       = '00000001' ) TO lt_ranges.
+    APPEND VALUE #( filter_reservation_number = 'Y'
+      reservation_number                      = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #( reservation_number = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #( filter_reservation_item = 'Y'
+      reservation_item                      = '0001' ) TO lt_ranges.
+    APPEND VALUE #( reservation_item = '0001' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_res_num_from     = 'Y'
+      reservation_number_from = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_res_num_through     = 'Y'
+      reservation_number_through = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #( reservation_number_from = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #( reservation_number_through = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_res_num_from        = abap_true
+      reservation_number_from    = '0000000002'
+      filter_res_num_through     = abap_true
+      reservation_number_through = '0000000001' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_res_item_from  = 'Y'
+      reservation_item_from = '0001' ) TO lt_ranges.
+    APPEND VALUE #( reservation_item_from = '0001' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_res_item_from     = abap_true
+      reservation_item_from    = '0003'
+      filter_res_item_through  = abap_true
+      reservation_item_through = '0002' ) TO lt_ranges.
+    APPEND VALUE #( filter_open_quantity_from = 'Y'
+      open_quantity_from                      = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( open_quantity_from = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_open_quantity_from = abap_true
+      open_quantity_from                      = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_open_quantity_through = abap_true
+      open_quantity_through                      = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_open_quantity_from = abap_true
+      open_quantity_from                      = '2.000'
+      filter_open_quantity_through            = abap_true
+      open_quantity_through                   = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_required_qty_from = 'Y'
+      required_quantity_from                 = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( required_quantity_from = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_required_qty_from = abap_true
+      required_quantity_from                 = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_required_qty_through = abap_true
+      required_quantity_through                 = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_required_qty_from = abap_true
+      required_quantity_from                 = '2.000'
+      filter_required_qty_through            = abap_true
+      required_quantity_through              = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_withdrawn_qty_from = 'Y'
+      withdrawn_quantity_from                 = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( withdrawn_quantity_from = '1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_withdrawn_qty_from = abap_true
+      withdrawn_quantity_from                 = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_withdrawn_qty_through = abap_true
+      withdrawn_quantity_through                 = '-1.000' ) TO lt_ranges.
+    APPEND VALUE #( filter_withdrawn_qty_from = abap_true
+      withdrawn_quantity_from                 = '2.000'
+      filter_withdrawn_qty_through            = abap_true
+      withdrawn_quantity_through              = '1.000' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_open_qty_pct_from = 'Y'
+      open_qty_pct_from        = '20.00' ) TO lt_ranges.
+    APPEND VALUE #( open_qty_pct_from = '20.00' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_open_qty_pct_from = abap_true
+      open_qty_pct_from        = '-0.01' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_open_qty_pct_through = abap_true
+      open_qty_pct_through        = '100.01' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_open_qty_pct_from    = abap_true
+      open_qty_pct_from           = '80.00'
+      filter_open_qty_pct_through = abap_true
+      open_qty_pct_through        = '60.00' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_withdrawn_pct_from = 'Y'
+      withdrawn_pct_from        = '20.00' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_withdrawn_pct_through = 'Y'
+      withdrawn_pct_through        = '20.00' ) TO lt_ranges.
+    APPEND VALUE #( withdrawn_pct_from = '20.00' ) TO lt_ranges.
+    APPEND VALUE #( withdrawn_pct_through = '20.00' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_withdrawn_pct_from = abap_true
+      withdrawn_pct_from        = '-0.01' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_withdrawn_pct_through = abap_true
+      withdrawn_pct_through        = '100.01' ) TO lt_ranges.
+    APPEND VALUE #(
+      filter_withdrawn_pct_from    = abap_true
+      withdrawn_pct_from           = '80.00'
+      filter_withdrawn_pct_through = abap_true
+      withdrawn_pct_through        = '60.00' ) TO lt_ranges.
     APPEND VALUE #( required_date_horizon_days = 1 ) TO lt_ranges.
 
     LOOP AT lt_ranges INTO DATA(ls_range).
@@ -1541,6 +2936,364 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 0
       act = lo_repository->get_read_count( ) ).
+
+    DATA(lo_scope_repo) = NEW lcl_prod_comp_repo( ).
+    lo_scope_repo->set_components(
+      it_components = VALUE #(
+        (                   production_order = '0000004711'
+                               planned_order = '0000001001'
+                          reservation_number = '0000000001'
+                            reservation_item = '0001'
+                                    material = 'MAT-B'
+                                       plant = '1000'
+                          sales_order_number = '0000500001'
+                            sales_order_item = '000010'
+                   sales_order_schedule_line = '0001'
+                            requirement_type = 'SB'
+                           staging_indicator = '1'
+                               mrp_relevance = '1'
+                             wbs_internal_id = '00000001'
+                               required_date = '20261021'
+                           required_quantity = '1.000'
+                                        unit = 'EA' ) ) ).
+    lo_scope_repo->return_all_components = abap_true.
+    DATA(lo_scope_cut) = NEW zcl_prod_comp_service(
+      io_repository = lo_scope_repo ).
+    DATA(lv_material_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_material = abap_true
+            material        = 'MAT-A' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_material_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_material_scope_rejected ).
+
+    DATA(lv_sales_order_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_sales_order_item = abap_true
+            sales_order_number      = '0000500002'
+            sales_order_item        = '000010' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_sales_order_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_sales_order_scope_rejected ).
+
+    DATA(lv_sales_line_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_sales_order_item    = abap_true
+            sales_order_number         = '0000500001'
+            sales_order_item           = '000010'
+            filter_sales_schedule_line = abap_true
+            sales_order_schedule_line  = '0002' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_sales_line_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_sales_line_scope_rejected ).
+
+    DATA(lv_stock_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+             filter_special_stock_indicator = abap_true
+                    special_stock_indicator = 'Q' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_stock_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_stock_scope_rejected ).
+
+    DATA(lv_req_type_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+             filter_requirement_type = abap_true
+                    requirement_type = 'AR' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_req_type_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_req_type_scope_rejected ).
+
+    DATA(lv_staging_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+              filter_staging_indicator = abap_true
+                     staging_indicator = '2' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_staging_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_staging_scope_rejected ).
+
+    DATA(lv_mrp_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+             filter_mrp_relevance = abap_true
+                    mrp_relevance = space ) ).
+      CATCH zcx_invalid_production_order.
+        lv_mrp_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_mrp_scope_rejected ).
+
+    DATA(lv_wbs_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_wbs_internal_id = abap_true
+            wbs_internal_id        = '00000002' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_wbs_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_wbs_scope_rejected ).
+
+    lo_scope_repo->return_all_planned = abap_true.
+    DATA(lv_plant_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_plant = abap_true
+            plant        = '2000' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plant_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plant_scope_rejected ).
+
+    DATA(lv_plan_so_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_sales_order_item = abap_true
+            sales_order_number      = '0000500002'
+            sales_order_item        = '000010' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_so_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true(
+      lv_plan_so_scope_rejected ).
+
+    DATA(lv_plan_sales_line_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_sales_order_item    = abap_true
+            sales_order_number         = '0000500001'
+            sales_order_item           = '000010'
+            filter_sales_schedule_line = abap_true
+            sales_order_schedule_line  = '0002' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_sales_line_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_sales_line_rejected ).
+
+    DATA(lv_plan_stock_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+             filter_special_stock_indicator = abap_true
+                    special_stock_indicator = 'Q' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_stock_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_stock_scope_rejected ).
+
+    DATA(lv_plan_req_type_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+             filter_requirement_type = abap_true
+                    requirement_type = 'AR' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_req_type_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_req_type_rejected ).
+
+    DATA(lv_plan_staging_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+              filter_staging_indicator = abap_true
+                     staging_indicator = '2' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_staging_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_staging_rejected ).
+
+    DATA(lv_plan_mrp_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+             filter_mrp_relevance = abap_true
+                    mrp_relevance = space ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_mrp_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_mrp_scope_rejected ).
+
+    DATA(lv_plan_wbs_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_wbs_internal_id = abap_true
+            wbs_internal_id        = '00000002' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_wbs_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_wbs_scope_rejected ).
+
+    DATA(lv_storage_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_storage_location = abap_true
+            storage_location        = '0001' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_storage_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true(
+      lv_storage_scope_rejected ).
+
+    DATA(lv_batch_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_batch = abap_true
+            batch        = 'BATCH-A' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_batch_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_batch_scope_rejected ).
+
+    DATA(lv_plan_batch_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_batch = abap_true
+            batch        = 'BATCH-A' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_batch_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true(
+      lv_plan_batch_scope_rejected ).
+
+    DATA(lv_move_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_movement_type = abap_true
+            movement_type        = '261' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_move_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_move_scope_rejected ).
+
+    DATA(lv_plan_move_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_movement_type = abap_true
+            movement_type        = '261' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_move_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_move_scope_rejected ).
+
+    DATA(lv_res_number_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_reservation_number = abap_true
+            reservation_number        = '0000000002' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_res_number_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_res_number_scope_rejected ).
+
+    DATA(lv_res_item_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_reservation_item = abap_true
+            reservation_item        = '0002' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_res_item_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_res_item_scope_rejected ).
+
+    DATA(lv_unit_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_unit = abap_true
+            unit        = 'KG' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_unit_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_unit_scope_rejected ).
+
+    DATA(lv_plan_unit_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_unit = abap_true
+            unit        = 'KG' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_plan_unit_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_plan_unit_scope_rejected ).
+
+    DATA(lv_req_qty_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_components_bulk(
+          it_production_orders   = VALUE #( ( '0000004711' ) )
+          is_required_date_range = VALUE #(
+            filter_required_qty_from = abap_true
+            required_quantity_from   = '2.000' ) ).
+      CATCH zcx_invalid_production_order.
+        lv_req_qty_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_req_qty_scope_rejected ).
+
+    DATA(lv_withdraw_qty_scope_rejected) = abap_false.
+    TRY.
+        lo_scope_cut->get_open_planned_comp_bulk(
+          it_planned_orders      = VALUE #( ( '0000001001' ) )
+          is_required_date_range = VALUE #(
+            filter_withdrawn_qty_from = abap_true
+            withdrawn_quantity_from   = '1.000' ) ).
+      CATCH zcx_invalid_stock_request.
+        lv_withdraw_qty_scope_rejected = abap_true.
+    ENDTRY.
+    cl_abap_unit_assert=>assert_true( lv_withdraw_qty_scope_rejected ).
   ENDMETHOD.
 
   METHOD rejects_bad_planned_comp_rows.
@@ -1643,6 +3396,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_number = '0000001234'
           reservation_item   = '0010'
           material           = 'MAT-1'
+          bom_item_text      = 'Seal ring'
           plant              = '1000'
           storage_location   = '0001'
           batch              = 'BATCH-1'
@@ -1700,6 +3454,9 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 'MAT-1'
       act = lt_components[ 1 ]-material ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Seal ring'
+      act = lt_components[ 1 ]-bom_item_text ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0001'
       act = lt_components[ 1 ]-storage_location ).
@@ -3712,6 +5469,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_number = '0000009001'
           reservation_item   = '0001'
           material           = 'MAT-1'
+          bom_item_text      = 'Pump rotor'
           plant              = '1000'
           movement_type      = '261'
           required_date      = '20261005'
@@ -3735,6 +5493,14 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           plant              = '1000'
           movement_type      = '261'
           required_date      = '20261006'
+          required_quantity  = '1.000'
+          unit               = 'EA' )
+        ( planned_order      = '0000009001'
+          reservation_number = '0000009001'
+          reservation_item   = '0004'
+          material           = 'MAT-1'
+          plant              = '1000'
+          movement_type      = '261'
           required_quantity  = '1.000'
           unit               = 'EA' ) ) ).
     DATA(lo_uom_repository) = NEW lcl_prod_uom_repository( ).
@@ -3776,6 +5542,9 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( lt_bulk_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Pump rotor'
+      act = lt_bulk_checks[ 1 ]-component-bom_item_text ).
     cl_abap_unit_assert=>assert_equals(
       exp = '0000009001'
       act = lt_bulk_checks[ 1 ]-component-planned_order ).
@@ -3865,6 +5634,9 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '0000009001'
       act = lt_stock_checks[ 1 ]-component-planned_order ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Pump rotor'
+      act = lt_stock_checks[ 1 ]-component-bom_item_text ).
     cl_abap_unit_assert=>assert_initial(
       act = lt_stock_checks[ 1 ]-component-production_order ).
     cl_abap_unit_assert=>assert_equals(
@@ -3925,6 +5697,57 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = '20261006'
       act = lt_filtered_stock[ 1 ]-component-required_date ).
+
+    ls_range = VALUE #( filter_bucket = abap_true
+      required_date_bucket            = 'D' ).
+    DATA(lt_dated_atp) = lo_cut->preview_planned_comp_atp_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_dated_atp ) ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_dated_atp[ 1 ]-component-required_date ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_dated_atp[ 2 ]-component-required_date ).
+
+    DATA(lt_dated_stock) = lo_cut->preview_planned_stock_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 2
+      act = lines( lt_dated_stock ) ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_dated_stock[ 1 ]-component-required_date ).
+    cl_abap_unit_assert=>assert_not_initial(
+      act = lt_dated_stock[ 2 ]-component-required_date ).
+
+    ls_range-include_undated = abap_true.
+    DATA(lt_including_undated_atp) = lo_cut->preview_planned_comp_atp_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      iv_check_rule          = 'A'
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_including_undated_atp ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_including_undated_atp[ 3 ]-component-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = sy-datum
+      act = lt_including_undated_atp[ 3 ]-effective_required_date ).
+
+    DATA(lt_including_undated_stock) = lo_cut->preview_planned_stock_bulk(
+      it_planned_orders      = VALUE #( ( '0000009001' ) )
+      is_required_date_range = ls_range ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 3
+      act = lines( lt_including_undated_stock ) ).
+    cl_abap_unit_assert=>assert_initial(
+      act = lt_including_undated_stock[ 3 ]-component-required_date ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = sy-datum
+      act = lt_including_undated_stock[ 3 ]-effective_required_date ).
   ENDMETHOD.
 
   METHOD previews_components_atp.
@@ -4389,6 +6212,7 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
           reservation_number = '0000001234'
           reservation_item   = '0010'
           material           = 'MAT-1'
+          bom_item_text      = 'Seal ring'
           plant              = '1000'
           required_date      = '20261005'
           required_quantity  = '3.000'
@@ -4459,6 +6283,9 @@ CLASS ltcl_prod_comp_service IMPLEMENTATION.
     cl_abap_unit_assert=>assert_equals(
       exp = 1
       act = lines( lt_checks ) ).
+    cl_abap_unit_assert=>assert_equals(
+      exp = 'Seal ring'
+      act = lt_checks[ 1 ]-component-bom_item_text ).
     cl_abap_unit_assert=>assert_equals(
       exp = CONV mard-labst( '3.000' )
       act = lt_checks[ 1 ]-requested_base_quantity ).

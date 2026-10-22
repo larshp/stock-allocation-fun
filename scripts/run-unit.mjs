@@ -225,7 +225,9 @@ await database.execute([
   );`,
   `CREATE TABLE 'resb' (
     mandt NCHAR(3), matnr NCHAR(40), werks NCHAR(4), lgort NCHAR(4),
-    sobkz NCHAR(1), xloek NCHAR(1), kzear NCHAR(1), bdmng DECIMAL(13,3),
+    sobkz NCHAR(1), bdart NCHAR(2), berkz NCHAR(1), no_disp NCHAR(1),
+    posnr NCHAR(4), potx1 NCHAR(40), xloek NCHAR(1), kzear NCHAR(1),
+    bdmng DECIMAL(13,3),
     enmng DECIMAL(13,3), charg NCHAR(10), bwart NCHAR(3), kdauf NCHAR(10),
     kdpos NCHAR(6), kdein NCHAR(4), bdter NCHAR(8), aufnr NCHAR(12),
     rsnum NCHAR(10), rspos NCHAR(4), meins NCHAR(3), pspel NCHAR(8),
